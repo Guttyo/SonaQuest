@@ -1,0 +1,4 @@
+# Cloudflare Workers のローカル開発用。.dev.vars にコピーして値を入れる（.dev.vars はコミットしない）。
+# 本番は wrangler secret put で登録する。値はオーナーが入力する。
+ANTHROPIC_API_KEY=
+ELEVENLABS_API_KEY=
