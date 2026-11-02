@@ -9,14 +9,14 @@
 - アプリ本体：なし
 
 ## 動作確認済み
-- hookとgitのフックの試験：`test_hooks.py` で63/63 PASS（2026-11-02、Windows 11・Git Bash・Python 3.14）
+- hookとgitのフックの試験：`test_hooks.py` で80/80 PASS（2026-11-02、Windows 11・Git Bash・Python 3.14）
 - 実際のClaude Codeの操作でのhook（2026-11-02）：マーカーを消すEditは止まり、通常のEditは通った。`.env.local` のRead、`cat .dev.vars`、`git commit --no-verify`、`gh pr merge` は止まった。`.dev.vars` のReadは settings.json の deny で止まった
 - `.dev.vars`、`.env.local`、`.claude/local/blocklist.txt` がgitの対象外であること（`git check-ignore`）
 
 ## 開発環境（2026-11-02時点。オーナーが導入）
 - Git 2.56、Python 3.14、Node.js 26.13（LTS、nvm）、npm 11.20、GitHub CLI
 - 未導入：iPhone実機試験用のHTTPS手段（cloudflared等。未決定）
-- GitHubリポジトリ：未作成（作成・push・保護設定はオーナーの承認後）
+- GitHubリポジトリ：Guttyo/SonaQuest（プライベート、2026-11-02作成）。Rulesetは未設定（オーナーの承認後）
 
 ## 未着手
 - アプリ本体のすべて（画面、対話、Claude連携、音声、結果画面、緊急時の中断、API失敗時の進行）

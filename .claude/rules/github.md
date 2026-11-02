@@ -12,7 +12,8 @@
 ## main の保護
 - **GitHubのRulesetを正とする**。ローカルのhookは誤操作を防ぐ補助（ADR-0014）。
 - `main` への直接コミット、直接push、force push、ブランチ削除をしない。
-- ローカルでもコミット前フックが `main` へのコミットを止める。Claude Codeのhookは、force push、`main` へのpush、PRのマージ、`main` の削除、保護設定の変更を止める。
+- ローカルでもコミット前フックが `main` へのコミットとマージコミットを止める。Claude Codeのhookは、force push、`main` へのpush（宛先を省いた push を含む）、PRのマージ、`main` の削除、保護設定の変更、`main` 上でのコミット・マージを止める。
+- ローカルのフックで防げない経路がある：`main` 上での fast-forward マージ（gitのフックが呼ばれない）や、Claude Codeを通さない操作。Rulesetを設定するまでは、オーナーも `main` で `git merge` を実行せず、`main` の更新は GitHub上のPRのマージと `git pull --ff-only` だけにする。
 - GitHub側の保護設定（Rulesets）の基本：PR必須、force push禁止、削除禁止、CI成功必須。単独開発なので、第三者のレビュー承認1件は必須にしない（自分のPRは自分で承認できず、マージできなくなるため）。
 - 保護設定の作成・解除・変更はオーナーだけが判断する。Claude Codeは設定案を出すまでにとどめる。
 

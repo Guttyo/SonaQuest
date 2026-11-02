@@ -153,7 +153,7 @@
 - 決定：すべての変更を Issue → `main` からの専用ブランチ → PR → オーナーの明示的な承認後のマージ で行う。`main` への直接コミット・直接push・force push・削除をしない。詳細は `.claude/rules/github.md`。
 - GitHub側の保護設定（案）：PR必須、force push禁止、削除禁止、CI成功必須。第三者のレビュー承認1件は必須にしない。設定の変更はオーナーの承認を得てから行う。
 - ローカルの補助：コミット前フックが `main` へのコミットを止める。Claude Codeのhookが、force push、`main` へのpush、PRのマージ、`main` の削除、保護設定の変更を止める。
-- 正とするもの：`main` の保護は**GitHubのRulesetを正**とする。ローカルのhookは、Claude Codeを通した誤操作を防ぐ補助で、Claude Codeを通さない操作は守れない。
+- 正とするもの：`main` の保護は**GitHubのRulesetを正**とする。ローカルのhookは、Claude Codeを通した誤操作を防ぐ補助で、Claude Codeを通さない操作は守れない。gitの pre-merge-commit は fast-forward マージでは呼ばれないので、オーナーが手で `main` 上の fast-forward マージをしても止まらない（Claude Codeのhookは `main` 上の `git merge` を止める）。Rulesetを設定するまでは運用で守る（`.claude/rules/github.md`）。
 - hookの位置づけ：hookは誤操作を防ぐ補助であり、セキュリティの境界ではない。`SONAQUEST_OWNER_APPROVED=1` は本人確認ではない。オーナーの承認はチャットでの明示とPRの記録で成立する。秘密情報は、公開前にGit履歴全体の検査と、Cloudflareのsecretsの確認を別途行う。
 - 理由：単独開発でも変更の単位と判断の記録をPRに残すため。自分のPRは自分で承認できないので、レビュー必須にするとマージできなくなる。
 - 却下案：`main` へ直接コミットする運用（判断の記録が残らない）。レビュー承認1件を必須にする（単独では詰まる）。
