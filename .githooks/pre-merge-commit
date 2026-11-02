@@ -1,0 +1,4 @@
+#!/bin/sh
+# 有効化: git config core.hooksPath .githooks
+root=$(git rev-parse --show-toplevel)
+sh "$root/.claude/hooks/run-python.sh" "$root/.githooks/scan_staged.py" --branch || exit 1

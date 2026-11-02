@@ -18,6 +18,15 @@
         ]
       },
       {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"$CLAUDE_PROJECT_DIR/.claude/hooks/run-python.sh\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_github.py\""
+          }
+        ]
+      },
+      {
         "matcher": "Read|Edit|MultiEdit|Write|NotebookEdit|Grep|Bash|PowerShell",
         "hooks": [
           {

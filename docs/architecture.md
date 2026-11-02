@@ -4,37 +4,46 @@
 
 ```
 [iPhone Safari]  React + TypeScript (Vite)
-   │  文字 / 音声認識の結果（ADR-0004）
-   │  音声合成（ADR-0005）
+   │  文字 / 音声認識の結果（ADR-0004。初期版は外部音声サービスを必須にしない）
+   │  送信前に薬の名前らしい語を置き換える（ADR-0009）
    ▼ HTTPS
-[Cloudflare Workers + Hono]  ← secrets: ANTHROPIC_API_KEY, ELEVENLABS_API_KEY
-   ├─ /api/turn    1ターン分の判定と次の手を返す
-   ├─ /api/stt-token  （ElevenLabsを使う場合のみ）1回限りのトークン
+[Cloudflare Workers + Hono]  ← secrets: ANTHROPIC_API_KEY（ELEVENLABS_API_KEY は採用時のみ）
+   ├─ /api/turn    1ターン分の判定と次の手を返す。Claudeの出力を検証してから返す（ADR-0015）
    └─ 保存なし・本文のログ出力なし（ADR-0007）
    ▼
-[Claude API]  [ElevenLabs]（採用した場合）
+[Claude API]
 ```
 
 ## 状態の持ち方
 - 会話の状態はブラウザのメモリにだけ持つ。Workersは毎回、必要な分を受け取って返すだけ（状態を持たない）。
-- ブラウザの永続ストレージに保存しない。
+- ブラウザの永続ストレージに保存しない。API失敗時も、メモリ上の回答と進行は失わない。
+
+## 進行のうち、Claudeを使わずに決める部分
+- 想定外の出来事：回答で一番頼りにしている情報源からルールで選ぶ（ADR-0016）
+- 緊急時の中断：「訓練をやめる」ボタンと語の照合（ADR-0011）
+- 準備行動の並び順：判定が「確認していない」「未確認と気づいた」の観点に関係するものを上にする
+- 固定の6問による進行（ADR-0012）
 
 ## /api/turn の入出力（案）
-入力：これまでの回答（最大6件）、出来事を起こしたか、現在のターン番号
-出力（Claudeに構造化出力で返させる）：
+入力：これまでの回答（最大6件、置き換え済みの文）、現在のターン番号
+出力（Claudeに構造化出力で返させ、Workersで検証する）：
 ```json
 {
   "emergency": false,
-  "viewpoints": {"location": "confirmed|not_confirmed|unknown", "alternative": "...", "current": "...", "unrecorded": "...", "proxy": "..."},
-  "next": {"type": "ask|clarify|event|finish", "question_id": "q3", "event_id": "e2"}
+  "viewpoints": {
+    "location": "confirmed | aware_unconfirmed | not_mentioned",
+    "alternative": "...", "current": "...", "unrecorded": "...", "proxy": "..."
+  },
+  "next": {"type": "ask | clarify | finish", "question_id": "q3"}
 }
 ```
-- 画面に出す質問文・聞き返し文・出来事の文は、IDから固定文を引く。自由文を返させるかは未確定（安全検査とセットでADRを書く）。
-- 出力が形式どおりでない、時間切れ、失敗のときは固定の進行に切り替える（ADR-0012）。
-- `emergency: true` か、語の照合で緊急と判定したら中断画面へ（ADR-0011）。
+- 検証（ADR-0015）：スキーマ、許可した値だけか、文字列の長さの上限、余分なキーの拒否。失敗したら固定の進行へ。
+- 画面に出す質問文・聞き返し文は、IDから固定文を引く。自由文を返させるかは未確定（安全検査とセットでADRを書く）。
+- `emergency` は補助。中断は語の照合でも行う。
 
 ## 安全の層
-1. プロンプト：しないことを明記し、出力を構造化データに限る
-2. 出力検査：形式の検証。自由文を許す場合は禁止表現の検査
-3. 画面：利用者の回答は原文表示、判定は観点ごとの可否だけ
-4. 緊急：Claudeと語の照合の二重
+1. 画面：常に「訓練をやめる」ボタン。初回画面で実際の情報を入れないよう案内
+2. 送信前：薬の名前らしい語の置き換え（完全ではない）
+3. プロンプト：しないことを明記し、出力を構造化データに限る
+4. サーバー側の検証：形式と値の検証。自由文を許す場合は禁止表現の検査
+5. 結果画面：利用者の回答は原文表示（端末内のみ）、判定は観点ごとの3段階だけ

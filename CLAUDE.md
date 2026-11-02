@@ -9,13 +9,19 @@ SonaQuest（ソナクエスト）は、常用薬のある成人が「災害時�
 4. **MVPの範囲外を作らない** → `.claude/rules/scope.md`
 5. **`[TODO-OWNER]` マーカーを消さない・埋めない・書き換えない**。オーナーが判断する箇所。hookとコミット前フックで機械的に止めている。迷ったら止まって聞く。
 6. **秘密情報に触れない**。`.dev.vars`、`.env*`（`.example`以外）、`.claude/local/` を読まない・書かない・コミットしない。APIキーはWorkersのsecretsだけで扱い、ブラウザに出さない。
-7. **承認が要る操作はオーナーの承認まで行わない**：GitHubへのpush・公開、デプロイ、外部サービスの課金・契約・アカウント作成、MVP実装の着手、大きな依存の追加。
+7. **承認が要る操作はオーナーの承認まで行わない**：GitHubへの書き込み（リポジトリ作成、Issue・PR作成、push、マージ、設定変更、公開）、デプロイ、外部サービスの課金・契約・アカウント作成、MVP実装の着手、大きな依存の追加。
+11. **`main` を直接変更しない**。すべての変更は Issue → 専用ブランチ → PR → オーナー承認後のマージ で行う → `.claude/rules/github.md`
 8. **公開リポジトリに書かない**：制作者の勤務先とそれを推測できる情報、職業・経歴、実在人物の情報、オーナーの作業予定や生活の様子。
 9. 提出資料・README・docs・UI・コミットメッセージは**日本語**。
 10. **作っていないものを「実装済み」と書かない**。`docs/STATUS.md` の「実装済み／動作確認済み／未着手」を守る。
 
+## 作業ディレクトリ
+- Windows：`%USERPROFILE%\Dropbox (個人用)\iOS_Application\developing\Hackathon\Built_with_Claude_Japan_2026`
+- macOS：`~/Dropbox_Personal/iOS_Application/developing/Hackathon/Built_with_Claude_Japan_2026`
+- 作業開始時に、現在の作業ディレクトリ、Gitリポジトリ、ブランチを確かめる。上記と異なるディレクトリで作業を進めない。`main` にいたら作業ブランチを作るか切り替える。
+
 ## 作業の流れ
-- 開始時：`docs/STATUS.md` を読む
+- 開始時：上の確認をしてから `docs/STATUS.md` を読む
 - 設計判断をしたら：`docs/decisions.md` にADR（決定・理由・却下案・影響）を追記
 - 安全・外部送信・ログに関わる変更の後：`safety-review` Skill
 - 節目と提出前：`judge-audit` Skill

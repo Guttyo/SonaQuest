@@ -2,8 +2,11 @@
 
   scan_staged.py              ステージした内容を検査（pre-commit）
   scan_staged.py --msg FILE   コミットメッセージを検査（commit-msg）
+  scan_staged.py --branch     main へのマージコミットを止める（pre-merge-commit）
 
 止める条件：
+  - main（master）へのコミット・マージコミット。main はGitHubのPR経由でだけ変える
+    （.claude/rules/github.md）
   - 秘密情報・非公開ファイル（.dev.vars、.env*、.claude/local/ など）のステージ
   - 追加行・メッセージにAPIキーの形をした値
   - 追加行・メッセージに .claude/local/blocklist.txt の語（ファイルが無ければ検査しない）
@@ -35,8 +38,17 @@ def scan_message(path):
     return problems
 
 
+def scan_branch():
+    p = subprocess.run(["git", "symbolic-ref", "--short", "-q", "HEAD"], capture_output=True)
+    branch = p.stdout.decode("utf-8", "replace").strip()
+    if branch in ("main", "master"):
+        return [f"{branch} へは直接コミットできません。作業ブランチを作ってください"
+                "（git switch -c docs/<Issue番号>-<内容>）。main はPR経由でだけ変えます"]
+    return []
+
+
 def scan_staged():
-    problems = []
+    problems = scan_branch()
     for name in git("diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z").split("\0"):
         if name and sensitive_path(name):
             problems.append(f"{name}: 秘密情報・非公開ファイルはコミットできません")
@@ -79,6 +91,8 @@ def main():
     use_utf8_stdio()
     if len(sys.argv) == 3 and sys.argv[1] == "--msg":
         problems = scan_message(sys.argv[2])
+    elif len(sys.argv) == 2 and sys.argv[1] == "--branch":
+        problems = scan_branch()
     else:
         problems = scan_staged()
     if problems:
