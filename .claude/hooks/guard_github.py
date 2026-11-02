@@ -12,7 +12,7 @@ import re
 import subprocess
 import sys
 
-from sonaguard import ROOT, git_invocation, split_commands, use_utf8_stdio
+from sonaguard import ROOT, dynamic_name, git_invocation, split_commands, use_utf8_stdio
 
 PROTECTED = {"main", "master"}
 CHANGES_BRANCH = {"commit", "merge", "cherry-pick", "revert", "am", "rebase", "reset", "pull"}
@@ -108,7 +108,9 @@ def check_command(cmd, branch):
         if re.search(r"\bgit\b|\bgh\b", cmd):
             raise Blocked("コマンドを解析できません（引用符が閉じていない等）。git・gh の操作は分けて実行してください。")
         return
-    for _, tokens in commands:
+    for _, tokens, _ in commands:
+        if dynamic_name(tokens) and set(tokens[1:]) & ({"push", "pr", "api", "repo", "branch"} | CHANGES_BRANCH):
+            raise Blocked("コマンド名が変数・置換で決まるため判定できません。git・gh はそのまま書いてください。")
         g = git_invocation(tokens)
         if g and g["sub"]:
             branch = check_git(g["sub"], g["args"], branch)

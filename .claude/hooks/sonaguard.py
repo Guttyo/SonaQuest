@@ -1,7 +1,6 @@
 """Claude Codeのhookとgitのコミット前フックが共有する判定。標準ライブラリだけを使う。"""
 import os
 import re
-import shlex
 import sys
 from pathlib import Path
 
@@ -91,49 +90,203 @@ def blocklist_hits(text, terms):
 
 
 # ---- シェルのコマンド列の分解（hookが共有する） ----
-# 引用符の中は分けない。; & && | || ( ) ` と改行で1コマンドずつに分ける。
-# heredoc の本文（コミットメッセージなど）は除く。
-HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1([^\n]*)\n.*?^[ \t]*\2[ \t]*$", re.S | re.M)
-PUNCT = ";&|()`"
+# 引用符の外の ; & && | || ( ) と改行で1コマンドずつに分ける。
+# 単一引用符の中は文字どおり。二重引用符の中と引用符の外の $(...) `...` は、中身を別のコマンドとして調べる。
+# リダイレクト（> file、2>&1 など）は宛先ごと取り除き、書き込み先は別に返す。
+# 引用符付きの区切りの heredoc（<<'EOF'）の本文は文字どおりなので調べない。
+HEREDOC = re.compile(r"<<-?[ \t]*(['\"]?)(\w+)\1([^\n]*)\n(.*?)^[ \t]*\2[ \t]*$", re.S | re.M)
 WRAPPERS = {"env", "command", "exec", "nohup", "time", "sudo", "builtin", "nice", "xargs"}
+KEYWORDS = {"{", "}", "!", "if", "then", "else", "elif", "do", "while", "until"}
+SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "pwsh", "powershell"}
 ASSIGN = re.compile(r"^(?:\$env:)?[A-Za-z_][A-Za-z0-9_]*=", re.I)
-REDIRECT = re.compile(r"^\d*[<>]")
+SUBST = "$(...)"  # 置換が入った語に残す印。コマンド名が動的かどうかを呼び出し側が見分ける
+MAX_DEPTH = 8
 GIT_VALUE_OPTS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env", "--super-prefix"}
 
 
-def split_commands(cmd):
-    """[(前置きの代入, トークン列), ...] を返す。引用符が閉じていないなど解析できなければ None。"""
-    text = HEREDOC.sub(r"\3", cmd or "").replace("\n", " ; ")
-    lex = shlex.shlex(text, posix=True, punctuation_chars=PUNCT)
-    lex.whitespace_split = True
-    lex.commenters = ""
-    try:
-        tokens = list(lex)
-    except ValueError:
-        return None
-    out, cur = [], []
-    for t in tokens + [";"]:
-        if t and all(c in PUNCT for c in t):
-            if cur:
-                out.append(cur)
-            cur = []
-        elif not REDIRECT.match(t):
-            cur.append(t)
-    result = []
-    for toks in out:
-        # 前置き（VAR=値、env・sudo など、その直後のオプション）を読み飛ばす
-        assigns, i, after_wrapper = [], 0, False
-        while i < len(toks):
-            t = toks[i]
-            if ASSIGN.match(t):
-                assigns.append(t)
-            elif t in WRAPPERS:
-                after_wrapper = True
-            elif not (after_wrapper and t.startswith("-")):
+class _Cmd:
+    """読み途中の1コマンド。"""
+
+    def __init__(self):
+        self.words, self.redirects = [], []
+        self.buf, self.started, self.quoted = [], False, False
+        self.redirect_op = None  # 直後の語をリダイレクトの宛先として読む
+
+    def add(self, text, quoted=False):
+        self.buf.append(text)
+        self.started = True
+        self.quoted |= quoted
+
+    def end_word(self):
+        if not self.started:
+            return
+        w = "".join(self.buf)
+        if self.redirect_op is not None:
+            if ">" in self.redirect_op:
+                self.redirects.append(w)
+            self.redirect_op = None
+        else:
+            self.words.append(w)
+        self.buf, self.started, self.quoted = [], False, False
+
+
+def _finish(cmd, out, depth):
+    cmd.end_word()
+    toks = cmd.words
+    # 前置き（VAR=値、env・sudo など、その直後のオプション、{ ! if do など）を読み飛ばす
+    assigns, i, after_wrapper = [], 0, False
+    while i < len(toks):
+        t = toks[i]
+        if ASSIGN.match(t):
+            assigns.append(t)
+        elif t in WRAPPERS:
+            after_wrapper = True
+        elif t not in KEYWORDS and not (after_wrapper and t.startswith("-")):
+            break
+        i += 1
+    toks = toks[i:]
+    if not (toks or assigns or cmd.redirects):
+        return
+    # eval と sh -c・pwsh -Command に渡した文字列も1つのコマンド列として調べる
+    name = os.path.basename(toks[0]).lower().removesuffix(".exe") if toks else ""
+    if name == "eval":
+        _parse(" ".join(toks[1:]), 0, None, out, depth + 1)
+    elif name in SHELLS:
+        for k, t in enumerate(toks[1:-1], 1):
+            low = t.lower()
+            if low in ("-c", "-command") or (re.fullmatch(r"-[a-z]*c[a-z]*", low) and name not in ("pwsh", "powershell")):
+                _parse(toks[k + 1], 0, None, out, depth + 1)
                 break
+    out.append((assigns, toks, cmd.redirects))
+
+
+def _dq(s, i, end, out, depth, cmd):
+    """二重引用符の中（end が None なら heredoc の本文）を読み、閉じた次の位置を返す。"""
+    n = len(s)
+    while i < n:
+        c = s[i]
+        if end is not None and c == end:
+            return i + 1
+        if c == "\\" and i + 1 < n:
+            nxt = s[i + 1]
+            if nxt != "\n":
+                cmd.add(nxt if nxt in "\"\\$`" else c + nxt, True)
+            i += 2
+        elif s.startswith("$(", i):
+            i = _parse(s, i + 2, ")", out, depth + 1)
+            cmd.add(SUBST, True)
+        elif c == "`":
+            i = _backtick(s, i + 1, out, depth)
+            cmd.add(SUBST, True)
+        else:
+            cmd.add(c, True)
             i += 1
-        result.append((assigns, toks[i:]))
-    return result
+    if end is not None:
+        raise ValueError("二重引用符が閉じていない")
+    return n
+
+
+def _backtick(s, i, out, depth):
+    """`...` の中身を別のコマンド列として読み、閉じた次の位置を返す。"""
+    inner, n = [], len(s)
+    while i < n:
+        c = s[i]
+        if c == "`":
+            _parse("".join(inner), 0, None, out, depth + 1)
+            return i + 1
+        if c == "\\" and i + 1 < n and s[i + 1] in "`\\$":
+            inner.append(s[i + 1])
+            i += 2
+        else:
+            inner.append(c)
+            i += 1
+    raise ValueError("` が閉じていない")
+
+
+def _parse(s, i, stop, out, depth):
+    """s[i:] を stop（')' か None）まで読み、見つけたコマンドを out に足す。stop の次の位置を返す。"""
+    if depth > MAX_DEPTH:
+        raise ValueError("入れ子が深すぎる")
+    cmd, paren, n = _Cmd(), 0, len(s)
+    while i < n:
+        c = s[i]
+        if c == "\\":
+            if i + 1 < n and s[i + 1] != "\n":
+                cmd.add(s[i + 1], True)
+            i += 2
+        elif c == "'":
+            j = s.find("'", i + 1)
+            if j < 0:
+                raise ValueError("単一引用符が閉じていない")
+            cmd.add(s[i + 1:j], True)
+            i = j + 1
+        elif c == '"':
+            cmd.add("", True)
+            i = _dq(s, i + 1, '"', out, depth, cmd)
+        elif s.startswith("$(", i):
+            i = _parse(s, i + 2, ")", out, depth + 1)
+            cmd.add(SUBST)
+        elif c == "`":
+            i = _backtick(s, i + 1, out, depth)
+            cmd.add(SUBST)
+        elif c in " \t\r":
+            cmd.end_word()
+            i += 1
+        elif c in "<>" or s.startswith("&>", i):
+            # 直前の語が引用符なしの数字だけならファイル記述子（2>）
+            if c != "&" and cmd.started and not cmd.quoted and "".join(cmd.buf).isdigit():
+                cmd.buf, cmd.started = [], False
+            else:
+                cmd.end_word()
+            j = i + (2 if c == "&" else 1)
+            if c != "&" and s.startswith("(", j):  # プロセス置換 <(...) >(...)
+                i = _parse(s, j + 1, ")", out, depth + 1)
+                cmd.add(SUBST)
+                continue
+            while j < n and s[j] in "<>&|":
+                j += 1
+            cmd.redirect_op = s[i:j]
+            i = j
+        elif c == ")" and stop == ")" and paren == 0:
+            _finish(cmd, out, depth)
+            return i + 1
+        elif c in ";&|\n()":
+            if c == "(":
+                paren += 1
+            elif c == ")":
+                paren = max(paren - 1, 0)
+            _finish(cmd, out, depth)
+            cmd = _Cmd()
+            i += 1
+        else:
+            cmd.add(c)
+            i += 1
+    if stop is not None:
+        raise ValueError("$( が閉じていない")
+    _finish(cmd, out, depth)
+    return n
+
+
+def split_commands(cmd):
+    """[(前置きの代入, トークン列, 書き込み先のリダイレクト), ...] を返す。
+    引用符が閉じていないなど解析できなければ None。"""
+    out = []
+
+    def heredoc(m):
+        if not m.group(1):  # 区切りが引用符なし（<<EOF）なら本文の $(...) は実行される
+            _dq(m.group(4), 0, None, out, 1, _Cmd())
+        return m.group(3)
+
+    try:
+        _parse(HEREDOC.sub(heredoc, cmd or ""), 0, None, out, 0)
+    except (ValueError, RecursionError):
+        return None
+    return out
+
+
+def dynamic_name(tokens):
+    """コマンド名が変数や置換で決まり、何が実行されるか読めないか。"""
+    return bool(tokens) and ("$" in tokens[0] or "`" in tokens[0])
 
 
 def git_invocation(tokens):

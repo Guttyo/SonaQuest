@@ -100,6 +100,17 @@ def claude_hook_tests(tmp):
         (".git/config へ追記", "echo '[core] hooksPath=/dev/null' >> .git/config"),
         ("cat のリダイレクトで .git/config を上書き", "cat x > .git/config"),
         (".git/hooks/ へコピー", "cp x .git/hooks/pre-commit"),
+        # 2回目のレビュー
+        ("二重引用符の中の $(...) で hooksPath を外す", 'echo "$(git config core.hooksPath /dev/null)"'),
+        ("二重引用符の中の `...` で hooksPath を外す", 'echo "`git config core.hooksPath /dev/null`"'),
+        ("先頭のリダイレクトの後で hooksPath を外す", "> /dev/null git config core.hooksPath /dev/null"),
+        ("2>&1 の後で hooksPath を外す", "git status 2>&1 ; git config core.hooksPath /dev/null"),
+        ("引用符なしの heredoc 本文の $(...)", "cat <<EOF\n$(git config core.hooksPath /dev/null)\nEOF"),
+        ("bash -c で hooksPath を外す", 'bash -c "git config core.hooksPath /dev/null"'),
+        ("eval で hooksPath を外す", "eval git config core.hooksPath /dev/null"),
+        ("{ } の中で hooksPath を外す", "{ git config core.hooksPath /dev/null; }"),
+        ("コマンド名を置換で作る", "$(echo git) config core.hooksPath /dev/null"),
+        ("引用符付きのリダイレクト先 .git/config", 'echo x > ".git/config"'),
     ]:
         check(f"Bash: {name}", 2, hook(S, "Bash", {"command": cmd})[0])
     for name, cmd in [
@@ -107,6 +118,9 @@ def claude_hook_tests(tmp):
         ("hooksPath を読む（リダイレクト付き）", "git config --get core.hooksPath 2>/dev/null"),
         ("git config set core.hooksPath .githooks", "git config set core.hooksPath .githooks"),
         (".git/config を読む", "cat .git/config"),
+        ("メッセージ中の > .git/config", 'git commit -m "Document > .git/config redirection"'),
+        ("単一引用符の中の $(...)", "echo '$(git config core.hooksPath /dev/null)'"),
+        ("heredoc のコミットメッセージ（$(cat <<'EOF'...)）", "git commit -m \"$(cat <<'EOF'\n修正; git config core.hooksPath /dev/null\nEOF\n)\""),
     ]:
         check(f"Bash: {name}", 0, hook(S, "Bash", {"command": cmd})[0])
     check("Edit: .git/config を編集", 2, hook(S, "Edit", {"file_path": str(ROOT / ".git" / "config"), "old_string": "a", "new_string": "b"})[0])
@@ -166,6 +180,10 @@ def github_hook_tests():
     check("Bash: git --no-pager push origin main", 2, hook(G, "Bash", {"command": "git --no-pager push origin main"}, extra=on_work)[0])
     check("Bash: メッセージ中の ; と push の文字", 0, hook(G, "Bash", {"command": 'git commit -m "a; git push origin main"'}, extra=on_work)[0])
     check("Bash: main 上で fast-forward になる git merge", 2, hook(G, "Bash", {"command": "git merge --ff-only docs/1-x"}, extra=on_main)[0])
+    check("Bash: 二重引用符の中の $(...) で main へpush", 2, hook(G, "Bash", {"command": 'echo "$(git push origin main)"'}, extra=on_work)[0])
+    check("Bash: 先頭のリダイレクトの後で main へpush", 2, hook(G, "Bash", {"command": "> /dev/null git push origin main"}, extra=on_work)[0])
+    check("Bash: コマンド名を変数にして main へpush", 2, hook(G, "Bash", {"command": "$G push origin main"}, extra=on_work)[0])
+    check("Bash: 2>&1 付きの作業ブランチのpush", 0, hook(G, "Bash", {"command": "git push -u origin docs/1-x 2>&1"}, extra=on_work)[0])
 
 
 def git_hook_tests(tmp):

@@ -9,8 +9,8 @@ import json
 import re
 import sys
 
-from sonaguard import (blocklist_hits, git_invocation, load_blocklist, secret_hits, sensitive_path,
-                       split_commands, use_utf8_stdio)
+from sonaguard import (blocklist_hits, dynamic_name, git_invocation, load_blocklist, secret_hits,
+                       sensitive_path, split_commands, use_utf8_stdio)
 
 FILE_TOOLS = {"Read", "Edit", "MultiEdit", "Write", "NotebookEdit"}
 HOOKS_KEY = "core.hookspath"  # gitの設定キーは大文字小文字を区別しない
@@ -19,7 +19,6 @@ HOOKS_PATH_OK = [["--get", HOOKS_KEY], [HOOKS_KEY], ["get", HOOKS_KEY],
                  [HOOKS_KEY, ".githooks"], ["set", HOOKS_KEY, ".githooks"]]
 GIT_CONFIG_ENV = re.compile(r"^(?:\$env:)?GIT_CONFIG_(?:COUNT|KEY_\d+|VALUE_\d+|PARAMETERS|GLOBAL|SYSTEM)\b", re.I)
 GIT_INTERNAL = re.compile(r"(?:^|[/\\])\.git[/\\](?:config$|hooks[/\\])")
-REDIRECT_TO_GIT = re.compile(r">\s*[\"']?\S*\.git[/\\](?:config|hooks[/\\])")
 READ_ONLY = {"cat", "head", "tail", "less", "more", "grep", "rg", "type", "Get-Content", "ls", "stat", "git"}
 SAFE_SENSITIVE_CMD = [
     re.compile(r"^\s*(?:ls|stat|test|\[|git\s+(?:status|check-ignore))\b[^;|&]*$"),
@@ -58,12 +57,14 @@ def check_hooks_bypass(cmd):
         if "hookspath" in cmd.lower() or ".git/config" in cmd:
             block("コマンドを解析できず、コミット前フックの設定に触れている可能性があります。分けて実行してください。")
         return
-    for assigns, toks in commands:
+    for assigns, toks, redirects in commands:
         if any(GIT_CONFIG_ENV.match(t) for t in assigns + toks):
             block("GIT_CONFIG_* の環境変数で git の設定を差し替える操作はできません。")
         writes = toks and toks[0] not in READ_ONLY
-        if (writes and any(GIT_INTERNAL.search(t) for t in toks)) or REDIRECT_TO_GIT.search(cmd):
+        if (writes and any(GIT_INTERNAL.search(t) for t in toks)) or any(GIT_INTERNAL.search(r) for r in redirects):
             block(".git/config と .git/hooks/ は書き換えられません。")
+        if dynamic_name(toks) and any(HOOKS_KEY in t.lower() for t in toks):
+            block("コマンド名が変数・置換で決まるため、core.hooksPath に触れる操作か判定できません。")
         g = git_invocation(toks)
         if not g:
             continue
