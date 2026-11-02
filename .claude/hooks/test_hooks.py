@@ -117,6 +117,12 @@ def claude_hook_tests(tmp):
         ("cat の heredoc をパイプで bash へ", "cat <<'EOF' | bash\ngit config core.hooksPath /dev/null\nEOF"),
         ("bash にヒア文字列で渡す", "bash <<< 'git config core.hooksPath /dev/null'"),
         ("echo をパイプで bash へ", "echo 'git config core.hooksPath /dev/null' | bash"),
+        # 4回目のレビュー
+        ("引用符の中の <<EOF の後で hooksPath を外す", 'echo "<<EOF"\ngit config core.hooksPath /dev/null\nEOF\ntrue'),
+        ("env -u 名前 の後で hooksPath を外す", "env -u UNUSED git config core.hooksPath /dev/null"),
+        ("env -S で hooksPath を外す", 'env -S "git config core.hooksPath /dev/null"'),
+        ("sudo -u ユーザー の後で hooksPath を外す", "sudo -u root git config core.hooksPath /dev/null"),
+        ("heredoc 2つの後で hooksPath を外す", "cat <<A <<B\na\nA\nb\nB\ngit config core.hooksPath /dev/null"),
     ]:
         check(f"Bash: {name}", 2, hook(S, "Bash", {"command": cmd})[0])
     for name, cmd in [
@@ -191,6 +197,8 @@ def github_hook_tests():
     check("Bash: コマンド名を変数にして main へpush", 2, hook(G, "Bash", {"command": "$G push origin main"}, extra=on_work)[0])
     check("Bash: bash に heredoc で main へpush", 2, hook(G, "Bash", {"command": "bash <<'EOF'\ngit push origin main\nEOF"}, extra=on_work)[0])
     check("Bash: コミットメッセージの heredoc に push の文字", 0, hook(G, "Bash", {"command": "git commit -F - <<'EOF'\ngit push origin main を止める\nEOF"}, extra=on_work)[0])
+    check("Bash: env -u 名前 の後で main へpush", 2, hook(G, "Bash", {"command": "env -u X git push origin main"}, extra=on_work)[0])
+    check("Bash: 本文に ) と \" を含むコミットメッセージ", 0, hook(G, "Bash", {"command": "git commit -m \"$(cat <<'EOF'\n修正) \"; git push origin main\nEOF\n)\""}, extra=on_work)[0])
     check("Bash: 2>&1 付きの作業ブランチのpush", 0, hook(G, "Bash", {"command": "git push -u origin docs/1-x 2>&1"}, extra=on_work)[0])
 
 

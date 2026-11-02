@@ -93,17 +93,34 @@ def blocklist_hits(text, terms):
 # 引用符の外の ; & && | || ( ) と改行で1コマンドずつに分ける。
 # 単一引用符の中は文字どおり。二重引用符の中と引用符の外の $(...) `...` は、中身を別のコマンドとして調べる。
 # リダイレクト（> file、2>&1 など）は宛先ごと取り除き、書き込み先は別に返す。
-# heredoc（<<EOF）はヒア文字列（<<< '本文'）に置き換えて、受け取るコマンドに結び付ける。
+# heredoc（<<EOF）は引用符の外の << だけを認め、次の行からの本文を受け取るコマンドに結び付ける。
 # 本文は、シェル（bash など）が受け取るときだけコマンドとして調べる。
 # 引用符なしの区切り（<<EOF）では本文の $(...) が展開されるので、そちらも調べる。
-HEREDOC = re.compile(r"<<-?[ \t]*(['\"]?)(\w+)\1([^\n]*)\n(.*?)^[ \t]*\2[ \t]*$", re.S | re.M)
 WRAPPERS = {"env", "command", "exec", "nohup", "time", "sudo", "builtin", "nice", "xargs"}
+# 前置きのコマンドのうち、次の語を値として取るオプション（値をコマンド名と取り違えないため）
+WRAPPER_VALUE_OPTS = {
+    "env": {"-u", "--unset", "-C", "--chdir", "-S", "--split-string"},
+    "sudo": {"-u", "--user", "-g", "--group", "-C", "--close-from", "-D", "--chdir", "--host", "-p", "--prompt",
+             "-r", "--role", "-t", "--type", "-U", "--other-user", "-R", "--chroot", "-T", "--command-timeout"},
+    "nice": {"-n", "--adjustment"},
+    "time": {"-f", "--format", "-o", "--output"},
+    "xargs": {"-a", "--arg-file", "-d", "--delimiter", "-E", "-I", "-L", "-n", "--max-args", "-P", "--max-procs",
+              "-s", "--max-chars"},
+    "exec": {"-a"},
+}
 KEYWORDS = {"{", "}", "!", "if", "then", "else", "elif", "do", "while", "until"}
 SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "pwsh", "powershell"}
 ASSIGN = re.compile(r"^(?:\$env:)?[A-Za-z_][A-Za-z0-9_]*=", re.I)
 SUBST = "$(...)"  # 置換が入った語に残す印。コマンド名が動的かどうかを呼び出し側が見分ける
 MAX_DEPTH = 8
 GIT_VALUE_OPTS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env", "--super-prefix"}
+
+
+class _Src:
+    """読んでいる文字列。heredoc の本文を取り除くと短くなるので、入れ子の読み手で共有する。"""
+
+    def __init__(self, s):
+        self.s = s
 
 
 class _Cmd:
@@ -137,15 +154,29 @@ class _Cmd:
 def _finish(cmd, out, depth):
     cmd.end_word()
     toks = cmd.words
-    # 前置き（VAR=値、env・sudo など、その直後のオプション、{ ! if do など）を読み飛ばす
-    assigns, i, after_wrapper = [], 0, False
+    # 前置き（VAR=値、env・sudo など、そのオプションと値、{ ! if do など）を読み飛ばす
+    assigns, i, wrapper = [], 0, None
     while i < len(toks):
         t = toks[i]
         if ASSIGN.match(t):
             assigns.append(t)
         elif t in WRAPPERS:
-            after_wrapper = True
-        elif t not in KEYWORDS and not (after_wrapper and t.startswith("-")):
+            wrapper = t
+        elif wrapper and t.startswith("-"):
+            takes_value = t in WRAPPER_VALUE_OPTS.get(wrapper, ())
+            if wrapper == "env":  # env -S '文字列' は文字列をコマンドとして分けて実行する
+                value = None
+                if t in ("-S", "--split-string"):
+                    value = toks[i + 1] if i + 1 < len(toks) else ""
+                elif t.startswith("--split-string="):
+                    value = t.split("=", 1)[1]
+                elif t.startswith("-S"):
+                    value = t[2:]
+                if value is not None:
+                    _parse(_Src(value), 0, None, out, depth + 1)
+            if takes_value:
+                i += 1
+        elif t not in KEYWORDS:
             break
         i += 1
     toks = toks[i:]
@@ -155,13 +186,13 @@ def _finish(cmd, out, depth):
     # 1つのコマンド列として調べる
     name = _name(toks)
     if name == "eval":
-        _parse(" ".join(toks[1:]), 0, None, out, depth + 1)
+        _parse(_Src(" ".join(toks[1:])), 0, None, out, depth + 1)
     elif name in SHELLS:
         script = _shell_script_arg(toks)
         if script is not None:
-            _parse(toks[script], 0, None, out, depth + 1)
+            _parse(_Src(toks[script]), 0, None, out, depth + 1)
         for text in cmd.stdin_texts:
-            _parse(text, 0, None, out, depth + 1)
+            _parse(_Src(text), 0, None, out, depth + 1)
     out.append((assigns, toks, cmd.redirects))
 
 
@@ -186,41 +217,86 @@ def shell_reads_stdin(tokens):
     return not any(not t.startswith("-") for t in tokens[1:])
 
 
-def _dq(s, i, end, out, depth, cmd):
+def _heredoc(src, i, cmd, out, depth):
+    """<< の直後から区切りの語を読む。次の行からの本文を src から取り除き、cmd の標準入力に結び付ける。"""
+    s = src.s
+    dash = s.startswith("-", i)
+    i += dash
+    while i < len(s) and s[i] in " \t":
+        i += 1
+    delim, quoted = [], False
+    while i < len(s) and s[i] not in " \t\r\n;&|()<>":
+        c = s[i]
+        if c in "'\"":
+            j = s.find(c, i + 1)
+            if j < 0:
+                raise ValueError("heredoc の区切りの引用符が閉じていない")
+            delim.append(s[i + 1:j])
+            quoted, i = True, j + 1
+        elif c == "\\" and i + 1 < len(s):
+            delim.append(s[i + 1])
+            quoted, i = True, i + 2
+        else:
+            delim.append(c)
+            i += 1
+    delim = "".join(delim)
+    if not delim:
+        raise ValueError("heredoc の区切りが無い")
+    line_end = s.find("\n", i)
+    if line_end < 0:
+        return i
+    pos = line_end + 1
+    while True:
+        nl = s.find("\n", pos)
+        end = len(s) if nl < 0 else nl
+        if s[pos:end].strip(" \t") == delim:
+            body, src.s = s[line_end + 1:pos], s[:line_end + 1] + s[end:]
+            break
+        if nl < 0:  # 区切りの行が無ければ残り全部が本文
+            body, src.s = s[line_end + 1:], s[:line_end + 1]
+            break
+        pos = nl + 1
+    cmd.stdin_texts.append(body)
+    if not quoted:  # 区切りが引用符なしなら本文の $(...) は実行される
+        _dq(_Src(body), 0, None, out, depth + 1, _Cmd())
+    return i
+
+
+def _dq(src, i, end, out, depth, cmd):
     """二重引用符の中（end が None なら heredoc の本文）を読み、閉じた次の位置を返す。"""
-    n = len(s)
-    while i < n:
+    while i < len(src.s):
+        s = src.s
         c = s[i]
         if end is not None and c == end:
             return i + 1
-        if c == "\\" and i + 1 < n:
+        if c == "\\" and i + 1 < len(s):
             nxt = s[i + 1]
             if nxt != "\n":
                 cmd.add(nxt if nxt in "\"\\$`" else c + nxt, True)
             i += 2
         elif s.startswith("$(", i):
-            i = _parse(s, i + 2, ")", out, depth + 1)
+            i = _parse(src, i + 2, ")", out, depth + 1)
             cmd.add(SUBST, True)
         elif c == "`":
-            i = _backtick(s, i + 1, out, depth)
+            i = _backtick(src, i + 1, out, depth)
             cmd.add(SUBST, True)
         else:
             cmd.add(c, True)
             i += 1
     if end is not None:
         raise ValueError("二重引用符が閉じていない")
-    return n
+    return len(src.s)
 
 
-def _backtick(s, i, out, depth):
+def _backtick(src, i, out, depth):
     """`...` の中身を別のコマンド列として読み、閉じた次の位置を返す。"""
-    inner, n = [], len(s)
-    while i < n:
+    s, inner = src.s, []
+    while i < len(s):
         c = s[i]
         if c == "`":
-            _parse("".join(inner), 0, None, out, depth + 1)
+            _parse(_Src("".join(inner)), 0, None, out, depth + 1)
             return i + 1
-        if c == "\\" and i + 1 < n and s[i + 1] in "`\\$":
+        if c == "\\" and i + 1 < len(s) and s[i + 1] in "`\\$":
             inner.append(s[i + 1])
             i += 2
         else:
@@ -229,15 +305,16 @@ def _backtick(s, i, out, depth):
     raise ValueError("` が閉じていない")
 
 
-def _parse(s, i, stop, out, depth):
-    """s[i:] を stop（')' か None）まで読み、見つけたコマンドを out に足す。stop の次の位置を返す。"""
+def _parse(src, i, stop, out, depth):
+    """src.s[i:] を stop（')' か None）まで読み、見つけたコマンドを out に足す。stop の次の位置を返す。"""
     if depth > MAX_DEPTH:
         raise ValueError("入れ子が深すぎる")
-    cmd, paren, n = _Cmd(), 0, len(s)
-    while i < n:
+    cmd, paren = _Cmd(), 0
+    while i < len(src.s):
+        s = src.s
         c = s[i]
         if c == "\\":
-            if i + 1 < n and s[i + 1] != "\n":
+            if i + 1 < len(s) and s[i + 1] != "\n":
                 cmd.add(s[i + 1], True)
             i += 2
         elif c == "'":
@@ -248,12 +325,12 @@ def _parse(s, i, stop, out, depth):
             i = j + 1
         elif c == '"':
             cmd.add("", True)
-            i = _dq(s, i + 1, '"', out, depth, cmd)
+            i = _dq(src, i + 1, '"', out, depth, cmd)
         elif s.startswith("$(", i):
-            i = _parse(s, i + 2, ")", out, depth + 1)
+            i = _parse(src, i + 2, ")", out, depth + 1)
             cmd.add(SUBST)
         elif c == "`":
-            i = _backtick(s, i + 1, out, depth)
+            i = _backtick(src, i + 1, out, depth)
             cmd.add(SUBST)
         elif c in " \t\r":
             cmd.end_word()
@@ -264,12 +341,15 @@ def _parse(s, i, stop, out, depth):
                 cmd.buf, cmd.started = [], False
             else:
                 cmd.end_word()
+            if s.startswith("<<", i) and not s.startswith("<<<", i):
+                i = _heredoc(src, i + 2, cmd, out, depth)
+                continue
             j = i + (2 if c == "&" else 1)
             if c != "&" and s.startswith("(", j):  # プロセス置換 <(...) >(...)
-                i = _parse(s, j + 1, ")", out, depth + 1)
+                i = _parse(src, j + 1, ")", out, depth + 1)
                 cmd.add(SUBST)
                 continue
-            while j < n and s[j] in "<>&|":
+            while j < len(s) and s[j] in "<>&|":
                 j += 1
             cmd.redirect_op = s[i:j]
             i = j
@@ -290,22 +370,15 @@ def _parse(s, i, stop, out, depth):
     if stop is not None:
         raise ValueError("$( が閉じていない")
     _finish(cmd, out, depth)
-    return n
+    return len(src.s)
 
 
 def split_commands(cmd):
     """[(前置きの代入, トークン列, 書き込み先のリダイレクト), ...] を返す。
     引用符が閉じていないなど解析できなければ None。"""
     out = []
-
-    def heredoc(m):
-        body = m.group(4)
-        if not m.group(1):  # 区切りが引用符なし（<<EOF）なら本文の $(...) は実行される
-            _dq(body, 0, None, out, 1, _Cmd())
-        return " <<< '" + body.replace("'", "'\\''") + "'" + m.group(3)
-
     try:
-        _parse(HEREDOC.sub(heredoc, cmd or ""), 0, None, out, 0)
+        _parse(_Src(cmd or ""), 0, None, out, 0)
     except (ValueError, RecursionError):
         return None
     return out
