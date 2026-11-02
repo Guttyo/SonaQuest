@@ -9,7 +9,7 @@
 - アプリ本体：なし
 
 ## 動作確認済み
-- hookとgitのフックの試験：`test_hooks.py` で128/128 PASS（2026-11-03、Windows 11・Git Bash・Python 3.14）
+- hookとgitのフックの試験：`test_hooks.py` で135/135 PASS（2026-11-03、Windows 11・Git Bash・Python 3.14）
 - 実際のClaude Codeの操作でのhook（2026-11-02）：マーカーを消すEditは止まり、通常のEditは通った。`.env.local` のRead、`cat .dev.vars`、`git commit --no-verify`、`gh pr merge` は止まった。`.dev.vars` のReadは settings.json の deny で止まった
 - `.dev.vars`、`.env.local`、`.claude/local/blocklist.txt` がgitの対象外であること（`git check-ignore`）
 

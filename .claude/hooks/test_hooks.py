@@ -111,6 +111,12 @@ def claude_hook_tests(tmp):
         ("{ } の中で hooksPath を外す", "{ git config core.hooksPath /dev/null; }"),
         ("コマンド名を置換で作る", "$(echo git) config core.hooksPath /dev/null"),
         ("引用符付きのリダイレクト先 .git/config", 'echo x > ".git/config"'),
+        # 3回目のレビュー
+        ("bash に heredoc で渡す", "bash <<'EOF'\ngit config core.hooksPath /dev/null\nEOF"),
+        ("sh に heredoc（引用符なし）で渡す", "sh <<EOF\ngit config core.hooksPath /dev/null\nEOF"),
+        ("cat の heredoc をパイプで bash へ", "cat <<'EOF' | bash\ngit config core.hooksPath /dev/null\nEOF"),
+        ("bash にヒア文字列で渡す", "bash <<< 'git config core.hooksPath /dev/null'"),
+        ("echo をパイプで bash へ", "echo 'git config core.hooksPath /dev/null' | bash"),
     ]:
         check(f"Bash: {name}", 2, hook(S, "Bash", {"command": cmd})[0])
     for name, cmd in [
@@ -183,6 +189,8 @@ def github_hook_tests():
     check("Bash: 二重引用符の中の $(...) で main へpush", 2, hook(G, "Bash", {"command": 'echo "$(git push origin main)"'}, extra=on_work)[0])
     check("Bash: 先頭のリダイレクトの後で main へpush", 2, hook(G, "Bash", {"command": "> /dev/null git push origin main"}, extra=on_work)[0])
     check("Bash: コマンド名を変数にして main へpush", 2, hook(G, "Bash", {"command": "$G push origin main"}, extra=on_work)[0])
+    check("Bash: bash に heredoc で main へpush", 2, hook(G, "Bash", {"command": "bash <<'EOF'\ngit push origin main\nEOF"}, extra=on_work)[0])
+    check("Bash: コミットメッセージの heredoc に push の文字", 0, hook(G, "Bash", {"command": "git commit -F - <<'EOF'\ngit push origin main を止める\nEOF"}, extra=on_work)[0])
     check("Bash: 2>&1 付きの作業ブランチのpush", 0, hook(G, "Bash", {"command": "git push -u origin docs/1-x 2>&1"}, extra=on_work)[0])
 
 

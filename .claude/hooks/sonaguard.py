@@ -93,7 +93,9 @@ def blocklist_hits(text, terms):
 # 引用符の外の ; & && | || ( ) と改行で1コマンドずつに分ける。
 # 単一引用符の中は文字どおり。二重引用符の中と引用符の外の $(...) `...` は、中身を別のコマンドとして調べる。
 # リダイレクト（> file、2>&1 など）は宛先ごと取り除き、書き込み先は別に返す。
-# 引用符付きの区切りの heredoc（<<'EOF'）の本文は文字どおりなので調べない。
+# heredoc（<<EOF）はヒア文字列（<<< '本文'）に置き換えて、受け取るコマンドに結び付ける。
+# 本文は、シェル（bash など）が受け取るときだけコマンドとして調べる。
+# 引用符なしの区切り（<<EOF）では本文の $(...) が展開されるので、そちらも調べる。
 HEREDOC = re.compile(r"<<-?[ \t]*(['\"]?)(\w+)\1([^\n]*)\n(.*?)^[ \t]*\2[ \t]*$", re.S | re.M)
 WRAPPERS = {"env", "command", "exec", "nohup", "time", "sudo", "builtin", "nice", "xargs"}
 KEYWORDS = {"{", "}", "!", "if", "then", "else", "elif", "do", "while", "until"}
@@ -108,7 +110,7 @@ class _Cmd:
     """読み途中の1コマンド。"""
 
     def __init__(self):
-        self.words, self.redirects = [], []
+        self.words, self.redirects, self.stdin_texts = [], [], []
         self.buf, self.started, self.quoted = [], False, False
         self.redirect_op = None  # 直後の語をリダイレクトの宛先として読む
 
@@ -122,7 +124,9 @@ class _Cmd:
             return
         w = "".join(self.buf)
         if self.redirect_op is not None:
-            if ">" in self.redirect_op:
+            if self.redirect_op.startswith("<<<"):
+                self.stdin_texts.append(w)
+            elif ">" in self.redirect_op:
                 self.redirects.append(w)
             self.redirect_op = None
         else:
@@ -147,17 +151,39 @@ def _finish(cmd, out, depth):
     toks = toks[i:]
     if not (toks or assigns or cmd.redirects):
         return
-    # eval と sh -c・pwsh -Command に渡した文字列も1つのコマンド列として調べる
-    name = os.path.basename(toks[0]).lower().removesuffix(".exe") if toks else ""
+    # eval と sh -c・pwsh -Command に渡した文字列、シェルが標準入力で受け取る heredoc も
+    # 1つのコマンド列として調べる
+    name = _name(toks)
     if name == "eval":
         _parse(" ".join(toks[1:]), 0, None, out, depth + 1)
     elif name in SHELLS:
-        for k, t in enumerate(toks[1:-1], 1):
-            low = t.lower()
-            if low in ("-c", "-command") or (re.fullmatch(r"-[a-z]*c[a-z]*", low) and name not in ("pwsh", "powershell")):
-                _parse(toks[k + 1], 0, None, out, depth + 1)
-                break
+        script = _shell_script_arg(toks)
+        if script is not None:
+            _parse(toks[script], 0, None, out, depth + 1)
+        for text in cmd.stdin_texts:
+            _parse(text, 0, None, out, depth + 1)
     out.append((assigns, toks, cmd.redirects))
+
+
+def _name(toks):
+    return os.path.basename(toks[0]).lower().removesuffix(".exe") if toks else ""
+
+
+def _shell_script_arg(toks):
+    """sh -c '…'・pwsh -Command '…' のスクリプト文字列の位置。無ければ None。"""
+    name = _name(toks)
+    for k, t in enumerate(toks[1:-1], 1):
+        low = t.lower()
+        if low in ("-c", "-command") or (re.fullmatch(r"-[a-z]*c[a-z]*", low) and name not in ("pwsh", "powershell")):
+            return k + 1
+    return None
+
+
+def shell_reads_stdin(tokens):
+    """シェルがスクリプトを標準入力から読むか（echo … | bash など、中身をhookが読めない）。"""
+    if _name(tokens) not in SHELLS or _shell_script_arg(tokens) is not None:
+        return False
+    return not any(not t.startswith("-") for t in tokens[1:])
 
 
 def _dq(s, i, end, out, depth, cmd):
@@ -273,9 +299,10 @@ def split_commands(cmd):
     out = []
 
     def heredoc(m):
+        body = m.group(4)
         if not m.group(1):  # 区切りが引用符なし（<<EOF）なら本文の $(...) は実行される
-            _dq(m.group(4), 0, None, out, 1, _Cmd())
-        return m.group(3)
+            _dq(body, 0, None, out, 1, _Cmd())
+        return " <<< '" + body.replace("'", "'\\''") + "'" + m.group(3)
 
     try:
         _parse(HEREDOC.sub(heredoc, cmd or ""), 0, None, out, 0)

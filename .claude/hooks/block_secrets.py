@@ -10,7 +10,7 @@ import re
 import sys
 
 from sonaguard import (blocklist_hits, dynamic_name, git_invocation, load_blocklist, secret_hits,
-                       sensitive_path, split_commands, use_utf8_stdio)
+                       sensitive_path, shell_reads_stdin, split_commands, use_utf8_stdio)
 
 FILE_TOOLS = {"Read", "Edit", "MultiEdit", "Write", "NotebookEdit"}
 HOOKS_KEY = "core.hookspath"  # gitの設定キーは大文字小文字を区別しない
@@ -65,6 +65,8 @@ def check_hooks_bypass(cmd):
             block(".git/config と .git/hooks/ は書き換えられません。")
         if dynamic_name(toks) and any(HOOKS_KEY in t.lower() for t in toks):
             block("コマンド名が変数・置換で決まるため、core.hooksPath に触れる操作か判定できません。")
+        if shell_reads_stdin(toks) and HOOKS_KEY in cmd.lower():
+            block("シェルに標準入力でスクリプトを渡すと、core.hooksPath に触れる操作か判定できません。")
         g = git_invocation(toks)
         if not g:
             continue
