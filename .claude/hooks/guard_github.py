@@ -9,14 +9,12 @@
 """
 import json
 import re
-import shlex
 import subprocess
 import sys
 
-from sonaguard import ROOT, use_utf8_stdio
+from sonaguard import ROOT, dynamic_name, git_invocation, split_commands, use_utf8_stdio
 
 PROTECTED = {"main", "master"}
-SEPARATORS = re.compile(r"&&|\|\||;|\||\n")
 CHANGES_BRANCH = {"commit", "merge", "cherry-pick", "revert", "am", "rebase", "reset", "pull"}
 GH_WRITE_METHOD = re.compile(r"(?:-X\s*|--method(?:=|\s+))(?:PUT|PATCH|POST|DELETE)\b", re.I)
 GH_FIELD = re.compile(r"(?:^|\s)(?:-f|-F|--field|--raw-field|--input)(?:=|\s|$)")
@@ -29,25 +27,6 @@ class Blocked(Exception):
 def current_branch():
     p = subprocess.run(["git", "symbolic-ref", "--short", "-q", "HEAD"], cwd=ROOT, capture_output=True)
     return p.stdout.decode("utf-8", "replace").strip()
-
-
-def tokens_of(segment):
-    try:
-        return shlex.split(segment, posix=True)
-    except ValueError:
-        return segment.split()
-
-
-def git_subcommand(tokens):
-    """['git', '-C', 'x', 'push', ...] → ('push', [...後ろの引数])。git でなければ (None, [])。"""
-    if not tokens or tokens[0] not in ("git", "git.exe"):
-        return None, []
-    i = 1
-    while i < len(tokens) and tokens[i].startswith("-"):
-        i += 2 if tokens[i] in ("-C", "-c", "--git-dir", "--work-tree") else 1
-    if i >= len(tokens):
-        return None, []
-    return tokens[i], tokens[i + 1:]
 
 
 def short_flags(arg):
@@ -124,16 +103,19 @@ def check_gh(segment, tokens):
 
 
 def check_command(cmd, branch):
-    for segment in SEPARATORS.split(cmd):
-        segment = segment.strip()
-        if not segment:
-            continue
-        tokens = tokens_of(segment)
-        sub, args = git_subcommand(tokens)
-        if sub:
-            branch = check_git(sub, args, branch)
+    commands = split_commands(cmd)
+    if commands is None:
+        if re.search(r"\bgit\b|\bgh\b", cmd):
+            raise Blocked("コマンドを解析できません（引用符が閉じていない等）。git・gh の操作は分けて実行してください。")
+        return
+    for _, tokens, _ in commands:
+        if dynamic_name(tokens) and set(tokens[1:]) & ({"push", "pr", "api", "repo", "branch"} | CHANGES_BRANCH):
+            raise Blocked("コマンド名が変数・置換で決まるため判定できません。git・gh はそのまま書いてください。")
+        g = git_invocation(tokens)
+        if g and g["sub"]:
+            branch = check_git(g["sub"], g["args"], branch)
         elif tokens and tokens[0] == "gh":
-            check_gh(segment, tokens)
+            check_gh(" ".join(tokens), tokens)
 
 
 def main():

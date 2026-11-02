@@ -1,6 +1,6 @@
 # 進捗（STATUS）
 
-最終更新：2026-11-02（Phase 0：GitHub運用とTODO-OWNER 1〜6の反映。ブランチ `docs/phase0-github-rules`、未マージ）
+最終更新：2026-11-03（Phase 0：PR #3 をmainへマージ済み。Issue #2 の修正をブランチ `fix/2-hook-false-positives` で作業中）
 
 ## 実装済み（コードがありコミット済み）
 - Claude Code用hook：`[TODO-OWNER]` の削除防止（`protect_todo_owner.py`）、秘密情報とブロックリストの語の検出（`block_secrets.py`）、main・GitHubの保護（`guard_github.py`）。いずれも `.claude/hooks/`
@@ -9,7 +9,7 @@
 - アプリ本体：なし
 
 ## 動作確認済み
-- hookとgitのフックの試験：`test_hooks.py` で80/80 PASS（2026-11-02、Windows 11・Git Bash・Python 3.14）
+- hookとgitのフックの試験：`test_hooks.py` で147/147 PASS（2026-11-03、Windows 11・Git Bash・Python 3.14）
 - 実際のClaude Codeの操作でのhook（2026-11-02）：マーカーを消すEditは止まり、通常のEditは通った。`.env.local` のRead、`cat .dev.vars`、`git commit --no-verify`、`gh pr merge` は止まった。`.dev.vars` のReadは settings.json の deny で止まった
 - `.dev.vars`、`.env.local`、`.claude/local/blocklist.txt` がgitの対象外であること（`git check-ignore`）
 
