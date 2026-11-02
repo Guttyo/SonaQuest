@@ -84,6 +84,32 @@ def claude_hook_tests(tmp):
     check("Bash: 別のコマンド && core.hooksPath を外す", 2, hook(S, "Bash", {"command": "git status && git config core.hooksPath /dev/null"})[0])
     check("Bash: core.hooksPath を .githooks2 に設定", 2, hook(S, "Bash", {"command": "git config core.hooksPath .githooks2"})[0])
     check("Bash: core.hooksPath を消す", 2, hook(S, "Bash", {"command": "git config --unset core.hooksPath"})[0])
+    # PR #4 のレビューで指摘された抜け道と誤検出
+    for name, cmd in [
+        ("git --no-pager config で hooksPath を外す", "git --no-pager config core.hooksPath /dev/null"),
+        ("$(...) の中で hooksPath を外す", "x=$(git config core.hooksPath /dev/null)"),
+        ("env を前置きして hooksPath を外す", "env git config core.hooksPath /dev/null"),
+        ("git -C \"空白入りのパス\" で hooksPath を外す", 'git -C "path with spaces" config core.hooksPath /dev/null'),
+        ("--unset core.hooksPath .githooks", "git config --unset core.hooksPath .githooks"),
+        ("単独の & の後で hooksPath を外す", "git status & git config core.hooksPath /dev/null"),
+        ("git -c core.hooksPath=… でコミット", "git -c core.hooksPath=/dev/null commit -m x"),
+        ("git --config-env=core.hooksPath=…", "git --config-env=core.hooksPath=X commit -m x"),
+        ("GIT_CONFIG_* の環境変数", "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null git commit -m x"),
+        ("キーの大文字小文字を変える", "git config core.HooksPath /dev/null"),
+        ("git config --edit", "git config --edit"),
+        (".git/config へ追記", "echo '[core] hooksPath=/dev/null' >> .git/config"),
+        ("cat のリダイレクトで .git/config を上書き", "cat x > .git/config"),
+        (".git/hooks/ へコピー", "cp x .git/hooks/pre-commit"),
+    ]:
+        check(f"Bash: {name}", 2, hook(S, "Bash", {"command": cmd})[0])
+    for name, cmd in [
+        ("引用符の中の ; と git config", 'git commit -m "fix; git config core.hooksPath の判定を修正"'),
+        ("hooksPath を読む（リダイレクト付き）", "git config --get core.hooksPath 2>/dev/null"),
+        ("git config set core.hooksPath .githooks", "git config set core.hooksPath .githooks"),
+        (".git/config を読む", "cat .git/config"),
+    ]:
+        check(f"Bash: {name}", 0, hook(S, "Bash", {"command": cmd})[0])
+    check("Edit: .git/config を編集", 2, hook(S, "Edit", {"file_path": str(ROOT / ".git" / "config"), "old_string": "a", "new_string": "b"})[0])
     check("Bash: コミットメッセージの文中に core.hooksPath", 0, hook(S, "Bash", {"command": "git commit -q -F - <<'EOF'\n修正\n\n- core.hooksPath の判定を直した\nEOF"})[0])
     check("Bash: 通常のコマンド", 0, hook(S, "Bash", {"command": "git status && ls docs"})[0])
 
@@ -133,6 +159,12 @@ def github_hook_tests():
     check("Bash: main 上で switch -c && commit", 0, hook(G, "Bash", {"command": "git switch -c docs/2-y && git commit -m x"}, extra=on_main)[0])
     check("Bash: 作業ブランチから checkout main && merge", 2, hook(G, "Bash", {"command": "git checkout main && git merge docs/1-x"}, extra=on_work)[0])
     check("Bash: git branch --delete main", 2, hook(G, "Bash", {"command": "git branch --delete main"}, extra=on_work)[0])
+    # 共通のコマンド分解に変えたことで塞いだもの・誤検出しないもの
+    check("Bash: env を前置きして main へpush", 2, hook(G, "Bash", {"command": "env git push origin main"}, extra=on_work)[0])
+    check("Bash: $(...) の中で main へpush", 2, hook(G, "Bash", {"command": "x=$(git push origin main)"}, extra=on_work)[0])
+    check("Bash: 単独の & の後で force push", 2, hook(G, "Bash", {"command": "git status & git push --force"}, extra=on_work)[0])
+    check("Bash: git --no-pager push origin main", 2, hook(G, "Bash", {"command": "git --no-pager push origin main"}, extra=on_work)[0])
+    check("Bash: メッセージ中の ; と push の文字", 0, hook(G, "Bash", {"command": 'git commit -m "a; git push origin main"'}, extra=on_work)[0])
     check("Bash: main 上で fast-forward になる git merge", 2, hook(G, "Bash", {"command": "git merge --ff-only docs/1-x"}, extra=on_main)[0])
 
 

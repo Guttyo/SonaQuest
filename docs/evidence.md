@@ -45,7 +45,7 @@ judge-audit Skillでこの表とREADMEの主張を照合する。
 ## 深さと実行（20%）
 | 主張 | 証拠 | 確認日 | 未検証 |
 |---|---|---|---|
-| オーナー判断の箇所を機械的に守っている | `.claude/hooks/test_hooks.py` 87/87 PASS、実操作でEditが止まった（docs/STATUS.md） | 2026-11-02 | macOSでは未確認 |
+| オーナー判断の箇所を機械的に守っている | `.claude/hooks/test_hooks.py` 111/111 PASS、実操作でEditが止まった（docs/STATUS.md） | 2026-11-02 | macOSでは未確認 |
 | 秘密情報の誤コミットを防いでいる | 同上、`.githooks/` を使い捨てリポジトリで試験 | 2026-11-02 | macOSでは未確認 |
 | 会話を保存・ログ出力しない | safety-test-plan P1〜P4 | — | 未検証 |
 | 判断の経緯を残している | docs/decisions.md、docs/KEEP-THINKING.md | 2026-11-02 | — |

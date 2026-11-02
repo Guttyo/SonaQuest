@@ -1,6 +1,7 @@
 """Claude Codeのhookとgitのコミット前フックが共有する判定。標準ライブラリだけを使う。"""
 import os
 import re
+import shlex
 import sys
 from pathlib import Path
 
@@ -87,3 +88,69 @@ def blocklist_hits(text, terms):
     """該当した語の番号（1始まり）だけを返す。語そのものは表示に使わない。"""
     low = (text or "").lower()
     return [i + 1 for i, t in enumerate(terms) if t.lower() in low]
+
+
+# ---- シェルのコマンド列の分解（hookが共有する） ----
+# 引用符の中は分けない。; & && | || ( ) ` と改行で1コマンドずつに分ける。
+# heredoc の本文（コミットメッセージなど）は除く。
+HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1([^\n]*)\n.*?^[ \t]*\2[ \t]*$", re.S | re.M)
+PUNCT = ";&|()`"
+WRAPPERS = {"env", "command", "exec", "nohup", "time", "sudo", "builtin", "nice", "xargs"}
+ASSIGN = re.compile(r"^(?:\$env:)?[A-Za-z_][A-Za-z0-9_]*=", re.I)
+REDIRECT = re.compile(r"^\d*[<>]")
+GIT_VALUE_OPTS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env", "--super-prefix"}
+
+
+def split_commands(cmd):
+    """[(前置きの代入, トークン列), ...] を返す。引用符が閉じていないなど解析できなければ None。"""
+    text = HEREDOC.sub(r"\3", cmd or "").replace("\n", " ; ")
+    lex = shlex.shlex(text, posix=True, punctuation_chars=PUNCT)
+    lex.whitespace_split = True
+    lex.commenters = ""
+    try:
+        tokens = list(lex)
+    except ValueError:
+        return None
+    out, cur = [], []
+    for t in tokens + [";"]:
+        if t and all(c in PUNCT for c in t):
+            if cur:
+                out.append(cur)
+            cur = []
+        elif not REDIRECT.match(t):
+            cur.append(t)
+    result = []
+    for toks in out:
+        # 前置き（VAR=値、env・sudo など、その直後のオプション）を読み飛ばす
+        assigns, i, after_wrapper = [], 0, False
+        while i < len(toks):
+            t = toks[i]
+            if ASSIGN.match(t):
+                assigns.append(t)
+            elif t in WRAPPERS:
+                after_wrapper = True
+            elif not (after_wrapper and t.startswith("-")):
+                break
+            i += 1
+        result.append((assigns, toks[i:]))
+    return result
+
+
+def git_invocation(tokens):
+    """git コマンドなら {'configs': [-c の値...], 'sub': サブコマンド, 'args': [...]}。違えば None。"""
+    if not tokens or os.path.basename(tokens[0]).lower() not in ("git", "git.exe"):
+        return None
+    configs, i = [], 1
+    while i < len(tokens) and tokens[i].startswith("-"):
+        opt = tokens[i]
+        if opt in GIT_VALUE_OPTS:
+            if opt in ("-c", "--config-env") and i + 1 < len(tokens):
+                configs.append(tokens[i + 1])
+            i += 2
+            continue
+        if opt.startswith("--config-env="):
+            configs.append(opt.split("=", 1)[1])
+        i += 1
+    return {"configs": configs,
+            "sub": tokens[i] if i < len(tokens) else None,
+            "args": tokens[i + 1:]}
