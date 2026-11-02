@@ -313,7 +313,10 @@ def _parse(src, i, stop, out, depth):
     while i < len(src.s):
         s = src.s
         c = s[i]
-        if c == "\\":
+        if c == "#" and not cmd.started:  # 語頭の # から行末まではコメント（中の引用符も読まない）
+            j = s.find("\n", i)
+            i = len(s) if j < 0 else j
+        elif c == "\\":
             if i + 1 < len(s) and s[i + 1] != "\n":
                 cmd.add(s[i + 1], True)
             i += 2

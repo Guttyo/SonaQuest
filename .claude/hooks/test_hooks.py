@@ -123,6 +123,10 @@ def claude_hook_tests(tmp):
         ("env -S で hooksPath を外す", 'env -S "git config core.hooksPath /dev/null"'),
         ("sudo -u ユーザー の後で hooksPath を外す", "sudo -u root git config core.hooksPath /dev/null"),
         ("heredoc 2つの後で hooksPath を外す", "cat <<A <<B\na\nA\nb\nB\ngit config core.hooksPath /dev/null"),
+        # 5回目のレビュー
+        ("コメントの引用符で挟んで hooksPath を外す", '# "\ngit config core.hooksPath /dev/null\n# "'),
+        ("行末コメントの引用符で挟んで hooksPath を外す", "true # '\ngit config core.hooksPath /dev/null\n# '"),
+        ("語の途中の # の後で hooksPath を外す", "echo a# ; git config core.hooksPath /dev/null"),
     ]:
         check(f"Bash: {name}", 2, hook(S, "Bash", {"command": cmd})[0])
     for name, cmd in [
@@ -130,6 +134,8 @@ def claude_hook_tests(tmp):
         ("hooksPath を読む（リダイレクト付き）", "git config --get core.hooksPath 2>/dev/null"),
         ("git config set core.hooksPath .githooks", "git config set core.hooksPath .githooks"),
         (".git/config を読む", "cat .git/config"),
+        ("コメントの中の hooksPath", "git status # git config core.hooksPath /dev/null は使わない"),
+        ("引用符の中の # はコメントではない", "git log --format='%h #%s'"),
         ("メッセージ中の > .git/config", 'git commit -m "Document > .git/config redirection"'),
         ("単一引用符の中の $(...)", "echo '$(git config core.hooksPath /dev/null)'"),
         ("heredoc のコミットメッセージ（$(cat <<'EOF'...)）", "git commit -m \"$(cat <<'EOF'\n修正; git config core.hooksPath /dev/null\nEOF\n)\""),
