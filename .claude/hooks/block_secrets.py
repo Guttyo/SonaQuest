@@ -12,6 +12,10 @@ import sys
 from sonaguard import blocklist_hits, load_blocklist, secret_hits, sensitive_path, use_utf8_stdio
 
 FILE_TOOLS = {"Read", "Edit", "MultiEdit", "Write", "NotebookEdit"}
+GIT_CONFIG = re.compile(r"^\s*git\s+(?:-C\s+\S+\s+)?config\b")
+HOOKS_PATH_OK = re.compile(
+    r"config\s+(?:--(?:local|global)\s+)?(?:--get\s+core\.hooksPath|core\.hooksPath)\s*$"
+    r"|core\.hooksPath[\"'\s]+\.githooks[\"']?\s*$")
 SAFE_SENSITIVE_CMD = [
     re.compile(r"^\s*(?:ls|stat|test|\[|git\s+(?:status|check-ignore))\b[^;|&]*$"),
     re.compile(r"^\s*cp\s+\S*\.example\s+\S+\s*$"),
@@ -63,9 +67,11 @@ def main():
         check_text(cmd, "コマンド")
         if re.search(r"\bgit\b.*--no-verify", cmd, re.S):
             block("--no-verify はコミット前の検査を迂回するので使えません。")
-        if "core.hooksPath" in cmd and not re.search(r"core\.hooksPath[\"'\s]+\.githooks\b", cmd) \
-                and not re.search(r"config\s+(?:--get\s+)?core\.hooksPath\s*$", cmd):
-            block("core.hooksPath は .githooks 以外に変えられません。")
+        # 区切り（&& ; | など）ごとに見る。git config の読むだけ（--get、値なし）と .githooks への設定だけ通す。
+        # コミットメッセージなどの文中に出てくる語には反応しない。
+        for seg in re.split(r"&&|\|\||;|\||\n", cmd):
+            if GIT_CONFIG.search(seg) and "core.hooksPath" in seg and not HOOKS_PATH_OK.search(seg):
+                block("core.hooksPath は .githooks 以外に変えられません。")
         # 秘密ファイルの名前がコマンドに出る場合、存在確認と雛形からのコピーだけ通す。
         tokens = [t for t in re.split(r"[\s;|&()<>\"'`=]+", cmd) if t]
         if any(sensitive_path(t) for t in tokens) and not any(p.search(cmd) for p in SAFE_SENSITIVE_CMD):

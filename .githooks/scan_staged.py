@@ -11,7 +11,7 @@
   - 追加行・メッセージにAPIキーの形をした値
   - 追加行・メッセージに .claude/local/blocklist.txt の語（ファイルが無ければ検査しない）
   - [TODO-OWNER] マーカーが減る差分。オーナーが判断を済ませたときだけ
-    SONAQUEST_OWNER_APPROVED=1 git commit ... で通す
+    SONAQUEST_OWNER_APPROVED=1 git commit ... で通す（PowerShellでは $env: で設定する）
 """
 import os
 import subprocess
@@ -82,8 +82,10 @@ def scan_staged():
     lost = sorted(m for m, n in removed.items() if n > added.get(m, 0))
     if lost and os.environ.get("SONAQUEST_OWNER_APPROVED") != "1":
         problems.append("TODO-OWNERマーカーが減ります: " + " ".join(lost)
-                        + "\n    オーナーが判断を済ませた場合だけ、オーナー自身が"
-                          " SONAQUEST_OWNER_APPROVED=1 git commit ... で通してください")
+                        + "\n    オーナーが判断を済ませた場合だけ、オーナー自身が次の形で通してください"
+                          "\n      Git Bash  : SONAQUEST_OWNER_APPROVED=1 git commit -m \"...\""
+                          "\n      PowerShell: $env:SONAQUEST_OWNER_APPROVED = \"1\"; git commit -m \"...\";"
+                          " Remove-Item Env:\\SONAQUEST_OWNER_APPROVED")
     return problems
 
 

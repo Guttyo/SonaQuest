@@ -79,6 +79,12 @@ def claude_hook_tests(tmp):
     check("Bash: git commit --no-verify", 2, hook(S, "Bash", {"command": "git commit --no-verify -m x"})[0])
     check("Bash: core.hooksPath を外す", 2, hook(S, "Bash", {"command": "git config core.hooksPath /dev/null"})[0])
     check("Bash: core.hooksPath を .githooks に設定", 0, hook(S, "Bash", {"command": "git config core.hooksPath .githooks"})[0])
+    check("Bash: core.hooksPath を読む && 別のコマンド", 0, hook(S, "Bash", {"command": "git config --get core.hooksPath; git status"})[0])
+    check("Bash: core.hooksPath を .githooks に設定 && 別のコマンド", 0, hook(S, "Bash", {"command": "git config core.hooksPath .githooks && git status"})[0])
+    check("Bash: 別のコマンド && core.hooksPath を外す", 2, hook(S, "Bash", {"command": "git status && git config core.hooksPath /dev/null"})[0])
+    check("Bash: core.hooksPath を .githooks2 に設定", 2, hook(S, "Bash", {"command": "git config core.hooksPath .githooks2"})[0])
+    check("Bash: core.hooksPath を消す", 2, hook(S, "Bash", {"command": "git config --unset core.hooksPath"})[0])
+    check("Bash: コミットメッセージの文中に core.hooksPath", 0, hook(S, "Bash", {"command": "git commit -q -F - <<'EOF'\n修正\n\n- core.hooksPath の判定を直した\nEOF"})[0])
     check("Bash: 通常のコマンド", 0, hook(S, "Bash", {"command": "git status && ls docs"})[0])
 
     print("--- ブロックリスト（Claude Code hook）")
@@ -175,7 +181,9 @@ def git_hook_tests(tmp):
 
     write("a.md", "本文\n")
     git("add", "a.md")
-    check("マーカーを消すコミット", 1, commit("マーカー削除")[0])
+    code, err = commit("マーカー削除")
+    check("マーカーを消すコミット", 1, code)
+    check("  案内にPowerShellの書き方がある", True, "$env:SONAQUEST_OWNER_APPROVED" in err)
     check("マーカーを消すコミット（オーナー承認あり）", 0, commit("マーカー削除", env={"SONAQUEST_OWNER_APPROVED": "1"})[0])
 
     bl = tmp / "blocklist-git.txt"

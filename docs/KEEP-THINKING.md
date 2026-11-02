@@ -77,3 +77,20 @@
 ### 次にやること
 - オーナー：決定済みマーカーの解除、実際の服薬情報の入力を許すかの判断、自傷の案内の確認
 - GitHubリポジトリ作成の承認後：Issueを作り、このブランチを関連付けてPRにする（ブランチ名の変更は不要）
+
+## 2026-11-03 Phase 0（GitHubへの移行とレビュー対応）
+
+### うまくいったこと
+- プライベートリポジトリ Guttyo/SonaQuest を作り、Issue #1 → PR #3 → オーナーのマージ、の流れを初めて通した。
+- PR #3 の自動レビュー（Codex、Copilot）が、main 保護hookの抜け道を9件見つけた（`-uf`、`HEAD:refs/heads/main`、`:main`、宛先を省いた push、`commit && switch -c` など）。文字列の照合をやめ、コマンドを区切りごとに解析する方式に作り直し、回帰試験を足した。
+
+### つまずいたことと直し方
+- オーナーがマーカー解除のコマンドをPowerShellで実行し、Bashの環境変数の書き方でエラーになった。さらに、ファイルを編集しないまま実行したため「nothing to commit」になった。決定済みの箇所だけを消すスクリプトを用意し、コピーで試してから渡した。コミット前フックの案内にPowerShellの書き方も載せた（Issue #2）。
+- `git config --get core.hooksPath; …` のように、読むだけのコマンドを他とつなぐとhookが止めていた。区切りごとに判定するよう直した（Issue #2）。
+- main への最初のpushは、自分で作ったhookが止めるため、オーナーに実行してもらった。
+- gitの pre-merge-commit は fast-forward マージでは呼ばれない。Claude Codeのhookで main 上の `git merge` を止め、オーナーの手作業は Ruleset を設定するまで運用で守る。
+
+### 次にやること
+- GitHubのRuleset案をオーナーに出す（設定は承認後）
+- Dropboxから、GitHubからcloneした作業コピーへ移る時期の判断（ADR-0018）
+- Phase 0 の終了報告（オーナーが監査する）
