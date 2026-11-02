@@ -10,6 +10,7 @@
 6. TODO-OWNERマーカーの決定と解除も、IssueとPRで管理する。
 
 ## main の保護
+- **GitHubのRulesetを正とする**。ローカルのhookは誤操作を防ぐ補助（ADR-0014）。
 - `main` への直接コミット、直接push、force push、ブランチ削除をしない。
 - ローカルでもコミット前フックが `main` へのコミットを止める。Claude Codeのhookは、force push、`main` へのpush、PRのマージ、`main` の削除、保護設定の変更を止める。
 - GitHub側の保護設定（Rulesets）の基本：PR必須、force push禁止、削除禁止、CI成功必須。単独開発なので、第三者のレビュー承認1件は必須にしない（自分のPRは自分で承認できず、マージできなくなるため）。
@@ -21,6 +22,11 @@
 - PRのマージ、GitHubの設定変更
 
 GitHub操作を自動化する場合も、この手順を省略しない。
+
+## Dropbox上のリポジトリ（ADR-0018）
+- リポジトリはDropboxで同期されており、`.git` もWindowsとmacOSの間で同期される。
+- WindowsとmacOSで同時にGit操作をしない。端末を切り替える前にDropboxの同期完了を確かめる。
+- GitHubにリモートを作った後はGitHubを正本とし、各端末ではGitHubからcloneした作業コピーへ移る（時期と置き場所はオーナーが決める）。
 
 ## hookの位置づけ
 hookとコミット前フックは誤操作を防ぐ補助であり、セキュリティの境界ではない。hookを通らない操作（エディタでの直接編集、別のターミナル）もありうる。`SONAQUEST_OWNER_APPROVED=1` は本人確認ではなく、オーナーが自分で操作するための解除の目印にすぎない。オーナーの承認はチャットで明示され、PRに判断の記録が残ることで成立する。

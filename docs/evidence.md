@@ -19,7 +19,7 @@ judge-audit Skillでこの表とREADMEの主張を照合する。
 | 主張 | 証拠 | 確認日 | 未検証 |
 |---|---|---|---|
 | Claudeの聞き返しで、固定質問より多くの観点を確認できる | 下の実験 | — | 未測定 |
-| Claudeは医療判断をせず、観点の判定に役割を限っている | safety-test-plan S1〜S9 | — | 未検証 |
+| Claudeは医療判断をせず、観点の判定に役割を限っている | safety-test-plan S1〜S10 | — | 未検証 |
 | 開発のコードはすべてClaude Codeで書いた | git log、docs/KEEP-THINKING.md | — | 提出時に確認 |
 
 ### 実験計画：固定質問方式とClaude対話方式の比較

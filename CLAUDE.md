@@ -19,6 +19,7 @@ SonaQuest（ソナクエスト）は、常用薬のある成人が「災害時�
 - Windows：`%USERPROFILE%\Dropbox (個人用)\iOS_Application\developing\Hackathon\Built_with_Claude_Japan_2026`
 - macOS：`~/Dropbox_Personal/iOS_Application/developing/Hackathon/Built_with_Claude_Japan_2026`
 - 作業開始時に、現在の作業ディレクトリ、Gitリポジトリ、ブランチを確かめる。上記と異なるディレクトリで作業を進めない。`main` にいたら作業ブランチを作るか切り替える。
+- Dropboxで同期しているため、WindowsとmacOSで同時にGit操作をしない。端末を切り替える前に同期完了を確かめる（ADR-0018）。
 
 ## 作業の流れ
 - 開始時：上の確認をしてから `docs/STATUS.md` を読む
