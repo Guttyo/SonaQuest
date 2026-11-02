@@ -1,0 +1,156 @@
+"""PreToolUse hook：main の保護とGitHub設定の変更を止める（.claude/rules/github.md）。
+
+- force push（-f を含む短縮オプションの結合、+refspec を含む）
+- main へのpush（refs/heads/main、HEAD:main、宛先を省いた push を main 上で行う場合、--all、--mirror を含む）
+- リモートのブランチ削除（--delete、-d、:branch）、ローカルの main の削除
+- main にいるときのコミット・マージ等（コマンドを区切りごとに順に見て、途中のブランチ切り替えも追う）
+- PRのマージ（gh pr merge）、リポジトリ設定の変更、保護設定・Rulesetsへの書き込み
+これはClaude Codeを通した誤操作を防ぐ補助で、正は GitHub の Ruleset（ADR-0014）。
+"""
+import json
+import re
+import shlex
+import subprocess
+import sys
+
+from sonaguard import ROOT, use_utf8_stdio
+
+PROTECTED = {"main", "master"}
+SEPARATORS = re.compile(r"&&|\|\||;|\||\n")
+CHANGES_BRANCH = {"commit", "merge", "cherry-pick", "revert", "am", "rebase", "reset", "pull"}
+GH_WRITE_METHOD = re.compile(r"(?:-X\s*|--method(?:=|\s+))(?:PUT|PATCH|POST|DELETE)\b", re.I)
+GH_FIELD = re.compile(r"(?:^|\s)(?:-f|-F|--field|--raw-field|--input)(?:=|\s|$)")
+
+
+class Blocked(Exception):
+    pass
+
+
+def current_branch():
+    p = subprocess.run(["git", "symbolic-ref", "--short", "-q", "HEAD"], cwd=ROOT, capture_output=True)
+    return p.stdout.decode("utf-8", "replace").strip()
+
+
+def tokens_of(segment):
+    try:
+        return shlex.split(segment, posix=True)
+    except ValueError:
+        return segment.split()
+
+
+def git_subcommand(tokens):
+    """['git', '-C', 'x', 'push', ...] → ('push', [...後ろの引数])。git でなければ (None, [])。"""
+    if not tokens or tokens[0] not in ("git", "git.exe"):
+        return None, []
+    i = 1
+    while i < len(tokens) and tokens[i].startswith("-"):
+        i += 2 if tokens[i] in ("-C", "-c", "--git-dir", "--work-tree") else 1
+    if i >= len(tokens):
+        return None, []
+    return tokens[i], tokens[i + 1:]
+
+
+def short_flags(arg):
+    """'-uf' → {'u', 'f'}。長いオプションや位置引数は空。"""
+    if arg.startswith("-") and not arg.startswith("--") and len(arg) > 1:
+        return set(arg[1:])
+    return set()
+
+
+def strip_heads(ref):
+    return ref[len("refs/heads/"):] if ref.startswith("refs/heads/") else ref
+
+
+def check_push(args, branch):
+    opts = [a for a in args if a.startswith("-")]
+    pos = [a for a in args if not a.startswith("-")]
+    if any(o.startswith("--force") for o in opts) or any("f" in short_flags(o) for o in opts):
+        raise Blocked("force push はできません。")
+    if "--delete" in opts or any("d" in short_flags(o) for o in opts):
+        raise Blocked("リモートのブランチ削除はできません。")
+    if "--all" in opts or "--mirror" in opts:
+        raise Blocked("--all・--mirror は main も送るので使えません。ブランチ名を指定してpushしてください。")
+    refspecs = pos[1:]
+    if not refspecs:
+        if branch in PROTECTED:
+            raise Blocked(f"今は {branch} にいるので、宛先を省いた push は main を更新します。作業ブランチ名を指定してください。")
+        return
+    for spec in refspecs:
+        if spec.startswith("+"):
+            raise Blocked("force push（+refspec）はできません。")
+        if ":" in spec:
+            src, dst = spec.split(":", 1)
+            if src == "":
+                raise Blocked("リモートのブランチ削除（:branch）はできません。")
+            target = strip_heads(dst or src)
+        else:
+            target = strip_heads(branch if spec == "HEAD" else spec)
+        if target in PROTECTED:
+            raise Blocked("main へは直接pushできません。作業ブランチをpushしてPRを作ってください（push自体もオーナーの承認後）。")
+
+
+def check_git(sub, args, branch):
+    """1つのgitコマンドを調べ、実行後のブランチを返す。"""
+    if sub == "push":
+        check_push(args, branch)
+    elif sub == "branch":
+        deleting = "--delete" in args or any(short_flags(a) & {"d", "D"} for a in args)
+        if deleting and any(a in PROTECTED for a in args):
+            raise Blocked("main は削除できません。")
+    elif sub in ("switch", "checkout"):
+        if "--" in args:
+            return branch
+        for flag in ("-c", "-C", "-b", "-B", "--create"):
+            if flag in args:
+                i = args.index(flag)
+                return args[i + 1] if i + 1 < len(args) else branch
+        pos = [a for a in args if not a.startswith("-")]
+        return pos[0] if pos else branch
+    elif sub in CHANGES_BRANCH and branch in PROTECTED:
+        if sub == "pull" and "--ff-only" in args:
+            return branch
+        raise Blocked(f"今は {branch} にいます。main を直接変更せず、作業ブランチを作ってください（git switch -c docs/<Issue番号>-<内容>）。")
+    return branch
+
+
+def check_gh(segment, tokens):
+    if tokens[:3] == ["gh", "pr", "merge"]:
+        raise Blocked("PRのマージはオーナーの明示的な承認後に、オーナーが行います。")
+    if tokens[:2] == ["gh", "repo"] and len(tokens) > 2 and tokens[2] in ("edit", "delete", "rename", "archive"):
+        raise Blocked("リポジトリ設定の変更・削除はオーナーの承認が要ります。")
+    if tokens[:2] == ["gh", "api"] and re.search(r"protection|rulesets", segment) \
+            and (GH_WRITE_METHOD.search(segment) or GH_FIELD.search(segment)):
+        raise Blocked("ブランチ保護・Rulesetsの変更はオーナーだけが行います。")
+
+
+def check_command(cmd, branch):
+    for segment in SEPARATORS.split(cmd):
+        segment = segment.strip()
+        if not segment:
+            continue
+        tokens = tokens_of(segment)
+        sub, args = git_subcommand(tokens)
+        if sub:
+            branch = check_git(sub, args, branch)
+        elif tokens and tokens[0] == "gh":
+            check_gh(segment, tokens)
+
+
+def main():
+    use_utf8_stdio()
+    try:
+        data = json.loads(sys.stdin.buffer.read().decode("utf-8"))
+    except ValueError:
+        return
+    if data.get("tool_name") not in ("Bash", "PowerShell"):
+        return
+    cmd = (data.get("tool_input") or {}).get("command") or ""
+    try:
+        check_command(cmd, data.get("_test_branch") or current_branch())
+    except Blocked as e:
+        print(f"BLOCKED（main・GitHubの保護）: {e}", file=sys.stderr)
+        sys.exit(2)
+
+
+if __name__ == "__main__":
+    main()

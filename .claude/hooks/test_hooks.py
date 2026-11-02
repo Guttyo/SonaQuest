@@ -28,8 +28,9 @@ def check(name, expected, actual, detail=""):
     print(f"{'PASS' if ok else 'FAIL'}  {name}  (期待 {expected} / 実際 {actual}){'  ' + detail if not ok else ''}")
 
 
-def hook(script, tool, tool_input, env=None):
-    payload = json.dumps({"tool_name": tool, "tool_input": tool_input}, ensure_ascii=False).encode("utf-8")
+def hook(script, tool, tool_input, env=None, extra=None):
+    payload = json.dumps({"tool_name": tool, "tool_input": tool_input, **(extra or {})},
+                         ensure_ascii=False).encode("utf-8")
     p = subprocess.run([PY, str(HOOKS / script)], input=payload, capture_output=True,
                        env={**os.environ, **(env or {})})
     return p.returncode, p.stderr.decode("utf-8", "replace")
@@ -92,6 +93,43 @@ def claude_hook_tests(tmp):
                                                 {"SONAQUEST_BLOCKLIST": str(tmp / "none.txt")})[0])
 
 
+def github_hook_tests():
+    G = "guard_github.py"
+    on_main, on_work = {"_test_branch": "main"}, {"_test_branch": "docs/1-x"}
+    print("--- main・GitHubの保護（Claude Code hook）")
+    check("Bash: git push --force", 2, hook(G, "Bash", {"command": "git push --force origin docs/1-x"}, extra=on_work)[0])
+    check("Bash: git push -f", 2, hook(G, "Bash", {"command": "git push -f"}, extra=on_work)[0])
+    check("Bash: main へpush", 2, hook(G, "Bash", {"command": "git push origin main"}, extra=on_work)[0])
+    check("Bash: 作業ブランチをpush", 0, hook(G, "Bash", {"command": "git push -u origin docs/1-x"}, extra=on_work)[0])
+    check("Bash: main を削除", 2, hook(G, "Bash", {"command": "git branch -D main"}, extra=on_work)[0])
+    check("Bash: gh pr merge", 2, hook(G, "Bash", {"command": "gh pr merge 3 --squash"}, extra=on_work)[0])
+    check("Bash: 保護設定を変更", 2, hook(G, "Bash", {"command": "gh api -X PUT repos/o/r/branches/main/protection"}, extra=on_work)[0])
+    check("Bash: 保護設定を読むだけ", 0, hook(G, "Bash", {"command": "gh api repos/o/r/rulesets"}, extra=on_work)[0])
+    check("Bash: main にいてコミット", 2, hook(G, "Bash", {"command": "git commit -m x"}, extra=on_main)[0])
+    check("Bash: main にいてマージ", 2, hook(G, "Bash", {"command": "git merge docs/1-x"}, extra=on_main)[0])
+    check("Bash: main から作業ブランチを作る", 0, hook(G, "Bash", {"command": "git switch -c docs/2-y"}, extra=on_main)[0])
+    check("Bash: main で pull --ff-only", 0, hook(G, "Bash", {"command": "git pull --ff-only"}, extra=on_main)[0])
+    check("Bash: 作業ブランチでコミット", 0, hook(G, "Bash", {"command": "git commit -m x"}, extra=on_work)[0])
+    # PR #3 のレビューで指摘された抜け道
+    check("Bash: git push -uf（短縮オプションの結合）", 2, hook(G, "Bash", {"command": "git push -uf origin docs/1-x"}, extra=on_work)[0])
+    check("Bash: +refspec での force push", 2, hook(G, "Bash", {"command": "git push origin +docs/1-x"}, extra=on_work)[0])
+    check("Bash: HEAD:refs/heads/main へpush", 2, hook(G, "Bash", {"command": "git push origin HEAD:refs/heads/main"}, extra=on_work)[0])
+    check("Bash: refs/heads/work:refs/heads/main へpush", 2, hook(G, "Bash", {"command": "git push origin refs/heads/work:refs/heads/main"}, extra=on_work)[0])
+    check("Bash: :main でリモートの main を削除", 2, hook(G, "Bash", {"command": "git push origin :main"}, extra=on_work)[0])
+    check("Bash: main 上で宛先を省いた git push", 2, hook(G, "Bash", {"command": "git push"}, extra=on_main)[0])
+    check("Bash: main 上で git push origin HEAD", 2, hook(G, "Bash", {"command": "git push origin HEAD"}, extra=on_main)[0])
+    check("Bash: git push --all", 2, hook(G, "Bash", {"command": "git push --all origin"}, extra=on_work)[0])
+    check("Bash: 作業ブランチ上で宛先を省いた git push", 0, hook(G, "Bash", {"command": "git push"}, extra=on_work)[0])
+    check("Bash: 作業ブランチ上で git push origin HEAD", 0, hook(G, "Bash", {"command": "git push origin HEAD"}, extra=on_work)[0])
+    check("Bash: gh api --method=PUT で保護設定", 2, hook(G, "Bash", {"command": "gh api --method=PUT repos/o/r/branches/main/protection"}, extra=on_work)[0])
+    check("Bash: gh api -f でRulesetを作る（暗黙のPOST）", 2, hook(G, "Bash", {"command": "gh api repos/o/r/rulesets -f name=x"}, extra=on_work)[0])
+    check("Bash: main 上で commit && switch -c", 2, hook(G, "Bash", {"command": "git commit -m x && git switch -c docs/2-y"}, extra=on_main)[0])
+    check("Bash: main 上で switch -c && commit", 0, hook(G, "Bash", {"command": "git switch -c docs/2-y && git commit -m x"}, extra=on_main)[0])
+    check("Bash: 作業ブランチから checkout main && merge", 2, hook(G, "Bash", {"command": "git checkout main && git merge docs/1-x"}, extra=on_work)[0])
+    check("Bash: git branch --delete main", 2, hook(G, "Bash", {"command": "git branch --delete main"}, extra=on_work)[0])
+    check("Bash: main 上で fast-forward になる git merge", 2, hook(G, "Bash", {"command": "git merge --ff-only docs/1-x"}, extra=on_main)[0])
+
+
 def git_hook_tests(tmp):
     print("--- gitのコミット前フック（使い捨てリポジトリ）")
     repo = tmp / "repo"
@@ -114,11 +152,14 @@ def git_hook_tests(tmp):
     def write(name, text):
         (repo / name).write_text(text, encoding="utf-8")
 
-    git("init", "-q")
+    git("init", "-q", "-b", "main")
     git("config", "core.hooksPath", ".githooks")
     write("a.md", "本文\n[TODO-OWNER: 判断待ち]\n")
     git("add", "-A")
-    check("通常のコミット", 0, commit("最初のコミット")[0])
+    check("main へのコミット", 1, commit("main に直接")[0])
+    git("switch", "-q", "-c", "work")
+    check("作業ブランチでの通常のコミット", 0, commit("最初のコミット")[0])
+    git("branch", "-f", "main", "work")
 
     write(".dev.vars", "X=1\n")
     git("add", "-f", ".dev.vars")
@@ -152,6 +193,10 @@ def git_hook_tests(tmp):
     check("メッセージにブロックリストの語", 1, commit(f"{TERM}の件", env=env)[0])
     check("メッセージが普通なら通る", 0, commit("文書を追加", env=env)[0])
 
+    git("switch", "-q", "main")
+    check("main へのマージコミット", True, git("merge", "-q", "--no-ff", "-m", "マージ", "work")[0] != 0)
+    git("merge", "--abort")
+
 
 def main():
     for s in (sys.stdout, sys.stderr):
@@ -159,6 +204,7 @@ def main():
     with tempfile.TemporaryDirectory() as d:
         tmp = Path(d)
         claude_hook_tests(tmp)
+        github_hook_tests()
         git_hook_tests(tmp)
     print(f"\n{sum(results)}/{len(results)} PASS")
     sys.exit(0 if all(results) else 1)
