@@ -40,7 +40,12 @@ const output = {
   source_guess: null,
 };
 
-const ok = (value: unknown): ClaudeResult => ({ ok: true, value, raw: JSON.stringify(value) });
+const ok = (value: unknown): ClaudeResult => ({
+  ok: true,
+  value,
+  raw: JSON.stringify(value),
+  servedBy: "claude-opus-5-5",
+});
 const fake = (result: ClaudeResult): CallClaude => async () => result;
 
 describe("Claude の出力の検査（S9）", () => {

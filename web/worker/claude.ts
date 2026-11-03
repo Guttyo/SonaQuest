@@ -48,7 +48,10 @@ export type ClaudeFailure =
   | "not_json"
   | "unknown";
 
-export type ClaudeResult = { ok: true; value: unknown; raw: string } | { ok: false; failure: ClaudeFailure };
+/** servedBy は答えたモデル。断られて別のモデルが答え直したときは MODEL と違う（本文ではないのでログに出してよい） */
+export type ClaudeResult =
+  | { ok: true; value: unknown; raw: string; servedBy: string }
+  | { ok: false; failure: ClaudeFailure };
 
 export type CallClaude = (system: string, user: string) => Promise<ClaudeResult>;
 
@@ -76,7 +79,7 @@ export function makeCallClaude(apiKey: string): CallClaude {
         .map((block) => (block.type === "text" ? block.text : ""))
         .join("");
       try {
-        return { ok: true, value: JSON.parse(raw), raw };
+        return { ok: true, value: JSON.parse(raw), raw, servedBy: response.model };
       } catch {
         return { ok: false, failure: "not_json" };
       }

@@ -4,7 +4,7 @@
 
 import { Hono } from "hono";
 import { parseTurnRequest } from "../src/flow/turnContract";
-import { makeCallClaude, type CallClaude } from "./claude";
+import { MODEL, makeCallClaude, type CallClaude } from "./claude";
 import { contentLogEnabled, logContent } from "./devlog";
 import { runTurn } from "./turn";
 
@@ -47,6 +47,7 @@ export function createApp(makeClaude: (apiKey: string) => CallClaude = makeCallC
       return c.json({ error: "unavailable" }, 502);
     }
     logContent(devLog, "claude output", outcome.raw);
+    if (outcome.servedBy !== MODEL) console.warn(`turn: served_by ${outcome.servedBy}`);
     if (outcome.textRejected) console.warn("turn: text_rejected");
     return c.json(outcome.response);
   });

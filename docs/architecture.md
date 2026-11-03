@@ -1,6 +1,6 @@
 # 構成（案）
 
-状態：画面（`web/src/`）と、Workers の `/api/turn`（`web/worker/`）がある。本物の Claude API を呼んだ確認はまだ（偽の応答での単体試験のみ）。読み上げの中継と音声認識はまだない。確定事項は docs/decisions.md を正とする（実装の決まりは ADR-0028）。
+状態：画面（`web/src/`）と、Workers の `/api/turn`（`web/worker/`）がある。開発用サーバーで、本物の Claude API を使った訓練を1回通した（2026-11-04）。読み上げの中継と音声認識はまだない。確定事項は docs/decisions.md を正とする（実装の決まりは ADR-0028）。
 
 ```
 [ウェブブラウザ]  React + TypeScript (Vite)

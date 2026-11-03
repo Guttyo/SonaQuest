@@ -101,7 +101,7 @@ export function decideNext(request: TurnRequest, output: ClaudeOutput): TurnResp
 }
 
 export type TurnOutcome =
-  | { ok: true; response: TurnResponse; raw: string; textRejected: boolean }
+  | { ok: true; response: TurnResponse; raw: string; servedBy: string; textRejected: boolean }
   | { ok: false; failure: ClaudeFailure | "invalid_output" };
 
 export async function runTurn(request: TurnRequest, callClaude: CallClaude): Promise<TurnOutcome> {
@@ -113,6 +113,7 @@ export async function runTurn(request: TurnRequest, callClaude: CallClaude): Pro
   return {
     ok: true,
     raw: result.raw,
+    servedBy: result.servedBy,
     textRejected: output.text !== null && next.text === null,
     response: {
       emergency: output.emergency,
