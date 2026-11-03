@@ -22,6 +22,9 @@ describe("体調の訴えの検出（ADR-0011）", () => {
     expect(detectDistress("もう死にたい")).toBe("self_harm");
     expect(detectDistress("生きているのがつらい")).toBe("self_harm");
     expect(detectDistress("薬を大量に飲んで終わりにしたい")).toBe("self_harm");
+    // PR #27 のレビュー：ひらがなの「首をつる」
+    expect(detectDistress("首をつる")).toBe("self_harm");
+    expect(detectDistress("首をつろうと思う")).toBe("self_harm");
   });
 
   it("E6：想定の話では中断しない", () => {
@@ -47,6 +50,9 @@ describe("体調の訴えの検出（ADR-0011）", () => {
       "妻が知っています",
       "名前は覚えていない",
       "特にありません",
+      // PR #27 のレビュー：体の症状ではない「〜が止まらない」
+      "雨が止まらない",
+      "電話が止まらない",
     ]) {
       expect(detectDistress(text), text).toBeNull();
     }
