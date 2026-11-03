@@ -33,6 +33,7 @@ Issue #15 の前半。Claude連携（Cloudflare Workers の `/api/turn`、聞き
 - 推奨：**A**。旧式の `output_format` は使わない。温度などの指定（`temperature` 等）は 2026-10-21 以降 400 になるので送らない
 - [TODO-OWNER: 出力の形（A〜C）]
 - → オーナー決定（2026-11-04、チャット）：A（構造化出力）。
+- 項目3の決定との関係（Claude Code の整理）：項目3で、Claude が質問文・受け止めの一言・質問し直す文を作ることになった（ADR-0025）。そのため A のスキーマに、その文を入れる欄 `next.text`（長さの上限つきの文字列か `null`）を足す（項目13）。上の表の「自由文が無い」「聞き返しの文面は固定文から選ぶ」は、ID だけを返させる場合の説明。`next.text` の文は、Workers で ADR-0025 の検査を通したものだけを画面に出し、通らなければ `question_id` の固定文に戻す。
 
 ## 3. 聞き返しの文面
 | 選択肢 | 良い点 | 気になる点 |
@@ -132,7 +133,8 @@ Issue #15 の前半。Claude連携（Cloudflare Workers の `/api/turn`、聞き
 - `emergency`：真偽値（補助。項目10）
 - `viewpoints`：5観点それぞれ `confirmed` ／ `aware_unconfirmed` ／ `not_mentioned`（ADR-0017）。API失敗時は画面側で「判定できませんでした」
 - `next.type`：`ask`（次の固定の質問）／ `clarify`（聞き返し）／ `redirect`（関係のない話を受け止めて本来の質問に戻す。項目3と #19）／ `finish`（後半を終える）
-- `next.question_id`：実際の質問ID（`first_medicines`、`first_location`、`first_other`、`second_recovery`、`second_handover`、`second_recent`、`second_proxy`、`second_proxy_other`）と、聞き返しの型のID（項目3で決める）だけ
+- `next.question_id`：実際の質問ID（`first_medicines`、`first_location`、`first_other`、`second_recovery`、`second_handover`、`second_recent`、`second_proxy`、`second_proxy_other`）だけ。`clarify`・`redirect` のときは、戻り先（いま聞いている質問）のIDを入れる。`finish` のときは `null`
+- `next.text`：Claude が作った文（質問文、受け止めの一言、質問し直す文。項目3、ADR-0025）。長さの上限つきの文字列か `null`。Workers で長さ・禁止表現・利用者の発言の繰り返しを検査し、通らないときや `null` のときは `question_id` の固定文を出す（`clarify`・`redirect` 用の固定文も `question_id` ごとに用意する）
 - `recall`：思い出せない回答だったか（真偽値。項目7）
 - `source_guess`：③確認の初期選択の候補（項目6）。値は `"smartphone"` ／ `"online"` ／ `"notebook"` ／ `"family"` ／ `"clinic"` のどれか、または候補が無いときは JSON の `null`（キーは省略しない）。`"none"`（どれにも当てはまらない＝係の交代）は**返させない**。「どれにも当てはまらない」と係の交代は、本人のタップでだけ選ぶ（ADR-0016）。検証（ADR-0015）で、これ以外の値は拒否して初期選択なしにする
 - 進め方の決まり：前半は最大3回・後半は最大3回（聞き返しも数える。ADR-0019）、③確認はタップで回数に数えない、後半の最初は必ず立て直しの問い、上限に達したら追加の質問をしない

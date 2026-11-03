@@ -36,9 +36,16 @@
     "location": "confirmed | aware_unconfirmed | not_mentioned",
     "alternative": "...", "current": "...", "unrecorded": "...", "proxy": "..."
   },
-  "next": {"type": "ask | clarify | finish", "question_id": "q3"}
+  "next": {
+    "type": "ask | clarify | redirect | finish",
+    "question_id": "second_recovery",
+    "text": "Claude が作った文（質問文・受け止めの一言・質問し直す文）。長さの上限つき。無ければ null"
+  },
+  "recall": false,
+  "source_guess": "notebook"
 }
 ```
+- 値の決まり（許す値、`source_guess` の値、`next.text` の扱い）は docs/phase2-decisions.md の項目13。
 - 検証（ADR-0015）：スキーマ、許可した値だけか、文字列の長さの上限、余分なキーの拒否。失敗したら固定の進行へ。
 - 公開前の必須条件（ADR-0003）：回数制限、入力の大きさの上限（上限を超えたらClaudeを呼ばずに拒否）、Claude APIの支出の上限。
 - 画面に出す質問文・聞き返し文：Claude が作ってよいのは質問文、受け止めの一言、質問し直す文だけで、Workers で長さ・禁止表現・利用者の発言の繰り返しを検査し、通らなければ ID から固定文を引く（ADR-0025）。
