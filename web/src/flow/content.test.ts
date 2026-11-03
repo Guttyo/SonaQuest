@@ -66,6 +66,15 @@ describe("答える範囲（ADR-0022 案B）", () => {
     expect(PROTOTYPE_LEAD).toContain("薬の中身は架空");
   });
 
+  it.each([PROXY_QUESTION, PROXY_QUESTION_AFTER_FAMILY])(
+    "薬を知っている人の質問（$id）は、連絡先そのものではなく手段の種類を聞く",
+    (q) => {
+      expect(q.text).not.toContain("どうやって連絡がとれますか");
+      expect(q.text).toContain("手段");
+      expect(q.text).toContain("電話番号などは書かなくて大丈夫です");
+    },
+  );
+
   it("初回画面は、すべてを架空の人として答えるようには案内しない", () => {
     expect(INTRO_POINTS.join("")).not.toContain("架空の人になったつもり");
   });
