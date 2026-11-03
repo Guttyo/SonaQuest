@@ -4,6 +4,7 @@ Claude Codeのhookには実際と同じ形のJSONを渡し、終了コードを�
 gitのフックは一時ディレクトリに作った使い捨てリポジトリで確かめる。
 秘密情報の形をした値は、このファイルを検査に引っかけないよう実行時に組み立てる。
 """
+import importlib.util
 import json
 import os
 import shutil
@@ -37,7 +38,7 @@ def hook(script, tool, tool_input, env=None, extra=None):
 
 
 def claude_hook_tests(tmp):
-    P, S = "protect_todo_owner.py", "block_secrets.py"
+    P = "protect_todo_owner.py"
     m1, m2 = "[TODO-OWNER: 緊急時の文面]", "[TODO-OWNER]"
     doc = tmp / "doc.md"
     doc.write_text(f"本文\n{m1}\n{m2}\n", encoding="utf-8")
@@ -58,6 +59,76 @@ def claude_hook_tests(tmp):
     check("Bash: git commit の後に書き換えをつなぐ", 2, hook(P, "Bash", {"command": "git commit -m x && sed -i 's/TODO-OWNER//' a.md"})[0])
     check("Bash: オーナー承認の環境変数を使う", 2, hook(P, "Bash", {"command": "SONAQUEST_OWNER_APPROVED=1 git commit -m x"})[0])
 
+
+def decision_hook_tests(tmp):
+    """決定の行が main にあるマーカーの解除（ADR-0024）。使い捨てのリポジトリの main を見る。"""
+    print("--- 決定の行による解除（Claude Code hook）")
+    P = "protect_todo_owner.py"
+    repo = tmp / "decided"
+    repo.mkdir()
+    env = {**os.environ, "GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "test@example.invalid",
+           "GIT_COMMITTER_NAME": "test", "GIT_COMMITTER_EMAIL": "test@example.invalid"}
+
+    def git(*args):
+        subprocess.run(["git", *args], cwd=repo, capture_output=True, env=env)
+
+    done, todo = "[TODO-OWNER: 決定済みの項目]", "[TODO-OWNER: 判断待ちの項目]"
+    line = "- → オーナー決定（2026-11-03、チャット）：A にする。"
+    new_line = "- → オーナー決定（2026-11-03、チャット）：B にする。"
+    doc, code, vague = repo / "adr.md", repo / "a.ts", repo / "vague.md"
+    doc.write_text(f"本文\n{done}\n{line}\n\n{todo}\n次の節\n", encoding="utf-8")
+    code.write_text(f"// {todo}\n// → オーナー決定（2026-11-03、チャット）：この文面でよい。\nconst a = 1;\n", encoding="utf-8")
+    vague.write_text(f"{done}\n- → オーナー（2026-11-03、チャット）：A にする方向。\n{todo}\n"
+                     "- → オーナー指示（2026-11-03、チャット）：A にする。\n", encoding="utf-8")
+    # 同じ文のマーカーが、決定の行の付いたものと付いていないものの2つある
+    bare = "[TODO-OWNER]"
+    dup = repo / "dup.md"
+    dup.write_text(f"一つ目 {bare}\n{line}\n\n二つ目 {bare}\n終わり\n", encoding="utf-8")
+    # 別々のマーカーに、同じ文の決定の行が付いている
+    same = repo / "same.md"
+    same.write_text(f"[TODO-OWNER: 甲]\n{line}\n[TODO-OWNER: 乙]\n{line}\n", encoding="utf-8")
+    git("init", "-q", "-b", "main")
+    git("add", "-A")
+    git("commit", "-q", "-m", "x")
+    git("switch", "-q", "-c", "work")
+
+    def edit(path, old, new):
+        return hook(P, "Edit", {"file_path": str(path), "old_string": old, "new_string": new})[0]
+
+    check("Edit: main で決定の行が付いたマーカーを解除する（決定の行は残す）", 0, edit(doc, f"{done}\n{line}", line))
+    check("Edit: 決定の行ごと消す", 2, edit(doc, f"{done}\n{line}\n", ""))
+    check("Edit: 決定の行の無いマーカーを消す", 2, edit(doc, f"\n{todo}\n", "\n"))
+    check("Edit: 決定の行を足すのと同時にマーカーを消す", 2, edit(doc, f"{todo}\n", f"{new_line}\n"))
+    check("Edit: コードのコメントの決定の行（//）", 0, edit(code, f"// {todo}\n", ""))
+    check("Edit: 「〜の方向」は決定として扱わない", 2, edit(vague, f"{done}\n", ""))
+    check("Edit: 「オーナー指示」は決定として扱わない", 2, edit(vague, f"{todo}\n", ""))
+    check("Write: 決定済みのマーカーだけを外した上書き", 0, hook(P, "Write", {"file_path": str(doc), "content": f"本文\n{line}\n\n{todo}\n次の節\n"})[0])
+    check("Write: 決定の無いマーカーも外した上書き", 2, hook(P, "Write", {"file_path": str(doc), "content": f"本文\n{line}\n\n次の節\n"})[0])
+    check("Edit: リポジトリの外のファイル（main が無い）", 2, edit(tmp / "doc.md", "[TODO-OWNER: 緊急時の文面]\n", ""))
+    # Issue #19 のレビュー：同じ文のマーカーの取り違え、replace_all、MultiEdit
+    check("Edit: マーカーを残して、main にある決定の行だけを消す", 2, edit(doc, f"{done}\n{line}", done))
+    check("Edit: マーカーを残して、main にある決定の行を書き換える", 2, edit(doc, line, new_line))
+    check("Edit: 同じ文のマーカーのうち、決定の無い方を消す", 2, edit(dup, f"二つ目 {bare}", "二つ目"))
+    check("Edit: 同じ文のマーカーのうち、決定の付いた方を消す", 0, edit(dup, f"一つ目 {bare}", "一つ目"))
+    check("Edit: replace_all で同じ文のマーカーをすべて消す", 2, hook(P, "Edit", {
+        "file_path": str(dup), "old_string": f" {bare}", "new_string": "", "replace_all": True})[0])
+    check("MultiEdit: 決定の付いた方と無い方を続けて消す", 2, hook(P, "MultiEdit", {"file_path": str(dup), "edits": [
+        {"old_string": f"一つ目 {bare}", "new_string": "一つ目"}, {"old_string": f"二つ目 {bare}", "new_string": "二つ目"}]})[0])
+    check("Write: 同じ文の決定の行の片方をマーカーと一緒に消す", 2, hook(P, "Write", {"file_path": str(same), "content": f"{line}\n"})[0])
+    check("Write: 決定済みのマーカーを2つとも外し、決定の行は2つとも残す", 0, hook(P, "Write", {"file_path": str(same), "content": f"{line}\n{line}\n"})[0])
+
+    # 作業ブランチで決定の行を足してコミットしただけでは、main に入っていないので解除できない
+    doc.write_text(f"本文\n{done}\n{line}\n\n{todo}\n{new_line}\n次の節\n", encoding="utf-8")
+    git("commit", "-q", "-am", "決定の行を足す")
+    check("Edit: 作業ブランチで足しただけの決定の行では解除しない", 2, edit(doc, f"{todo}\n{new_line}", new_line))
+    # 作業ブランチに main という名前のタグ・参照を作っても、ブランチの main（refs/heads/main）を見る
+    git("tag", "main", "HEAD")
+    git("update-ref", "refs/main", "HEAD")
+    check("Edit: main という名前のタグ・参照があっても、ブランチの main を見る", 2, edit(doc, f"{todo}\n{new_line}", new_line))
+
+
+def secret_hook_tests(tmp):
+    S = "block_secrets.py"
     print("--- 秘密情報の保護（Claude Code hook）")
     check("Read: .dev.vars", 2, hook(S, "Read", {"file_path": str(ROOT / ".dev.vars")})[0])
     check("Read: .dev.vars.example", 0, hook(S, "Read", {"file_path": str(ROOT / ".dev.vars.example")})[0])
@@ -174,6 +245,33 @@ def github_hook_tests():
     check("Bash: main から作業ブランチを作る", 0, hook(G, "Bash", {"command": "git switch -c docs/2-y"}, extra=on_main)[0])
     check("Bash: main で pull --ff-only", 0, hook(G, "Bash", {"command": "git pull --ff-only"}, extra=on_main)[0])
     check("Bash: 作業ブランチでコミット", 0, hook(G, "Bash", {"command": "git commit -m x"}, extra=on_work)[0])
+    # Issue #19 のレビュー：マーカー解除の判定が見るローカルの main を動かす・隠す操作（ADR-0024）
+    for cmd in ("git branch -f main HEAD", "git branch --force main docs/1-x", "git branch -M docs/1-x main",
+                "git branch -c docs/1-x main", "git update-ref refs/heads/main HEAD", "git update-ref refs/main HEAD",
+                "git tag main", "git tag -f main HEAD", "git fetch . HEAD:main", "git fetch origin +docs/1-x:refs/heads/main",
+                "git switch -C main", "git checkout -B main HEAD", "git symbolic-ref refs/heads/main refs/heads/docs/1-x"):
+        check(f"Bash: ローカルの main を動かす（{cmd}）", 2, hook(G, "Bash", {"command": cmd}, extra=on_work)[0])
+    # 2回目のレビュー：書き方を変えて main を動かす（止める）と、main を起点に使うだけの操作（止めない）
+    for cmd in ("git push . HEAD:heads/main", "git checkout -fBmain", "git switch --force-create=main",
+                "git checkout -B main HEAD --", "git rebase HEAD main", "git update-ref --stdin"):
+        check(f"Bash: ローカルの main を動かす（{cmd}）", 2, hook(G, "Bash", {"command": cmd}, extra=on_work)[0])
+    check("Bash: main で手元のブランチから pull --ff-only", 2, hook(G, "Bash", {"command": "git pull --ff-only . docs/1-x"}, extra=on_main)[0])
+    check("Bash: main で origin から pull --ff-only", 0, hook(G, "Bash", {"command": "git pull --ff-only origin main"}, extra=on_main)[0])
+    for cmd in ("git branch -f feat/3-x main", "git switch -C feat/3-x main", "git checkout -B feat/3-x origin/main",
+                "git tag v0.1.0 main", "git tag --contains main", "git branch -c main backup", "git rebase main",
+                "git branch --merged main"):
+        check(f"Bash: main を起点・条件に使うだけ（{cmd}）", 0, hook(G, "Bash", {"command": cmd}, extra=on_work)[0])
+    # PR #29 のレビュー：symbolic-ref の設定先、小文字の作成オプション（止める）と、末尾が main なだけの別の名前（止めない）
+    for cmd in ("git symbolic-ref HEAD refs/heads/main", "git switch -c main", "git checkout -b main",
+                "git switch --create main", "git switch --create=main"):
+        check(f"Bash: ローカルの main を作る・切り替えたように見せる（{cmd}）", 2, hook(G, "Bash", {"command": cmd}, extra=on_work)[0])
+    for cmd in ("git push origin feature/main", "git branch -f feature/main HEAD", "git tag release/main",
+                "git switch -c docs/main"):
+        check(f"Bash: 末尾が main なだけの別の名前（{cmd}）", 0, hook(G, "Bash", {"command": cmd}, extra=on_work)[0])
+    check("Bash: 作業ブランチを -f で作り直す", 0, hook(G, "Bash", {"command": "git branch -f docs/2-y HEAD"}, extra=on_work)[0])
+    check("Bash: origin を fetch する", 0, hook(G, "Bash", {"command": "git fetch origin"}, extra=on_work)[0])
+    check("Bash: リモート追跡の origin/main へ fetch", 0, hook(G, "Bash", {"command": "git fetch origin main:refs/remotes/origin/main"}, extra=on_work)[0])
+    check("Bash: 作業用のタグを付ける", 0, hook(G, "Bash", {"command": "git tag v0.1"}, extra=on_work)[0])
     # PR #3 のレビューで指摘された抜け道
     check("Bash: git push -uf（短縮オプションの結合）", 2, hook(G, "Bash", {"command": "git push -uf origin docs/1-x"}, extra=on_work)[0])
     check("Bash: +refspec での force push", 2, hook(G, "Bash", {"command": "git push origin +docs/1-x"}, extra=on_work)[0])
@@ -257,6 +355,97 @@ def git_hook_tests(tmp):
     check("マーカーを消すコミット", 1, code)
     check("  案内にPowerShellの書き方がある", True, "$env:SONAQUEST_OWNER_APPROVED" in err)
     check("マーカーを消すコミット（オーナー承認あり）", 0, commit("マーカー削除", env={"SONAQUEST_OWNER_APPROVED": "1"})[0])
+
+    # 決定の行が main にあるマーカーの解除（ADR-0024）
+    decision = "→ オーナー決定（2026-11-03、チャット）：A にする。"
+    added_decision = "→ オーナー決定（2026-11-03、チャット）：B にする。"
+    write("d.md", f"本文\n[TODO-OWNER: 決定済み]\n{decision}\n[TODO-OWNER: 判断待ち2]\n")
+    git("add", "d.md")
+    commit("決定の行つきのマーカー")
+    git("branch", "-f", "main", "work")
+    write("d.md", f"本文\n{decision}\n[TODO-OWNER: 判断待ち2]\n")
+    git("add", "d.md")
+    check("main で決定の行が付いたマーカーを消すコミット", 0, commit("解除")[0])
+    write("d.md", f"本文\n{decision}\n{added_decision}\n")
+    git("add", "d.md")
+    check("決定の行を足すのと同時にマーカーを消すコミット", 1, commit("決定を足して解除")[0])
+    write("d.md", f"本文\n{decision}\n[TODO-OWNER: 判断待ち2]\n{added_decision}\n")
+    git("add", "d.md")
+    check("決定の行だけを足すコミット", 0, commit("決定を足す")[0])
+    write("d.md", f"本文\n{decision}\n{added_decision}\n")
+    git("add", "d.md")
+    check("作業ブランチで足しただけの決定の行では消せない", 1, commit("解除")[0])
+    git("tag", "main", "HEAD")
+    check("  main という名前のタグがあっても、ブランチの main を見る", 1, commit("解除")[0])
+    git("tag", "-d", "main")
+    git("reset", "-q", "HEAD", "d.md")
+    git("checkout", "-q", "--", "d.md")
+
+    # Issue #19 のレビュー：決定の行ごと消す、空白・日本語を含むパス、名前の変更、別のファイルへの移動
+    write("e.md", f"[TODO-OWNER: 決定済みE]\n{decision}\n")
+    write("空白 と 日本語.md", f"[TODO-OWNER: 決定済みF]\n{decision}\n")
+    write("old.md", f"[TODO-OWNER: 決定済みG]\n{decision}\n")
+    write("m.md", "[TODO-OWNER: 移すもの]\n")
+    git("add", "-A")
+    commit("決定の行つきのマーカーを足す")
+    git("branch", "-f", "main", "work")
+    write("e.md", "")
+    git("add", "e.md")
+    check("決定の行ごとマーカーを消すコミット", 1, commit("決定ごと消す")[0])
+    git("checkout", "-q", "HEAD", "--", "e.md")
+    write("空白 と 日本語.md", f"{decision}\n")
+    git("add", "-A")
+    check("空白と日本語を含むパスで、決定済みのマーカーを消すコミット", 0, commit("解除")[0])
+    git("mv", "old.md", "new.md")
+    write("new.md", f"{decision}\n")
+    git("add", "-A")
+    check("名前を変えたファイルで、決定済みのマーカーを消すコミット", 0, commit("名前を変えて解除")[0])
+    write("m.md", "")
+    write("m2.md", "[TODO-OWNER: 移すもの]\n")
+    git("add", "-A")
+    check("マーカーを別のファイルへ移すコミット", 0, commit("移す")[0])
+    write("e2.md", f"[TODO-OWNER: 決定済みE]\n{decision}\n")
+    write("e.md", "")
+    git("add", "-A")
+    check("マーカーと決定の行を、そのまま別のファイルへ移すコミット", 0, commit("決定ごと移す")[0])
+
+    # PR #29 のレビュー：決定の行だけを消す、1つの追加で2つのファイルの削除を差し引く
+    write("p.md", f"[TODO-OWNER: 決定済みP]\n{decision}\n")
+    write("q.md", f"[TODO-OWNER: 決定済みQ]\n{decision}\n")
+    git("add", "-A")
+    commit("決定の行つきのマーカーを足す2")
+    git("branch", "-f", "main", "work")
+    write("p.md", "[TODO-OWNER: 決定済みP]\n")
+    git("add", "p.md")
+    check("マーカーを残して、main にある決定の行だけを消すコミット", 1, commit("決定の行だけ消す")[0])
+    write("p.md", "")
+    write("q.md", "")
+    write("r.md", f"{decision}\n")
+    git("add", "-A")
+    check("決定の行を1つだけ足して、2つのファイルから決定の行ごと消すコミット", 1, commit("1つで2つを差し引く")[0])
+    git("reset", "-q", "--", "p.md", "q.md", "r.md")
+    git("checkout", "-q", "--", "p.md", "q.md")
+    (repo / "r.md").unlink()
+
+    # PR #29 のレビュー：git が "..." で囲むパス（「"」「\」・タブを含む）の見出しを元に戻す
+    spec = importlib.util.spec_from_file_location("scan_staged", ROOT / ".githooks" / "scan_staged.py")
+    scan = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(scan)
+    check("見出しのパス：「\"」を含む", 'a"b.md', scan.header_path('"b/a\\"b.md"', "b/"))
+    check("見出しのパス：「\\」とタブを含む", "a\\b\tc.md", scan.header_path('"a/a\\\\b\\tc.md"', "a/"))
+    check("見出しのパス：8進数でエスケープした日本語", "日本.md", scan.header_path('"b/\\346\\227\\245\\346\\234\\254.md"', "b/"))
+    check("見出しのパス：空白を含む（末尾のタブを除く）", "a b.md", scan.header_path("b/a b.md\t", "b/"))
+    check("見出しのパス：/dev/null", "", scan.header_path("/dev/null", "b/"))
+    if os.name != "nt":  # Windows では「"」をファイル名に使えない
+        write('q"x.md', "本文\n[TODO-OWNER: 引用符]\n")
+        git("add", "-A")
+        commit("引用符を含むファイル")
+        write('q"x.md', "本文\n")
+        git("add", "-A")
+        check("「\"」を含むパスで、決定の無いマーカーを消すコミット", 1, commit("消す")[0])
+        # 止まったコミットの変更を残すと、後の試験のコミットまで止まるので元に戻す
+        git("reset", "-q", "--", 'q"x.md')
+        git("checkout", "-q", "--", 'q"x.md')
 
     bl = tmp / "blocklist-git.txt"
     bl.write_text(TERM + "\n", encoding="utf-8")
@@ -366,6 +555,8 @@ def main():
     with tempfile.TemporaryDirectory() as d:
         tmp = Path(d)
         claude_hook_tests(tmp)
+        decision_hook_tests(tmp)
+        secret_hook_tests(tmp)
         github_hook_tests()
         git_hook_tests(tmp)
         status_hook_tests(tmp)
