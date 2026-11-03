@@ -1,5 +1,6 @@
 import { useState, type Dispatch } from "react";
 import {
+  ANSWER_PLACEHOLDER,
   CONFIRM_PROMPT,
   EVENTS,
   SCENE_INTRO,
@@ -105,7 +106,7 @@ function AnswerForm({
         value={draft}
         maxLength={MAX_ANSWER_LENGTH}
         rows={4}
-        placeholder="ここに入力してください"
+        placeholder={ANSWER_PLACEHOLDER}
         onChange={(e) => setDraft(e.target.value)}
       />
       <div className="form-row">
