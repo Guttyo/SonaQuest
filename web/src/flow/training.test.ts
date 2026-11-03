@@ -127,12 +127,56 @@ describe("中断とやり直し", () => {
     ],
   ])("%s から中断できる", (_label, actions) => {
     const stopped = trainingReducer(run(actions), { type: "stop" });
-    expect(stopped.stage).toEqual({ name: "stopped" });
+    expect(stopped.stage).toEqual({ name: "stopped", reason: "manual" });
   });
 
   it("中断した後は回答を受け付けない", () => {
     const stopped = run([{ type: "start" }, { type: "stop" }]);
     expect(trainingReducer(stopped, answer("続き"))).toBe(stopped);
+  });
+});
+
+describe("体調の訴えらしい入力での中断（ADR-0011）", () => {
+  it("前半の回答で体調の訴えがあれば中断し、その回答は受け取らない（E1）", () => {
+    const state = run([{ type: "start" }, answer("お薬手帳です"), answer("今、胸が苦しい")]);
+    expect(state.stage).toEqual({ name: "stopped", reason: "symptom" });
+    expect(state.answers.map((a) => a.text)).toEqual(["お薬手帳です"]);
+  });
+
+  it("後半の「飲めていますか」に「飲めていない、今つらい」で中断する（E8）", () => {
+    const state = run([
+      ...firstHalf,
+      { type: "confirm", source: "notebook" },
+      { type: "continue_after_event" },
+      answer("スマホの写真で見せます"),
+      answer("飲めていない、今つらい"),
+    ]);
+    expect(state.stage).toEqual({ name: "stopped", reason: "symptom" });
+  });
+
+  it("自傷のほのめかしでは自傷用の理由で中断する（E5）", () => {
+    const state = run([{ type: "start" }, answer("もう消えてしまいたい")]);
+    expect(state.stage).toEqual({ name: "stopped", reason: "self_harm" });
+  });
+
+  it("自動で中断した後は回答を受け付けない", () => {
+    const stopped = run([{ type: "start" }, answer("頭が痛い")]);
+    expect(trainingReducer(stopped, answer("A薬を朝に1錠"))).toBe(stopped);
+  });
+
+  it("文字数の上限を超える回答でも、訴えがあれば中断する", () => {
+    const state = run([{ type: "start" }, answer("あ".repeat(600) + "息ができない")]);
+    expect(state.stage).toEqual({ name: "stopped", reason: "symptom" });
+  });
+
+  it("想定の話（E6）や過去の話（E9）では中断しない", () => {
+    const state = run([
+      { type: "start" },
+      answer("もし薬が切れたら困る"),
+      answer("お薬手帳です"),
+      answer("以前、具合が悪くなった薬はない"),
+    ]);
+    expect(state.stage).toEqual({ name: "confirm" });
   });
 
   it("やり直すと回答も出来事も消える", () => {
