@@ -1,6 +1,6 @@
 # 進捗（STATUS）
 
-最終更新：2026-11-04（Issue #14：体調の訴えらしい入力での自動の中断を足した。絶対ルールと関連ルールの見直しとマーカー解除の hook（Issue #19、PR #29）はmainに入っている。その前の Issue #25：PR #18・#21・#22・#23 の後の main に合わせた。Phase 1（Issue #8、PR #10）、開発記録（Issue #9、PR #11）、STATUS.md の hook（Issue #13、PR #18）、答える範囲の案B（Issue #12、PR #22）、Phase 2 の前に決めることの表（Issue #15 の前半、PR #23）、外部の助言の記録（Issue #20、PR #21）はmainに入っている）
+最終更新：2026-11-04（Issue #16：提出後の課題を `docs/roadmap.md` にまとめた。体調の訴えらしい入力での自動の中断（Issue #14、PR #27）と、絶対ルールと関連ルールの見直しとマーカー解除の hook（Issue #19、PR #29）はmainに入っている。その前の Issue #25：PR #18・#21・#22・#23 の後の main に合わせた。Phase 1（Issue #8、PR #10）、開発記録（Issue #9、PR #11）、STATUS.md の hook（Issue #13、PR #18）、答える範囲の案B（Issue #12、PR #22）、Phase 2 の前に決めることの表（Issue #15 の前半、PR #23）、外部の助言の記録（Issue #20、PR #21）はmainに入っている）
 
 ## 実装済み（コードがありコミット済み）
 - Claude Code用hook：`[TODO-OWNER]` の削除防止（`protect_todo_owner.py`）、秘密情報とブロックリストの語の検出（`block_secrets.py`）、main・GitHubの保護（`guard_github.py`）。いずれも `.claude/hooks/`
@@ -45,7 +45,6 @@
 ## 未着手
 - Claude連携（Workers / Hono、/api/turn、聞き返し、観点の判定、API失敗時に固定の進行へ切り替えること）。Issue #15 の後半。前に決めることの表（`docs/phase2-decisions.md`）のオーナーの決定を待って始める
 - Phase 1 の残り（Issue #17）：動作の要件をウェブブラウザに改める、#7119 の出典URL、準備行動や公的な仕組みに触れる固定文への出典と確認日の表示（docs/references.md の候補が未確認のため）
-- 提出後の課題を `docs/roadmap.md` にまとめる（Issue #16）
 - 音声入力、光のキャラクターの動きの演出（ADR-0020）
 - iPhone Safari 実機での確認
 - macOSでのhook試験（Windowsでのみ確認）
@@ -61,6 +60,7 @@
 - CLAUDE.md、`.claude/rules/`（scope、safety、privacy、github）、`.claude/skills/`
 - docs/：PRD、architecture、decisions（ADR-0001〜0026）、safety-test-plan、evidence、demo-script（枠）、references、KEEP-THINKING
 - 絶対ルールと関連ルールの見直し（Issue #19）：絶対ルール3（公開する版では本文をログに出さない。開発中だけ既定でオフの切り替えで出してよい）、5（main で決定の行が付いたマーカーの解除）、7（Issue ごとの着手の承認）を書き直し、11 を番号を変えずに10の後へ移した。scope（架空で答える範囲、音声、Claude が質問する）、safety（Claude が作る文とその検査）、privacy（保持・送信・保存・ログ出力の違い）、github（着手の承認）を合わせた。safety-test-plan に S16〜S19 を足した（未実施）
+- 提出後の課題 `docs/roadmap.md`（Issue #16）：ADR-0009 の「今後の課題」の候補（ADR-0009 からは roadmap を参照する形にした）、ADR-0025 の B、外部の助言の「持ち帰り」の案を、出所を付けて集めた。どれも作ると決めたものではない
 - テーマごとの開発記録 `docs/dev-logs/` と、それを書く `dev-log` Skill（`.claude/skills/dev-log/`）。Issue #9、PR #11
 - Phase 2（Claude連携）の前に決めることの表 `docs/phase2-decisions.md`（Issue #15 の前半、PR #23）。モデル、出力の形、送る内容、禁じること、失敗時の扱いなど14項目に、選択肢と推奨を付けた
 - 外部AI（Fable）の文書の助言の記録 `docs/reviews/` と、公式の審査基準の写し `docs/judging-criteria.md`（Issue #20、PR #21）
@@ -85,4 +85,4 @@
 - **決定済み（2026-11-03）**：ADR-0003（技術構成）を採用。MVPの実装は別のIssueで進める。公開前に、/api/turn の回数制限・入力の大きさの上限・Claude APIの支出の上限を確かめる（safety-test-plan P7〜P9）
 
 ## 今後の課題（提出の後）
-- ローンチ時には、利用者が自分の実際の服薬状況を示せるようにする必要がある（2026-11-03、オーナー）。提出版は架空のみ。実際の情報を扱う版は、同意の取り方、外部事業者の保持、保存の方針、医療判断をしないことの再点検などを別のADRで決めてから作る（候補の項目は docs/decisions.md ADR-0009 の「今後の課題」）。提出後の課題は Issue #16 で `docs/roadmap.md` にまとめる
+- `docs/roadmap.md` にまとめた（実際の服薬状況を扱う版、Claude に任せる範囲を広げること、訓練の後に利用者が自分で持ち帰ること）。どれも提出版の実装には含まない
