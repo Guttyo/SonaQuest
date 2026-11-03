@@ -114,11 +114,13 @@ def pr_body_says_no_update(cmd, tokens, cwd):
         return False
 
 
-def status_changed(base):
+def status_changed(base, head=None):
+    """head（--head の値。無ければ今の HEAD）で STATUS.md が変わっているか。"""
     ref = base_ref(base)
-    if not ref:
+    head_ref = base_ref(head.split(":", 1)[-1]) if head else "HEAD"  # 所有者:ブランチ の形も受ける
+    if not ref or not head_ref:
         return True  # 比べる相手が無いときは止めない
-    code, out = git("diff", "--name-only", f"{ref}...HEAD")
+    code, out = git("diff", "--name-only", f"{ref}...{head_ref}")
     return code != 0 or STATUS in out.splitlines()
 
 
@@ -129,7 +131,7 @@ def pre_tool_use(data):
     for _, tokens, _ in split_commands(cmd) or []:
         if tokens[:3] != ["gh", "pr", "create"]:
             continue
-        if status_changed(option_value(tokens, ("--base", "-B")) or "main") \
+        if status_changed(option_value(tokens, ("--base", "-B")) or "main", option_value(tokens, ("--head", "-H"))) \
                 or pr_body_says_no_update(cmd, tokens, data.get("cwd")):
             continue
         print(f"BLOCKED（STATUS.mdの更新確認）: このブランチで {STATUS} が変わっていません。"

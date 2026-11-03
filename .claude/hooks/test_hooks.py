@@ -346,6 +346,12 @@ def status_hook_tests(tmp):
     git("add", "-A")
     git("commit", "-q", "-m", "STATUS を更新")
     check("gh pr create: STATUS.md を更新済み", 0, pr("gh pr create --title x --body y"))
+    # PR #18 の第2回のレビュー：--head で別のブランチを指したときは、そのブランチを見る
+    git("branch", "docs/14-w", "main")
+    check("gh pr create --head: 指したブランチで STATUS.md が変わっていない", 2, pr("gh pr create --head docs/14-w --title x --body y"))
+    check("gh pr create --head 所有者:ブランチ の形", 2, pr("gh pr create --head Owner:docs/14-w --title x --body y"))
+    git("switch", "-q", "docs/14-w")  # 今いるブランチでは STATUS.md が変わっていない
+    check("gh pr create -H: 指したブランチで STATUS.md を更新済み", 0, pr("gh pr create -H docs/13-z --title x --body y"))
 
 
 def main():
