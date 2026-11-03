@@ -149,6 +149,7 @@ docs/dev-logs/         テーマごとの開発記録（経過と教訓）
 docs/reviews/          外部レビュー・助言の記録（何を聞き、何を言われたか）
 web/                   画面（React / TypeScript / Vite）。src/flow/ に進行のルールと固定文
 web/worker/            Cloudflare Workers（Hono）の /api/turn。Claude の呼び出しと、出力・文の検査
+web/experiments/       モデルの比較実験の材料（架空の回答）と実行の台本、測った値
 ```
 
 ## 制作者

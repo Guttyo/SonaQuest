@@ -11,7 +11,7 @@ import {
   type TurnResponse,
 } from "../src/flow/turnContract";
 import { isAcceptablePromptText } from "./checks";
-import type { CallClaude, ClaudeFailure } from "./claude";
+import type { CallClaude, ClaudeFailure, Usage } from "./claude";
 import { SYSTEM_PROMPT, buildUserMessage } from "./prompt";
 
 interface ClaudeOutput {
@@ -101,7 +101,16 @@ export function decideNext(request: TurnRequest, output: ClaudeOutput): TurnResp
 }
 
 export type TurnOutcome =
-  | { ok: true; response: TurnResponse; raw: string; servedBy: string; textRejected: boolean }
+  | {
+      ok: true;
+      response: TurnResponse;
+      raw: string;
+      servedBy: string;
+      usage: Usage;
+      /** Claude が作った文（検査の前）。比較実験で、捨てられた文を数えるために使う */
+      claudeText: string | null;
+      textRejected: boolean;
+    }
   | { ok: false; failure: ClaudeFailure | "invalid_output" };
 
 export async function runTurn(request: TurnRequest, callClaude: CallClaude): Promise<TurnOutcome> {
@@ -114,6 +123,8 @@ export async function runTurn(request: TurnRequest, callClaude: CallClaude): Pro
     ok: true,
     raw: result.raw,
     servedBy: result.servedBy,
+    usage: result.usage,
+    claudeText: output.text,
     textRejected: output.text !== null && next.text === null,
     response: {
       emergency: output.emergency,

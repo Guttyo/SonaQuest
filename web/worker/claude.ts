@@ -48,26 +48,54 @@ export type ClaudeFailure =
   | "not_json"
   | "unknown";
 
-/** servedBy は答えたモデル。断られて別のモデルが答え直したときは MODEL と違う（本文ではないのでログに出してよい） */
+/** 使ったトークン数（料金の見積もりに使う。本文ではないのでログに出してよい） */
+export interface Usage {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+}
+
+/** servedBy は答えたモデル。断られて別のモデルが答え直したときは、頼んだモデルと違う（本文ではないのでログに出してよい） */
 export type ClaudeResult =
-  | { ok: true; value: unknown; raw: string; servedBy: string }
+  | { ok: true; value: unknown; raw: string; servedBy: string; usage: Usage }
   | { ok: false; failure: ClaudeFailure };
 
 export type CallClaude = (system: string, user: string) => Promise<ClaudeResult>;
 
-export function makeCallClaude(apiKey: string): CallClaude {
+export type Effort = "low" | "medium" | "high";
+
+/** 呼び出しの設定。ふだんは MODEL と effort low。開発中の比較実験だけで替える（devlog.ts の devOverrides） */
+export interface ClaudeOptions {
+  model?: string;
+  effort?: Effort;
+}
+
+/**
+ * 断られたときに別のモデルで答え直す設定を使えるか。Haiku に替えたときは使わず、
+ * 断られたら固定の進行へ（docs/phase2-decisions.md 項目9 の訂正の行）
+ */
+export function usesFallback(model: string): boolean {
+  return !model.startsWith("claude-haiku");
+}
+
+export function makeCallClaude(apiKey: string, options: ClaudeOptions = {}): CallClaude {
   const client = new Anthropic({ apiKey, maxRetries: 0, timeout: CLAUDE_TIMEOUT_MS });
+  const model = options.model ?? MODEL;
+  const effort = options.effort ?? "low";
+  const fallback = usesFallback(model)
+    ? { betas: [FALLBACK_BETA], fallbacks: "default" as const }
+    : {};
   return async (system, user) => {
     try {
       const response = await client.beta.messages.create({
-        model: MODEL,
-        betas: [FALLBACK_BETA],
-        fallbacks: "default",
+        model,
+        ...fallback,
         max_tokens: 4096,
         // 毎回同じシステムプロンプトなので、キャッシュに置く
         system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
         output_config: {
-          effort: "low",
+          effort,
           format: { type: "json_schema", schema: CLAUDE_OUTPUT_SCHEMA },
         },
         messages: [{ role: "user", content: user }],
@@ -79,7 +107,14 @@ export function makeCallClaude(apiKey: string): CallClaude {
         .map((block) => (block.type === "text" ? block.text : ""))
         .join("");
       try {
-        return { ok: true, value: JSON.parse(raw), raw, servedBy: response.model };
+        const u = response.usage;
+        const usage: Usage = {
+          input: u.input_tokens,
+          output: u.output_tokens,
+          cacheRead: u.cache_read_input_tokens ?? 0,
+          cacheWrite: u.cache_creation_input_tokens ?? 0,
+        };
+        return { ok: true, value: JSON.parse(raw), raw, servedBy: response.model, usage };
       } catch {
         return { ok: false, failure: "not_json" };
       }

@@ -2,9 +2,9 @@
 
 import { describe, expect, it, vi } from "vitest";
 import type { TurnRequest } from "../src/flow/turnContract";
-import type { CallClaude, ClaudeResult } from "./claude";
-import { contentLogEnabled, logContent } from "./devlog";
-import { createApp, type Env } from "./app";
+import { usesFallback, type CallClaude, type ClaudeResult } from "./claude";
+import { contentLogEnabled, devOverrides, logContent } from "./devlog";
+import { DEV_METRICS_HEADER, createApp, type Env } from "./app";
 import * as entry from "./index";
 import { SYSTEM_PROMPT, buildUserMessage } from "./prompt";
 import { decideNext, parseClaudeOutput, runTurn } from "./turn";
@@ -45,6 +45,7 @@ const ok = (value: unknown): ClaudeResult => ({
   value,
   raw: JSON.stringify(value),
   servedBy: "claude-opus-5-5",
+  usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 });
 const fake = (result: ClaudeResult): CallClaude => async () => result;
 
@@ -260,5 +261,50 @@ describe("開発中だけのログ出力（ADR-0007 の追記）", () => {
     logContent(false, "x", "本文");
     expect(log).not.toHaveBeenCalled();
     log.mockRestore();
+  });
+});
+
+describe("開発中の比較実験の切り替え（docs/evidence.md）", () => {
+  it.each<[Record<string, string>, string, boolean]>([
+    [{ DEV_EXPERIMENT: "1", DEV_MODEL: "claude-haiku-5-5" }, "http://127.0.0.1:8787/api/turn", true],
+    [{ DEV_EXPERIMENT: "1", DEV_MODEL: "claude-haiku-5-5" }, "https://sonaquest.example/api/turn", false],
+    [{ DEV_MODEL: "claude-haiku-5-5" }, "http://127.0.0.1:8787/api/turn", false],
+  ])("%o、宛先 %s → 有効 %s", (env, url, enabled) => {
+    expect(devOverrides(env, url) !== null).toBe(enabled);
+  });
+
+  it("知らないモデル名や effort は使わない", () => {
+    expect(devOverrides({ DEV_EXPERIMENT: "1", DEV_MODEL: "gpt-x", DEV_EFFORT: "max" }, "http://localhost/api/turn")).toEqual({});
+  });
+
+  it("Haiku では、断られたときの答え直しを使わない（項目9）", () => {
+    expect(usesFallback("claude-opus-5-5")).toBe(true);
+    expect(usesFallback("claude-sonnet-5-5")).toBe(true);
+    expect(usesFallback("claude-haiku-5-5")).toBe(false);
+  });
+
+  it("測った値の見出しは、比較実験のときだけ付け、モデルの切り替えを渡す", async () => {
+    let options: unknown;
+    const app = createApp((_key, o) => {
+      options = o;
+      return fake(ok(output));
+    });
+    const body = JSON.stringify(request);
+    const init = { method: "POST", body, headers: { "Content-Type": "application/json" } };
+    const normal = await app.request("http://localhost/api/turn", init, { ANTHROPIC_API_KEY: "test-key" });
+    expect(normal.headers.get(DEV_METRICS_HEADER)).toBeNull();
+    const exp = await app.request("http://localhost/api/turn", init, {
+      ANTHROPIC_API_KEY: "test-key",
+      DEV_EXPERIMENT: "1",
+      DEV_MODEL: "claude-haiku-5-5",
+    });
+    expect(options).toEqual({ model: "claude-haiku-5-5" });
+    const metrics = JSON.parse(decodeURIComponent(exp.headers.get(DEV_METRICS_HEADER) ?? ""));
+    expect(metrics.model).toBe("claude-haiku-5-5");
+    const published = await app.request("https://sonaquest.example/api/turn", init, {
+      ANTHROPIC_API_KEY: "test-key",
+      DEV_EXPERIMENT: "1",
+    });
+    expect(published.headers.get(DEV_METRICS_HEADER)).toBeNull();
   });
 });

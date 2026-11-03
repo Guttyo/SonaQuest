@@ -18,3 +18,35 @@ export function logContent(enabled: boolean, label: string, content: string): vo
   if (!enabled) return;
   console.log(`[dev-content] ${label}\n${content}`);
 }
+
+/** 比較実験で替えてよいモデル（docs/phase2-decisions.md 項目1、ADR-0006） */
+const EXPERIMENT_MODELS: ReadonlySet<string> = new Set([
+  "claude-opus-5-5",
+  "claude-sonnet-5-5",
+  "claude-haiku-5-5",
+]);
+const EXPERIMENT_EFFORTS: ReadonlySet<string> = new Set(["low", "medium", "high"]);
+
+export interface DevOverrides {
+  model?: string;
+  effort?: "low" | "medium" | "high";
+}
+
+/**
+ * 開発中の比較実験だけで、モデルと effort を替え、測った値を応答の見出しに付ける（docs/evidence.md）。
+ * DEV_EXPERIMENT が "1" で、かつ宛先が手元のときだけ有効。wrangler.jsonc には書かず、
+ * `wrangler dev --var DEV_EXPERIMENT:1 --var DEV_MODEL:claude-haiku-5-5` のように指定したときだけ使う。
+ * 公開する版では宛先の条件で必ず無効（null）になる
+ */
+export function devOverrides(
+  env: { DEV_EXPERIMENT?: string; DEV_MODEL?: string; DEV_EFFORT?: string },
+  requestUrl: string,
+): DevOverrides | null {
+  if (!contentLogEnabled(env.DEV_EXPERIMENT, requestUrl)) return null;
+  const overrides: DevOverrides = {};
+  if (env.DEV_MODEL !== undefined && EXPERIMENT_MODELS.has(env.DEV_MODEL)) overrides.model = env.DEV_MODEL;
+  if (env.DEV_EFFORT !== undefined && EXPERIMENT_EFFORTS.has(env.DEV_EFFORT)) {
+    overrides.effort = env.DEV_EFFORT as DevOverrides["effort"];
+  }
+  return overrides;
+}
