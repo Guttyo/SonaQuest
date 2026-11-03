@@ -1,6 +1,6 @@
 # 進捗（STATUS）
 
-最終更新：2026-11-03（Phase 0：PR #3 をmainへマージ済み。Issue #2 の修正をブランチ `fix/2-hook-false-positives` で作業中）
+最終更新：2026-11-03（Phase 0：PR #3・PR #4 をmainへマージ済み。Issue #6 の体験コンセプトの補完をブランチ `docs/6-experience-concept` で作業中）
 
 ## 実装済み（コードがありコミット済み）
 - Claude Code用hook：`[TODO-OWNER]` の削除防止（`protect_todo_owner.py`）、秘密情報とブロックリストの語の検出（`block_secrets.py`）、main・GitHubの保護（`guard_github.py`）。いずれも `.claude/hooks/`
@@ -29,12 +29,14 @@
 
 ## 文書のみ（設計・枠）
 - CLAUDE.md、`.claude/rules/`（scope、safety、privacy、github）、`.claude/skills/`
-- docs/：PRD、architecture、decisions（ADR-0001〜0018）、safety-test-plan、evidence、demo-script（枠）、references、KEEP-THINKING
+- docs/：PRD、architecture、decisions（ADR-0001〜0020）、safety-test-plan、evidence、demo-script（枠）、references、KEEP-THINKING
+- PRDのコンセプト「お薬の避難訓練」、体験の核（伝える → 使えなくなる → 立て直す → 気づきと準備）、6画面の構成、評価の方針（点数・合否なし）、光のキャラクターの方向性（ADR-0019・0020、提案中。Issue #6）
 - README.md（枠）
 
 ## オーナーの判断待ち（`git grep -n "TODO-OWNER"`）
 - **決定済み・マーカー解除待ち**（決定の文はマーカーの横）：緊急の範囲と文面（ADR-0011）、薬の名前（ADR-0009）、5観点の基準・出来事・準備行動（PRD）、プロフィール・ライセンス（README）、出典の方針（references）
 - **新しく追加した確認事項**：自傷に関する案内の文面（ADR-0011）、実際の服薬情報の入力を許すか（ADR-0009）
+- **Issue #6 で追加した確認事項**：コンセプトと訴求文の文言、回答の配分、6画面の分け方、立て直しの回答と観点②の関係（PRD）、ADR-0019・0020の採用、キャラクターの名前・色や形の方向性
 - **第2回監査で決定・解除待ち**：薬の名前を送らない方式は採用しない（ADR-0009。自動の置き換えはしない）
 - **保留**：Yorukusuとの関係の段落（README・ADR-0002。文面を見てから）、比較実験の回答セットと正解ラベル（evidence。実験の前まで）
 - **外部監査の提案（判断待ち）**：初期版で外部音声サービスを採用しない（ADR-0004・0005）、ADR-0003の採用（MVP着手の承認と同時）
