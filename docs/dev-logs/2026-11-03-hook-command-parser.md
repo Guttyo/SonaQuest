@@ -88,7 +88,7 @@
   | 92c2933 | 142/142 PASS |
   | f257d23 | 147/147 PASS |
 
-- レビュー・指摘・返信は、`gh pr view <番号> --json reviews,comments` と `gh api repos/{owner}/{repo}/pulls/<番号>/comments` で確かめた。
+- レビュー・指摘・返信は、`gh pr view <番号> --json reviews,comments` と `gh api "repos/{owner}/{repo}/pulls/<番号>/comments?per_page=100"` で確かめた。行ごとの指摘（返信を含む）は PR #3 が18件、PR #4 が26件で、どちらも1ページに収まっている。
 
 ## 推測
 KEEP-THINKING（2026-11-03 の節）には「文字列の照合で抜け道を1つずつ塞ぐより、シェルの読み方に合わせるほうが指摘が減る」とある。これは指摘の件数では裏付けられなかった。

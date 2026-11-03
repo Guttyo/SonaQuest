@@ -17,12 +17,12 @@ description: テーマごとの開発記録を docs/dev-logs/ に書く。「dev
 - 変更したファイルの一覧は `git log --stat` や `git show --stat <コミット>` の結果から写す。関係がありそうでも差分に無いファイルは足さない。
 - コミットは `git log --oneline` で確かめる。SHAを作らない。
 - PRとレビューの指摘は `gh pr view <番号> --comments` で確かめてから書く。PR番号を作らない。
-  - `gh pr view --comments` には、行ごとの指摘（インラインコメント）が出ない。行ごとの指摘は `gh api "repos/{owner}/{repo}/pulls/<番号>/comments?per_page=100"` で確かめる。
+  - `gh pr view --comments` には、行ごとの指摘（インラインコメント）が出ない。行ごとの指摘は `gh api --paginate "repos/{owner}/{repo}/pulls/<番号>/comments?per_page=100"` で確かめる（`--paginate` が無いと、最初のページの分しか取れない）。
   - 絞り込みは `gh` の `--jq` を使う（`jq` が入っていない環境がある）。
 - 件数は、目で数えずにコマンドの結果から書く。レビューの回ごとの件数は、レビューしたコミットとレビューした者で分けて数える（回によってレビューした者が違うことがある。たとえば、PRを開いたときだけ動くレビューがある）。
 
   ```sh
-  gh api "repos/{owner}/{repo}/pulls/<番号>/comments?per_page=100" \
+  gh api --paginate "repos/{owner}/{repo}/pulls/<番号>/comments?per_page=100" \
     --jq '.[] | select(.in_reply_to_id == null) | "\(.original_commit_id[0:7]) \(.user.login)"' | sort | uniq -c
   ```
 
@@ -46,7 +46,9 @@ description: テーマごとの開発記録を docs/dev-logs/ に書く。「dev
 
 ## 4. 書いてはいけないこと
 - CLAUDE.md 絶対ルール8の情報：制作者の勤務先とそれを推測できる情報、職業・経歴、実在人物の情報、オーナーの作業予定や生活の様子。人は「オーナー」と書き、個人名を書かない。GitHubのアカウント名も書かない（コマンドの例は `{owner}/{repo}` と書く）
-- 作業の時刻。日付だけを書く（作業した時間帯は生活の様子にあたる）。`gh` の時刻はUTC、コミットの時刻はJSTで出るので、日付はJSTにそろえる
+- 作業の時刻。日付だけを書く（作業した時間帯は生活の様子にあたる）。日付はJSTに変換してから書く。表示される時間帯は、コミットに記録された時間帯や環境・設定で変わるため、そのまま写さない
+  - git：`TZ=Asia/Tokyo git log --date=format-local:%Y-%m-%d --format='%h %ad'`
+  - gh：`--jq '.createdAt | fromdateiso8601 + 32400 | strftime("%Y-%m-%d")'`（UTCに9時間を足す）
 - 秘密情報（APIキー、`.dev.vars` の中身など）
 - 実際の服薬情報、実在の人の会話や文字起こし。試験の入力を載せるときは、架空のものだけにする
 - 書き終えたら、上のものが入っていないか読み返す
