@@ -1,0 +1,420 @@
+/* 色はクリームホワイト・淡いミント・温かいオレンジを基調にする（ADR-0020） */
+:root {
+  --cream: #fffaf0;
+  --mint: #d8f3e6;
+  --mint-strong: #2f7d63;
+  --orange: #f4a259;
+  --orange-strong: #b5541a;
+  --ink: #2b2a28;
+  --ink-soft: #5d5a55;
+  --line: #e6dccb;
+  --control-border: #8a8378; /* 入力欄の枠。背景・白地に対して3:1以上 */
+  --surface: #ffffff;
+  --alert-bg: #fff1e3;
+  font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  line-height: 1.7;
+  color: var(--ink);
+  background: var(--cream);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--cream);
+}
+
+.app {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  padding-top: max(10px, env(safe-area-inset-top));
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+  background: var(--cream);
+  border-bottom: 1px solid var(--line);
+}
+
+.app-title {
+  font-weight: 700;
+}
+
+.stop-button {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 2px solid var(--orange-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--orange-strong);
+  font: inherit;
+  font-weight: 700;
+}
+
+.app-main {
+  flex: 1;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 16px 16px max(32px, env(safe-area-inset-bottom));
+  outline: none;
+}
+
+[data-scroll-target] {
+  scroll-margin-top: 80px; /* 固定ヘッダーの下に隠れないように */
+}
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+h1 {
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+h2 {
+  font-size: 1.15rem;
+  margin: 16px 0 0;
+}
+
+h3 {
+  font-size: 1rem;
+  margin: 8px 0 0;
+}
+
+p {
+  margin: 0;
+}
+
+.tagline {
+  color: var(--mint-strong);
+  font-weight: 700;
+}
+
+.notice {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--mint);
+}
+
+.small {
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+
+.points {
+  margin: 0;
+  padding-left: 1.2em;
+}
+
+.label {
+  font-weight: 700;
+}
+
+button.primary,
+button.secondary {
+  min-height: 48px;
+  padding: 0 20px;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 700;
+}
+
+button.primary {
+  border: none;
+  background: var(--orange-strong);
+  color: #fff;
+}
+
+button.secondary {
+  border: 2px solid var(--mint-strong);
+  background: var(--surface);
+  color: var(--mint-strong);
+}
+
+button:disabled {
+  opacity: 0.45;
+}
+
+/* 焦点の枠は背景に対して3:1以上の濃さにする（WCAG 1.4.11） */
+button:focus-visible,
+textarea:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--orange-strong);
+  outline-offset: 2px;
+}
+
+/* 場面が変わったときにプログラムで焦点を移す箇所。枠は出さない */
+[data-scroll-target]:focus {
+  outline: none;
+}
+
+.scene {
+  color: var(--ink-soft);
+}
+
+/* 聞き取り係（静止した光。動きの演出は Phase 1 では入れない） */
+.listener {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.listener-light {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #fff 0%, var(--cream) 35%, var(--mint) 70%, rgba(244, 162, 89, 0.5) 100%);
+  box-shadow: 0 0 16px 4px rgba(244, 162, 89, 0.35);
+}
+
+.listener-speech {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.listener-name {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+.transcript {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.exchange {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.exchange-question {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.raw {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.transcript-event {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--alert-bg);
+  font-weight: 700;
+}
+
+.answer-form,
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 16px; /* iOSで入力時に拡大されないように */
+  background: var(--surface);
+  resize: vertical;
+}
+
+.form-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.count {
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+
+.options {
+  min-width: 0; /* fieldset は既定で中身の幅まで広がり、画面からはみ出すため */
+  margin: 0;
+  padding: 0;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.option {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.option:has(input:checked) {
+  border-color: var(--mint-strong);
+  background: var(--mint);
+}
+
+.option input {
+  margin-top: 0.4em;
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+.option-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.option-label {
+  font-weight: 700;
+}
+
+.option-description {
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+
+.event {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--alert-bg);
+  border: 2px solid var(--orange);
+}
+
+.event h2,
+.event h3 {
+  margin: 0;
+}
+
+.event-text {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.viewpoints {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.viewpoint {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.viewpoint dd {
+  margin: 0;
+  font-weight: 700;
+}
+
+.choices {
+  min-width: 0;
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.choices legend {
+  font-weight: 700;
+  padding: 0 4px;
+}
+
+.choice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  min-height: 44px;
+  padding: 8px 0;
+}
+
+.choice input {
+  margin-top: 0.4em;
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+.decision {
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--mint);
+}
+
+.stopped {
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.field-label {
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
