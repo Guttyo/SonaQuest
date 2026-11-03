@@ -1,9 +1,10 @@
 import {
+  AI_CONNECTED,
   INTRO_LEAD,
   INTRO_POINTS,
   PRIVACY_EXTERNAL,
   PRIVACY_OWN,
-  PROTOTYPE_NOTICE,
+  PROTOTYPE_LEAD,
 } from "../flow/content";
 
 export function Intro({ onStart }: { onStart: () => void }) {
@@ -14,10 +15,14 @@ export function Intro({ onStart }: { onStart: () => void }) {
       <p>
         災害で普段の情報源が使えなくなったとき、自分の薬のことをどう伝えるかを、約3分の対話で体験します。
       </p>
-      <p className="notice" role="note">
-        {PROTOTYPE_NOTICE}
-      </p>
-      <p>{INTRO_LEAD}</p>
+      {/* 送信の説明は実際の動作に合わせて一方だけを出す */}
+      {AI_CONNECTED ? (
+        <p>{INTRO_LEAD}</p>
+      ) : (
+        <p className="notice" role="note">
+          {PROTOTYPE_LEAD}
+        </p>
+      )}
       <ul className="points">
         {INTRO_POINTS.map((point) => (
           <li key={point}>{point}</li>

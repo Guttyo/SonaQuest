@@ -86,6 +86,8 @@ function AnswerForm({
       className="answer-form"
       data-scroll-target
       tabIndex={-1}
+      // 焦点が移ったときに、新しい質問文が読み上げられるように
+      aria-labelledby="current-question"
       onSubmit={(e) => {
         e.preventDefault();
         if (canSubmit) onSubmit(draft);
@@ -126,7 +128,13 @@ function ConfirmSource({
   const [selected, setSelected] = useState<SourceId | null>(null);
 
   return (
-    <div className="confirm" data-scroll-target tabIndex={-1}>
+    <div
+      className="confirm"
+      data-scroll-target
+      tabIndex={-1}
+      role="group"
+      aria-labelledby="confirm-prompt"
+    >
       <Listener>
         <p id="confirm-prompt">{CONFIRM_PROMPT}</p>
       </Listener>
