@@ -37,7 +37,7 @@ def hook(script, tool, tool_input, env=None, extra=None):
 
 
 def claude_hook_tests(tmp):
-    P, S = "protect_todo_owner.py", "block_secrets.py"
+    P = "protect_todo_owner.py"
     m1, m2 = "[TODO-OWNER: 緊急時の文面]", "[TODO-OWNER]"
     doc = tmp / "doc.md"
     doc.write_text(f"本文\n{m1}\n{m2}\n", encoding="utf-8")
@@ -58,6 +58,54 @@ def claude_hook_tests(tmp):
     check("Bash: git commit の後に書き換えをつなぐ", 2, hook(P, "Bash", {"command": "git commit -m x && sed -i 's/TODO-OWNER//' a.md"})[0])
     check("Bash: オーナー承認の環境変数を使う", 2, hook(P, "Bash", {"command": "SONAQUEST_OWNER_APPROVED=1 git commit -m x"})[0])
 
+
+def decision_hook_tests(tmp):
+    """決定の行が main にあるマーカーの解除（ADR-0024）。使い捨てのリポジトリの main を見る。"""
+    print("--- 決定の行による解除（Claude Code hook）")
+    P = "protect_todo_owner.py"
+    repo = tmp / "decided"
+    repo.mkdir()
+    env = {**os.environ, "GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "test@example.invalid",
+           "GIT_COMMITTER_NAME": "test", "GIT_COMMITTER_EMAIL": "test@example.invalid"}
+
+    def git(*args):
+        subprocess.run(["git", *args], cwd=repo, capture_output=True, env=env)
+
+    done, todo = "[TODO-OWNER: 決定済みの項目]", "[TODO-OWNER: 判断待ちの項目]"
+    line = "- → オーナー決定（2026-11-03、チャット）：A にする。"
+    new_line = "- → オーナー決定（2026-11-03、チャット）：B にする。"
+    doc, code, vague = repo / "adr.md", repo / "a.ts", repo / "vague.md"
+    doc.write_text(f"本文\n{done}\n{line}\n\n{todo}\n次の節\n", encoding="utf-8")
+    code.write_text(f"// {todo}\n// → オーナー決定（2026-11-03、チャット）：この文面でよい。\nconst a = 1;\n", encoding="utf-8")
+    vague.write_text(f"{done}\n- → オーナー（2026-11-03、チャット）：A にする方向。\n{todo}\n"
+                     "- → オーナー指示（2026-11-03、チャット）：A にする。\n", encoding="utf-8")
+    git("init", "-q", "-b", "main")
+    git("add", "-A")
+    git("commit", "-q", "-m", "x")
+    git("switch", "-q", "-c", "work")
+
+    def edit(path, old, new):
+        return hook(P, "Edit", {"file_path": str(path), "old_string": old, "new_string": new})[0]
+
+    check("Edit: main で決定の行が付いたマーカーを解除する（決定の行は残す）", 0, edit(doc, f"{done}\n{line}", line))
+    check("Edit: 決定の行ごと消す", 2, edit(doc, f"{done}\n{line}\n", ""))
+    check("Edit: 決定の行の無いマーカーを消す", 2, edit(doc, f"\n{todo}\n", "\n"))
+    check("Edit: 決定の行を足すのと同時にマーカーを消す", 2, edit(doc, f"{todo}\n", f"{new_line}\n"))
+    check("Edit: コードのコメントの決定の行（//）", 0, edit(code, f"// {todo}\n", ""))
+    check("Edit: 「〜の方向」は決定として扱わない", 2, edit(vague, f"{done}\n", ""))
+    check("Edit: 「オーナー指示」は決定として扱わない", 2, edit(vague, f"{todo}\n", ""))
+    check("Write: 決定済みのマーカーだけを外した上書き", 0, hook(P, "Write", {"file_path": str(doc), "content": f"本文\n{line}\n\n{todo}\n次の節\n"})[0])
+    check("Write: 決定の無いマーカーも外した上書き", 2, hook(P, "Write", {"file_path": str(doc), "content": f"本文\n{line}\n\n次の節\n"})[0])
+    check("Edit: リポジトリの外のファイル（main が無い）", 2, edit(tmp / "doc.md", "[TODO-OWNER: 緊急時の文面]\n", ""))
+
+    # 作業ブランチで決定の行を足してコミットしただけでは、main に入っていないので解除できない
+    doc.write_text(f"本文\n{done}\n{line}\n\n{todo}\n{new_line}\n次の節\n", encoding="utf-8")
+    git("commit", "-q", "-am", "決定の行を足す")
+    check("Edit: 作業ブランチで足しただけの決定の行では解除しない", 2, edit(doc, f"{todo}\n{new_line}", new_line))
+
+
+def secret_hook_tests(tmp):
+    S = "block_secrets.py"
     print("--- 秘密情報の保護（Claude Code hook）")
     check("Read: .dev.vars", 2, hook(S, "Read", {"file_path": str(ROOT / ".dev.vars")})[0])
     check("Read: .dev.vars.example", 0, hook(S, "Read", {"file_path": str(ROOT / ".dev.vars.example")})[0])
@@ -258,6 +306,28 @@ def git_hook_tests(tmp):
     check("  案内にPowerShellの書き方がある", True, "$env:SONAQUEST_OWNER_APPROVED" in err)
     check("マーカーを消すコミット（オーナー承認あり）", 0, commit("マーカー削除", env={"SONAQUEST_OWNER_APPROVED": "1"})[0])
 
+    # 決定の行が main にあるマーカーの解除（ADR-0024）
+    decision = "→ オーナー決定（2026-11-03、チャット）：A にする。"
+    added_decision = "→ オーナー決定（2026-11-03、チャット）：B にする。"
+    write("d.md", f"本文\n[TODO-OWNER: 決定済み]\n{decision}\n[TODO-OWNER: 判断待ち2]\n")
+    git("add", "d.md")
+    commit("決定の行つきのマーカー")
+    git("branch", "-f", "main", "work")
+    write("d.md", f"本文\n{decision}\n[TODO-OWNER: 判断待ち2]\n")
+    git("add", "d.md")
+    check("main で決定の行が付いたマーカーを消すコミット", 0, commit("解除")[0])
+    write("d.md", f"本文\n{decision}\n{added_decision}\n")
+    git("add", "d.md")
+    check("決定の行を足すのと同時にマーカーを消すコミット", 1, commit("決定を足して解除")[0])
+    write("d.md", f"本文\n{decision}\n[TODO-OWNER: 判断待ち2]\n{added_decision}\n")
+    git("add", "d.md")
+    check("決定の行だけを足すコミット", 0, commit("決定を足す")[0])
+    write("d.md", f"本文\n{decision}\n{added_decision}\n")
+    git("add", "d.md")
+    check("作業ブランチで足しただけの決定の行では消せない", 1, commit("解除")[0])
+    git("reset", "-q", "HEAD", "d.md")
+    git("checkout", "-q", "--", "d.md")
+
     bl = tmp / "blocklist-git.txt"
     bl.write_text(TERM + "\n", encoding="utf-8")
     env = {"SONAQUEST_BLOCKLIST": str(bl)}
@@ -366,6 +436,8 @@ def main():
     with tempfile.TemporaryDirectory() as d:
         tmp = Path(d)
         claude_hook_tests(tmp)
+        decision_hook_tests(tmp)
+        secret_hook_tests(tmp)
         github_hook_tests()
         git_hook_tests(tmp)
         status_hook_tests(tmp)

@@ -1,6 +1,7 @@
 """Claude Codeのhookとgitのコミット前フックが共有する判定。標準ライブラリだけを使う。"""
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -50,14 +51,60 @@ def markers(text):
     return MARKER.findall(text or "")
 
 
-def missing_markers(old, new):
-    """old にあって new で減ったマーカー。内容の書き換えも「減った」に数える。"""
+def lost_markers(old, new):
+    """old から new で減ったマーカーと、その数。内容の書き換えも「減った」に数える。"""
     count = {}
     for m in markers(old):
         count[m] = count.get(m, 0) + 1
     for m in markers(new):
         count[m] = count.get(m, 0) - 1
-    return sorted(m for m, n in count.items() if n > 0)
+    return {m: n for m, n in count.items() if n > 0}
+
+
+# マーカーの直後（空行を除く次の行）に置く、オーナーの決定の行（ADR-0024）。
+# 「オーナー指示」「オーナー（…）：〜の方向」「方針」は確定した決定として扱わない。
+DECISION = re.compile(r"^\s*(?:(?:[-*>#]|//|<!--)\s*)*→\s*オーナー決定（\d{4}-\d{2}-\d{2}[^）\n]*）：\s*\S")
+
+
+def decision_lines(text):
+    """オーナーの決定の行（前後の空白を除いた文）。"""
+    return [x.strip() for x in (text or "").splitlines() if DECISION.match(x)]
+
+
+def decided_markers(text):
+    """直後の行にオーナーの決定があるマーカーと、その数。"""
+    lines = (text or "").splitlines()
+    count = {}
+    for i, line in enumerate(lines):
+        found = markers(line)
+        if not found:
+            continue
+        nxt = next((x for x in lines[i + 1:] if x.strip()), "")
+        if DECISION.match(nxt):
+            for m in found:
+                count[m] = count.get(m, 0) + 1
+    return count
+
+
+def undecided(lost, decided):
+    """減ったマーカーのうち、決定の行による解除と認められないもの。"""
+    return sorted(m for m, n in lost.items() if n > decided.get(m, 0))
+
+
+def main_text(path):
+    """ローカルの main にあるそのファイルの内容（オーナーがPRでマージした状態）。
+    リポジトリの外、main に無いファイル、gitが使えないときは None。"""
+    if not path:
+        return None
+    m = re.match(r"^/([a-zA-Z])/(.*)$", path)
+    if m and os.name == "nt":
+        path = f"{m.group(1)}:/{m.group(2)}"
+    p = Path(path)
+    try:
+        r = subprocess.run(["git", "-C", str(p.parent), "show", f"main:./{p.name}"], capture_output=True)
+    except OSError:
+        return None
+    return r.stdout.decode("utf-8", "replace") if r.returncode == 0 else None
 
 
 def read_text(path):
