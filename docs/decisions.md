@@ -78,7 +78,7 @@
   - 失敗した外部サービスは、その回の残りでは呼ばずにブラウザの読み上げに切り替える。
   - 参考元は、認識した文と読み上げる文をコンソールに出している。SonaQuest では、公開する版では出さない（ADR-0007「開発中だけのログ出力」）。
 - 影響（直す箇所。直すのは音声を実装する Issue で行う）：
-  - README「外部事業者に送るもの」：音声認識（ブラウザが使う Google・Apple 等。ブラウザによって違う）と ElevenLabs を足す。ElevenLabs には読み上げる文だけを送り、回答は送らないと書く
+  - README「外部事業者に送るもの」：音声認識（ブラウザが使うサービス。ブラウザによって違い、Google・Apple と見られるが未確認）と ElevenLabs を足す。ElevenLabs には読み上げる文だけを送り、回答は送らないと書く
   - 初回画面の送信の説明（`web/src/flow/content.ts` の `INTRO_LEAD`・`PRIVACY_EXTERNAL`）と、ADR-0009 の利用開始の文面：送信先に音声認識と ElevenLabs を足す
   - 保持方針：Google（音声認識）と ElevenLabs の公表している保持方針を、確かめた日付つきで書く。確かめられないものは「未確認」と書く（2026-11-03 時点ではどちらも未確認。ElevenLabs は 2026-11-02 の調査で「既定で履歴を保持、ゼロ保持は Enterprise のみ」）
   - docs/architecture.md の構成図（ELEVENLABS_API_KEY を「採用時のみ」から必須でない secrets に）、docs/safety-test-plan.md の P4（送信先の一致）と F4・F5
