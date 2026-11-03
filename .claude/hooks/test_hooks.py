@@ -4,6 +4,7 @@ Claude Codeのhookには実際と同じ形のJSONを渡し、終了コードを�
 gitのフックは一時ディレクトリに作った使い捨てリポジトリで確かめる。
 秘密情報の形をした値は、このファイルを検査に引っかけないよう実行時に組み立てる。
 """
+import importlib.util
 import json
 import os
 import shutil
@@ -398,6 +399,23 @@ def git_hook_tests(tmp):
     write("e.md", "")
     git("add", "-A")
     check("マーカーと決定の行を、そのまま別のファイルへ移すコミット", 0, commit("決定ごと移す")[0])
+
+    # PR #29 のレビュー：git が "..." で囲むパス（「"」「\」・タブを含む）の見出しを元に戻す
+    spec = importlib.util.spec_from_file_location("scan_staged", ROOT / ".githooks" / "scan_staged.py")
+    scan = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(scan)
+    check("見出しのパス：「\"」を含む", 'a"b.md', scan.header_path('"b/a\\"b.md"', "b/"))
+    check("見出しのパス：「\\」とタブを含む", "a\\b\tc.md", scan.header_path('"a/a\\\\b\\tc.md"', "a/"))
+    check("見出しのパス：8進数でエスケープした日本語", "日本.md", scan.header_path('"b/\\346\\227\\245\\346\\234\\254.md"', "b/"))
+    check("見出しのパス：空白を含む（末尾のタブを除く）", "a b.md", scan.header_path("b/a b.md\t", "b/"))
+    check("見出しのパス：/dev/null", "", scan.header_path("/dev/null", "b/"))
+    if os.name != "nt":  # Windows では「"」をファイル名に使えない
+        write('q"x.md', "本文\n[TODO-OWNER: 引用符]\n")
+        git("add", "-A")
+        commit("引用符を含むファイル")
+        write('q"x.md', "本文\n")
+        git("add", "-A")
+        check("「\"」を含むパスで、決定の無いマーカーを消すコミット", 1, commit("消す")[0])
 
     bl = tmp / "blocklist-git.txt"
     bl.write_text(TERM + "\n", encoding="utf-8")

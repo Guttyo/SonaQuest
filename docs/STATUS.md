@@ -22,7 +22,7 @@
   - 状態はメモリにだけ持ち、ブラウザに保存しない
 
 ## 動作確認済み
-- hookとgitのフックの試験：`test_hooks.py` で229/229 PASS（2026-11-03、Windows 11・Git Bash・Python 3.14。STATUS.md の hook の21件と、Issue #19 で足した61件（決定の行によるマーカー解除、ローカルの main を動かす操作の停止と、main を起点に使うだけの操作を止めないこと）を含む）
+- hookとgitのフックの試験：`test_hooks.py` で234/234 PASS（2026-11-03、Windows 11・Git Bash・Python 3.14。STATUS.md の hook の21件と、Issue #19 で足した66件（決定の行によるマーカー解除、ローカルの main を動かす操作の停止と、main を起点に使うだけの操作を止めないこと）を含む）
 - STATUS.md の hook を、このリポジトリで手で動かした（2026-11-03）：修正前の STATUS.md で、PR #10 でマージ済みのブランチ名が残る2か所を挙げ、修正後は何も出さなかった。STATUS.md を変えていないブランチでの `gh pr create` を止めた。Claude Code のセッション開始時に実際に呼ばれるかは未確認
 - アプリの単体試験：`npm --prefix web test` で 71/71 PASS（3ファイル。答える範囲・回答欄の案内・思い出せないときの案内の試験 `content.test.ts` を含む）。型の検査（TypeScript 7.0）とビルド（`npm --prefix web run build`）も成功（2026-11-03、PR #18 の後の main、Windows 11・Node.js 26.13）
 - 安全の試験のうち S14（薬の名前を含む架空の回答が入力どおり表示）、S15（思い出せないときの案内が固定文で出て、候補を含まない）、P10（AIと未接続の試作版の通しで、取得先が localhost だけ。ストレージも空）を試作版で実施した（2026-11-03、PR #22 の作業。Claude desktop のブラウザ画面・Chromium 152。docs/safety-test-plan.md「実施の記録」）。S11〜S13 は未実施（S11・S12 は Claude連携後）、E8・E9 は Issue #14 で行う

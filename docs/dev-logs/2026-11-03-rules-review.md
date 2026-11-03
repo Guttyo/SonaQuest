@@ -11,7 +11,7 @@
 - CLAUDE.md の絶対ルール3・5・7 を書き直し、11 を番号を変えずに10の後へ移した。
 - `.claude/rules/` の4つを合わせた。privacy.md に「保持・送信・保存・ログ出力」の違いの表を足した。
 - ADR-0004・0005 にオーナーの決定（Web Speech API、ElevenLabs）を記録し、ADR-0007 に開発中だけのログ出力の案を、ADR-0024〜0026 を新しく提案中で書いた。
-- マーカー解除の例外を、Claude Code の hook（`protect_todo_owner.py`）とコミット前フック（`scan_staged.py`）に入れ、`guard_github.py` にローカルの main を動かす操作の停止を足した。試験は 168 件から 229 件になった。
+- マーカー解除の例外を、Claude Code の hook（`protect_todo_owner.py`）とコミット前フック（`scan_staged.py`）に入れ、`guard_github.py` にローカルの main を動かす操作の停止を足した。試験は 168 件から 234 件になった。
 
 ## レビューの経過
 レビューは、このセッションのワークフローで行った（GitHub 上のレビューではない）。観点ごとに別のエージェントが探し、指摘ごとに反証役のエージェントが確かめた。数は、反証役が反証できなかったもの。
@@ -28,7 +28,7 @@
 - **ファイル全体を読む判定は、多くのファイルを含むコミットで遅い。** 2回目のレビューの計測では、ファイルごとに `git show` を2回呼ぶ版は、ファイル数が多いと Bash の時間切れ（2分）に届くとされた。差分でマーカーの行が消えたファイルと、削除・名前の変更だけを全体で読むように直した。
 
 ## 確かめたこと
-- `sh .claude/hooks/run-python.sh .claude/hooks/test_hooks.py`：229/229 PASS（2026-11-03、Windows 11・Git Bash・Python 3.14）
+- `sh .claude/hooks/run-python.sh .claude/hooks/test_hooks.py`：234/234 PASS（2026-11-03、Windows 11・Git Bash・Python 3.14）
 - このブランチで、既存のマーカーが1つも減っていないこと（main と HEAD のマーカーの一覧を比べ、差分の削除行2件はどちらも同じマーカーを含む行の書き直しだった）
 - アプリのコード（`web/`）は変えていない（`git diff main...HEAD --stat`）
 

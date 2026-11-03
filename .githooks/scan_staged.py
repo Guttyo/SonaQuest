@@ -57,6 +57,32 @@ def show(spec):
     return p.stdout.decode("utf-8", "replace") if p.returncode == 0 else ""
 
 
+C_ESCAPES = {"a": 7, "b": 8, "t": 9, "n": 10, "v": 11, "f": 12, "r": 13, '"': 34, "\\": 92}
+
+
+def header_path(rest, prefix):
+    """差分の見出し（--- a/x、+++ b/x）のパス。/dev/null なら空。
+    git は「"」「\\」・制御文字を含むパスを "..." で囲んで C の書き方でエスケープするので、元に戻す
+    （戻さないと staged_changes() のパスと合わず、マーカーの確認が抜ける）。"""
+    if rest.startswith('"') and rest.rstrip("\t").endswith('"'):
+        body, out, i = rest.rstrip("\t")[1:-1], bytearray(), 0
+        while i < len(body):
+            if body[i] == "\\" and i + 1 < len(body):
+                if body[i + 1] in "01234567":
+                    out.append(int(body[i + 1:i + 4], 8))
+                    i += 4
+                    continue
+                out.append(C_ESCAPES.get(body[i + 1], ord(body[i + 1])))
+                i += 2
+                continue
+            out += body[i].encode("utf-8")
+            i += 1
+        rest = out.decode("utf-8", "replace")
+    else:
+        rest = rest.rstrip("\t")  # 空白を含むパスには、git が末尾にタブを付ける
+    return rest[len(prefix):] if rest.startswith(prefix) else ""
+
+
 def staged_changes():
     """ステージした変更の (変更前のパス, 変更後のパス)。追加は前が空、削除は後が空。名前の変更を追う。"""
     parts = git("diff", "--cached", "--name-status", "-z", "-M").split("\0")
@@ -85,8 +111,11 @@ def marker_problems(removed_in, moved_in, added_decisions):
     決定の行は残す。同じ文のマーカー・決定の行が別のファイルで増えた分は、移したものとして差し引く。
     ファイル全体を読むのは、差分でマーカーの行が消えたファイルと、削除・名前の変更だけ（速さのため）。"""
     short, lost_decisions = {}, []
-    for old, new in staged_changes():
-        if not old or (old == new and new not in removed_in):
+    changes = staged_changes()
+    # 見出しから取ったパスが変更の一覧と合わなければ、取り違えを疑ってすべてのファイルを確かめる
+    check_all = bool(set(removed_in) - {p for change in changes for p in change})
+    for old, new in changes:
+        if not old or (old == new and new not in removed_in and not check_all):
             continue
         head = show(f"HEAD:{old}")
         staged = show(f":{new}") if new else ""
@@ -116,9 +145,9 @@ def scan_staged():
     for line in git("-c", "core.quotePath=false", "diff", "--cached", "-U0", "-M", "--no-color",
                     "--no-ext-diff").splitlines():
         if line.startswith("--- "):
-            old_path = (line[6:] if line.startswith("--- a/") else "").rstrip("\t")
+            old_path = header_path(line[4:], "a/")
         elif line.startswith("+++ "):
-            current = (line[6:] if line.startswith("+++ b/") else old_path).rstrip("\t")
+            current = header_path(line[4:], "b/") or old_path
         elif line.startswith("-") and not line.startswith("---"):
             if markers(line[1:]):
                 removed_m.setdefault(current, Counter()).update(markers(line[1:]))
