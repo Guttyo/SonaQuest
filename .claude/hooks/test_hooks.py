@@ -278,6 +278,70 @@ def git_hook_tests(tmp):
     git("merge", "--abort")
 
 
+def status_hook_tests(tmp):
+    print("--- STATUS.md の更新確認（使い捨てリポジトリ）")
+    repo = tmp / "status-repo"
+    (repo / ".claude" / "hooks").mkdir(parents=True)
+    (repo / "docs").mkdir()
+    for f in ("status_check.py", "sonaguard.py"):
+        shutil.copy(HOOKS / f, repo / ".claude" / "hooks" / f)
+    env = {**os.environ, "GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "test@example.invalid",
+           "GIT_COMMITTER_NAME": "test", "GIT_COMMITTER_EMAIL": "test@example.invalid"}
+
+    def git(*args):
+        subprocess.run(["git", *args], cwd=repo, capture_output=True, env=env, check=True)
+
+    def write_status(text):
+        (repo / "docs" / "STATUS.md").write_text(text, encoding="utf-8")
+
+    def run(payload):
+        p = subprocess.run([PY, str(repo / ".claude" / "hooks" / "status_check.py")], cwd=repo, capture_output=True,
+                           input=json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+        return p.returncode, p.stdout.decode("utf-8", "replace"), p.stderr.decode("utf-8", "replace")
+
+    def session():
+        return run({"hook_event_name": "SessionStart", "source": "startup"})
+
+    def pr(cmd):
+        return run({"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": str(repo)})[0]
+
+    git("init", "-q", "-b", "main")
+    write_status("# 進捗\n- 試作版（ブランチ `feat/8-x` で作業中）\n- 調査（ブランチ `docs/9-y` で作業中）\n")
+    git("add", "-A")
+    git("commit", "-q", "-m", "最初")
+    git("switch", "-q", "-c", "feat/8-x")
+    (repo / "a.txt").write_text("a", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "試作")
+    git("switch", "-q", "main")
+    git("merge", "-q", "--no-ff", "-m", "Merge pull request #10 from Owner/feat/8-x", "feat/8-x")
+
+    code, out, _ = session()
+    check("SessionStart: マージ済みのブランチ名を知らせる", True, code == 0 and "`feat/8-x`（PR #10" in out and "2行目" in out, out)
+    check("  まだマージしていないブランチは知らせない", False, "docs/9-y" in out)
+    write_status("# 進捗\n- 試作版（Issue #8、PR #10）\n- 調査（ブランチ `docs/9-y` で作業中）\n")
+    check("SessionStart: 番号で書き直せば何も出さない", "", session()[1])
+    write_status("- `feat/8-xyz` の作業\n")
+    check("SessionStart: 名前が前方一致するだけのブランチは知らせない", "", session()[1])
+
+    git("add", "-A")
+    git("commit", "-q", "-m", "STATUS を直す")
+    git("switch", "-q", "-c", "docs/13-z")
+    (repo / "b.txt").write_text("b", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "STATUS 以外を変える")
+    check("gh pr create: STATUS.md が変わっていない", 2, pr("gh pr create --title x --body y"))
+    check("gh pr create: 本文に更新不要と理由", 0, pr("gh pr create --title x --body 'STATUS.md：更新不要（誤字の修正のみ）'"))
+    check("gh pr create: heredoc の本文に更新不要", 0, pr("gh pr create --title x --body-file - <<'EOF'\nSTATUS.md: 更新不要（誤字）\nEOF"))
+    (tmp / "body.md").write_text("## 変更\nSTATUS.md：更新不要（hook の試験）\n", encoding="utf-8")
+    check("gh pr create: --body-file の本文に更新不要", 0, pr(f"gh pr create --title x --body-file '{tmp / 'body.md'}'"))
+    check("gh pr create 以外のコマンドは止めない", 0, pr("gh pr view 10 && git status"))
+    write_status("# 進捗\n- STATUS の仕組み（Issue #13）\n")
+    git("add", "-A")
+    git("commit", "-q", "-m", "STATUS を更新")
+    check("gh pr create: STATUS.md を更新済み", 0, pr("gh pr create --title x --body y"))
+
+
 def main():
     for s in (sys.stdout, sys.stderr):
         s.reconfigure(encoding="utf-8")
@@ -286,6 +350,7 @@ def main():
         claude_hook_tests(tmp)
         github_hook_tests()
         git_hook_tests(tmp)
+        status_hook_tests(tmp)
     print(f"\n{sum(results)}/{len(results)} PASS")
     sys.exit(0 if all(results) else 1)
 
