@@ -1,12 +1,13 @@
 # 進捗（STATUS）
 
-最終更新：2026-11-03（Issue #6 は PR #7 でmainへマージ済み。Issue #8 の Phase 1 をブランチ `feat/8-text-mvp` で作業中）
+最終更新：2026-11-03（Issue #13：STATUS.md の更新漏れを知らせる hook。Phase 1（Issue #8、PR #10）と開発記録（Issue #9、PR #11）はmainに入っている）
 
 ## 実装済み（コードがありコミット済み）
 - Claude Code用hook：`[TODO-OWNER]` の削除防止（`protect_todo_owner.py`）、秘密情報とブロックリストの語の検出（`block_secrets.py`）、main・GitHubの保護（`guard_github.py`）。いずれも `.claude/hooks/`
+- STATUS.md の更新漏れを知らせる hook（`.claude/hooks/status_check.py`。Issue #13、ADR-0023）：セッション開始時に、STATUS.md に残ったマージ済みのブランチ名を知らせる。`gh pr create` の前に、ブランチで STATUS.md が変わっていなければ止める
 - gitのフック（`.githooks/`）：秘密ファイル・APIキー・ブロックリストの語・マーカー削除・main へのコミットとマージコミットの検出
 - hookの試験スクリプト（`.claude/hooks/test_hooks.py`）
-- アプリ本体（Phase 1 の試作版、`web/`。Issue #8。ブランチ `feat/8-text-mvp` にコミット、mainには未マージ）
+- アプリ本体（Phase 1 の試作版、`web/`。Issue #8、PR #10）
   - React / TypeScript / Vite の雛形（ADR-0003）
   - 実装の3画面（はじめに／対話／振り返り）と、中断の画面・終わりの画面
   - 対話：前半3問 → ③確認（タップ、回数に数えない。選ばなければ係の交代）→ ④出来事 → 後半3問（最初は立て直しの問い。係の交代のときは交代用の問い）
@@ -17,7 +18,8 @@
   - 状態はメモリにだけ持ち、ブラウザに保存しない
 
 ## 動作確認済み
-- hookとgitのフックの試験：`test_hooks.py` で147/147 PASS（2026-11-03、Windows 11・Git Bash・Python 3.14）
+- hookとgitのフックの試験：`test_hooks.py` で168/168 PASS（2026-11-03、Windows 11・Git Bash・Python 3.14。STATUS.md の hook の21件を含む）
+- STATUS.md の hook を、このリポジトリで手で動かした（2026-11-03）：修正前の STATUS.md で、PR #10 でマージ済みのブランチ名が残る2か所を挙げ、修正後は何も出さなかった。STATUS.md を変えていないブランチでの `gh pr create` を止めた。Claude Code のセッション開始時に実際に呼ばれるかは未確認
 - Phase 1 の単体試験：`npm --prefix web test` で 53/53 PASS（質問の書き直しの後）。型の検査（TypeScript 7.0）とビルドも成功（2026-11-03、Windows 11・Node.js 26.13）
 - Phase 1 の通しの操作（2026-11-03、Claude desktop のブラウザ画面で幅375pxのスマホ表示を模擬。iPhone実機では未確認）
   - スマートフォンを選ぶ経路と、選ばずに進む（係の交代）経路で、はじめに → 前半3問 → 確認 → 出来事 → 後半3問 → 振り返り → 準備行動の決定 まで通った
@@ -46,11 +48,12 @@
 - 公開前の利用制限：/api/turn の回数制限、入力の大きさの上限、Claude APIの支出の上限（ADR-0003、safety-test-plan P7〜P9）
 - 公開前のGit履歴全体の秘密情報検査（safety-test-plan P5）
 - デモ動画、提出タグ
+- 状況データの書き出しスクリプト（Issue #5。ブランチ・PRはまだ無い）
 
 ## 文書のみ（設計・枠）
 - CLAUDE.md、`.claude/rules/`（scope、safety、privacy、github）、`.claude/skills/`
-- docs/：PRD、architecture、decisions（ADR-0001〜0021）、safety-test-plan、evidence、demo-script（枠）、references、KEEP-THINKING
-- テーマごとの開発記録 `docs/dev-logs/` と、それを書く `dev-log` Skill（`.claude/skills/dev-log/`）。Issue #9
+- docs/：PRD、architecture、decisions（ADR-0001〜0023）、safety-test-plan、evidence、demo-script（枠）、references、KEEP-THINKING
+- テーマごとの開発記録 `docs/dev-logs/` と、それを書く `dev-log` Skill（`.claude/skills/dev-log/`）。Issue #9、PR #11
 - PRDのコンセプト「お薬の避難訓練」、体験の核（伝える → 使えなくなる → 立て直す → 気づきと準備）、体験の6段階（はじめに／問い／確認／出来事／立て直し／結果）と実装の3画面、評価の方針（点数・合否なし、手薄なところを示す）、光のキャラクターの方向性（ADR-0019・0020、採用案。Issue #6）
 - README.md（枠）
 

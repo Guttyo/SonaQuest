@@ -26,6 +26,7 @@ SonaQuest（ソナクエスト）は、常用薬のある成人が「災害時�
 - 設計判断をしたら：`docs/decisions.md` にADR（決定・理由・却下案・影響）を追記
 - 安全・外部送信・ログに関わる変更の後：`safety-review` Skill
 - 節目と提出前：`judge-audit` Skill
+- PRを作る前：`docs/STATUS.md` を**マージ後の main の状態**として更新する（マージ済みの作業は Issue・PR 番号で書き、ブランチ名を残さない）。セッション開始時と `gh pr create` の前に hook が確かめる（ADR-0023）
 - PR・調査・Phaseの区切りで条件に当てはまったら：`dev-log` Skill（`docs/dev-logs/`。条件は `docs/dev-logs/README.md`）。ユーザー設定の `create-dev-log` エージェントは使わない
 - 終了時：`session-handoff` Skill（STATUS.md更新、KEEP-THINKING.mdに追記）
 

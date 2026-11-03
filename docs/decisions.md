@@ -272,3 +272,21 @@
   - 助言にあった「『復習』という語は採点・暗記の印象を与えるので避ける」：オーナーの判断で採らない。
 - 影響：PRD（目的、答える範囲、体験の流れの振り返り）、README、`web/src/flow/content.ts`（案内・回答欄・思い出せないときの固定文）、`.claude/rules/safety.md`、docs/safety-test-plan.md（S11〜S15、E8、E9、P10）、docs/evidence.md、docs/demo-script.md。Phase 2 の決めることの表（#15）に、思い出せない回答のときの扱いを入れる。
 - [TODO-OWNER: 思い出せないときの案内の文面と、質問ごとの回答欄の案内の文面]
+
+## ADR-0023 STATUS.md の更新漏れを hook で知らせる
+- 状態：採用（オーナーの承認、2026-11-03、チャット）　日付：2026-11-03
+- 背景：PR #10 で Phase 1 を main にマージした後も、STATUS.md には「ブランチ `feat/8-text-mvp` で作業中、mainには未マージ」と残った（Issue #13）。PRの中で、ブランチの立場から書いたため。マージはオーナーが GitHub 上で行うので、その時点では Claude Code の hook が動かない。
+- 決定：
+  - 書き方：STATUS.md は**マージ後の main の状態**として書く。STATUS.md はPRのマージで初めて main に入るため。マージ済みの作業は Issue・PR の番号で書き、ブランチ名は作業中のものにだけ使う。CLAUDE.md の「作業の流れ」と `session-handoff` Skill に書く。
+  - セッション開始時（SessionStart hook、`.claude/hooks/status_check.py`）：STATUS.md に書かれたブランチ名のうち、main にマージ済みのものを Claude に知らせる。止めはしない。判定には、main の first-parent のマージコミットの件名「Merge pull request #N from 所有者/ブランチ」を使う。手元の git だけで調べ、通信しない。
+  - PR作成時（PreToolUse hook、同じファイル）：`gh pr create` の前に、ブランチで STATUS.md が変わっていなければ止める。PR本文に「STATUS.md：更新不要（理由）」と書けば通す。止めたときは、dev-log の「いつ書くか」に当てはまるかも確かめるよう促す。
+- 理由：書き方のルールだけでは、今回と同じ書き漏れを防げない。マージは hook の届かないところで起きるので、マージの後に最初に動けるセッション開始時に、ずれを見つける。PR作成は Claude Code が作業の完了を示す時点なので、そこで更新を促す。
+- 却下案：
+  - マージ済みのPRがすべて STATUS.md に載っているかを調べる：昔のPR（#3・#4）まで載せる手間が増え、雑音が多い。
+  - hook の中で `git fetch` や `gh` を使う：セッション開始が遅くなり、通信できないと失敗する。
+  - PR作成時に止めず、知らせるだけにする：終了コード0の PreToolUse の出力は Claude に届かない。
+- 影響：
+  - squash マージ・rebase マージだと件名の形が変わるので、気づけない。今の運用はマージコミット。
+  - origin/main を fetch していなければ、新しいマージに気づけない（`git pull --ff-only` の後に効く）。
+  - STATUS.md で、マージ済みの作業をブランチ名で書くと、そのたびに知らされる。
+  - hook はセキュリティの境界ではない（ADR-0014）。PR本文に決まった文を書けば通る。
