@@ -1,5 +1,6 @@
 // 訓練の状態と遷移。状態はメモリにだけ持ち、保存しない（ADR-0007）。
 
+import { detectDistress, type StopReason } from "./emergency";
 import {
   firstHalfQuestions,
   isAcceptableAnswer,
@@ -23,7 +24,7 @@ export type Stage =
   | { name: "second"; index: number }
   | { name: "review" }
   | { name: "done"; action: PrepActionId; timing: TimingId }
-  | { name: "stopped" };
+  | { name: "stopped"; reason: StopReason };
 
 export interface TrainingState {
   stage: Stage;
@@ -64,7 +65,7 @@ export function trainingReducer(
   action: TrainingAction,
 ): TrainingState {
   if (action.type === "stop") {
-    return { ...state, stage: { name: "stopped" } };
+    return { ...state, stage: { name: "stopped", reason: "manual" } };
   }
   if (action.type === "restart") {
     return initialState;
@@ -78,8 +79,14 @@ export function trainingReducer(
 
     case "answer": {
       const question = currentQuestion(state);
-      if (question === null || !isAcceptableAnswer(action.text)) return state;
+      if (question === null) return state;
       if (stage.name !== "first" && stage.name !== "second") return state;
+      // 体調の訴えらしい入力では、回答として受け取らずに中断する（ADR-0011）
+      const distress = detectDistress(action.text);
+      if (distress !== null) {
+        return { ...state, stage: { name: "stopped", reason: distress } };
+      }
+      if (!isAcceptableAnswer(action.text)) return state;
 
       const answers = [
         ...state.answers,

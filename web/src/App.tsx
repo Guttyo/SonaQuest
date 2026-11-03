@@ -71,7 +71,10 @@ export function App() {
           />
         )}
         {stage.name === "stopped" && (
-          <Stopped onRestart={() => dispatch({ type: "restart" })} />
+          <Stopped
+            reason={stage.reason}
+            onRestart={() => dispatch({ type: "restart" })}
+          />
         )}
       </main>
     </div>
