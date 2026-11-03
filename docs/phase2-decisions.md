@@ -61,6 +61,7 @@ Issue #15 の前半。Claude連携（Cloudflare Workers の `/api/turn`、聞き
 - 思い出せないという回答に、候補で補うこと（「未確認と気づいた」とし、振り返りの固定文に任せる）
 - 実際のお薬手帳や薬の袋で確かめた内容を、入力するよう求めること（ADR-0022）
 - 人の名前・電話番号・住所などを尋ねること（薬を知っている人は続柄などで答えてもらう。ADR-0022）
+  - この決まりは Claude の聞き返しだけでなく、**固定の質問にも当てはめる**。Claude を使わない進行で入力された連絡先も、Claude連携の後は Claude へ送られるため。薬を知っている人の質問（`second_proxy`、`second_proxy_other`）は、連絡先そのものではなく「連絡をとる手段の種類（電話、メッセージなど）」を聞く文面に直した（PR #22）
 - [TODO-OWNER: プロンプトで禁じることの一覧の確認]
 
 ## 6. ③確認の初期選択の決め方（PRD「③ 確認」）
@@ -119,7 +120,7 @@ Issue #15 の前半。Claude連携（Cloudflare Workers の `/api/turn`、聞き
 - `next.type`：`ask`（次の固定の質問）／ `clarify`（聞き返し）／ `redirect`（関係のない話を受け止めて本来の質問に戻す。項目3と #19）／ `finish`（後半を終える）
 - `next.question_id`：実際の質問ID（`first_medicines`、`first_location`、`first_other`、`second_recovery`、`second_handover`、`second_recent`、`second_proxy`、`second_proxy_other`）と、聞き返しの型のID（項目3で決める）だけ
 - `recall`：思い出せない回答だったか（真偽値。項目7）
-- `source_guess`：③確認の初期選択の候補（6分類のどれか、または無し。項目6）
+- `source_guess`：③確認の初期選択の候補（項目6）。値は `"smartphone"` ／ `"online"` ／ `"notebook"` ／ `"family"` ／ `"clinic"` のどれか、または候補が無いときは JSON の `null`（キーは省略しない）。`"none"`（どれにも当てはまらない＝係の交代）は**返させない**。「どれにも当てはまらない」と係の交代は、本人のタップでだけ選ぶ（ADR-0016）。検証（ADR-0015）で、これ以外の値は拒否して初期選択なしにする
 - 進め方の決まり：前半は最大3回・後半は最大3回（聞き返しも数える。ADR-0019）、③確認はタップで回数に数えない、後半の最初は必ず立て直しの問い、上限に達したら追加の質問をしない
 - [TODO-OWNER: 関係のない話を受け止めて質問し直したとき（`redirect`）を、回答の回数に数えるか]
 
