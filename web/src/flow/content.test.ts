@@ -3,7 +3,9 @@ import {
   ANSWER_HINTS,
   FIRST_HALF_QUESTIONS,
   HANDOVER_QUESTION,
+  INTRO_LEAD,
   INTRO_POINTS,
+  PROTOTYPE_LEAD,
   PROXY_QUESTION,
   PROXY_QUESTION_AFTER_FAMILY,
   RECALL_FEEDBACK,
@@ -54,6 +56,14 @@ describe("答える範囲（ADR-0022 案B）", () => {
     expect(ANSWER_HINTS.self).toContain("電話番号");
     expect(ANSWER_HINTS.both).toContain("架空");
     expect(ANSWER_HINTS.both).toContain("あなた自身");
+    // second_recent が本人のこととして聞くのは「記録が新しいか」なので、記録にも触れる
+    expect(ANSWER_HINTS.both).toContain("記録");
+    expect(ANSWER_HINTS.both).toContain("電話番号");
+  });
+
+  it("利用開始の文面は、架空にするのが薬の中身であることを示す（案Bと食い違わない）", () => {
+    expect(INTRO_LEAD).toContain("薬の中身は架空");
+    expect(PROTOTYPE_LEAD).toContain("薬の中身は架空");
   });
 
   it("初回画面は、すべてを架空の人として答えるようには案内しない", () => {
