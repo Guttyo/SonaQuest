@@ -1,4 +1,4 @@
-# STATUS.md の更新漏れを知らせる hook と、3回のレビュー（PR #18）
+# STATUS.md の更新漏れを知らせる hook と、3回の指摘への対応（PR #18）
 
 - 日付：2026-11-03（この記録を書き終えた日）
 - 対象：Issue #13 → PR #18（ブランチ `docs/13-status-sync`、マージ 4e18cbf）。de8c5c3、a27936a、d6cc492（main の取り込み）、b6f4125、963c94c
@@ -21,7 +21,10 @@
 | 963c94c | 第3回のレビューへの対応。`gh pr create` の前の `git switch`・`git checkout` を、`guard_github.py` の `check_git` で追う | `.claude/hooks/status_check.py`、`.claude/hooks/test_hooks.py`、`docs/STATUS.md` |
 
 ## レビューの経過
-件数は、行ごとの指摘のうち最初のコメント（返信を除く）を、レビューしたコミットとレビューした者で数えた（`gh api --paginate "repos/{owner}/{repo}/pulls/18/comments?per_page=100"`）。指摘は3回で、合わせて5件。
+件数は、行ごとの指摘のうち最初のコメント（返信を除く）を、レビューしたコミットとレビューした者で数えた（`gh api --paginate "repos/{owner}/{repo}/pulls/18/comments?per_page=100"`）。
+
+- 集計の単位：下の表の「回」は、指摘を受けて直した回（レビューしたコミットごと）で、3回。GitHub 上のレビューの投稿で数えると、指摘のある投稿は4件（de8c5c3 に Codex と Copilot の2件、d6cc492 と b6f4125 に Codex が1件ずつ。`gh pr view 18 --json reviews`）。行ごとの指摘は合わせて5件。
+- Issue #25 の本文と、この記録を書く前のオーナーへの報告では「4回」と書いた。投稿の数で数えた値で、この記録の「回」とは単位が違う。
 
 | 回 | レビューしたコミット | レビューした者と件数 | 主な指摘 | 対応 |
 |---|---|---|---|---|
