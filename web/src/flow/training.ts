@@ -1,16 +1,23 @@
 // 訓練の状態と遷移。状態はメモリにだけ持ち、保存しない（ADR-0007）。
 
+import { AI_CONNECTED, CLARIFY_TEXTS, REDIRECT_TEXTS } from "./content";
 import { detectDistress, type StopReason } from "./emergency";
 import {
+  MAX_FIRST_HALF_ANSWERS,
+  MAX_SECOND_HALF_ANSWERS,
   firstHalfQuestions,
   isAcceptableAnswer,
   secondHalfQuestions,
   selectEvent,
 } from "./rules";
+import type { TurnRequest, TurnResponse } from "./turnContract";
 import type {
   Answer,
   EventId,
+  Half,
+  Judgments,
   PrepActionId,
+  Prompt,
   Question,
   SourceId,
   TimingId,
@@ -26,17 +33,36 @@ export type Stage =
   | { name: "done"; action: PrepActionId; timing: TimingId }
   | { name: "stopped"; reason: StopReason };
 
+/**
+ * Claude を使っているか。off は使わない版（AI_CONNECTED=false）、
+ * failed は途中で失敗し、その回の残りを固定の進行にした状態（ADR-0012、docs/phase2-decisions.md 項目9）
+ */
+export type AiStatus = "on" | "failed" | "off";
+
 export interface TrainingState {
+  /** 何回目の訓練か。やり直すと増え、前の回の Claude の返事を取り違えないために使う */
+  session: number;
   stage: Stage;
   answers: readonly Answer[];
   /** ③確認で本人が選んだ情報源。選ばずに進んだら null */
   source: SourceId | null;
   event: EventId | null;
+  ai: AiStatus;
+  /** 聞き取り係のいまの発言。質問を出していない段階では null */
+  prompt: Prompt | null;
+  /** Claude の返事を待っているか。待っている間は次の回答を受け付けない */
+  waiting: boolean;
+  /** 最後に検査を通った観点の判定。失敗したら使わない */
+  judgments: Judgments | null;
+  /** ③確認の初期選択の候補（Claude。docs/phase2-decisions.md 項目6） */
+  sourceGuess: SourceId | null;
 }
 
 export type TrainingAction =
   | { type: "start" }
   | { type: "answer"; text: string }
+  /** session と seq（そのやり取りを始めたときの入力の件数）で、古い返事を取り違えないようにする */
+  | { type: "turn_result"; session: number; seq: number; result: TurnResponse | null }
   | { type: "confirm"; source: SourceId | null }
   | { type: "continue_after_event" }
   | { type: "choose_prep"; action: PrepActionId; timing: TimingId }
@@ -44,13 +70,19 @@ export type TrainingAction =
   | { type: "restart" };
 
 export const initialState: TrainingState = {
+  session: 0,
   stage: { name: "intro" },
   answers: [],
   source: null,
   event: null,
+  ai: AI_CONNECTED ? "on" : "off",
+  prompt: null,
+  waiting: false,
+  judgments: null,
+  sourceGuess: null,
 };
 
-/** 今の段階で出している質問。質問を出していない段階では null */
+/** 今の段階で出している固定の質問。質問を出していない段階では null */
 export function currentQuestion(state: TrainingState): Question | null {
   const { stage } = state;
   if (stage.name === "first") return firstHalfQuestions()[stage.index] ?? null;
@@ -60,53 +92,204 @@ export function currentQuestion(state: TrainingState): Question | null {
   return null;
 }
 
+function questionsOf(half: Half, event: EventId | null): readonly Question[] {
+  return half === "first" ? firstHalfQuestions() : secondHalfQuestions(event ?? "handover");
+}
+
+function maxAnswersOf(half: Half): number {
+  return half === "first" ? MAX_FIRST_HALF_ANSWERS : MAX_SECOND_HALF_ANSWERS;
+}
+
+/** その半分で回数に数える回答の数（聞き返しへの回答を含み、質問し直した入力を除く。ADR-0019・0025） */
+export function countedAnswers(answers: readonly Answer[], half: Half): number {
+  return answers.filter((a) => a.half === half && a.kind === "answer").length;
+}
+
+function askPrompt(question: Question, text: string | null): Prompt {
+  return { questionId: question.id, text: text ?? question.text, type: "ask" };
+}
+
+/**
+ * 次の固定の質問へ進む。半分の上限に達したか、固定の質問が尽きたら、
+ * 前半は③確認、後半は振り返りへ進む（ADR-0019）。text は Claude の言い回し（無ければ固定文）
+ */
+function advance(state: TrainingState, text: string | null): TrainingState {
+  const { stage } = state;
+  if (stage.name !== "first" && stage.name !== "second") return state;
+  const half = stage.name;
+  const questions = questionsOf(half, state.event);
+  const nextIndex = stage.index + 1;
+  const continues =
+    countedAnswers(state.answers, half) < maxAnswersOf(half) && nextIndex < questions.length;
+  if (continues) {
+    return {
+      ...state,
+      stage: { name: half, index: nextIndex },
+      prompt: askPrompt(questions[nextIndex], text),
+    };
+  }
+  return {
+    ...state,
+    stage: half === "first" ? { name: "confirm" } : { name: "review" },
+    prompt: null,
+  };
+}
+
+/** 次の固定の質問のID。この回答で半分が終わるなら null */
+function nextQuestionId(state: TrainingState): string | null {
+  const { stage } = state;
+  if (stage.name !== "first" && stage.name !== "second") return null;
+  const questions = questionsOf(stage.name, state.event);
+  const nextIndex = stage.index + 1;
+  const continues =
+    countedAnswers(state.answers, stage.name) < maxAnswersOf(stage.name) &&
+    nextIndex < questions.length;
+  return continues ? questions[nextIndex].id : null;
+}
+
+function alreadyRedirected(answers: readonly Answer[], questionId: string): boolean {
+  return answers.some((a) => a.questionId === questionId && a.kind === "redirected");
+}
+
+/**
+ * /api/turn に送る内容（docs/phase2-decisions.md 項目4）。
+ * 最後の入力が、いま答えたもの。聞き返しは半分の上限の前だけ、質問し直しは質問ごとに1回まで
+ */
+export function buildTurnRequest(state: TrainingState): TurnRequest | null {
+  const last = state.answers[state.answers.length - 1];
+  if (last === undefined) return null;
+  const earlier = state.answers.slice(0, -1);
+  return {
+    inputs: state.answers.map((a) => ({
+      question_id: a.questionId,
+      half: a.half,
+      kind: a.kind,
+      text: a.text,
+    })),
+    event: state.event,
+    source: state.source,
+    next_question_id: nextQuestionId(state),
+    allow_clarify: countedAnswers(state.answers, last.half) < maxAnswersOf(last.half),
+    allow_redirect: !alreadyRedirected(earlier, last.questionId),
+  };
+}
+
+/** Claude の返事を受け取って、次の発言と段階を決める。値の範囲はブラウザでも確かめる */
+function applyTurn(state: TrainingState, result: TurnResponse): TrainingState {
+  const { stage } = state;
+  if (stage.name !== "first" && stage.name !== "second") return state;
+  const last = state.answers[state.answers.length - 1];
+  const earlier = state.answers.slice(0, -1);
+
+  const judged: TrainingState = {
+    ...state,
+    judgments: result.viewpoints,
+    sourceGuess: result.source_guess ?? state.sourceGuess,
+    answers: [...earlier, { ...last, recall: result.recall }],
+  };
+
+  const { type, question_id, text } = result.next;
+  if (type === "redirect" && question_id === last.questionId && !alreadyRedirected(earlier, last.questionId)) {
+    return {
+      ...judged,
+      answers: [...earlier, { ...last, recall: result.recall, kind: "redirected" }],
+      prompt: {
+        questionId: last.questionId,
+        text: text ?? REDIRECT_TEXTS[last.questionId] ?? last.prompt,
+        type: "redirect",
+      },
+    };
+  }
+  if (
+    type === "clarify" &&
+    question_id === last.questionId &&
+    countedAnswers(state.answers, stage.name) < maxAnswersOf(stage.name)
+  ) {
+    return {
+      ...judged,
+      prompt: {
+        questionId: last.questionId,
+        text: text ?? CLARIFY_TEXTS[last.questionId] ?? last.prompt,
+        type: "clarify",
+      },
+    };
+  }
+  // 質問を進める。Claude の言い回しは、次の固定の質問のためのものだけを使う
+  const nextId = nextQuestionId(state);
+  const useText = type === "ask" && nextId !== null && question_id === nextId ? text : null;
+  return advance(judged, useText);
+}
+
 export function trainingReducer(
   state: TrainingState,
   action: TrainingAction,
 ): TrainingState {
   if (action.type === "stop") {
-    return { ...state, stage: { name: "stopped", reason: "manual" } };
+    return { ...state, waiting: false, stage: { name: "stopped", reason: "manual" } };
   }
   if (action.type === "restart") {
-    return initialState;
+    return { ...initialState, session: state.session + 1 };
   }
 
   const { stage } = state;
   switch (action.type) {
-    case "start":
+    case "start": {
       if (stage.name !== "intro") return state;
-      return { ...initialState, stage: { name: "first", index: 0 } };
+      const first = firstHalfQuestions()[0];
+      return {
+        ...initialState,
+        session: state.session,
+        ai: state.ai,
+        stage: { name: "first", index: 0 },
+        prompt: askPrompt(first, null),
+      };
+    }
 
     case "answer": {
       const question = currentQuestion(state);
-      if (question === null) return state;
+      if (question === null || state.waiting) return state;
       if (stage.name !== "first" && stage.name !== "second") return state;
-      // 体調の訴えらしい入力では、回答として受け取らずに中断する（ADR-0011）
+      // 体調の訴えらしい入力では、回答として受け取らずに中断する。Claude に送る前に照合する（ADR-0011、項目10）
       const distress = detectDistress(action.text);
       if (distress !== null) {
         return { ...state, stage: { name: "stopped", reason: distress } };
       }
       if (!isAcceptableAnswer(action.text)) return state;
 
-      const answers = [
+      const answers: Answer[] = [
         ...state.answers,
-        { questionId: question.id, half: stage.name, text: action.text },
+        {
+          questionId: question.id,
+          half: stage.name,
+          text: action.text,
+          prompt: state.prompt?.text ?? question.text,
+          kind: "answer",
+          recall: false,
+        },
       ];
-      const nextIndex = stage.index + 1;
-      // 上限に達したら追加の質問をせず先へ進む（ADR-0019）
-      if (stage.name === "first") {
-        const next: Stage =
-          nextIndex < firstHalfQuestions().length
-            ? { name: "first", index: nextIndex }
-            : { name: "confirm" };
-        return { ...state, answers, stage: next };
+      if (state.ai === "on") {
+        return { ...state, answers, waiting: true };
       }
-      const total = secondHalfQuestions(state.event ?? "handover").length;
-      const next: Stage =
-        nextIndex < total
-          ? { name: "second", index: nextIndex }
-          : { name: "review" };
-      return { ...state, answers, stage: next };
+      return advance({ ...state, answers }, null);
+    }
+
+    case "turn_result": {
+      if (
+        !state.waiting ||
+        action.session !== state.session ||
+        action.seq !== state.answers.length
+      ) {
+        return state;
+      }
+      const settled = { ...state, waiting: false };
+      if (action.result === null) {
+        // 失敗したら、その回の残りは固定の進行にし、判定は使わない（ADR-0012、項目9）
+        return advance({ ...settled, ai: "failed", judgments: null, sourceGuess: null }, null);
+      }
+      if (action.result.emergency) {
+        return { ...settled, stage: { name: "stopped", reason: "symptom" } };
+      }
+      return applyTurn(settled, action.result);
     }
 
     case "confirm":
@@ -118,9 +301,12 @@ export function trainingReducer(
         stage: { name: "event" },
       };
 
-    case "continue_after_event":
+    case "continue_after_event": {
       if (stage.name !== "event") return state;
-      return { ...state, stage: { name: "second", index: 0 } };
+      // 後半の最初は固定の立て直しの問い（ADR-0019）。Claude の言い回しにしない
+      const opening = secondHalfQuestions(state.event ?? "handover")[0];
+      return { ...state, stage: { name: "second", index: 0 }, prompt: askPrompt(opening, null) };
+    }
 
     case "choose_prep":
       if (stage.name !== "review") return state;

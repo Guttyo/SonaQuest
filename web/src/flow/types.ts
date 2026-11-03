@@ -54,11 +54,26 @@ export interface Question {
   answerAs: AnswerAs;
 }
 
-/** 利用者の回答。text は入力そのもので、書き換えない（ADR-0009） */
+/**
+ * 利用者の回答。text は入力そのもので、書き換えない（ADR-0009）。
+ * redirected は関係のない話として受け止めて質問し直した入力で、回答の回数に数えない（ADR-0025）
+ */
 export interface Answer {
   questionId: string;
   half: Half;
   text: string;
+  /** その入力の直前に聞き取り係が言った文（固定文か、検査を通った Claude の文） */
+  prompt: string;
+  kind: "answer" | "redirected";
+  /** 思い出せないという回答だったか（Claude の判定。docs/phase2-decisions.md 項目7） */
+  recall: boolean;
+}
+
+/** 聞き取り係のいまの発言。ask は質問、clarify は聞き返し、redirect は質問し直し */
+export interface Prompt {
+  questionId: string;
+  text: string;
+  type: "ask" | "clarify" | "redirect";
 }
 
 export type PrepActionId =

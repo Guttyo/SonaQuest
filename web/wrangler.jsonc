@@ -1,0 +1,17 @@
+// Cloudflare Workers の設定（ADR-0003）。デプロイはオーナーの承認の後（CLAUDE.md 絶対ルール7）。
+// API キーは secrets（手元では .dev.vars）にだけ置き、ここには書かない。DEV_CONTENT_LOG もここには書かない（ADR-0007 の追記）。
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sonaquest",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-23",
+  // 画面のファイル（npm run build の dist/）。/api/ 以外はここから配る
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  },
+  // Workers Logs は使わない（ADR-0007。会話の本文を Cloudflare 側に残さない）
+  "observability": {
+    "enabled": false
+  }
+}

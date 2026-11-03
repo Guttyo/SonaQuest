@@ -1,0 +1,4 @@
+# 手元で wrangler dev を動かすときの秘密情報の雛形。
+# このファイルを .dev.vars という名前で写し、値を入れる（.dev.vars は Git に入れない）。
+# 本物のキーをこの雛形に書かない。
+ANTHROPIC_API_KEY=

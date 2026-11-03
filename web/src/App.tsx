@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useRef } from "react";
+import { requestTurn } from "./flow/api";
 import { STOP_LABEL } from "./flow/content";
-import { initialState, trainingReducer } from "./flow/training";
+import { buildTurnRequest, initialState, trainingReducer } from "./flow/training";
 import { Dialogue } from "./screens/Dialogue";
 import { Done } from "./screens/Done";
 import { Intro } from "./screens/Intro";
@@ -13,10 +14,28 @@ export function App() {
   const { stage } = state;
   const mainRef = useRef<HTMLElement>(null);
 
+  // 回答を受け取ったら Claude に1回だけ聞く（開発中の StrictMode で effect が2回動いても送り直さない）。
+  // やめた・やり直した後に届いた返事は、reducer が回と件数を見て捨てる
+  const { session, waiting } = state;
+  const seq = state.answers.length;
+  const sent = useRef("");
+  useEffect(() => {
+    if (!waiting) return;
+    const key = `${session}:${seq}`;
+    if (sent.current === key) return;
+    const request = buildTurnRequest(state);
+    if (request === null) return;
+    sent.current = key;
+    void requestTurn(request).then((result) =>
+      dispatch({ type: "turn_result", session, seq, result }),
+    );
+  }, [state, session, seq, waiting]);
+
   // 場面が変わったら、いま答える箇所（質問・確認・出来事）へ焦点を移して見せる。
   // そうした箇所のない画面（はじめに・ふりかえり等）は本文の先頭へ移す
+  // 聞き返し・質問し直しでは段階が同じまま発言が変わるので、回答の件数と待ち状態も見る
   const stageKey = stage.name === "first" || stage.name === "second"
-    ? `${stage.name}-${stage.index}`
+    ? `${stage.name}-${stage.index}-${state.answers.length}-${state.waiting}`
     : stage.name;
   useEffect(() => {
     const main = mainRef.current;
