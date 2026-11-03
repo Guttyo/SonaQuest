@@ -106,6 +106,16 @@ describe("次の手の決め方（ADR-0025 の A）", () => {
     });
   });
 
+  it.each<[string, string]>([
+    ["first_location", "教えてくださってありがとうございます。その薬のことは、お薬手帳やスマホのアプリなど、何を見れば確かめられますか？"],
+    ["first_other", "ありがとうございます。ほかの病院や診療所でもらっている薬や、市販の薬・サプリはありますか？アレルギーはありますか？"],
+    ["second_recent", "教えてくださってありがとうございます。ここ数日、いつもどおり薬を飲めていますか？最近変わった薬は、記録にも載っていますか？"],
+    ["second_proxy", "ありがとうございます。あなたの薬のことを知っている人はいますか？続柄で教えてください。電話やメッセージなど、どんな手段で連絡をとれますか？"],
+  ])("ふつうの言い回し（%s）は検査を通る", (nextId, text) => {
+    const req = { ...request, next_question_id: nextId };
+    expect(decideNext(req, { ...parsed, text }).text).toBe(text);
+  });
+
   it("検査を通らない文は捨てる（S16〜S18）", () => {
     for (const text of ["それはロキソニンではないですか？", "A薬を朝に1錠のことは何で確かめますか？", "あ".repeat(201)]) {
       expect(decideNext(request, { ...parsed, text }).text).toBeNull();

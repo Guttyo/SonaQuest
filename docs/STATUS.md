@@ -34,7 +34,8 @@
 ## 動作確認済み
 - hookとgitのフックの試験：`test_hooks.py` で247/247 PASS（2026-11-03、Windows 11・Git Bash・Python 3.14。STATUS.md の hook の21件と、Issue #19 で足した79件（決定の行によるマーカー解除、ローカルの main を動かす操作の停止と、main を起点に使うだけの操作を止めないこと）を含む）
 - STATUS.md の hook を、このリポジトリで手で動かした（2026-11-03）：修正前の STATUS.md で、PR #10 でマージ済みのブランチ名が残る2か所を挙げ、修正後は何も出さなかった。STATUS.md を変えていないブランチでの `gh pr create` を止めた。Claude Code のセッション開始時に実際に呼ばれるかは未確認
-- アプリの単体試験：`npm --prefix web test` で 215/215 PASS（8ファイル。Claude 連携の試験 `web/worker/turn.test.ts`・`checks.test.ts`、`web/src/flow/turnContract.test.ts`・`training.ai.test.ts` を含む。Claude は呼ばず、偽の返事を渡す）。型の検査（TypeScript 7.0）、ビルド（`npm --prefix web run build`）、Workers のまとめ（`npm --prefix web run bundle:worker`、デプロイはしない）も成功（2026-11-04、Issue #15 の後半の作業、Windows 11・Node.js 26.13）
+- アプリの単体試験：`npm --prefix web test` で 253/253 PASS（8ファイル。Claude 連携の試験 `web/worker/turn.test.ts`・`checks.test.ts`、`web/src/flow/turnContract.test.ts`・`training.ai.test.ts` を含む。Claude は呼ばず、偽の返事を渡す）。型の検査（TypeScript 7.0）、ビルド（`npm --prefix web run build`）、Workers のまとめ（`npm --prefix web run bundle:worker`、デプロイはしない）も成功（2026-11-04、Issue #15 の後半の作業、Windows 11・Node.js 26.13）
+- Workers を手元で起動した（2026-11-04、`wrangler dev`、API キーは置かない状態）：知らない道は 404、形の違う入力は 400、正しい形の入力はキーが無いので Claude を呼ばずに 503、画面のファイルは 200 を返した。Workers のログには失敗の種類（`turn: no_api_key`）だけが出て、本文は出なかった
 - Claude 連携の安全の試験 S9、S16〜S19、F1〜F3、P8 を偽の返事の単体試験で、P3 をビルド成果物の検索で実施した（2026-11-04。docs/safety-test-plan.md「実施の記録」）。本物の Claude の出力での確認は未実施
 - Claude 連携の画面（2026-11-04、Claude desktop のブラウザ画面、Chromium 152、幅375px）：Workers を動かさない開発用サーバーで、最初の回答で `/api/turn` が失敗した後、問い合わせを送らずに固定の質問で振り返りまで進み、観点がすべて「判定できませんでした」になった（F1）。ページの中で偽の返事を返すようにして、待っている間の表示、質問し直しの固定文、思い出せないときのその場の文、Claude の言い回し、聞き返し、③確認の初期選択が出ることも確かめた
 - 安全の試験 E1〜E9（Issue #14、2026-11-03）：単体試験で実施。E7 は言い換え26件中4件を見逃した（docs/safety-test-plan.md「実施の記録」）。ブラウザ画面でも、体調の訴えで中断の案内、自傷のほのめかしで自傷用の案内が出ることを確かめた
