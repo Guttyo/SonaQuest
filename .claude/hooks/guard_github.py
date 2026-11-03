@@ -70,9 +70,14 @@ def check_push(args, branch):
             raise Blocked("main へは直接pushできません。作業ブランチをpushしてPRを作ってください（push自体もオーナーの承認後）。")
 
 
+PROTECTED_REFS = {f"{prefix}{name}" for name in PROTECTED
+                  for prefix in ("", "heads/", "refs/heads/", "refs/", "tags/", "refs/tags/")}
+
+
 def names_protected(ref):
-    """main を指す名前か（main、heads/main、refs/heads/main、refs/main、refs/tags/main など。リモート追跡は除く）。"""
-    return not ref.startswith("refs/remotes/") and ref.rsplit("/", 1)[-1] in PROTECTED
+    """main を指す名前か（main、heads/main、refs/heads/main、refs/main、refs/tags/main）。
+    feature/main のような、末尾が main なだけの別の名前は含めない。"""
+    return ref in PROTECTED_REFS
 
 
 MOVES_MAIN = "ローカルの main を、PRのマージ（と git pull --ff-only）以外で動かしたり、同じ名前のタグ・参照を作ったりはできません。" \
@@ -142,15 +147,16 @@ def check_moves_main(sub, args):
         if pos and names_protected(pos[0]):
             raise Blocked(MOVES_MAIN)
     elif sub == "symbolic-ref":
+        # git symbolic-ref HEAD refs/heads/main も、後に続く操作のブランチを取り違えさせるので止める
         pos = positionals(args, {"-m"})
-        if pos and names_protected(pos[0]):
+        if any(names_protected(p) for p in pos[:2]):
             raise Blocked(MOVES_MAIN)
     elif sub == "fetch":
         for a in positionals(args):
             if ":" in a and names_protected(a.lstrip("+").split(":", 1)[1]):
                 raise Blocked(MOVES_MAIN)
     elif sub in ("switch", "checkout"):
-        created = option_value(args, "BC", ("--force-create",))
+        created = option_value(args, "BCbc", ("--force-create", "--create"))
         if created is not None and names_protected(created):
             raise Blocked(MOVES_MAIN)
     elif sub == "rebase":

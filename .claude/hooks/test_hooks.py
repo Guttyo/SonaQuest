@@ -106,6 +106,8 @@ def decision_hook_tests(tmp):
     check("Write: 決定の無いマーカーも外した上書き", 2, hook(P, "Write", {"file_path": str(doc), "content": f"本文\n{line}\n\n次の節\n"})[0])
     check("Edit: リポジトリの外のファイル（main が無い）", 2, edit(tmp / "doc.md", "[TODO-OWNER: 緊急時の文面]\n", ""))
     # Issue #19 のレビュー：同じ文のマーカーの取り違え、replace_all、MultiEdit
+    check("Edit: マーカーを残して、main にある決定の行だけを消す", 2, edit(doc, f"{done}\n{line}", done))
+    check("Edit: マーカーを残して、main にある決定の行を書き換える", 2, edit(doc, line, new_line))
     check("Edit: 同じ文のマーカーのうち、決定の無い方を消す", 2, edit(dup, f"二つ目 {bare}", "二つ目"))
     check("Edit: 同じ文のマーカーのうち、決定の付いた方を消す", 0, edit(dup, f"一つ目 {bare}", "一つ目"))
     check("Edit: replace_all で同じ文のマーカーをすべて消す", 2, hook(P, "Edit", {
@@ -259,6 +261,13 @@ def github_hook_tests():
                 "git tag v0.1.0 main", "git tag --contains main", "git branch -c main backup", "git rebase main",
                 "git branch --merged main"):
         check(f"Bash: main を起点・条件に使うだけ（{cmd}）", 0, hook(G, "Bash", {"command": cmd}, extra=on_work)[0])
+    # PR #29 のレビュー：symbolic-ref の設定先、小文字の作成オプション（止める）と、末尾が main なだけの別の名前（止めない）
+    for cmd in ("git symbolic-ref HEAD refs/heads/main", "git switch -c main", "git checkout -b main",
+                "git switch --create main", "git switch --create=main"):
+        check(f"Bash: ローカルの main を作る・切り替えたように見せる（{cmd}）", 2, hook(G, "Bash", {"command": cmd}, extra=on_work)[0])
+    for cmd in ("git push origin feature/main", "git branch -f feature/main HEAD", "git tag release/main",
+                "git switch -c docs/main"):
+        check(f"Bash: 末尾が main なだけの別の名前（{cmd}）", 0, hook(G, "Bash", {"command": cmd}, extra=on_work)[0])
     check("Bash: 作業ブランチを -f で作り直す", 0, hook(G, "Bash", {"command": "git branch -f docs/2-y HEAD"}, extra=on_work)[0])
     check("Bash: origin を fetch する", 0, hook(G, "Bash", {"command": "git fetch origin"}, extra=on_work)[0])
     check("Bash: リモート追跡の origin/main へ fetch", 0, hook(G, "Bash", {"command": "git fetch origin main:refs/remotes/origin/main"}, extra=on_work)[0])
@@ -399,6 +408,24 @@ def git_hook_tests(tmp):
     write("e.md", "")
     git("add", "-A")
     check("マーカーと決定の行を、そのまま別のファイルへ移すコミット", 0, commit("決定ごと移す")[0])
+
+    # PR #29 のレビュー：決定の行だけを消す、1つの追加で2つのファイルの削除を差し引く
+    write("p.md", f"[TODO-OWNER: 決定済みP]\n{decision}\n")
+    write("q.md", f"[TODO-OWNER: 決定済みQ]\n{decision}\n")
+    git("add", "-A")
+    commit("決定の行つきのマーカーを足す2")
+    git("branch", "-f", "main", "work")
+    write("p.md", "[TODO-OWNER: 決定済みP]\n")
+    git("add", "p.md")
+    check("マーカーを残して、main にある決定の行だけを消すコミット", 1, commit("決定の行だけ消す")[0])
+    write("p.md", "")
+    write("q.md", "")
+    write("r.md", f"{decision}\n")
+    git("add", "-A")
+    check("決定の行を1つだけ足して、2つのファイルから決定の行ごと消すコミット", 1, commit("1つで2つを差し引く")[0])
+    git("reset", "-q", "--", "p.md", "q.md", "r.md")
+    git("checkout", "-q", "--", "p.md", "q.md")
+    (repo / "r.md").unlink()
 
     # PR #29 のレビュー：git が "..." で囲むパス（「"」「\」・タブを含む）の見出しを元に戻す
     spec = importlib.util.spec_from_file_location("scan_staged", ROOT / ".githooks" / "scan_staged.py")

@@ -12,7 +12,7 @@ import re
 import sys
 
 from sonaguard import (main_text, marker_counts, marker_shortfall, missing_decisions, read_text,
-                       use_utf8_stdio)
+                       removed_decisions, use_utf8_stdio)
 
 BASH_WRITE = re.compile(r"\bsed\b[^|;&]*\s-i|\bperl\b[^|;&]*\s-\w*i|>|\btee\b|Set-Content|Out-File|-replace")
 HARMLESS_REDIRECT = re.compile(r"\d?>\s*/dev/null|\d?>&\d|2>\$null")
@@ -28,7 +28,10 @@ def block(why):
 
 
 def check_lost(main, current, result, what):
-    """current → result でマーカーが減るなら、main で決定の行が付いたものだけかを確かめる。"""
+    """current → result でマーカーが減るなら、main で決定の行が付いたものだけかを確かめる。
+    マーカーが減らなくても、main にあるオーナーの決定の行を消す編集は止める（決定の記録を書き換えさせない）。"""
+    if removed_decisions(main, current, result):
+        block(f"{what}で、main にあるオーナーの決定の行が消えます。決定の行は残してください")
     res_n = marker_counts(result)
     if all(res_n.get(m, 0) >= n for m, n in marker_counts(current).items()):
         return

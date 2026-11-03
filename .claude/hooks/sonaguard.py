@@ -102,6 +102,12 @@ def marker_shortfall(main, current, result):
     return short
 
 
+def removed_decisions(main, current, result):
+    """current → result で消える、main にあるオーナーの決定の行（数で比べる）。"""
+    gone = Counter(decision_lines(current)) - Counter(decision_lines(result))
+    return gone & Counter(decision_lines(main))
+
+
 def missing_decisions(main, result, elsewhere=()):
     """main にあって result から消えたオーナーの決定の行（同じ文が複数あれば数で比べる）。
     解除しても決定の行は記録として残す。elsewhere は、別のファイルへ移した決定の行。"""

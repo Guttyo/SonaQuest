@@ -23,7 +23,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / ".claude" / "hooks"))
 from sonaguard import (blocklist_hits, decision_lines, load_blocklist, marker_counts,  # noqa: E402
-                       marker_shortfall, markers, missing_decisions, secret_hits, sensitive_path, use_utf8_stdio)
+                       marker_shortfall, markers, removed_decisions, secret_hits, sensitive_path, use_utf8_stdio)
 
 
 def git(*args):
@@ -105,12 +105,14 @@ def staged_changes():
     return changes
 
 
-def marker_problems(removed_in, moved_in, added_decisions):
-    """マーカーが減るファイルを、ファイル全体で確かめる（ADR-0024）。
-    減ってよいのは、ローカルの main（refs/heads/main）で直後に決定の行が付いたマーカーだけで、
-    決定の行は残す。同じ文のマーカー・決定の行が別のファイルで増えた分は、移したものとして差し引く。
-    ファイル全体を読むのは、差分でマーカーの行が消えたファイルと、削除・名前の変更だけ（速さのため）。"""
+def marker_problems(removed_in, moved_in, decisions_in):
+    """マーカーと決定の行が減るファイルを、ファイル全体で確かめる（ADR-0024）。
+    マーカーが減ってよいのは、ローカルの main（refs/heads/main）で直後に決定の行が付いたものだけ。
+    main にあるオーナーの決定の行は、マーカーが減らなくても消させない。
+    同じ文のマーカー・決定の行が別のファイルで増えた分は、移したものとして差し引く（1つの追加で差し引けるのは1つだけ）。
+    ファイル全体を読むのは、差分でマーカー・決定の行が消えたファイルと、削除・名前の変更だけ（速さのため）。"""
     short, lost_decisions = {}, []
+    available = Counter(decisions_in)
     changes = staged_changes()
     # 見出しから取ったパスが変更の一覧と合わなければ、取り違えを疑ってすべてのファイルを確かめる
     check_all = bool(set(removed_in) - {p for change in changes for p in change})
@@ -119,14 +121,17 @@ def marker_problems(removed_in, moved_in, added_decisions):
             continue
         head = show(f"HEAD:{old}")
         staged = show(f":{new}") if new else ""
+        main = show(f"refs/heads/main:{old}")
+        gone = removed_decisions(main, head, staged)
+        moved = gone & available
+        available -= moved
+        if gone - moved:
+            lost_decisions.append(old)
         res_n = marker_counts(staged)
         if all(res_n.get(m, 0) >= n for m, n in marker_counts(head).items()):
             continue
-        main = show(f"refs/heads/main:{old}")
         for m, n in marker_shortfall(main, head, staged).items():
             short.setdefault(m, []).append((old, n))
-        if missing_decisions(main, staged, added_decisions):
-            lost_decisions.append(old)
     lost = [f"{path}: {m}" for m, items in short.items()
             if sum(n for _, n in items) > moved_in.get(m, 0) for path, _ in items]
     return lost, lost_decisions
@@ -140,7 +145,7 @@ def scan_staged():
 
     terms = load_blocklist()
     # マーカーの増減と、足された決定の行（ファイルをまたいだ移動を差し引くため）
-    added_m, removed_m, added_decisions = {}, {}, []
+    added_m, removed_m, added_d, removed_d = {}, {}, {}, {}
     old_path, current, line_no = "", "", 0
     for line in git("-c", "core.quotePath=false", "diff", "--cached", "-U0", "-M", "--no-color",
                     "--no-ext-diff").splitlines():
@@ -151,6 +156,8 @@ def scan_staged():
         elif line.startswith("-") and not line.startswith("---"):
             if markers(line[1:]):
                 removed_m.setdefault(current, Counter()).update(markers(line[1:]))
+            if decision_lines(line[1:]):
+                removed_d.setdefault(current, Counter()).update(decision_lines(line[1:]))
         elif line.startswith("@@"):
             try:
                 line_no = int(line.split("+")[1].split(",")[0].split(" ")[0])
@@ -165,14 +172,17 @@ def scan_staged():
             if h:
                 problems.append(f"{current}:{line_no}: ブロックリストの語（{'、'.join(f'{i}番目' for i in h)}）")
             added_m.setdefault(current, Counter()).update(markers(body))
-            added_decisions += decision_lines(body)
+            added_d.setdefault(current, Counter()).update(decision_lines(body))
             line_no += 1
 
     if os.environ.get("SONAQUEST_OWNER_APPROVED") != "1":
-        moved_in = Counter()
+        # ファイルごとに増えた分だけを、別のファイルから移したものとして数える
+        moved_in, decisions_in = Counter(), Counter()
         for path, counts in added_m.items():
             moved_in.update(+(counts - removed_m.get(path, Counter())))
-        lost, lost_decisions = marker_problems(set(removed_m), moved_in, added_decisions)
+        for path, counts in added_d.items():
+            decisions_in.update(+(counts - removed_d.get(path, Counter())))
+        lost, lost_decisions = marker_problems(set(removed_m) | set(removed_d), moved_in, decisions_in)
         how = ("\n    オーナーが判断を済ませた場合だけ、オーナー自身が次の形で通してください"
                "\n      Git Bash  : SONAQUEST_OWNER_APPROVED=1 git commit -m \"...\""
                "\n      PowerShell: $env:SONAQUEST_OWNER_APPROVED = \"1\"; git commit -m \"...\";"
@@ -180,7 +190,7 @@ def scan_staged():
         if lost:
             problems.append("TODO-OWNERマーカーが減ります（main で決定の行が付いていないもの）: " + " ".join(lost) + how)
         if lost_decisions:
-            problems.append("マーカーと一緒にオーナーの決定の行が消えます。決定の行は残してください: "
+            problems.append("main にあるオーナーの決定の行が消えます。決定の行は残してください: "
                             + " ".join(lost_decisions) + how)
     return problems
 
