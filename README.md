@@ -133,6 +133,8 @@ CLAUDE.md              Claude Codeが毎回読む短いルール
 .claude/hooks/         TODO-OWNERマーカーの保護、秘密情報の検出、mainの保護、その試験
 .githooks/             gitのフック（コミット前の検査、mainへのコミットの防止）
 docs/                  PRD、構成、判断の記録、進捗、日誌、試験計画、証拠、出典
+docs/dev-logs/         テーマごとの開発記録（経過と教訓）
+docs/reviews/          外部レビュー・助言の記録（何を聞き、何を言われたか）
 web/                   画面（React / TypeScript / Vite）。src/flow/ に進行のルールと固定文
 ```
 
