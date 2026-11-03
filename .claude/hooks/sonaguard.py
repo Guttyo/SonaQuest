@@ -3,6 +3,7 @@ import os
 import re
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -52,10 +53,7 @@ def markers(text):
 
 
 def marker_counts(text):
-    count = {}
-    for m in markers(text):
-        count[m] = count.get(m, 0) + 1
-    return count
+    return Counter(markers(text))
 
 
 # マーカーの直後（空行を除く次の行）に置く、オーナーの決定の行（ADR-0024）。
@@ -104,10 +102,11 @@ def marker_shortfall(main, current, result):
     return short
 
 
-def missing_decisions(main, result):
-    """main にあって result から消えたオーナーの決定の行。解除しても決定の行は記録として残す。"""
-    kept = set(decision_lines(result))
-    return [d for d in decision_lines(main) if d not in kept]
+def missing_decisions(main, result, elsewhere=()):
+    """main にあって result から消えたオーナーの決定の行（同じ文が複数あれば数で比べる）。
+    解除しても決定の行は記録として残す。elsewhere は、別のファイルへ移した決定の行。"""
+    lost = Counter(decision_lines(main)) - Counter(decision_lines(result)) - Counter(elsewhere)
+    return list(lost.elements())
 
 
 def main_text(path):
@@ -120,7 +119,9 @@ def main_text(path):
         path = f"{m.group(1)}:/{m.group(2)}"
     p = Path(path)
     try:
-        r = subprocess.run(["git", "-C", str(p.parent), "show", f"refs/heads/main:./{p.name}"], capture_output=True)
+        # --no-replace-objects：git replace で main の中身を差し替えて見せかけられないようにする
+        r = subprocess.run(["git", "--no-replace-objects", "-C", str(p.parent), "show", f"refs/heads/main:./{p.name}"],
+                           capture_output=True)
     except OSError:
         return None
     return r.stdout.decode("utf-8", "replace") if r.returncode == 0 else None

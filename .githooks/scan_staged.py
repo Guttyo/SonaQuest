@@ -18,11 +18,12 @@
 import os
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / ".claude" / "hooks"))
-from sonaguard import (blocklist_hits, load_blocklist, marker_counts, marker_shortfall,  # noqa: E402
-                       missing_decisions, secret_hits, sensitive_path, use_utf8_stdio)
+from sonaguard import (blocklist_hits, decision_lines, load_blocklist, marker_counts,  # noqa: E402
+                       marker_shortfall, markers, missing_decisions, secret_hits, sensitive_path, use_utf8_stdio)
 
 
 def git(*args):
@@ -52,7 +53,7 @@ def scan_branch():
 
 def show(spec):
     """git show <spec> の内容。無ければ空。"""
-    p = subprocess.run(["git", "show", spec], capture_output=True)
+    p = subprocess.run(["git", "--no-replace-objects", "show", spec], capture_output=True)
     return p.stdout.decode("utf-8", "replace") if p.returncode == 0 else ""
 
 
@@ -78,24 +79,24 @@ def staged_changes():
     return changes
 
 
-def marker_problems():
+def marker_problems(removed_in, moved_in, added_decisions):
     """マーカーが減るファイルを、ファイル全体で確かめる（ADR-0024）。
     減ってよいのは、ローカルの main（refs/heads/main）で直後に決定の行が付いたマーカーだけで、
-    決定の行は残す。同じ文のマーカーが別のファイルで増えた分は、移したものとして差し引く。"""
-    short, moved_in, lost_decisions = {}, {}, []
+    決定の行は残す。同じ文のマーカー・決定の行が別のファイルで増えた分は、移したものとして差し引く。
+    ファイル全体を読むのは、差分でマーカーの行が消えたファイルと、削除・名前の変更だけ（速さのため）。"""
+    short, lost_decisions = {}, []
     for old, new in staged_changes():
-        head = show(f"HEAD:{old}") if old else ""
+        if not old or (old == new and new not in removed_in):
+            continue
+        head = show(f"HEAD:{old}")
         staged = show(f":{new}") if new else ""
-        cur_n, res_n = marker_counts(head), marker_counts(staged)
-        for m, n in res_n.items():
-            if n > cur_n.get(m, 0):
-                moved_in[m] = moved_in.get(m, 0) + n - cur_n.get(m, 0)
-        if all(res_n.get(m, 0) >= n for m, n in cur_n.items()):
+        res_n = marker_counts(staged)
+        if all(res_n.get(m, 0) >= n for m, n in marker_counts(head).items()):
             continue
         main = show(f"refs/heads/main:{old}")
         for m, n in marker_shortfall(main, head, staged).items():
             short.setdefault(m, []).append((old, n))
-        if missing_decisions(main, staged):
+        if missing_decisions(main, staged, added_decisions):
             lost_decisions.append(old)
     lost = [f"{path}: {m}" for m, items in short.items()
             if sum(n for _, n in items) > moved_in.get(m, 0) for path, _ in items]
@@ -109,10 +110,18 @@ def scan_staged():
             problems.append(f"{name}: 秘密情報・非公開ファイルはコミットできません")
 
     terms = load_blocklist()
-    current, line_no = "", 0
-    for line in git("-c", "core.quotePath=false", "diff", "--cached", "-U0", "--no-color", "--no-ext-diff").splitlines():
-        if line.startswith("+++ "):
-            current = (line[6:] if line.startswith("+++ b/") else line[4:]).rstrip("\t")
+    # マーカーの増減と、足された決定の行（ファイルをまたいだ移動を差し引くため）
+    added_m, removed_m, added_decisions = {}, {}, []
+    old_path, current, line_no = "", "", 0
+    for line in git("-c", "core.quotePath=false", "diff", "--cached", "-U0", "-M", "--no-color",
+                    "--no-ext-diff").splitlines():
+        if line.startswith("--- "):
+            old_path = (line[6:] if line.startswith("--- a/") else "").rstrip("\t")
+        elif line.startswith("+++ "):
+            current = (line[6:] if line.startswith("+++ b/") else old_path).rstrip("\t")
+        elif line.startswith("-") and not line.startswith("---"):
+            if markers(line[1:]):
+                removed_m.setdefault(current, Counter()).update(markers(line[1:]))
         elif line.startswith("@@"):
             try:
                 line_no = int(line.split("+")[1].split(",")[0].split(" ")[0])
@@ -126,10 +135,15 @@ def scan_staged():
             h = blocklist_hits(body, terms)
             if h:
                 problems.append(f"{current}:{line_no}: ブロックリストの語（{'、'.join(f'{i}番目' for i in h)}）")
+            added_m.setdefault(current, Counter()).update(markers(body))
+            added_decisions += decision_lines(body)
             line_no += 1
 
     if os.environ.get("SONAQUEST_OWNER_APPROVED") != "1":
-        lost, lost_decisions = marker_problems()
+        moved_in = Counter()
+        for path, counts in added_m.items():
+            moved_in.update(+(counts - removed_m.get(path, Counter())))
+        lost, lost_decisions = marker_problems(set(removed_m), moved_in, added_decisions)
         how = ("\n    オーナーが判断を済ませた場合だけ、オーナー自身が次の形で通してください"
                "\n      Git Bash  : SONAQUEST_OWNER_APPROVED=1 git commit -m \"...\""
                "\n      PowerShell: $env:SONAQUEST_OWNER_APPROVED = \"1\"; git commit -m \"...\";"

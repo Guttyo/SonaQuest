@@ -4,7 +4,7 @@
 
 ## 実装済み（コードがありコミット済み）
 - Claude Code用hook：`[TODO-OWNER]` の削除防止（`protect_todo_owner.py`）、秘密情報とブロックリストの語の検出（`block_secrets.py`）、main・GitHubの保護（`guard_github.py`）。いずれも `.claude/hooks/`
-- マーカー解除の例外（Issue #19、ADR-0024。ADR は提案中）：ローカルの main にあるそのファイルで、マーカーの直後の行に `→ オーナー決定（YYYY-MM-DD、…）：` があるマーカーだけ、Claude Code の Edit・Write とコミット前フックが解除を通す。決定の行を足すのと同時の解除、作業ブランチで足しただけの決定の行、「オーナー指示」「〜の方向」、決定の行ごとの削除では通さない。判定はファイル全体で行い、基準はブランチの `refs/heads/main`。あわせて `guard_github.py` が、ローカルの main を動かす操作（`git branch -f main`、`git update-ref`、`git tag main` など）を止める
+- マーカー解除の例外（Issue #19、ADR-0024。ADR は提案中）：ローカルの main にあるそのファイルで、マーカーの直後の行に `→ オーナー決定（YYYY-MM-DD、…）：` があるマーカーだけ、Claude Code の Edit・Write とコミット前フックが解除を通す。決定の行を足すのと同時の解除、作業ブランチで足しただけの決定の行、「オーナー指示」「〜の方向」、決定の行ごとの削除では通さない。判定はファイル全体で行い、基準はブランチの `refs/heads/main`。あわせて `guard_github.py` が、ローカルの main を動かす操作（`git branch -f main`、`git update-ref`、`git tag main` など）を止める。塞いでいない経路（`git am`・`revert`・`cherry-pick`、`-c` の設定での push・fetch、worktree など）は ADR-0024 に書いた
 - STATUS.md の更新漏れを知らせる hook（`.claude/hooks/status_check.py`。Issue #13、ADR-0023）：セッション開始時に、STATUS.md に残ったマージ済みのブランチ名を知らせる。`gh pr create` の前に、ブランチで STATUS.md が変わっていなければ止める
 - gitのフック（`.githooks/`）：秘密ファイル・APIキー・ブロックリストの語・マーカー削除・main へのコミットとマージコミットの検出
 - hookの試験スクリプト（`.claude/hooks/test_hooks.py`）
@@ -22,7 +22,7 @@
   - 状態はメモリにだけ持ち、ブラウザに保存しない
 
 ## 動作確認済み
-- hookとgitのフックの試験：`test_hooks.py` で210/210 PASS（2026-11-03、Windows 11・Git Bash・Python 3.14。STATUS.md の hook の21件と、Issue #19 で足した42件（決定の行によるマーカー解除、ローカルの main を動かす操作の停止）を含む）
+- hookとgitのフックの試験：`test_hooks.py` で229/229 PASS（2026-11-03、Windows 11・Git Bash・Python 3.14。STATUS.md の hook の21件と、Issue #19 で足した61件（決定の行によるマーカー解除、ローカルの main を動かす操作の停止と、main を起点に使うだけの操作を止めないこと）を含む）
 - STATUS.md の hook を、このリポジトリで手で動かした（2026-11-03）：修正前の STATUS.md で、PR #10 でマージ済みのブランチ名が残る2か所を挙げ、修正後は何も出さなかった。STATUS.md を変えていないブランチでの `gh pr create` を止めた。Claude Code のセッション開始時に実際に呼ばれるかは未確認
 - アプリの単体試験：`npm --prefix web test` で 71/71 PASS（3ファイル。答える範囲・回答欄の案内・思い出せないときの案内の試験 `content.test.ts` を含む）。型の検査（TypeScript 7.0）とビルド（`npm --prefix web run build`）も成功（2026-11-03、PR #18 の後の main、Windows 11・Node.js 26.13）
 - 安全の試験のうち S14（薬の名前を含む架空の回答が入力どおり表示）、S15（思い出せないときの案内が固定文で出て、候補を含まない）、P10（AIと未接続の試作版の通しで、取得先が localhost だけ。ストレージも空）を試作版で実施した（2026-11-03、PR #22 の作業。Claude desktop のブラウザ画面・Chromium 152。docs/safety-test-plan.md「実施の記録」）。S11〜S13 は未実施（S11・S12 は Claude連携後）、E8・E9 は Issue #14 で行う

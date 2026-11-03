@@ -83,6 +83,9 @@ def decision_hook_tests(tmp):
     bare = "[TODO-OWNER]"
     dup = repo / "dup.md"
     dup.write_text(f"一つ目 {bare}\n{line}\n\n二つ目 {bare}\n終わり\n", encoding="utf-8")
+    # 別々のマーカーに、同じ文の決定の行が付いている
+    same = repo / "same.md"
+    same.write_text(f"[TODO-OWNER: 甲]\n{line}\n[TODO-OWNER: 乙]\n{line}\n", encoding="utf-8")
     git("init", "-q", "-b", "main")
     git("add", "-A")
     git("commit", "-q", "-m", "x")
@@ -108,6 +111,8 @@ def decision_hook_tests(tmp):
         "file_path": str(dup), "old_string": f" {bare}", "new_string": "", "replace_all": True})[0])
     check("MultiEdit: 決定の付いた方と無い方を続けて消す", 2, hook(P, "MultiEdit", {"file_path": str(dup), "edits": [
         {"old_string": f"一つ目 {bare}", "new_string": "一つ目"}, {"old_string": f"二つ目 {bare}", "new_string": "二つ目"}]})[0])
+    check("Write: 同じ文の決定の行の片方をマーカーと一緒に消す", 2, hook(P, "Write", {"file_path": str(same), "content": f"{line}\n"})[0])
+    check("Write: 決定済みのマーカーを2つとも外し、決定の行は2つとも残す", 0, hook(P, "Write", {"file_path": str(same), "content": f"{line}\n{line}\n"})[0])
 
     # 作業ブランチで決定の行を足してコミットしただけでは、main に入っていないので解除できない
     doc.write_text(f"本文\n{done}\n{line}\n\n{todo}\n{new_line}\n次の節\n", encoding="utf-8")
@@ -243,6 +248,16 @@ def github_hook_tests():
                 "git tag main", "git tag -f main HEAD", "git fetch . HEAD:main", "git fetch origin +docs/1-x:refs/heads/main",
                 "git switch -C main", "git checkout -B main HEAD", "git symbolic-ref refs/heads/main refs/heads/docs/1-x"):
         check(f"Bash: ローカルの main を動かす（{cmd}）", 2, hook(G, "Bash", {"command": cmd}, extra=on_work)[0])
+    # 2回目のレビュー：書き方を変えて main を動かす（止める）と、main を起点に使うだけの操作（止めない）
+    for cmd in ("git push . HEAD:heads/main", "git checkout -fBmain", "git switch --force-create=main",
+                "git checkout -B main HEAD --", "git rebase HEAD main", "git update-ref --stdin"):
+        check(f"Bash: ローカルの main を動かす（{cmd}）", 2, hook(G, "Bash", {"command": cmd}, extra=on_work)[0])
+    check("Bash: main で手元のブランチから pull --ff-only", 2, hook(G, "Bash", {"command": "git pull --ff-only . docs/1-x"}, extra=on_main)[0])
+    check("Bash: main で origin から pull --ff-only", 0, hook(G, "Bash", {"command": "git pull --ff-only origin main"}, extra=on_main)[0])
+    for cmd in ("git branch -f feat/3-x main", "git switch -C feat/3-x main", "git checkout -B feat/3-x origin/main",
+                "git tag v0.1.0 main", "git tag --contains main", "git branch -c main backup", "git rebase main",
+                "git branch --merged main"):
+        check(f"Bash: main を起点・条件に使うだけ（{cmd}）", 0, hook(G, "Bash", {"command": cmd}, extra=on_work)[0])
     check("Bash: 作業ブランチを -f で作り直す", 0, hook(G, "Bash", {"command": "git branch -f docs/2-y HEAD"}, extra=on_work)[0])
     check("Bash: origin を fetch する", 0, hook(G, "Bash", {"command": "git fetch origin"}, extra=on_work)[0])
     check("Bash: リモート追跡の origin/main へ fetch", 0, hook(G, "Bash", {"command": "git fetch origin main:refs/remotes/origin/main"}, extra=on_work)[0])
@@ -379,6 +394,10 @@ def git_hook_tests(tmp):
     write("m2.md", "[TODO-OWNER: 移すもの]\n")
     git("add", "-A")
     check("マーカーを別のファイルへ移すコミット", 0, commit("移す")[0])
+    write("e2.md", f"[TODO-OWNER: 決定済みE]\n{decision}\n")
+    write("e.md", "")
+    git("add", "-A")
+    check("マーカーと決定の行を、そのまま別のファイルへ移すコミット", 0, commit("決定ごと移す")[0])
 
     bl = tmp / "blocklist-git.txt"
     bl.write_text(TERM + "\n", encoding="utf-8")

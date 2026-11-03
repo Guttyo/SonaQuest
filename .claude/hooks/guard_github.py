@@ -65,13 +65,13 @@ def check_push(args, branch):
                 raise Blocked("リモートのブランチ削除（:branch）はできません。")
             target = strip_heads(dst or src)
         else:
-            target = strip_heads(branch if spec == "HEAD" else spec)
-        if target in PROTECTED:
+            target = branch if spec == "HEAD" else spec
+        if names_protected(target):
             raise Blocked("main へは直接pushできません。作業ブランチをpushしてPRを作ってください（push自体もオーナーの承認後）。")
 
 
 def names_protected(ref):
-    """main を指す名前か（main、refs/heads/main、refs/main、refs/tags/main など。リモート追跡は除く）。"""
+    """main を指す名前か（main、heads/main、refs/heads/main、refs/main、refs/tags/main など。リモート追跡は除く）。"""
     return not ref.startswith("refs/remotes/") and ref.rsplit("/", 1)[-1] in PROTECTED
 
 
@@ -79,29 +79,109 @@ MOVES_MAIN = "ローカルの main を、PRのマージ（と git pull --ff-only
              "マーカー解除の判定は main を見ています（ADR-0024）。"
 
 
+def positionals(args, takes_value=()):
+    """位置引数。値を取るオプション（takes_value）の次の引数は除く。"--" より後はそのまま位置引数。"""
+    out, skip = [], False
+    for i, a in enumerate(args):
+        if skip:
+            skip = False
+        elif a == "--":
+            out += args[i + 1:]
+            break
+        elif a in takes_value:
+            skip = True
+        elif not a.startswith("-"):
+            out.append(a)
+    return out
+
+
+def option_value(args, shorts, longs):
+    """-Bmain・-fBmain・-B main・--force-create=main・--force-create main の値。無ければ None。"""
+    for i, a in enumerate(args):
+        if a == "--":
+            break
+        nxt = args[i + 1] if i + 1 < len(args) else ""
+        for long in longs:
+            if a == long:
+                return nxt
+            if a.startswith(long + "="):
+                return a[len(long) + 1:]
+        if a.startswith("-") and not a.startswith("--"):
+            for j, ch in enumerate(a[1:], 1):
+                if ch in shorts:
+                    return a[j + 1:] or nxt
+    return None
+
+
+def check_moves_main(sub, args):
+    """ローカルの main を動かす・同じ名前の参照を作る操作を止める（ADR-0024）。
+    作る・動かす参照の名前だけを見る（main を起点や検索の条件に使うだけなら止めない）。"""
+    if sub == "branch":
+        pos = positionals(args)
+        flags = set().union(*(short_flags(a) for a in args)) if args else set()
+        targets = []
+        if "f" in flags or "--force" in args:
+            targets += pos[:1]
+        if flags & {"m", "M"} or "--move" in args:
+            targets += pos  # main の名前を変えるのも、main を動かすことになる
+        if flags & {"c", "C"} or "--copy" in args:
+            targets += pos[-1:]
+        if any(names_protected(t) for t in targets):
+            raise Blocked(MOVES_MAIN)
+    elif sub == "tag":
+        query = {"-l", "--list", "--contains", "--no-contains", "--merged", "--no-merged", "--points-at",
+                 "-v", "--verify", "-d", "--delete"}
+        if not query & set(args):
+            pos = positionals(args, {"-m", "-F", "-u", "--message", "--file", "--local-user", "--cleanup"})
+            if pos and names_protected(pos[0]):
+                raise Blocked(MOVES_MAIN)
+    elif sub == "update-ref":
+        if "--stdin" in args:
+            raise Blocked("git update-ref --stdin は、どの参照を変えるかを確かめられないので使えません。")
+        pos = positionals(args, {"-m"})
+        if pos and names_protected(pos[0]):
+            raise Blocked(MOVES_MAIN)
+    elif sub == "symbolic-ref":
+        pos = positionals(args, {"-m"})
+        if pos and names_protected(pos[0]):
+            raise Blocked(MOVES_MAIN)
+    elif sub == "fetch":
+        for a in positionals(args):
+            if ":" in a and names_protected(a.lstrip("+").split(":", 1)[1]):
+                raise Blocked(MOVES_MAIN)
+    elif sub in ("switch", "checkout"):
+        created = option_value(args, "BC", ("--force-create",))
+        if created is not None and names_protected(created):
+            raise Blocked(MOVES_MAIN)
+    elif sub == "rebase":
+        # git rebase <upstream> main は、main に切り替えてから main を書き換える
+        pos = positionals(args, {"--onto", "-s", "--strategy", "-X", "--strategy-option", "-x", "--exec"})
+        if len(pos) >= 2 and names_protected(pos[1]):
+            raise Blocked(MOVES_MAIN)
+
+
+def ff_pull_from_remote(args):
+    """main での git pull --ff-only が、リモート（origin 等）の main からの取り込みか。"""
+    pos = positionals(args)
+    if len(pos) > 2:
+        return False
+    if pos and (pos[0] == "." or re.search(r"[/\\:]", pos[0])):
+        return False  # 手元のパスや URL から main を進めない
+    return len(pos) < 2 or names_protected(pos[1])
+
+
 def check_git(sub, args, branch):
     """1つのgitコマンドを調べ、実行後のブランチを返す。"""
-    pos = [a for a in args if not a.startswith("-")]
+    check_moves_main(sub, args)
     if sub == "push":
         check_push(args, branch)
     elif sub == "branch":
         deleting = "--delete" in args or any(short_flags(a) & {"d", "D"} for a in args)
         if deleting and any(a in PROTECTED for a in args):
             raise Blocked("main は削除できません。")
-        moving = {"--force", "--move", "--copy"} & set(args) or any(short_flags(a) & {"f", "m", "M", "c", "C"} for a in args)
-        if moving and any(names_protected(a) for a in pos):
-            raise Blocked(MOVES_MAIN)
-    elif sub in ("update-ref", "tag", "symbolic-ref", "replace"):
-        if any(names_protected(a) for a in pos):
-            raise Blocked(MOVES_MAIN)
-    elif sub == "fetch":
-        if any(":" in a and names_protected(a.lstrip("+").split(":", 1)[1]) for a in pos):
-            raise Blocked(MOVES_MAIN)
     elif sub in ("switch", "checkout"):
         if "--" in args:
             return branch
-        if any(f in args for f in ("-C", "-B", "--force-create")) and any(a in PROTECTED for a in pos):
-            raise Blocked(MOVES_MAIN)
         for flag in ("-c", "-C", "-b", "-B", "--create"):
             if flag in args:
                 i = args.index(flag)
@@ -109,7 +189,7 @@ def check_git(sub, args, branch):
         pos = [a for a in args if not a.startswith("-")]
         return pos[0] if pos else branch
     elif sub in CHANGES_BRANCH and branch in PROTECTED:
-        if sub == "pull" and "--ff-only" in args:
+        if sub == "pull" and "--ff-only" in args and ff_pull_from_remote(args):
             return branch
         raise Blocked(f"今は {branch} にいます。main を直接変更せず、作業ブランチを作ってください（git switch -c docs/<Issue番号>-<内容>）。")
     return branch
