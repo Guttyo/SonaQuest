@@ -14,6 +14,7 @@
   - 機能を固める予定の日時と、日ごとの作業の予定 → 「凍結」「凍結の時点」、「まず／次に／凍結の前」
   - 家族の発言の引用 → 「家族の言葉」
   - オーナー判断のマーカーの書き方 → 角かっこを外して「TODO-OWNER マーカー」と書いた（本物のマーカーとして数えられないように）
+  - 手元の作業フォルダの絶対パス（アカウント名を含む） → リポジトリからの相対パス（PR #21 のレビュー指摘で対応）
 
 ## 採用と対応
 オーナーの判断が出たら、ここに「助言 → 決定 → 対応（ADR・Issue・PR）」を足していく。
@@ -343,7 +344,7 @@ main（e82667a）を読んだ範囲では、規則（`.claude/rules/safety.md` 2
 5. #15 の表に第5節の制約を項目として追加（実装は凍結後の判断）。
 
 関係ファイル（すべて origin/main 読み取りのみ。編集・Issue・PR は行っていない）：
-`C:\Users\foxho\Dropbox (個人用)\iOS_Application\developing\Hackathon\Built_with_Claude_Japan_2026\README.md`、`docs\PRD.md`、`docs\architecture.md`、`docs\safety-test-plan.md`、`docs\decisions.md`（ADR-0007・0009・0011・0015・0017・0021）、`docs\demo-script.md`、`.claude\rules\safety.md`、`web\src\flow\content.ts`
+`README.md`、`docs/PRD.md`、`docs/architecture.md`、`docs/safety-test-plan.md`、`docs/decisions.md`（ADR-0007・0009・0011・0015・0017・0021）、`docs/demo-script.md`、`.claude/rules/safety.md`、`web/src/flow/content.ts`
 
 ### 観点4：記録の仕組みと文書の構成
 
