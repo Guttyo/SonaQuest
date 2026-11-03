@@ -1,6 +1,6 @@
 # 構成（案）
 
-状態：設計段階。画面（web/）の試作版はあるが、Workers と Claude 連携はまだない。確定事項は docs/decisions.md を正とする。
+状態：画面（`web/src/`）と、Workers の `/api/turn`（`web/worker/`）がある。本物の Claude API を呼んだ確認はまだ（偽の応答での単体試験のみ）。読み上げの中継と音声認識はまだない。確定事項は docs/decisions.md を正とする（実装の決まりは ADR-0028）。
 
 ```
 [ウェブブラウザ]  React + TypeScript (Vite)
@@ -27,8 +27,9 @@
 - 前半から後半への切り替えと、後半の最初の立て直しの問い（固定文。ADR-0019）
 
 ## /api/turn の入出力（案）
-入力：これまでの回答（最大6件）、現在のターン番号、出来事が起きた後はその出来事のID（どの情報源が使えなくなったか。観点②の判定に使う。ADR-0019）。訓練に必要な範囲に限り、それ以外は送らない
-出力（Claudeに構造化出力で返させ、Workersで検証する）：
+入力（`web/src/flow/turnContract.ts` の `TurnRequest`）：これまでの入力（数える回答と、質問し直した入力。最後がいま答えたもの。それぞれ質問ID・前半か後半か・扱い・原文）、出来事のID、③確認で選んだ情報源、次の固定の質問のID、聞き返し・質問し直しをしてよいか。訓練に必要な範囲に限り、それ以外は送らない。Workers は固定の質問文・出来事の文を足して Claude に送る（docs/phase2-decisions.md 項目4）
+Claude に返させる形（`web/worker/claude.ts`）：観点の判定、`next_type`（ask・clarify・redirect）、文、`recall`、`source_guess`、`emergency`。質問IDは Claude に選ばせず、Workers が固定の順番から決めて、画面には次の形で返す（ADR-0028）
+出力（画面へ返す形。Claude の構造化出力を Workers で検証してから組み立てる）：
 ```json
 {
   "emergency": false,

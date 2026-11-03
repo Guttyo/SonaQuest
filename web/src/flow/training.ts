@@ -152,20 +152,18 @@ function alreadyRedirected(answers: readonly Answer[], questionId: string): bool
 }
 
 /**
- * /api/turn に送る内容（docs/phase2-decisions.md 項目4）。
- * 最後の入力が、いま答えたもの。聞き返しは半分の上限の前だけ、質問し直しは質問ごとに1回まで
+ * /api/turn に送る内容（docs/phase2-decisions.md 項目4）。回答の原文と、その直前に画面に出した文。
+ * 最後の入力が、いま答えたもの。関係のない話として質問し直した入力は、その後は送らない。
+ * 聞き返しは半分の上限の前だけ、質問し直しは質問ごとに1回まで
  */
 export function buildTurnRequest(state: TrainingState): TurnRequest | null {
   const last = state.answers[state.answers.length - 1];
   if (last === undefined) return null;
   const earlier = state.answers.slice(0, -1);
   return {
-    inputs: state.answers.map((a) => ({
-      question_id: a.questionId,
-      half: a.half,
-      kind: a.kind,
-      text: a.text,
-    })),
+    inputs: state.answers
+      .filter((a) => a.kind === "answer")
+      .map((a) => ({ question_id: a.questionId, half: a.half, asked: a.prompt, text: a.text })),
     event: state.event,
     source: state.source,
     next_question_id: nextQuestionId(state),
@@ -286,8 +284,9 @@ export function trainingReducer(
         // 失敗したら、その回の残りは固定の進行にし、判定は使わない（ADR-0012、項目9）
         return advance({ ...settled, ai: "failed", judgments: null, sourceGuess: null }, null);
       }
-      if (action.result.emergency) {
-        return { ...settled, stage: { name: "stopped", reason: "symptom" } };
+      // Claude の緊急の判定は補助。自傷のほのめかしには自傷用の案内を出す（ADR-0011）
+      if (action.result.emergency !== "none") {
+        return { ...settled, stage: { name: "stopped", reason: action.result.emergency } };
       }
       return applyTurn(settled, action.result);
     }

@@ -1,7 +1,8 @@
 // 1回のやり取り（/api/turn）の中身。Claude の出力を検査し、画面に返す形に整える（ADR-0015、ADR-0025）。
 
-import { ALL_QUESTIONS } from "../src/flow/content";
+import { ALL_QUESTIONS, EVENTS, SCENE_INTRO, SOURCE_OPTIONS } from "../src/flow/content";
 import {
+  EMERGENCY_KINDS,
   JUDGMENT_VALUES,
   SOURCE_GUESS_IDS,
   VIEWPOINT_IDS,
@@ -14,7 +15,7 @@ import type { CallClaude, ClaudeFailure } from "./claude";
 import { SYSTEM_PROMPT, buildUserMessage } from "./prompt";
 
 interface ClaudeOutput {
-  emergency: boolean;
+  emergency: TurnResponse["emergency"];
   viewpoints: TurnResponse["viewpoints"];
   next_type: "ask" | "clarify" | "redirect";
   text: string | null;
@@ -34,7 +35,8 @@ export function parseClaudeOutput(value: unknown): ClaudeOutput | null {
   const keys = ["emergency", "viewpoints", "next_type", "text", "recall", "source_guess"];
   if (!hasExactKeys(value, keys)) return null;
   const { emergency, viewpoints, next_type, text, recall, source_guess } = value;
-  if (typeof emergency !== "boolean" || typeof recall !== "boolean") return null;
+  if (typeof emergency !== "string" || !EMERGENCY_KINDS.has(emergency)) return null;
+  if (typeof recall !== "boolean") return null;
   if (!isRecord(viewpoints) || !hasExactKeys(viewpoints, VIEWPOINT_IDS)) return null;
   for (const v of VIEWPOINT_IDS) {
     const j = viewpoints[v];
@@ -49,7 +51,7 @@ export function parseClaudeOutput(value: unknown): ClaudeOutput | null {
     return null;
   }
   return {
-    emergency,
+    emergency: emergency as ClaudeOutput["emergency"],
     viewpoints: viewpoints as ClaudeOutput["viewpoints"],
     next_type: next_type as ClaudeOutput["next_type"],
     text,
@@ -59,6 +61,13 @@ export function parseClaudeOutput(value: unknown): ClaudeOutput | null {
 }
 
 const QUESTION_TEXT = new Map(ALL_QUESTIONS.map((q) => [q.id, q.text]));
+
+/** 文に含まれてよいアプリの固定の言葉（情報源の分類、出来事）。利用者が同じ言葉を使っても繰り返しとみなさない */
+const ALLOWED_VOCABULARY: readonly string[] = [
+  ...SOURCE_OPTIONS.flatMap((o) => [o.label, o.description]),
+  ...Object.values(EVENTS).flatMap((e) => [e.text, e.unavailable ?? ""]),
+  SCENE_INTRO,
+];
 
 /**
  * 次の手を決める。質問IDは Claude に選ばせず、固定の順番から決める（ADR-0025 の A）。
@@ -81,7 +90,11 @@ export function decideNext(request: TurnRequest, output: ClaudeOutput): TurnResp
     text !== null &&
     isAcceptablePromptText(text, {
       userTexts: request.inputs.map((i) => i.text),
-      allowed: [QUESTION_TEXT.get(current) ?? "", QUESTION_TEXT.get(questionId) ?? ""],
+      allowed: [
+        QUESTION_TEXT.get(current) ?? "",
+        QUESTION_TEXT.get(questionId) ?? "",
+        ...ALLOWED_VOCABULARY,
+      ],
     });
   return { type, question_id: questionId, text: accepted ? text : null };
 }

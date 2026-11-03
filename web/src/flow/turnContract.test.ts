@@ -5,7 +5,9 @@ import { requestTurn } from "./api";
 import { parseTurnRequest, parseTurnResponse, type TurnRequest, type TurnResponse } from "./turnContract";
 
 const request: TurnRequest = {
-  inputs: [{ question_id: "first_medicines", half: "first", kind: "answer", text: "A薬を朝に1錠" }],
+  inputs: [
+    { question_id: "first_medicines", half: "first", asked: "普段飲んでいる薬はありますか？", text: "A薬を朝に1錠" },
+  ],
   event: null,
   source: null,
   next_question_id: "first_location",
@@ -14,7 +16,7 @@ const request: TurnRequest = {
 };
 
 const response: TurnResponse = {
-  emergency: false,
+  emergency: "none",
   viewpoints: {
     location: "confirmed",
     alternative: "not_mentioned",
@@ -37,8 +39,9 @@ describe("入力の検査（Workers）", () => {
     ["空白だけの回答", { ...request, inputs: [{ ...request.inputs[0], text: "  " }] }],
     ["知らない質問ID", { ...request, inputs: [{ ...request.inputs[0], question_id: "x" }] }],
     ["知らない出来事", { ...request, event: "earthquake" }],
-    ["最後の入力が質問し直し済み", { ...request, inputs: [{ ...request.inputs[0], kind: "redirected" }] }],
-    ["数える回答が7件", { ...request, inputs: Array(7).fill(request.inputs[0]) }],
+    ["画面に出した文が空", { ...request, inputs: [{ ...request.inputs[0], asked: "" }] }],
+    ["画面に出した文が長すぎる", { ...request, inputs: [{ ...request.inputs[0], asked: "あ".repeat(201) }] }],
+    ["回答が7件", { ...request, inputs: Array(7).fill(request.inputs[0]) }],
     ["真偽値でない", { ...request, allow_clarify: "yes" }],
     ["余分なキー", { ...request, answers: [] }],
   ])("%s は拒否する", (_label, value) => {
@@ -58,6 +61,7 @@ describe("応答の検査（ブラウザ）", () => {
     ["係の交代を候補にする", { ...response, source_guess: "none" }],
     ["許可外の判定", { ...response, viewpoints: { ...response.viewpoints, proxy: "maybe" } }],
     ["余分なキー", { ...response, advice: "x" }],
+    ["緊急が真偽値", { ...response, emergency: true }],
   ])("%s は拒否する", (_label, value) => {
     expect(parseTurnResponse(value)).toBeNull();
   });

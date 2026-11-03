@@ -1,11 +1,13 @@
-// Claude API の呼び出し（docs/phase2-decisions.md 項目1・2・9）。
-// 構造化出力で形を決め、Workers で値を検査してから使う（ADR-0015）。待つのは8秒まで、自動の再試行はしない。
-// 断られた（refusal）ときも別のモデルで答え直さず、固定の進行に切り替える（項目9。fallbacks は使わない）。
+// Claude API の呼び出し（docs/phase2-decisions.md 項目1・2・9。Issue #15 のコメントのオーナーの決定）。
+// 構造化出力で形を決め、Workers で値を検査してから使う（ADR-0015）。待つのは8秒まで、SDK の自動の再試行はしない。
+// 断られたときは、サーバー側で別のモデルが答え直す設定（fallbacks: "default"）を使う。それでも断られたら固定の進行へ。
 
 import Anthropic from "@anthropic-ai/sdk";
 import { VIEWPOINT_IDS } from "../src/flow/turnContract";
 
 export const MODEL = "claude-opus-5-5";
+/** 断られたときに別のモデルで答え直す設定の beta（"default" の形で使う） */
+export const FALLBACK_BETA = "server-side-fallback-2026-07-01";
 export const CLAUDE_TIMEOUT_MS = 8000;
 
 const JUDGMENT = { type: "string", enum: ["confirmed", "aware_unconfirmed", "not_mentioned"] };
@@ -14,7 +16,7 @@ const JUDGMENT = { type: "string", enum: ["confirmed", "aware_unconfirmed", "not
 export const CLAUDE_OUTPUT_SCHEMA = {
   type: "object",
   properties: {
-    emergency: { type: "boolean" },
+    emergency: { type: "string", enum: ["none", "symptom", "self_harm"] },
     viewpoints: {
       type: "object",
       properties: Object.fromEntries(VIEWPOINT_IDS.map((v) => [v, JUDGMENT])),
@@ -54,8 +56,10 @@ export function makeCallClaude(apiKey: string): CallClaude {
   const client = new Anthropic({ apiKey, maxRetries: 0, timeout: CLAUDE_TIMEOUT_MS });
   return async (system, user) => {
     try {
-      const response = await client.messages.create({
+      const response = await client.beta.messages.create({
         model: MODEL,
+        betas: [FALLBACK_BETA],
+        fallbacks: "default",
         max_tokens: 4096,
         // 毎回同じシステムプロンプトなので、キャッシュに置く
         system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],

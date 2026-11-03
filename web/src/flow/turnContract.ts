@@ -8,7 +8,6 @@ import type { EventId, Half, SourceId, ViewpointId } from "./types";
 export const QUESTION_IDS: ReadonlySet<string> = new Set(ALL_QUESTIONS.map((q) => q.id));
 
 const HALVES: ReadonlySet<string> = new Set(["first", "second"]);
-const KINDS: ReadonlySet<string> = new Set(["answer", "redirected"]);
 const EVENT_IDS: ReadonlySet<string> = new Set([
   "battery",
   "network",
@@ -47,12 +46,14 @@ export const JUDGMENT_VALUES: ReadonlySet<string> = new Set([
   "not_mentioned",
 ]);
 const NEXT_TYPES: ReadonlySet<string> = new Set(["ask", "clarify", "redirect", "finish"]);
+/** Claude が見つけた緊急の種類（補助。ADR-0011）。自傷のほのめかしには自傷用の案内を出す */
+export const EMERGENCY_KINDS: ReadonlySet<string> = new Set(["none", "symptom", "self_harm"]);
 
 /**
- * 1回のやり取りで送る入力の件数の上限。数える回答（最大6）と、
- * 質問ごとに1回までの質問し直しの入力（最大6）を合わせたもの
+ * 1回のやり取りで送る入力の件数の上限（数える回答の最大6件）。
+ * 関係のない話として質問し直した入力は、その後のやり取りでは送らない（送るものは必要な範囲に限る）
  */
-export const MAX_TURN_INPUTS = MAX_ANSWERS * 2;
+export const MAX_TURN_INPUTS = MAX_ANSWERS;
 
 /** 聞き取り係の文（Claude が作ったもの）の長さの上限（ADR-0025。値は実装時に決めた） */
 export const MAX_PROMPT_LENGTH = 200;
@@ -60,7 +61,8 @@ export const MAX_PROMPT_LENGTH = 200;
 export interface TurnInput {
   question_id: string;
   half: Half;
-  kind: "answer" | "redirected";
+  /** その回答の直前に画面に出した聞き取り係の文（Claude が作った文を含む。項目4のオーナー決定） */
+  asked: string;
   text: string;
 }
 
@@ -81,7 +83,7 @@ export type JudgmentValue = "confirmed" | "aware_unconfirmed" | "not_mentioned";
 
 export interface TurnResponse {
   /** 補助。中断の主は語の照合（ADR-0011、docs/phase2-decisions.md 項目10） */
-  emergency: boolean;
+  emergency: "none" | "symptom" | "self_harm";
   viewpoints: Record<ViewpointId, JudgmentValue>;
   next: {
     type: "ask" | "clarify" | "redirect" | "finish";
@@ -130,24 +132,18 @@ export function parseTurnRequest(body: unknown): TurnRequest | null {
   }
   const parsed: TurnInput[] = [];
   for (const input of inputs) {
-    if (!isRecord(input) || !hasExactKeys(input, ["question_id", "half", "kind", "text"])) {
+    if (!isRecord(input) || !hasExactKeys(input, ["question_id", "half", "asked", "text"])) {
       return null;
     }
-    const { question_id, half, kind, text } = input;
+    const { question_id, half, asked, text } = input;
     if (typeof question_id !== "string" || !QUESTION_IDS.has(question_id)) return null;
     if (typeof half !== "string" || !HALVES.has(half)) return null;
-    if (typeof kind !== "string" || !KINDS.has(kind)) return null;
+    if (typeof asked !== "string" || asked.trim().length === 0 || asked.length > MAX_PROMPT_LENGTH) {
+      return null;
+    }
     if (!isAnswerText(text)) return null;
-    parsed.push({
-      question_id,
-      half: half as Half,
-      kind: kind as TurnInput["kind"],
-      text,
-    });
+    parsed.push({ question_id, half: half as Half, asked, text });
   }
-  if (parsed.filter((i) => i.kind === "answer").length > MAX_ANSWERS) return null;
-  // いま答えた入力は、まだ質問し直しの扱いが決まっていない
-  if (parsed[parsed.length - 1].kind !== "answer") return null;
 
   if (event !== null && (typeof event !== "string" || !EVENT_IDS.has(event))) return null;
   if (source !== null && (typeof source !== "string" || !SOURCE_IDS.has(source))) return null;
@@ -176,7 +172,8 @@ export function parseTurnResponse(body: unknown): TurnResponse | null {
     return null;
   }
   const { emergency, viewpoints, next, recall, source_guess } = body;
-  if (typeof emergency !== "boolean" || typeof recall !== "boolean") return null;
+  if (typeof emergency !== "string" || !EMERGENCY_KINDS.has(emergency)) return null;
+  if (typeof recall !== "boolean") return null;
 
   if (!isRecord(viewpoints) || !hasExactKeys(viewpoints, VIEWPOINT_IDS)) return null;
   for (const v of VIEWPOINT_IDS) {
@@ -206,7 +203,7 @@ export function parseTurnResponse(body: unknown): TurnResponse | null {
   }
 
   return {
-    emergency,
+    emergency: emergency as TurnResponse["emergency"],
     viewpoints: viewpoints as Record<ViewpointId, JudgmentValue>,
     next: {
       type: type as TurnResponse["next"]["type"],

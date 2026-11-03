@@ -33,7 +33,7 @@ function reply(
   next: TurnResponse["next"],
   extra: Partial<Omit<TurnResponse, "next">> = {},
 ): TurnResponse {
-  return { emergency: false, viewpoints: judged, next, recall: false, source_guess: null, ...extra };
+  return { emergency: "none", viewpoints: judged, next, recall: false, source_guess: null, ...extra };
 }
 
 /** いまの状態に対する Claude の返事を渡す */
@@ -117,13 +117,22 @@ describe("Claude を使う進行", () => {
     expect(trainingReducer(again, result(waiting, null))).toBe(again);
   });
 
-  it("Claude の emergency が真なら中断する（補助。ADR-0011）", () => {
+  it("Claude が体調の訴えを見つけたら中断する（補助。ADR-0011）", () => {
     const waiting = run([{ type: "start" }, answer("ちょっと待って")]);
     const next = trainingReducer(
       waiting,
-      result(waiting, reply(ask("first_location"), { emergency: true })),
+      result(waiting, reply(ask("first_location"), { emergency: "symptom" })),
     );
     expect(next.stage).toEqual({ name: "stopped", reason: "symptom" });
+  });
+
+  it("Claude が自傷のほのめかしを見つけたら、自傷用の案内で中断する（ADR-0011）", () => {
+    const waiting = run([{ type: "start" }, answer("もう全部どうでもいい")]);
+    const next = trainingReducer(
+      waiting,
+      result(waiting, reply(ask("first_location"), { emergency: "self_harm" })),
+    );
+    expect(next.stage).toEqual({ name: "stopped", reason: "self_harm" });
   });
 
   it("語の照合で中断するときは、Claude に送らない（項目10）", () => {
@@ -146,7 +155,11 @@ describe("Claude を使う進行", () => {
     expect(countedAnswers(state.answers, "first")).toBe(0);
 
     state = trainingReducer(state, answer("お昼は何を食べようかな"));
-    expect(buildTurnRequest(state)?.allow_redirect).toBe(false);
+    const request = buildTurnRequest(state);
+    expect(request?.allow_redirect).toBe(false);
+    // 質問し直した入力は、その後のやり取りでは送らない
+    expect(request?.inputs.map((i) => i.text)).toEqual(["お昼は何を食べようかな"]);
+    expect(request?.inputs[0].asked).toBe(REDIRECT_TEXTS.first_medicines);
     state = trainingReducer(
       state,
       result(state, reply({ type: "redirect", question_id: "first_medicines", text: null })),
@@ -218,10 +231,17 @@ describe("Claude を使う進行", () => {
     });
   });
 
-  it("送る内容は、これまでの入力と、出来事・選んだ情報源・次の質問だけ（項目4）", () => {
+  it("送る内容は、これまでの回答と画面に出した文、出来事・選んだ情報源・次の質問だけ（項目4）", () => {
     const state = run([{ type: "start" }, answer("A薬を朝に1錠")]);
     expect(buildTurnRequest(state)).toEqual({
-      inputs: [{ question_id: "first_medicines", half: "first", kind: "answer", text: "A薬を朝に1錠" }],
+      inputs: [
+        {
+          question_id: "first_medicines",
+          half: "first",
+          asked: currentQuestion(state)?.text,
+          text: "A薬を朝に1錠",
+        },
+      ],
       event: null,
       source: null,
       next_question_id: "first_location",
