@@ -79,6 +79,10 @@ def decision_hook_tests(tmp):
     code.write_text(f"// {todo}\n// → オーナー決定（2026-11-03、チャット）：この文面でよい。\nconst a = 1;\n", encoding="utf-8")
     vague.write_text(f"{done}\n- → オーナー（2026-11-03、チャット）：A にする方向。\n{todo}\n"
                      "- → オーナー指示（2026-11-03、チャット）：A にする。\n", encoding="utf-8")
+    # 同じ文のマーカーが、決定の行の付いたものと付いていないものの2つある
+    bare = "[TODO-OWNER]"
+    dup = repo / "dup.md"
+    dup.write_text(f"一つ目 {bare}\n{line}\n\n二つ目 {bare}\n終わり\n", encoding="utf-8")
     git("init", "-q", "-b", "main")
     git("add", "-A")
     git("commit", "-q", "-m", "x")
@@ -97,11 +101,22 @@ def decision_hook_tests(tmp):
     check("Write: 決定済みのマーカーだけを外した上書き", 0, hook(P, "Write", {"file_path": str(doc), "content": f"本文\n{line}\n\n{todo}\n次の節\n"})[0])
     check("Write: 決定の無いマーカーも外した上書き", 2, hook(P, "Write", {"file_path": str(doc), "content": f"本文\n{line}\n\n次の節\n"})[0])
     check("Edit: リポジトリの外のファイル（main が無い）", 2, edit(tmp / "doc.md", "[TODO-OWNER: 緊急時の文面]\n", ""))
+    # Issue #19 のレビュー：同じ文のマーカーの取り違え、replace_all、MultiEdit
+    check("Edit: 同じ文のマーカーのうち、決定の無い方を消す", 2, edit(dup, f"二つ目 {bare}", "二つ目"))
+    check("Edit: 同じ文のマーカーのうち、決定の付いた方を消す", 0, edit(dup, f"一つ目 {bare}", "一つ目"))
+    check("Edit: replace_all で同じ文のマーカーをすべて消す", 2, hook(P, "Edit", {
+        "file_path": str(dup), "old_string": f" {bare}", "new_string": "", "replace_all": True})[0])
+    check("MultiEdit: 決定の付いた方と無い方を続けて消す", 2, hook(P, "MultiEdit", {"file_path": str(dup), "edits": [
+        {"old_string": f"一つ目 {bare}", "new_string": "一つ目"}, {"old_string": f"二つ目 {bare}", "new_string": "二つ目"}]})[0])
 
     # 作業ブランチで決定の行を足してコミットしただけでは、main に入っていないので解除できない
     doc.write_text(f"本文\n{done}\n{line}\n\n{todo}\n{new_line}\n次の節\n", encoding="utf-8")
     git("commit", "-q", "-am", "決定の行を足す")
     check("Edit: 作業ブランチで足しただけの決定の行では解除しない", 2, edit(doc, f"{todo}\n{new_line}", new_line))
+    # 作業ブランチに main という名前のタグ・参照を作っても、ブランチの main（refs/heads/main）を見る
+    git("tag", "main", "HEAD")
+    git("update-ref", "refs/main", "HEAD")
+    check("Edit: main という名前のタグ・参照があっても、ブランチの main を見る", 2, edit(doc, f"{todo}\n{new_line}", new_line))
 
 
 def secret_hook_tests(tmp):
@@ -222,6 +237,16 @@ def github_hook_tests():
     check("Bash: main から作業ブランチを作る", 0, hook(G, "Bash", {"command": "git switch -c docs/2-y"}, extra=on_main)[0])
     check("Bash: main で pull --ff-only", 0, hook(G, "Bash", {"command": "git pull --ff-only"}, extra=on_main)[0])
     check("Bash: 作業ブランチでコミット", 0, hook(G, "Bash", {"command": "git commit -m x"}, extra=on_work)[0])
+    # Issue #19 のレビュー：マーカー解除の判定が見るローカルの main を動かす・隠す操作（ADR-0024）
+    for cmd in ("git branch -f main HEAD", "git branch --force main docs/1-x", "git branch -M docs/1-x main",
+                "git branch -c docs/1-x main", "git update-ref refs/heads/main HEAD", "git update-ref refs/main HEAD",
+                "git tag main", "git tag -f main HEAD", "git fetch . HEAD:main", "git fetch origin +docs/1-x:refs/heads/main",
+                "git switch -C main", "git checkout -B main HEAD", "git symbolic-ref refs/heads/main refs/heads/docs/1-x"):
+        check(f"Bash: ローカルの main を動かす（{cmd}）", 2, hook(G, "Bash", {"command": cmd}, extra=on_work)[0])
+    check("Bash: 作業ブランチを -f で作り直す", 0, hook(G, "Bash", {"command": "git branch -f docs/2-y HEAD"}, extra=on_work)[0])
+    check("Bash: origin を fetch する", 0, hook(G, "Bash", {"command": "git fetch origin"}, extra=on_work)[0])
+    check("Bash: リモート追跡の origin/main へ fetch", 0, hook(G, "Bash", {"command": "git fetch origin main:refs/remotes/origin/main"}, extra=on_work)[0])
+    check("Bash: 作業用のタグを付ける", 0, hook(G, "Bash", {"command": "git tag v0.1"}, extra=on_work)[0])
     # PR #3 のレビューで指摘された抜け道
     check("Bash: git push -uf（短縮オプションの結合）", 2, hook(G, "Bash", {"command": "git push -uf origin docs/1-x"}, extra=on_work)[0])
     check("Bash: +refspec での force push", 2, hook(G, "Bash", {"command": "git push origin +docs/1-x"}, extra=on_work)[0])
@@ -325,8 +350,35 @@ def git_hook_tests(tmp):
     write("d.md", f"本文\n{decision}\n{added_decision}\n")
     git("add", "d.md")
     check("作業ブランチで足しただけの決定の行では消せない", 1, commit("解除")[0])
+    git("tag", "main", "HEAD")
+    check("  main という名前のタグがあっても、ブランチの main を見る", 1, commit("解除")[0])
+    git("tag", "-d", "main")
     git("reset", "-q", "HEAD", "d.md")
     git("checkout", "-q", "--", "d.md")
+
+    # Issue #19 のレビュー：決定の行ごと消す、空白・日本語を含むパス、名前の変更、別のファイルへの移動
+    write("e.md", f"[TODO-OWNER: 決定済みE]\n{decision}\n")
+    write("空白 と 日本語.md", f"[TODO-OWNER: 決定済みF]\n{decision}\n")
+    write("old.md", f"[TODO-OWNER: 決定済みG]\n{decision}\n")
+    write("m.md", "[TODO-OWNER: 移すもの]\n")
+    git("add", "-A")
+    commit("決定の行つきのマーカーを足す")
+    git("branch", "-f", "main", "work")
+    write("e.md", "")
+    git("add", "e.md")
+    check("決定の行ごとマーカーを消すコミット", 1, commit("決定ごと消す")[0])
+    git("checkout", "-q", "HEAD", "--", "e.md")
+    write("空白 と 日本語.md", f"{decision}\n")
+    git("add", "-A")
+    check("空白と日本語を含むパスで、決定済みのマーカーを消すコミット", 0, commit("解除")[0])
+    git("mv", "old.md", "new.md")
+    write("new.md", f"{decision}\n")
+    git("add", "-A")
+    check("名前を変えたファイルで、決定済みのマーカーを消すコミット", 0, commit("名前を変えて解除")[0])
+    write("m.md", "")
+    write("m2.md", "[TODO-OWNER: 移すもの]\n")
+    git("add", "-A")
+    check("マーカーを別のファイルへ移すコミット", 0, commit("移す")[0])
 
     bl = tmp / "blocklist-git.txt"
     bl.write_text(TERM + "\n", encoding="utf-8")

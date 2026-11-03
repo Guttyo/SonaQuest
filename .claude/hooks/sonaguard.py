@@ -51,14 +51,11 @@ def markers(text):
     return MARKER.findall(text or "")
 
 
-def lost_markers(old, new):
-    """old から new で減ったマーカーと、その数。内容の書き換えも「減った」に数える。"""
+def marker_counts(text):
     count = {}
-    for m in markers(old):
+    for m in markers(text):
         count[m] = count.get(m, 0) + 1
-    for m in markers(new):
-        count[m] = count.get(m, 0) - 1
-    return {m: n for m, n in count.items() if n > 0}
+    return count
 
 
 # マーカーの直後（空行を除く次の行）に置く、オーナーの決定の行（ADR-0024）。
@@ -86,14 +83,36 @@ def decided_markers(text):
     return count
 
 
-def undecided(lost, decided):
-    """減ったマーカーのうち、決定の行による解除と認められないもの。"""
-    return sorted(m for m, n in lost.items() if n > decided.get(m, 0))
+def marker_shortfall(main, current, result):
+    """current → result で、解除を認められないのに消えるマーカーと、その数（ADR-0024）。
+
+    解除してよいのは、main で直後に決定の行があるマーカーだけ。同じ文のマーカーが複数あるときに
+    どれを消したかを取り違えないよう、ファイル全体の数で比べる：result に残る「決定の無いマーカー」が、
+    main の決定の無いマーカーと、作業ブランチで増えたマーカーの合計（current の数まで）を下回れば足りない。
+    result で決定の行が付いて見えるマーカーは、main の決定済みの数までしか決定済みに数えない。
+    """
+    main_n, cur_n, res_n = marker_counts(main), marker_counts(current), marker_counts(result)
+    decided, res_decided = decided_markers(main), decided_markers(result)
+    short = {}
+    for m, n in cur_n.items():
+        if res_n.get(m, 0) >= n:
+            continue
+        required = min(n, main_n.get(m, 0) - decided.get(m, 0) + max(0, n - main_n.get(m, 0)))
+        have = res_n.get(m, 0) - min(res_decided.get(m, 0), decided.get(m, 0))
+        if have < required:
+            short[m] = required - have
+    return short
+
+
+def missing_decisions(main, result):
+    """main にあって result から消えたオーナーの決定の行。解除しても決定の行は記録として残す。"""
+    kept = set(decision_lines(result))
+    return [d for d in decision_lines(main) if d not in kept]
 
 
 def main_text(path):
-    """ローカルの main にあるそのファイルの内容（オーナーがPRでマージした状態）。
-    リポジトリの外、main に無いファイル、gitが使えないときは None。"""
+    """ローカルの main（refs/heads/main。同じ名前のタグ等に取り違えない）にあるそのファイルの内容。
+    オーナーがPRでマージした状態として扱う。リポジトリの外、main に無いファイル、gitが使えないときは None。"""
     if not path:
         return None
     m = re.match(r"^/([a-zA-Z])/(.*)$", path)
@@ -101,7 +120,7 @@ def main_text(path):
         path = f"{m.group(1)}:/{m.group(2)}"
     p = Path(path)
     try:
-        r = subprocess.run(["git", "-C", str(p.parent), "show", f"main:./{p.name}"], capture_output=True)
+        r = subprocess.run(["git", "-C", str(p.parent), "show", f"refs/heads/main:./{p.name}"], capture_output=True)
     except OSError:
         return None
     return r.stdout.decode("utf-8", "replace") if r.returncode == 0 else None

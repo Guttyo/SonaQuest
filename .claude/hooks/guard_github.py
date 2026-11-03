@@ -3,6 +3,8 @@
 - force push（-f を含む短縮オプションの結合、+refspec を含む）
 - main へのpush（refs/heads/main、HEAD:main、宛先を省いた push を main 上で行う場合、--all、--mirror を含む）
 - リモートのブランチ削除（--delete、-d、:branch）、ローカルの main の削除
+- ローカルの main を動かす・同じ名前の参照を作る（branch -f/-m/-c、update-ref、tag、fetch の X:main、
+  switch -C・checkout -B）。マーカー解除の判定がローカルの main を見るため（ADR-0024）
 - main にいるときのコミット・マージ等（コマンドを区切りごとに順に見て、途中のブランチ切り替えも追う）
 - PRのマージ（gh pr merge）、リポジトリ設定の変更、保護設定・Rulesetsへの書き込み
 これはClaude Codeを通した誤操作を防ぐ補助で、正は GitHub の Ruleset（ADR-0014）。
@@ -68,17 +70,38 @@ def check_push(args, branch):
             raise Blocked("main へは直接pushできません。作業ブランチをpushしてPRを作ってください（push自体もオーナーの承認後）。")
 
 
+def names_protected(ref):
+    """main を指す名前か（main、refs/heads/main、refs/main、refs/tags/main など。リモート追跡は除く）。"""
+    return not ref.startswith("refs/remotes/") and ref.rsplit("/", 1)[-1] in PROTECTED
+
+
+MOVES_MAIN = "ローカルの main を、PRのマージ（と git pull --ff-only）以外で動かしたり、同じ名前のタグ・参照を作ったりはできません。" \
+             "マーカー解除の判定は main を見ています（ADR-0024）。"
+
+
 def check_git(sub, args, branch):
     """1つのgitコマンドを調べ、実行後のブランチを返す。"""
+    pos = [a for a in args if not a.startswith("-")]
     if sub == "push":
         check_push(args, branch)
     elif sub == "branch":
         deleting = "--delete" in args or any(short_flags(a) & {"d", "D"} for a in args)
         if deleting and any(a in PROTECTED for a in args):
             raise Blocked("main は削除できません。")
+        moving = {"--force", "--move", "--copy"} & set(args) or any(short_flags(a) & {"f", "m", "M", "c", "C"} for a in args)
+        if moving and any(names_protected(a) for a in pos):
+            raise Blocked(MOVES_MAIN)
+    elif sub in ("update-ref", "tag", "symbolic-ref", "replace"):
+        if any(names_protected(a) for a in pos):
+            raise Blocked(MOVES_MAIN)
+    elif sub == "fetch":
+        if any(":" in a and names_protected(a.lstrip("+").split(":", 1)[1]) for a in pos):
+            raise Blocked(MOVES_MAIN)
     elif sub in ("switch", "checkout"):
         if "--" in args:
             return branch
+        if any(f in args for f in ("-C", "-B", "--force-create")) and any(a in PROTECTED for a in pos):
+            raise Blocked(MOVES_MAIN)
         for flag in ("-c", "-C", "-b", "-B", "--create"):
             if flag in args:
                 i = args.index(flag)
@@ -109,7 +132,7 @@ def check_command(cmd, branch):
             raise Blocked("コマンドを解析できません（引用符が閉じていない等）。git・gh の操作は分けて実行してください。")
         return
     for _, tokens, _ in commands:
-        if dynamic_name(tokens) and set(tokens[1:]) & ({"push", "pr", "api", "repo", "branch"} | CHANGES_BRANCH):
+        if dynamic_name(tokens) and set(tokens[1:]) & ({"push", "pr", "api", "repo", "branch", "update-ref", "tag", "fetch"} | CHANGES_BRANCH):
             raise Blocked("コマンド名が変数・置換で決まるため判定できません。git・gh はそのまま書いてください。")
         g = git_invocation(tokens)
         if g and g["sub"]:

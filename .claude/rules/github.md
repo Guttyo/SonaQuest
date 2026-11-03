@@ -7,12 +7,12 @@
 3. 作業が終わったらPull Requestを作り、Issueを関連付ける。PRには変更内容、確認した試験、残るリスクを書く。
 4. 必要なチェックが成功し、**オーナーがチャットで明示的に承認してから** `main` へマージする。Claude Codeは承認なしにマージしない。
 5. 緊急の修正も、原則として同じ流れ（Issue → Branch → PR → Merge）で行う。
-6. TODO-OWNERマーカーの決定と解除も、IssueとPRで管理する。決定の行が `main` に入ったマーカーは、Claude Code がPRの中で解除してよい（CLAUDE.md 絶対ルール5、ADR-0024）。決定の行を足すPRでは、足した決定の行をPRの説明に一覧で書き、オーナーがチャットで言ったことと合っているかを、マージの前に確かめてもらう。
+6. TODO-OWNERマーカーの決定と解除も、IssueとPRで管理する。決定の行が `main` に入ったマーカーは、Claude Code がPRの中で解除してよい（CLAUDE.md 絶対ルール5、ADR-0024）。決定の行を足すPRでは、足した決定の行をPRの説明に一覧で書き、オーナーがチャットで言ったことと合っているかを、マージの前に確かめてもらう。マーカーを解除するPRでは、解除したマーカーと根拠の決定の行を一覧で書く。ローカルの `main` は `git pull --ff-only` でだけ更新し、`git branch -f main` などで動かさない（解除の判定が `main` を見るため）。
 
 ## main の保護
 - **GitHubのRulesetを正とする**。ローカルのhookは誤操作を防ぐ補助（ADR-0014）。
 - `main` への直接コミット、直接push、force push、ブランチ削除をしない。
-- ローカルでもコミット前フックが `main` へのコミットとマージコミットを止める。Claude Codeのhookは、force push、`main` へのpush（宛先を省いた push を含む）、PRのマージ、`main` の削除、保護設定の変更、`main` 上でのコミット・マージを止める。
+- ローカルでもコミット前フックが `main` へのコミットとマージコミットを止める。Claude Codeのhookは、force push、`main` へのpush（宛先を省いた push を含む）、PRのマージ、`main` の削除、保護設定の変更、`main` 上でのコミット・マージ、ローカルの `main` を動かす操作（`git branch -f main` など。ADR-0024）を止める。
 - ローカルのフックで防げない経路がある：`main` 上での fast-forward マージ（gitのフックが呼ばれない）や、Claude Codeを通さない操作。Rulesetを設定するまでは、オーナーも `main` で `git merge` を実行せず、`main` の更新は GitHub上のPRのマージと `git pull --ff-only` だけにする。
 - GitHub側の保護設定（Rulesets）の基本：PR必須、force push禁止、削除禁止、CI成功必須。単独開発なので、第三者のレビュー承認1件は必須にしない（自分のPRは自分で承認できず、マージできなくなるため）。
 - 保護設定の作成・解除・変更はオーナーだけが判断する。Claude Codeは設定案を出すまでにとどめる。

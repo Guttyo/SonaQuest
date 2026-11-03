@@ -11,7 +11,7 @@ import json
 import re
 import sys
 
-from sonaguard import (decided_markers, decision_lines, lost_markers, main_text, read_text, undecided,
+from sonaguard import (main_text, marker_counts, marker_shortfall, missing_decisions, read_text,
                        use_utf8_stdio)
 
 BASH_WRITE = re.compile(r"\bsed\b[^|;&]*\s-i|\bperl\b[^|;&]*\s-\w*i|>|\btee\b|Set-Content|Out-File|-replace")
@@ -27,17 +27,27 @@ def block(why):
     sys.exit(2)
 
 
-def check_lost(path, old, new, what):
-    lost = lost_markers(old, new)
-    if not lost:
+def check_lost(main, current, result, what):
+    """current → result でマーカーが減るなら、main で決定の行が付いたものだけかを確かめる。"""
+    res_n = marker_counts(result)
+    if all(res_n.get(m, 0) >= n for m, n in marker_counts(current).items()):
         return
-    bad = undecided(lost, decided_markers(main_text(path)))
-    if bad:
-        block(f"{what}で消える・変わるマーカー: {' '.join(bad)}")
+    short = marker_shortfall(main, current, result)
+    if short:
+        block(f"{what}で消える・変わるマーカー: {' '.join(sorted(short))}")
     # 解除しても、決定の行は記録として残す
-    kept = set(decision_lines(new))
-    if any(d not in kept for d in decision_lines(old)):
+    if missing_decisions(main, result):
         block(f"{what}で、マーカーと一緒にオーナーの決定の行が消えます。決定の行は残してください")
+
+
+def apply_edits(text, edits):
+    """Edit・MultiEdit を適用した後のファイル全体。old_string が見つからなければ None。"""
+    for e in edits:
+        old, new = e.get("old_string") or "", e.get("new_string") or ""
+        if not old or old not in text:
+            return None
+        text = text.replace(old, new) if e.get("replace_all") else text.replace(old, new, 1)
+    return text
 
 
 def main():
@@ -55,13 +65,23 @@ def main():
         edits = ti.get("edits") or []
     else:
         edits = []
-    for e in edits:
-        check_lost(ti.get("file_path"), e.get("old_string"), e.get("new_string"), "この編集")
+    path = ti.get("file_path")
+    if edits:
+        # ファイル全体で比べる（replace_all や、同じ文のマーカーが複数あるときの取り違えを防ぐ）
+        main = main_text(path) or ""
+        current = read_text(path)
+        result = apply_edits(current, edits) if current is not None else None
+        if result is not None:
+            check_lost(main, current, result, "この編集")
+        else:
+            # ファイルが読めない・置き換え元が見つからないときは、編集の断片ごとに厳しめに確かめる
+            for e in edits:
+                check_lost(main, e.get("old_string"), e.get("new_string"), "この編集")
 
     if tool == "Write":
-        old = read_text(ti.get("file_path"))
+        old = read_text(path)
         if old is not None:
-            check_lost(ti.get("file_path"), old, ti.get("content"), "上書き")
+            check_lost(main_text(path) or "", old, ti.get("content"), "上書き")
 
     if tool in ("Bash", "PowerShell"):
         cmd = ti.get("command") or ""
