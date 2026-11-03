@@ -1,9 +1,10 @@
 # 進捗（STATUS）
 
-最終更新：2026-11-03（Issue #25：PR #18・#21・#22・#23 の後の main に合わせた。Phase 1（Issue #8、PR #10）、開発記録（Issue #9、PR #11）、STATUS.md の hook（Issue #13、PR #18）、答える範囲の案B（Issue #12、PR #22）、Phase 2 の前に決めることの表（Issue #15 の前半、PR #23）、外部の助言の記録（Issue #20、PR #21）はmainに入っている）
+最終更新：2026-11-03（Issue #19：絶対ルールと関連ルールを見直し、マーカー解除の hook を変えた。その前の Issue #25：PR #18・#21・#22・#23 の後の main に合わせた。Phase 1（Issue #8、PR #10）、開発記録（Issue #9、PR #11）、STATUS.md の hook（Issue #13、PR #18）、答える範囲の案B（Issue #12、PR #22）、Phase 2 の前に決めることの表（Issue #15 の前半、PR #23）、外部の助言の記録（Issue #20、PR #21）はmainに入っている）
 
 ## 実装済み（コードがありコミット済み）
 - Claude Code用hook：`[TODO-OWNER]` の削除防止（`protect_todo_owner.py`）、秘密情報とブロックリストの語の検出（`block_secrets.py`）、main・GitHubの保護（`guard_github.py`）。いずれも `.claude/hooks/`
+- マーカー解除の例外（Issue #19、ADR-0024）：ローカルの main にあるそのファイルで、マーカーの直後の行に `→ オーナー決定（YYYY-MM-DD、…）：` があるマーカーだけ、Claude Code の Edit・Write とコミット前フックが解除を通す。決定の行を足すのと同時の解除、作業ブランチで足しただけの決定の行、「オーナー指示」「〜の方向」、決定の行ごとの削除では通さない。判定はファイル全体で行い、基準はブランチの `refs/heads/main`。あわせて `guard_github.py` が、ローカルの main を動かす操作（`git branch -f main`、`git update-ref`、`git tag main` など）を止める。塞いでいない経路（`git am`・`revert`・`cherry-pick`、`-c` の設定での push・fetch、worktree など）は ADR-0024 に書いた
 - STATUS.md の更新漏れを知らせる hook（`.claude/hooks/status_check.py`。Issue #13、ADR-0023）：セッション開始時に、STATUS.md に残ったマージ済みのブランチ名を知らせる。`gh pr create` の前に、ブランチで STATUS.md が変わっていなければ止める
 - gitのフック（`.githooks/`）：秘密ファイル・APIキー・ブロックリストの語・マーカー削除・main へのコミットとマージコミットの検出
 - hookの試験スクリプト（`.claude/hooks/test_hooks.py`）
@@ -21,7 +22,7 @@
   - 状態はメモリにだけ持ち、ブラウザに保存しない
 
 ## 動作確認済み
-- hookとgitのフックの試験：`test_hooks.py` で168/168 PASS（2026-11-03、Windows 11・Git Bash・Python 3.14。STATUS.md の hook の21件を含む）
+- hookとgitのフックの試験：`test_hooks.py` で247/247 PASS（2026-11-03、Windows 11・Git Bash・Python 3.14。STATUS.md の hook の21件と、Issue #19 で足した79件（決定の行によるマーカー解除、ローカルの main を動かす操作の停止と、main を起点に使うだけの操作を止めないこと）を含む）
 - STATUS.md の hook を、このリポジトリで手で動かした（2026-11-03）：修正前の STATUS.md で、PR #10 でマージ済みのブランチ名が残る2か所を挙げ、修正後は何も出さなかった。STATUS.md を変えていないブランチでの `gh pr create` を止めた。Claude Code のセッション開始時に実際に呼ばれるかは未確認
 - アプリの単体試験：`npm --prefix web test` で 71/71 PASS（3ファイル。答える範囲・回答欄の案内・思い出せないときの案内の試験 `content.test.ts` を含む）。型の検査（TypeScript 7.0）とビルド（`npm --prefix web run build`）も成功（2026-11-03、PR #18 の後の main、Windows 11・Node.js 26.13）
 - 安全の試験のうち S14（薬の名前を含む架空の回答が入力どおり表示）、S15（思い出せないときの案内が固定文で出て、候補を含まない）、P10（AIと未接続の試作版の通しで、取得先が localhost だけ。ストレージも空）を試作版で実施した（2026-11-03、PR #22 の作業。Claude desktop のブラウザ画面・Chromium 152。docs/safety-test-plan.md「実施の記録」）。S11〜S13 は未実施（S11・S12 は Claude連携後）、E8・E9 は Issue #14 で行う
@@ -43,7 +44,6 @@
 - Claude連携（Workers / Hono、/api/turn、聞き返し、観点の判定、API失敗時に固定の進行へ切り替えること）。Issue #15 の後半。前に決めることの表（`docs/phase2-decisions.md`）のオーナーの決定を待って始める
 - 体調の訴えらしい入力の語の照合による自動の中断（ADR-0011、Issue #14。語の一覧はオーナーの確認が要る）。**これが入るまで公開しない**
 - Phase 1 の残り（Issue #17）：動作の要件をウェブブラウザに改める、#7119 の出典URL、準備行動や公的な仕組みに触れる固定文への出典と確認日の表示（docs/references.md の候補が未確認のため）
-- 絶対ルールと関連ルールを、音声で動く提出版を作れる形に見直す（Issue #19。phase2-decisions の項目3・11 はここで決める）
 - 提出後の課題を `docs/roadmap.md` にまとめる（Issue #16）
 - 音声入力、光のキャラクターの動きの演出（ADR-0020）
 - iPhone Safari 実機での確認
@@ -58,7 +58,8 @@
 
 ## 文書のみ（設計・枠）
 - CLAUDE.md、`.claude/rules/`（scope、safety、privacy、github）、`.claude/skills/`
-- docs/：PRD、architecture、decisions（ADR-0001〜0023）、safety-test-plan、evidence、demo-script（枠）、references、KEEP-THINKING
+- docs/：PRD、architecture、decisions（ADR-0001〜0026）、safety-test-plan、evidence、demo-script（枠）、references、KEEP-THINKING
+- 絶対ルールと関連ルールの見直し（Issue #19）：絶対ルール3（公開する版では本文をログに出さない。開発中だけ既定でオフの切り替えで出してよい）、5（main で決定の行が付いたマーカーの解除）、7（Issue ごとの着手の承認）を書き直し、11 を番号を変えずに10の後へ移した。scope（架空で答える範囲、音声、Claude が質問する）、safety（Claude が作る文とその検査）、privacy（保持・送信・保存・ログ出力の違い）、github（着手の承認）を合わせた。safety-test-plan に S16〜S19 を足した（未実施）
 - テーマごとの開発記録 `docs/dev-logs/` と、それを書く `dev-log` Skill（`.claude/skills/dev-log/`）。Issue #9、PR #11
 - Phase 2（Claude連携）の前に決めることの表 `docs/phase2-decisions.md`（Issue #15 の前半、PR #23）。モデル、出力の形、送る内容、禁じること、失敗時の扱いなど14項目に、選択肢と推奨を付けた
 - 外部AI（Fable）の文書の助言の記録 `docs/reviews/` と、公式の審査基準の写し `docs/judging-criteria.md`（Issue #20、PR #21）
@@ -72,7 +73,9 @@
 - **Issue #6 で追加した確認事項**：コンセプトと訴求文の文言、回答の配分、6画面の分け方、立て直しの回答と観点②の関係（PRD）、ADR-0019・0020の採用、キャラクターの名前・色や形の方向性。いずれもオーナーの指示（2026-11-03、チャット）を横に記録済みで、ADR-0019・0020の採用の判断とマーカーの解除が残る
 - **決定済み（2026-11-03）**：薬の名前・量・病名・種類を聞いてよい（ADR-0021。ADR-0009 の「質問しない」を変更）。実際の服薬情報は入力しない（ADR-0009）。どちらもマーカーの横に決定を記録済みで、解除が残る
 - **Issue #12 で追加した確認事項**：思い出せないときの案内の文面と、質問ごとの回答欄の案内の文面（ADR-0022、`web/src/flow/content.ts`）
-- **Phase 2 の前に決めること**（`docs/phase2-decisions.md`）：使うモデルと effort、出力の形、送る内容、③確認の初期選択、判定のタイミング、失敗時の扱い、依存の追加など。項目3（聞き返しの文面）と11（ログ）は Issue #19 で決める
+- **Phase 2 の前に決めること**（`docs/phase2-decisions.md`）：使うモデルと effort、出力の形、送る内容、③確認の初期選択、判定のタイミング、失敗時の扱い、依存の追加など。項目3（聞き返しの文面）と11（ログ）は、Issue #19 で ADR-0025・ADR-0007 の追記にし、オーナーが決定した（2026-11-03）
+- **Issue #19 で決定済み・マーカー解除待ち**（2026-11-03、チャット。決定の行はマーカーの直後。ADR-0024 により、この PR のマージの後に Claude Code が別の PR で解除できる）：マーカー解除のルールの変更を採用（ADR-0024）、開発中だけのログ出力を採用（ADR-0007 の追記）、Claude に任せる範囲は A で、関係のない話への質問し直しは回数に数えず1回まで（ADR-0025、`.claude/rules/scope.md`、phase2-decisions 項目13）、リポジトリに固定の音声ファイルは入れない（ADR-0005）。Issue ごとの着手の承認（ADR-0026）も採用（マーカーなし）
+- **Issue #19 で決定を記録**：音声認識は Web Speech API（ADR-0004）、音声合成は ElevenLabs で、失敗したらブラウザの読み上げ（ADR-0005）。どちらもまだ実装していない
 - **Issue #8 で追加した確認事項**（`web/src/flow/content.ts`）：利用開始の文面の最終確認、外部事業者の保持方針の書き方、固定の質問文、準備行動と観点の対応。あわせて、中断の画面で使う #7119 の出典ページ（docs/references.md に「ページ移転の告知あり。使う前に再確認」とある）を再確認してほしい
 - **第2回監査で決定・解除待ち**：薬の名前を送らない方式は採用しない（ADR-0009。自動の置き換えはしない）
 - **保留**：Yorukusuとの関係の段落（README・ADR-0002。文面を見てから）、比較実験の回答セットと正解ラベル（evidence。実験の前まで）

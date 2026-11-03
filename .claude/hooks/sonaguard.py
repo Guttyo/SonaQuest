@@ -1,7 +1,9 @@
 """Claude Codeのhookとgitのコミット前フックが共有する判定。標準ライブラリだけを使う。"""
 import os
 import re
+import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -50,14 +52,85 @@ def markers(text):
     return MARKER.findall(text or "")
 
 
-def missing_markers(old, new):
-    """old にあって new で減ったマーカー。内容の書き換えも「減った」に数える。"""
+def marker_counts(text):
+    return Counter(markers(text))
+
+
+# マーカーの直後（空行を除く次の行）に置く、オーナーの決定の行（ADR-0024）。
+# 「オーナー指示」「オーナー（…）：〜の方向」「方針」は確定した決定として扱わない。
+DECISION = re.compile(r"^\s*(?:(?:[-*>#]|//|<!--)\s*)*→\s*オーナー決定（\d{4}-\d{2}-\d{2}[^）\n]*）：\s*\S")
+
+
+def decision_lines(text):
+    """オーナーの決定の行（前後の空白を除いた文）。"""
+    return [x.strip() for x in (text or "").splitlines() if DECISION.match(x)]
+
+
+def decided_markers(text):
+    """直後の行にオーナーの決定があるマーカーと、その数。"""
+    lines = (text or "").splitlines()
     count = {}
-    for m in markers(old):
-        count[m] = count.get(m, 0) + 1
-    for m in markers(new):
-        count[m] = count.get(m, 0) - 1
-    return sorted(m for m, n in count.items() if n > 0)
+    for i, line in enumerate(lines):
+        found = markers(line)
+        if not found:
+            continue
+        nxt = next((x for x in lines[i + 1:] if x.strip()), "")
+        if DECISION.match(nxt):
+            for m in found:
+                count[m] = count.get(m, 0) + 1
+    return count
+
+
+def marker_shortfall(main, current, result):
+    """current → result で、解除を認められないのに消えるマーカーと、その数（ADR-0024）。
+
+    解除してよいのは、main で直後に決定の行があるマーカーだけ。同じ文のマーカーが複数あるときに
+    どれを消したかを取り違えないよう、ファイル全体の数で比べる：result に残る「決定の無いマーカー」が、
+    main の決定の無いマーカーと、作業ブランチで増えたマーカーの合計（current の数まで）を下回れば足りない。
+    result で決定の行が付いて見えるマーカーは、main の決定済みの数までしか決定済みに数えない。
+    """
+    main_n, cur_n, res_n = marker_counts(main), marker_counts(current), marker_counts(result)
+    decided, res_decided = decided_markers(main), decided_markers(result)
+    short = {}
+    for m, n in cur_n.items():
+        if res_n.get(m, 0) >= n:
+            continue
+        required = min(n, main_n.get(m, 0) - decided.get(m, 0) + max(0, n - main_n.get(m, 0)))
+        have = res_n.get(m, 0) - min(res_decided.get(m, 0), decided.get(m, 0))
+        if have < required:
+            short[m] = required - have
+    return short
+
+
+def removed_decisions(main, current, result):
+    """current → result で消える、main にあるオーナーの決定の行（数で比べる）。"""
+    gone = Counter(decision_lines(current)) - Counter(decision_lines(result))
+    return gone & Counter(decision_lines(main))
+
+
+def missing_decisions(main, result, elsewhere=()):
+    """main にあって result から消えたオーナーの決定の行（同じ文が複数あれば数で比べる）。
+    解除しても決定の行は記録として残す。elsewhere は、別のファイルへ移した決定の行。"""
+    lost = Counter(decision_lines(main)) - Counter(decision_lines(result)) - Counter(elsewhere)
+    return list(lost.elements())
+
+
+def main_text(path):
+    """ローカルの main（refs/heads/main。同じ名前のタグ等に取り違えない）にあるそのファイルの内容。
+    オーナーがPRでマージした状態として扱う。リポジトリの外、main に無いファイル、gitが使えないときは None。"""
+    if not path:
+        return None
+    m = re.match(r"^/([a-zA-Z])/(.*)$", path)
+    if m and os.name == "nt":
+        path = f"{m.group(1)}:/{m.group(2)}"
+    p = Path(path)
+    try:
+        # --no-replace-objects：git replace で main の中身を差し替えて見せかけられないようにする
+        r = subprocess.run(["git", "--no-replace-objects", "-C", str(p.parent), "show", f"refs/heads/main:./{p.name}"],
+                           capture_output=True)
+    except OSError:
+        return None
+    return r.stdout.decode("utf-8", "replace") if r.returncode == 0 else None
 
 
 def read_text(path):
