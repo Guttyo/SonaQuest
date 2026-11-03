@@ -386,3 +386,12 @@
 - 確認したこと：`.claude/hooks/guard_github.py` は、作業ブランチへの push と `gh pr create` を止めない（`main` への push、force push、PR のマージ、保護設定の変更を止める）。`gh pr create` の前には `status_check.py` が STATUS.md の更新漏れだけを確かめる（ADR-0023）。hook の変更は要らない。
 - 理由：作業ブランチと PR は、マージしない限り `main` を変えない。オーナーの確認はマージの前に PR で行える。
 - 影響：CLAUDE.md 絶対ルール7、`.claude/rules/github.md`。
+
+## ADR-0027 動作の要件をウェブブラウザにする
+- 状態：採用（2026-11-03、オーナーがチャットで決定。Issue #17）　日付：2026-11-04
+- 背景：PRD の要件は「iPhone Safariで動く」で、docs/evidence.md の主張、docs/safety-test-plan.md の「5. 端末」、docs/architecture.md の図もそれに合わせていた。iPhone 実機で確かめるには、手元の開発用サーバーを HTTPS で開く手段（cloudflared など）が要り、まだ決めていなかった。
+- 決定：動作の要件は「ウェブブラウザで動く（スマホ幅の表示を含む）」とする。iPhone 実機で見せなくてよい。確かめるときは、ブラウザの種類と版を記録する。
+  - → オーナー決定（2026-11-03、チャット）：iPhone 実機で見せなくてよい。ウェブブラウザで動作すればよい。iPhone 実機での確認は Issue #17 の範囲から外す。
+- 理由：訓練の体験はブラウザの画面と入力で完結し、iPhone に固有の機能を使わない。実機の確認のための HTTPS の手段を決める手間を、提出までの作業に回せる。
+- 却下案：iPhone Safari 実機での確認を要件に残す（HTTPS の手段の準備が要り、要件にする理由が無い）。
+- 影響：docs/PRD.md（要件）、docs/evidence.md（デモの主張）、docs/safety-test-plan.md（5. 端末）、docs/architecture.md（図）、docs/STATUS.md（開発環境と未着手）。音声の ADR-0004・0005 には、2026-11-03 にこの決定を書き足した（表の iPhone Safari の行は調査の記録として残す）。スマートフォンのブラウザで確かめることは、要件ではないが、使えるときに行ってよい。

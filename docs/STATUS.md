@@ -1,6 +1,6 @@
 # 進捗（STATUS）
 
-最終更新：2026-11-04（Issue #14：体調の訴えらしい入力での自動の中断を足した。絶対ルールと関連ルールの見直しとマーカー解除の hook（Issue #19、PR #29）はmainに入っている。その前の Issue #25：PR #18・#21・#22・#23 の後の main に合わせた。Phase 1（Issue #8、PR #10）、開発記録（Issue #9、PR #11）、STATUS.md の hook（Issue #13、PR #18）、答える範囲の案B（Issue #12、PR #22）、Phase 2 の前に決めることの表（Issue #15 の前半、PR #23）、外部の助言の記録（Issue #20、PR #21）はmainに入っている）
+最終更新：2026-11-04（Issue #17 の文書の部分：動作の要件を、iPhone 実機ではなくウェブブラウザ（スマホ幅の表示を含む）にした（ADR-0027）。体調の訴えらしい入力での自動の中断（Issue #14、PR #27）と、絶対ルールと関連ルールの見直しとマーカー解除の hook（Issue #19、PR #29）はmainに入っている。その前の Issue #25：PR #18・#21・#22・#23 の後の main に合わせた。Phase 1（Issue #8、PR #10）、開発記録（Issue #9、PR #11）、STATUS.md の hook（Issue #13、PR #18）、答える範囲の案B（Issue #12、PR #22）、Phase 2 の前に決めることの表（Issue #15 の前半、PR #23）、外部の助言の記録（Issue #20、PR #21）はmainに入っている）
 
 ## 実装済み（コードがありコミット済み）
 - Claude Code用hook：`[TODO-OWNER]` の削除防止（`protect_todo_owner.py`）、秘密情報とブロックリストの語の検出（`block_secrets.py`）、main・GitHubの保護（`guard_github.py`）。いずれも `.claude/hooks/`
@@ -28,7 +28,8 @@
 - アプリの単体試験：`npm --prefix web test` で 113/113 PASS（4ファイル。答える範囲・回答欄の案内・思い出せないときの案内の試験 `content.test.ts`、体調の訴えの照合の試験 `emergency.test.ts` を含む）。型の検査（TypeScript 7.0）とビルド（`npm --prefix web run build`）も成功（2026-11-03、Issue #14 の作業、Windows 11・Node.js 26.13）
 - 安全の試験 E1〜E9（Issue #14、2026-11-03）：単体試験で実施。E7 は言い換え26件中4件を見逃した（docs/safety-test-plan.md「実施の記録」）。ブラウザ画面でも、体調の訴えで中断の案内、自傷のほのめかしで自傷用の案内が出ることを確かめた
 - 安全の試験のうち S14（薬の名前を含む架空の回答が入力どおり表示）、S15（思い出せないときの案内が固定文で出て、候補を含まない）、P10（AIと未接続の試作版の通しで、取得先が localhost だけ。ストレージも空）を試作版で実施した（2026-11-03、PR #22 の作業。Claude desktop のブラウザ画面・Chromium 152。docs/safety-test-plan.md「実施の記録」）。S11〜S13 は未実施（S11・S12 は Claude連携後）
-- Phase 1 の通しの操作（2026-11-03、Claude desktop のブラウザ画面で幅375pxのスマホ表示を模擬。iPhone実機では未確認）
+- ウェブブラウザでの通しの操作（Issue #17 の完了条件の1つ、ADR-0027）：2026-11-04、Issue #14 の後の main（5116501）を、Claude desktop のブラウザ画面（Chromium 152、Windows 11）で幅375pxのスマホ表示にして確かめた。はじめに → 前半3問 → 確認（お薬手帳を選ぶ）→ 出来事 → 後半3問 → 振り返り → 準備行動の決定 まで通った。横にはみ出す表示は無く、localStorage・sessionStorage・IndexedDB・Cookie は空で、コンソールにエラーは出なかった
+- Phase 1 の通しの操作（2026-11-03、Claude desktop のブラウザ画面で幅375pxのスマホ表示を模擬）
   - スマートフォンを選ぶ経路と、選ばずに進む（係の交代）経路で、はじめに → 前半3問 → 確認 → 出来事 → 後半3問 → 振り返り → 準備行動の決定 まで通った
   - 「訓練をやめる」で中断の画面に移った
   - localStorage・sessionStorage・IndexedDB・Cookie に何も残っていなかった（safety-test-plan P2 の一部）
@@ -39,17 +40,15 @@
 
 ## 開発環境（2026-11-02時点。オーナーが導入）
 - Git 2.56、Python 3.14、Node.js 26.13（LTS、nvm）、npm 11.20、GitHub CLI
-- 未導入：iPhone実機試験用のHTTPS手段（cloudflared等。未決定）
 - GitHubリポジトリ：Guttyo/SonaQuest（プライベート、2026-11-02作成）。Rulesetは未設定（オーナーの承認後）
 
 ## 未着手
 - Claude連携（Workers / Hono、/api/turn、聞き返し、観点の判定、API失敗時に固定の進行へ切り替えること）。Issue #15 の後半。前に決めることの表（`docs/phase2-decisions.md`）のオーナーの決定を待って始める
-- Phase 1 の残り（Issue #17）：動作の要件をウェブブラウザに改める、#7119 の出典URL、準備行動や公的な仕組みに触れる固定文への出典と確認日の表示（docs/references.md の候補が未確認のため）
+- Phase 1 の残り（Issue #17）：#7119 の出典URL（オーナーが確かめる）、準備行動や公的な仕組みに触れる固定文への出典と確認日の表示（docs/references.md の候補が未確認のため）
 - 提出後の課題を `docs/roadmap.md` にまとめる（Issue #16）
 - 音声入力、光のキャラクターの動きの演出（ADR-0020）
-- iPhone Safari 実機での確認
 - macOSでのhook試験（Windowsでのみ確認）
-- 音声まわりの実機検証（ADR-0004、0005）
+- 音声まわりのブラウザでの検証（ADR-0004、0005）
 - Claudeのモデル選定と比較実験（ADR-0006、docs/evidence.md）
 - GitHubのRulesets設定、CI
 - 公開前の利用制限：/api/turn の回数制限、入力の大きさの上限、Claude APIの支出の上限（ADR-0003、safety-test-plan P7〜P9）
@@ -59,7 +58,7 @@
 
 ## 文書のみ（設計・枠）
 - CLAUDE.md、`.claude/rules/`（scope、safety、privacy、github）、`.claude/skills/`
-- docs/：PRD、architecture、decisions（ADR-0001〜0026）、safety-test-plan、evidence、demo-script（枠）、references、KEEP-THINKING
+- docs/：PRD、architecture、decisions（ADR-0001〜0027）、safety-test-plan、evidence、demo-script（枠）、references、KEEP-THINKING
 - 絶対ルールと関連ルールの見直し（Issue #19）：絶対ルール3（公開する版では本文をログに出さない。開発中だけ既定でオフの切り替えで出してよい）、5（main で決定の行が付いたマーカーの解除）、7（Issue ごとの着手の承認）を書き直し、11 を番号を変えずに10の後へ移した。scope（架空で答える範囲、音声、Claude が質問する）、safety（Claude が作る文とその検査）、privacy（保持・送信・保存・ログ出力の違い）、github（着手の承認）を合わせた。safety-test-plan に S16〜S19 を足した（未実施）
 - テーマごとの開発記録 `docs/dev-logs/` と、それを書く `dev-log` Skill（`.claude/skills/dev-log/`）。Issue #9、PR #11
 - Phase 2（Claude連携）の前に決めることの表 `docs/phase2-decisions.md`（Issue #15 の前半、PR #23）。モデル、出力の形、送る内容、禁じること、失敗時の扱いなど14項目に、選択肢と推奨を付けた

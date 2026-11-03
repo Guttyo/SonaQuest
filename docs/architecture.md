@@ -1,9 +1,9 @@
 # 構成（案）
 
-状態：すべて設計段階。実装はまだない。確定事項は docs/decisions.md を正とする。
+状態：設計段階。画面（web/）の試作版はあるが、Workers と Claude 連携はまだない。確定事項は docs/decisions.md を正とする。
 
 ```
-[iPhone Safari]  React + TypeScript (Vite)
+[ウェブブラウザ]  React + TypeScript (Vite)
    │  文字 / 音声認識の結果（Web Speech API。ADR-0004）。読み上げは ElevenLabs、失敗したらブラウザの読み上げ（ADR-0005）
    ▼ HTTPS
 [Cloudflare Workers + Hono]  ← secrets: ANTHROPIC_API_KEY、ELEVENLABS_API_KEY
