@@ -283,7 +283,7 @@ def status_hook_tests(tmp):
     repo = tmp / "status-repo"
     (repo / ".claude" / "hooks").mkdir(parents=True)
     (repo / "docs").mkdir()
-    for f in ("status_check.py", "sonaguard.py"):
+    for f in ("status_check.py", "guard_github.py", "sonaguard.py"):
         shutil.copy(HOOKS / f, repo / ".claude" / "hooks" / f)
     env = {**os.environ, "GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "test@example.invalid",
            "GIT_COMMITTER_NAME": "test", "GIT_COMMITTER_EMAIL": "test@example.invalid"}
@@ -352,6 +352,12 @@ def status_hook_tests(tmp):
     check("gh pr create --head 所有者:ブランチ の形", 2, pr("gh pr create --head Owner:docs/14-w --title x --body y"))
     git("switch", "-q", "docs/14-w")  # 今いるブランチでは STATUS.md が変わっていない
     check("gh pr create -H: 指したブランチで STATUS.md を更新済み", 0, pr("gh pr create -H docs/13-z --title x --body y"))
+    # PR #18 の第3回のレビュー：同じコマンドの中で切り替えたブランチを見る
+    check("git switch で更新済みのブランチへ移ってから gh pr create", 0, pr("git switch docs/13-z && gh pr create --title x --body y"))
+    git("switch", "-q", "docs/13-z")
+    check("git switch で未更新のブランチへ移ってから gh pr create", 2, pr("git switch docs/14-w && gh pr create --title x --body y"))
+    check("git checkout で未更新のブランチへ移ってから gh pr create", 2, pr("git checkout -q docs/14-w; gh pr create --title x --body y"))
+    check("git switch -c で今のブランチから作って gh pr create", 0, pr("git switch -c docs/16-v && gh pr create --title x --body y"))
 
 
 def main():

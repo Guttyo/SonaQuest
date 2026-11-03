@@ -14,7 +14,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from sonaguard import ROOT, SUBST, sensitive_path, split_commands, use_utf8_stdio
+from guard_github import Blocked, check_git
+from sonaguard import ROOT, SUBST, git_invocation, sensitive_path, split_commands, use_utf8_stdio
 
 STATUS = "docs/STATUS.md"
 MERGE_SUBJECT = re.compile(r"^Merge pull request #(\d+) from [^/\s]+/(\S+)")
@@ -128,10 +129,21 @@ def pre_tool_use(data):
     if data.get("tool_name") not in ("Bash", "PowerShell"):
         return
     cmd = (data.get("tool_input") or {}).get("command") or ""
+    branch = None  # 途中の git switch・checkout で変わったブランチ。None は実行前の HEAD のまま
     for _, tokens, _ in split_commands(cmd) or []:
+        g = git_invocation(tokens)
+        if g and g["sub"]:
+            try:
+                branch = check_git(g["sub"], g["args"], branch)  # guard_github.py と同じ追い方
+            except Blocked:
+                pass  # 止めるのは guard_github.py の役目
+            continue
         if tokens[:3] != ["gh", "pr", "create"]:
             continue
-        if status_changed(option_value(tokens, ("--base", "-B")) or "main", option_value(tokens, ("--head", "-H"))) \
+        if branch and not base_ref(branch):
+            branch = None  # switch -c で作る前のブランチは、今の HEAD から作られる
+        head = option_value(tokens, ("--head", "-H")) or branch
+        if status_changed(option_value(tokens, ("--base", "-B")) or "main", head) \
                 or pr_body_says_no_update(cmd, tokens, data.get("cwd")):
             continue
         print(f"BLOCKED（STATUS.mdの更新確認）: このブランチで {STATUS} が変わっていません。"
