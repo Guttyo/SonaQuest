@@ -336,6 +336,12 @@ def status_hook_tests(tmp):
     (tmp / "body.md").write_text("## 変更\nSTATUS.md：更新不要（hook の試験）\n", encoding="utf-8")
     check("gh pr create: --body-file の本文に更新不要", 0, pr(f"gh pr create --title x --body-file '{tmp / 'body.md'}'"))
     check("gh pr create 以外のコマンドは止めない", 0, pr("gh pr view 10 && git status"))
+    # PR #18 のレビューで指摘されたもの
+    check("gh pr create: タイトルにだけ更新不要", 2, pr("gh pr create --title 'STATUS.md：更新不要の判定を修正' --body 'hook の修正'"))
+    check("gh pr create: 前のコマンドの heredoc にだけ更新不要", 2, pr("cat > /dev/null <<'EOF'\nSTATUS.md：更新不要（x）\nEOF\ngh pr create --title x --body y"))
+    check("gh pr create: --body \"$(cat <<'EOF' ...)\" の本文に更新不要", 0, pr("gh pr create --title x --body \"$(cat <<'EOF'\nSTATUS.md：更新不要（誤字）\nEOF\n)\""))
+    (repo / ".dev.vars").write_text("STATUS.md：更新不要（秘密ファイル）\n", encoding="utf-8")
+    check("gh pr create: --body-file に秘密ファイルを渡しても読まない", 2, pr("gh pr create --title x --body-file .dev.vars"))
     write_status("# 進捗\n- STATUS の仕組み（Issue #13）\n")
     git("add", "-A")
     git("commit", "-q", "-m", "STATUS を更新")

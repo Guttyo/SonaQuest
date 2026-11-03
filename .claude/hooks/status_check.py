@@ -14,11 +14,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-from sonaguard import ROOT, split_commands, use_utf8_stdio
+from sonaguard import ROOT, SUBST, sensitive_path, split_commands, use_utf8_stdio
 
 STATUS = "docs/STATUS.md"
 MERGE_SUBJECT = re.compile(r"^Merge pull request #(\d+) from [^/\s]+/(\S+)")
 NO_UPDATE = re.compile(r"STATUS\.md\s*[：:]\s*更新不要")
+HEREDOC = re.compile(r"<<-?[ \t]*(['\"]?)(\w+)\1[^\n]*\n(.*?)^[ \t]*\2[ \t]*$", re.M | re.S)
 
 
 def git(*args):
@@ -85,11 +86,24 @@ def option_value(tokens, names):
     return None
 
 
+def heredoc_bodies(cmd):
+    return [m.group(3) for m in HEREDOC.finditer(cmd)]
+
+
 def pr_body_says_no_update(cmd, tokens, cwd):
-    if NO_UPDATE.search(cmd):  # --body の値や heredoc で渡した本文
-        return True
+    """PR本文（--body の値、--body-file の中身）だけを見る。タイトルや前後のコマンドは見ない。"""
+    body = option_value(tokens, ("--body", "-b"))
+    if body is not None:
+        if NO_UPDATE.search(body):
+            return True
+        # --body "$(cat <<'EOF' ... EOF)" の本文は、置換の印に置き換わっているので heredoc から読む
+        return SUBST in body and any(NO_UPDATE.search(b) for b in heredoc_bodies(cmd))
     body_file = option_value(tokens, ("--body-file", "-F"))
-    if not body_file or body_file == "-":
+    if not body_file:
+        return False
+    if body_file == "-":  # 標準入力（heredoc）で渡した本文
+        return any(NO_UPDATE.search(b) for b in heredoc_bodies(cmd))
+    if sensitive_path(body_file):  # 秘密ファイルは開かない（block_secrets.py と同じ境界）
         return False
     p = Path(body_file)
     if not p.is_absolute():

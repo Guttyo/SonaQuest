@@ -18,7 +18,7 @@
   - 状態はメモリにだけ持ち、ブラウザに保存しない
 
 ## 動作確認済み
-- hookとgitのフックの試験：`test_hooks.py` で157/157 PASS（2026-11-03、Windows 11・Git Bash・Python 3.14。STATUS.md の hook の10件を含む）
+- hookとgitのフックの試験：`test_hooks.py` で161/161 PASS（2026-11-03、Windows 11・Git Bash・Python 3.14。STATUS.md の hook の14件を含む）
 - STATUS.md の hook を、このリポジトリで手で動かした（2026-11-03）：修正前の STATUS.md で、PR #10 でマージ済みのブランチ名が残る2か所を挙げ、修正後は何も出さなかった。STATUS.md を変えていないブランチでの `gh pr create` を止めた。Claude Code のセッション開始時に実際に呼ばれるかは未確認
 - Phase 1 の単体試験：`npm --prefix web test` で 53/53 PASS（質問の書き直しの後）。型の検査（TypeScript 7.0）とビルドも成功（2026-11-03、Windows 11・Node.js 26.13）
 - Phase 1 の通しの操作（2026-11-03、Claude desktop のブラウザ画面で幅375pxのスマホ表示を模擬。iPhone実機では未確認）
