@@ -1,4 +1,21 @@
-# 手元で wrangler dev を動かすときの秘密情報の雛形。
-# このファイルを .dev.vars という名前で写し、値を入れる（.dev.vars は Git に入れない）。
-# 本物のキーをこの雛形に書かない。
+# 手元で Workers（npm --prefix web run dev:worker）を動かすときの秘密情報の雛形。
+#
+# 使い方：
+#   1. この雛形を、同じ web/ フォルダに .dev.vars という名前で写す
+#        cp web/.dev.vars.example web/.dev.vars
+#   2. .dev.vars の「=」の後に値を書く（引用符は要らない）
+#
+# .dev.vars は .gitignore で Git の対象外。本物の値は .dev.vars にだけ書き、この雛形には書かない。
+# 公開する Workers では、同じ名前を `wrangler secret put <名前>` で Cloudflare の secrets に入れる
+# （デプロイはオーナーの承認の後。ADR-0003）。キーはブラウザに出さない（VITE_ で始まる名前にしない）。
+
+# Claude API のキー（必須。/api/turn で使う。docs/phase2-decisions.md 項目12）
 ANTHROPIC_API_KEY=
+
+# ElevenLabs のキーと声の ID（音声合成。ADR-0005）。音声を実装する Issue から使う。今のコードは読まない
+ELEVENLABS_API_KEY=
+ELEVENLABS_VOICE_ID=
+
+# 開発中だけ会話の本文をログに出す切り替え（ADR-0007 の追記）は、秘密情報ではないのでここに書かない。
+# 既定でオフにしておき、使うときだけ次のように指定する：
+#   npx --prefix web wrangler dev --port 8787 --var DEV_CONTENT_LOG:1

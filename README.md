@@ -115,7 +115,11 @@ npm --prefix web install
 ```bash
 npm --prefix web run dev
 ```
-- Claude とつなぐときは、別のターミナルで Workers も動かす（`/api` は http://127.0.0.1:8787 へ渡る）。API キーは `web/.dev.vars.example` を `web/.dev.vars` に写して入れる（`.dev.vars` は Git に入れない）。Workers を動かさないときは、最初の回答で失敗し、固定の質問で最後まで進む：
+- Claude とつなぐときは、秘密情報の雛形を写して、値を入れる。このリポジトリで使うキー（`ANTHROPIC_API_KEY`、音声を実装した後の `ELEVENLABS_API_KEY`・`ELEVENLABS_VOICE_ID`）は、雛形にすべて書いてある。写した `web/.dev.vars` は Git に入れない（`.gitignore` 済み）：
+```bash
+cp web/.dev.vars.example web/.dev.vars
+```
+- 別のターミナルで Workers も動かす（`/api` は http://127.0.0.1:8787 へ渡る）。Workers を動かさないときは、最初の回答で失敗し、固定の質問で最後まで進む：
 ```bash
 npm --prefix web run dev:worker
 ```
