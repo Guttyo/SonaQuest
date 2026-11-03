@@ -36,6 +36,6 @@
 - Cloudflare Workers の `request.url` の hostname は、デプロイ後は公開のドメインになり `localhost` にはならないと考えている（ADR-0007 の追記）。実装時に確かめる。
 
 ## 残ること
-- ADR-0024 に書いた「塞いでいない経路」（`git am`・`revert`・`cherry-pick`・`merge`、`-c` の設定での push・fetch、worktree、`.git/refs/` への直接の書き込みなど）の hook の修正。`.claude/rules/github.md` のとおり別の Issue で扱う。Issue を立てるかはオーナーに聞く
+- ADR-0024 に書いた「塞いでいない経路」（`git am`・`revert`・`cherry-pick`・`merge`、`-c` の設定での push・fetch、worktree、`.git/refs/` への直接の書き込みなど）の hook の修正。Issue #30（オーナーの了承を得て 2026-11-03 に作成）
 - 提案中の ADR（0007 の追記、0024、0025、0026）と、新しいマーカー（ADR-0005 のクローン音声、ADR-0007、ADR-0024、ADR-0025・scope.md）のオーナーの判断
 - 音声の実装の Issue で、README・初回画面の送信先と保持方針を直す（ADR-0005「影響」）
