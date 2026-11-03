@@ -69,6 +69,33 @@ describe("質問の数", () => {
   it("係の交代のときは交代用の問い", () => {
     expect(secondHalfQuestions("handover")[0].id).toBe("second_handover");
   });
+
+  it("家族と連絡がつかない出来事の後は、家族のほかの人を聞く", () => {
+    expect(secondHalfQuestions("family_unreachable").map((q) => q.id)).toContain(
+      "second_proxy_other",
+    );
+    expect(secondHalfQuestions("battery").map((q) => q.id)).toContain("second_proxy");
+  });
+
+  it.each<EventId>(["battery", "family_unreachable", "handover"])(
+    "固定の6問（%s）で5観点すべてに触れる",
+    (event) => {
+      const covered = new Set(
+        [...firstHalfQuestions(), ...secondHalfQuestions(event)].map((q) => q.viewpoint),
+      );
+      expect([...covered].sort()).toEqual(
+        ["alternative", "current", "location", "proxy", "unrecorded"],
+      );
+    },
+  );
+
+  it.each<EventId>(["battery", "handover"])(
+    "1回の訓練（%s）の中で質問のIDは重ならない",
+    (event) => {
+      const ids = [...firstHalfQuestions(), ...secondHalfQuestions(event)].map((q) => q.id);
+      expect(new Set(ids).size).toBe(ids.length);
+    },
+  );
 });
 
 describe("isAcceptableAnswer", () => {

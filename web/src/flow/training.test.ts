@@ -86,7 +86,7 @@ describe("訓練の流れ", () => {
     const raw = "  手帳は台所の引き出し。\n最近変わった気がする  ";
     const state = run([{ type: "start" }, answer(raw)]);
     expect(state.answers[0]).toEqual({
-      questionId: "first_location",
+      questionId: "first_medicines",
       half: "first",
       text: raw,
     });

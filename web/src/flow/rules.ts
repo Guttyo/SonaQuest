@@ -4,8 +4,10 @@ import {
   FIRST_HALF_QUESTIONS,
   HANDOVER_QUESTION,
   PREP_ACTIONS,
+  PROXY_QUESTION,
+  PROXY_QUESTION_AFTER_FAMILY,
+  RECENT_QUESTION,
   RECOVERY_QUESTION,
-  SECOND_HALF_FOLLOWUPS,
   VIEWPOINT_ORDER,
 } from "./content";
 import type {
@@ -46,10 +48,15 @@ export function firstHalfQuestions(): readonly Question[] {
   return FIRST_HALF_QUESTIONS.slice(0, MAX_FIRST_HALF_ANSWERS);
 }
 
-/** 後半の質問。最初は立て直しの問い（係の交代のときは交代用の問い） */
+/**
+ * 後半の質問。最初は立て直しの問い（係の交代のときは交代用の問い）。
+ * 出来事で答えが決まってしまう問いは、出来事に合わせて言い方を変える（家族と連絡がつかない → 家族のほかの人）
+ */
 export function secondHalfQuestions(event: EventId): readonly Question[] {
   const opening = event === "handover" ? HANDOVER_QUESTION : RECOVERY_QUESTION;
-  return [opening, ...SECOND_HALF_FOLLOWUPS].slice(0, MAX_SECOND_HALF_ANSWERS);
+  const proxy =
+    event === "family_unreachable" ? PROXY_QUESTION_AFTER_FAMILY : PROXY_QUESTION;
+  return [opening, RECENT_QUESTION, proxy].slice(0, MAX_SECOND_HALF_ANSWERS);
 }
 
 export function isAcceptableAnswer(text: string): boolean {
