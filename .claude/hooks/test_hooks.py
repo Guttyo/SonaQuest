@@ -443,6 +443,9 @@ def git_hook_tests(tmp):
         write('q"x.md', "本文\n")
         git("add", "-A")
         check("「\"」を含むパスで、決定の無いマーカーを消すコミット", 1, commit("消す")[0])
+        # 止まったコミットの変更を残すと、後の試験のコミットまで止まるので元に戻す
+        git("reset", "-q", "--", 'q"x.md')
+        git("checkout", "-q", "--", 'q"x.md')
 
     bl = tmp / "blocklist-git.txt"
     bl.write_text(TERM + "\n", encoding="utf-8")
