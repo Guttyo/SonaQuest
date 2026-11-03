@@ -1,4 +1,4 @@
-"""SessionStart・PreToolUse hook：docs/STATUS.md の更新漏れに気づかせる（ADR-0022）。
+"""SessionStart・PreToolUse hook：docs/STATUS.md の更新漏れに気づかせる（ADR-0023）。
 
 - SessionStart：STATUS.md に書かれたブランチ名のうち、main にマージ済みのものを知らせる。
   STATUS.md はマージ後の main の状態として書き、マージ済みの作業は Issue・PR の番号で書く約束なので、
@@ -71,7 +71,7 @@ def session_start():
     if not hits:
         return
     print(f"[STATUS.md の確認] {STATUS} に、main へマージ済みのブランチ名が残っています。作業中のまま古くなっていないか確かめ、"
-          "マージ後の main の状態に直してください（マージ済みの作業は Issue・PR の番号で書く。ADR-0022）。")
+          "マージ後の main の状態に直してください（マージ済みの作業は Issue・PR の番号で書く。ADR-0023）。")
     for branch, pr, nums in hits:
         print(f"- `{branch}`（PR #{pr} でマージ済み）：{', '.join(f'{n}行目' for n in nums)}")
 
@@ -135,7 +135,7 @@ def pre_tool_use(data):
         print(f"BLOCKED（STATUS.mdの更新確認）: このブランチで {STATUS} が変わっていません。"
               "マージ後の main の状態として STATUS.md を更新してコミットしてください。"
               "更新が要らないときは、PR本文に「STATUS.md：更新不要（理由）」と書いてください。"
-              "あわせて docs/dev-logs/README.md の「いつ書くか」に当てはまるか確かめてください（ADR-0022）。", file=sys.stderr)
+              "あわせて docs/dev-logs/README.md の「いつ書くか」に当てはまるか確かめてください（ADR-0023）。", file=sys.stderr)
         sys.exit(2)
 
 

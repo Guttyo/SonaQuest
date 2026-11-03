@@ -176,7 +176,7 @@
 
 ### うまくいったこと
 - STATUS.md が、PR #10 でマージした Phase 1 を「作業中、mainには未マージ」と書いたままだった。マージ後の状態に直した。
-- `.claude/hooks/status_check.py` を足した（ADR-0022）。セッション開始時に、STATUS.md に残ったマージ済みのブランチ名を知らせる。`gh pr create` の前に、STATUS.md が変わっていなければ止める。
+- `.claude/hooks/status_check.py` を足した（ADR-0023）。セッション開始時に、STATUS.md に残ったマージ済みのブランチ名を知らせる。`gh pr create` の前に、STATUS.md が変わっていなければ止める。
 - 書いている途中で、STATUS.md の動作確認の欄にマージ済みのブランチ名を書いたら、この hook がそれを挙げた。
 
 ### つまずいたことと直し方

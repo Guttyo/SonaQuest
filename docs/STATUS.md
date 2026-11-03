@@ -4,7 +4,7 @@
 
 ## 実装済み（コードがありコミット済み）
 - Claude Code用hook：`[TODO-OWNER]` の削除防止（`protect_todo_owner.py`）、秘密情報とブロックリストの語の検出（`block_secrets.py`）、main・GitHubの保護（`guard_github.py`）。いずれも `.claude/hooks/`
-- STATUS.md の更新漏れを知らせる hook（`.claude/hooks/status_check.py`。Issue #13、ADR-0022）：セッション開始時に、STATUS.md に残ったマージ済みのブランチ名を知らせる。`gh pr create` の前に、ブランチで STATUS.md が変わっていなければ止める
+- STATUS.md の更新漏れを知らせる hook（`.claude/hooks/status_check.py`。Issue #13、ADR-0023）：セッション開始時に、STATUS.md に残ったマージ済みのブランチ名を知らせる。`gh pr create` の前に、ブランチで STATUS.md が変わっていなければ止める
 - gitのフック（`.githooks/`）：秘密ファイル・APIキー・ブロックリストの語・マーカー削除・main へのコミットとマージコミットの検出
 - hookの試験スクリプト（`.claude/hooks/test_hooks.py`）
 - アプリ本体（Phase 1 の試作版、`web/`。Issue #8、PR #10）
@@ -52,7 +52,7 @@
 
 ## 文書のみ（設計・枠）
 - CLAUDE.md、`.claude/rules/`（scope、safety、privacy、github）、`.claude/skills/`
-- docs/：PRD、architecture、decisions（ADR-0001〜0022）、safety-test-plan、evidence、demo-script（枠）、references、KEEP-THINKING
+- docs/：PRD、architecture、decisions（ADR-0001〜0023）、safety-test-plan、evidence、demo-script（枠）、references、KEEP-THINKING
 - テーマごとの開発記録 `docs/dev-logs/` と、それを書く `dev-log` Skill（`.claude/skills/dev-log/`）。Issue #9、PR #11
 - PRDのコンセプト「お薬の避難訓練」、体験の核（伝える → 使えなくなる → 立て直す → 気づきと準備）、体験の6段階（はじめに／問い／確認／出来事／立て直し／結果）と実装の3画面、評価の方針（点数・合否なし、手薄なところを示す）、光のキャラクターの方向性（ADR-0019・0020、採用案。Issue #6）
 - README.md（枠）

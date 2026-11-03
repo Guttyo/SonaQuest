@@ -4,6 +4,7 @@ import {
   JUDGMENT_LABELS,
   JUDGMENT_NOTE,
   PREP_ACTIONS,
+  RECALL_FEEDBACK,
   TIMINGS,
   UNDETERMINED_NOTE,
   VIEWPOINT_LABELS,
@@ -36,7 +37,7 @@ export function Review({ state, onChoose }: Props) {
   return (
     <section className="screen" aria-labelledby="review-title">
       <h1 id="review-title">ふりかえり</h1>
-      <p>点数や合否はありません。伝えられたこと、まだ確かめていないことを見直しましょう。</p>
+      <p>点数や合否はありません。伝えられたこと、まだ確かめていないことを振り返りましょう。</p>
 
       <h2>5つの観点</h2>
       {allUndetermined && <p className="notice">{UNDETERMINED_NOTE}</p>}
@@ -85,6 +86,14 @@ export function Review({ state, onChoose }: Props) {
           <Exchange key={a.questionId} answer={a} question={questionText(state, a)} />
         ))}
       </ol>
+
+      {/* 思い出せなかったことは、候補を出さず、実物の確認と訓練の繰り返しに向ける（ADR-0022） */}
+      <h2>今ここで確かめましょう</h2>
+      <div className="notice recall">
+        {RECALL_FEEDBACK.map((line) => (
+          <p key={line}>{line}</p>
+        ))}
+      </div>
 
       <h2>次の準備を1つ決める</h2>
       <fieldset className="choices">
