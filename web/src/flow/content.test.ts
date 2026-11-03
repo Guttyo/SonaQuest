@@ -61,17 +61,30 @@ describe("答える範囲（ADR-0022 案B）", () => {
     expect(ANSWER_HINTS.both).toContain("電話番号");
   });
 
+  it("架空にする範囲には、薬があるかと飲めているかも含める（ADR-0022）", () => {
+    for (const hint of [ANSWER_HINTS.fictional, ANSWER_HINTS.both]) {
+      expect(hint).toContain("薬があるか");
+      expect(hint).toContain("飲めているか");
+    }
+  });
+
+  it("本人のこととして答える案内でも、薬の中身は書かないよう示す", () => {
+    expect(ANSWER_HINTS.self).toContain("薬の中身は書かないでください");
+  });
+
   it("利用開始の文面は、架空にするのが薬の中身であることを示す（案Bと食い違わない）", () => {
     expect(INTRO_LEAD).toContain("薬の中身は架空");
     expect(PROTOTYPE_LEAD).toContain("薬の中身は架空");
   });
 
   it.each([PROXY_QUESTION, PROXY_QUESTION_AFTER_FAMILY])(
-    "薬を知っている人の質問（$id）は、連絡先そのものではなく手段の種類を聞く",
+    "薬を知っている人の質問（$id）は、連絡先や薬の中身ではなく、手段の種類とどのくらい知っているかを聞く",
     (q) => {
       expect(q.text).not.toContain("どうやって連絡がとれますか");
+      expect(q.text).not.toContain("何を知っていて");
       expect(q.text).toContain("手段");
-      expect(q.text).toContain("電話番号などは書かなくて大丈夫です");
+      expect(q.text).toContain("どのくらい知っていますか");
+      expect(q.text).toContain("電話番号や薬の名前は書かなくて大丈夫です");
     },
   );
 
