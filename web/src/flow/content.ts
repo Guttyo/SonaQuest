@@ -2,6 +2,7 @@
 // 出典が要る文は docs/references.md の確認済みのものだけを使う。
 
 import type {
+  AnswerAs,
   EventId,
   PrepActionId,
   Question,
@@ -30,7 +31,8 @@ export const PROTOTYPE_LEAD =
 export const INTRO_POINTS: readonly string[] = [
   "発災翌日の避難所の救護所という、架空の場面です。",
   "氏名・住所・電話番号や、あなたやほかの人の実際の服薬情報は入力しないでください。",
-  "実際の聞き取りと同じように、薬の名前や量も聞きます。架空の人になったつもりで、架空の内容で答えてください（例：「Aという薬を朝に1錠」）。",
+  "実際の聞き取りと同じように、薬の名前や量も聞きます。薬の中身は、架空の内容で答えてください（例：「Aという薬を朝に1錠」）。",
+  "どこに記録があるか、ほかにどう伝えるか、薬のことを知っている人は、あなた自身のことを振り返って答えてください。名前や電話番号は書かないでください。",
   "答えは入力したまま表示するだけです。薬の正確さや治療の適否は判定しません。点数や合否もありません。",
   "体調の相談の窓口ではありません。体調に異変があるときは、すぐに「訓練をやめる」を押してください。",
 ];
@@ -60,16 +62,19 @@ export const FIRST_HALF_QUESTIONS: readonly Question[] = [
   {
     id: "first_medicines",
     viewpoint: "current",
+    answerAs: "fictional",
     text: "こんにちは。ここでは、普段飲んでいる薬を確認しています。毎日、または決まって飲んでいる薬はありますか？分かる範囲で、薬の名前や何の薬か、飲む量を教えてください。",
   },
   {
     id: "first_location",
     viewpoint: "location",
+    answerAs: "self",
     text: "その薬のことは、何を見れば確かめられますか？たとえば、お薬手帳、スマホのお薬手帳アプリ、薬の袋や説明書、薬そのものなどです。",
   },
   {
     id: "first_other",
     viewpoint: "unrecorded",
+    answerAs: "fictional",
     text: "ほかの病院や診療所でもらっている薬や、市販の薬・サプリはありますか？薬で具合が悪くなったことや、アレルギーはありますか？",
   },
 ];
@@ -78,6 +83,7 @@ export const FIRST_HALF_QUESTIONS: readonly Question[] = [
 export const RECOVERY_QUESTION: Question = {
   id: "second_recovery",
   viewpoint: "alternative",
+  answerAs: "self",
   text: "では、ほかにどうやって伝えられますか？",
 };
 
@@ -85,6 +91,7 @@ export const RECOVERY_QUESTION: Question = {
 export const HANDOVER_QUESTION: Question = {
   id: "second_handover",
   viewpoint: "alternative",
+  answerAs: "both",
   text: "係が代わりました。新しい係にも、普段の薬のことを伝えてください。さっき話したもののほかに、薬のことが分かるものはありますか？",
 };
 
@@ -92,6 +99,7 @@ export const HANDOVER_QUESTION: Question = {
 export const RECENT_QUESTION: Question = {
   id: "second_recent",
   viewpoint: "current",
+  answerAs: "both",
   text: "ここ数日、いつもどおり薬を飲めていますか？最近変わった薬があれば、それはいつも見ている記録にも載っていますか？",
 };
 
@@ -99,6 +107,7 @@ export const RECENT_QUESTION: Question = {
 export const PROXY_QUESTION: Question = {
   id: "second_proxy",
   viewpoint: "proxy",
+  answerAs: "self",
   text: "あなたのほかに、薬のことを知っている人や、管理を手伝っている人はいますか？その人は何を知っていて、どうやって連絡がとれますか？",
 };
 
@@ -106,6 +115,7 @@ export const PROXY_QUESTION: Question = {
 export const PROXY_QUESTION_AFTER_FAMILY: Question = {
   id: "second_proxy_other",
   viewpoint: "proxy",
+  answerAs: "self",
   text: "ご家族のほかに、薬のことを知っている人はいますか？その人は何を知っていて、どうやって連絡がとれますか？",
 };
 
@@ -141,8 +151,15 @@ export const SOURCE_OPTIONS: readonly {
 
 export const SKIP_CONFIRM_LABEL = "わからない・選ばずに進む";
 
-/** 回答欄の案内。実際の服薬情報を入れないよう、答えるたびに目に入る位置にも示す（ADR-0009） */
-export const ANSWER_PLACEHOLDER = "架空の内容で答えてください";
+/**
+ * 回答欄の案内。質問ごとに、誰のこととして答えるかを示す（ADR-0022 案B）。
+ * 実際の服薬情報を入れないよう、答えるたびに目に入る位置にも示す（ADR-0009）
+ */
+export const ANSWER_HINTS: Record<AnswerAs, string> = {
+  self: "あなた自身のことを振り返って答えてください（名前や電話番号は書かないでください）",
+  fictional: "薬の中身は、架空の内容で答えてください",
+  both: "伝え方はあなた自身のこと、薬の中身は架空の内容で答えてください",
+};
 
 // --- ④出来事 --------------------------------------------------------------
 
@@ -210,6 +227,17 @@ export const JUDGMENT_NOTE =
 export const UNDETERMINED_NOTE =
   "この試作版はAIによる判定をしていないため、観点ごとの判定は表示できません。あなたの回答をそのまま読み返して、手薄なところを探してみてください。";
 
+/**
+ * 思い出せなかったことへの案内（ADR-0022）。候補や「〜ではないですか」は出さず、
+ * 実物の確認と、訓練を繰り返すことに向ける。確認した内容の入力は求めない
+ */
+// [TODO-OWNER: 思い出せないときの案内の文面（オーナーの言葉をもとにした下書き）]
+export const RECALL_FEEDBACK: readonly string[] = [
+  "思い出せなかったことや、はっきりしなかったことはありましたか？",
+  "今ここで、実際のお薬手帳や薬の袋を確認しましょう。確認した内容を、ここに書く必要はありません。",
+  "今回のように、定期的にお薬の避難訓練をやって復習しておくとよいですね。",
+];
+
 /** 準備行動（docs/PRD.md「体験の流れ」6。オーナー決定 2026-11-02） */
 // [TODO-OWNER: 準備行動と観点の対応（並び順に使う。Claude Codeの下書き）]
 export const PREP_ACTIONS: readonly {
@@ -256,7 +284,7 @@ export const TIMINGS: readonly { id: TimingId; label: string }[] = [
 ];
 
 export const DONE_NOTE =
-  "この内容は保存されません。忘れないように、メモや予定表に書いておきましょう。";
+  "この内容は保存されません。忘れないように、メモや予定表に書いておきましょう。ときどきこの訓練を繰り返して、復習しておきましょう。";
 
 // --- 中断 -----------------------------------------------------------------
 

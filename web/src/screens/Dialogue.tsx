@@ -1,6 +1,6 @@
 import { useState, type Dispatch } from "react";
 import {
-  ANSWER_PLACEHOLDER,
+  ANSWER_HINTS,
   CONFIRM_PROMPT,
   EVENTS,
   SCENE_INTRO,
@@ -36,6 +36,7 @@ export function Dialogue({ state, dispatch }: Props) {
           // 質問が変わったら下書きを消す
           key={question.id}
           questionText={question.text}
+          hint={ANSWER_HINTS[question.answerAs]}
           answered={state.answers.length}
           onSubmit={(text) => dispatch({ type: "answer", text })}
         />
@@ -72,10 +73,13 @@ export function Dialogue({ state, dispatch }: Props) {
 
 function AnswerForm({
   questionText,
+  hint,
   answered,
   onSubmit,
 }: {
   questionText: string;
+  /** 誰のこととして答えるか（ADR-0022） */
+  hint: string;
   answered: number;
   onSubmit: (text: string) => void;
 }) {
@@ -100,13 +104,17 @@ function AnswerForm({
       <label className="field-label" htmlFor="answer">
         あなたの回答
       </label>
+      {/* 入力を始めると消える placeholder だけに頼らず、常に見える位置にも示す */}
+      <p id="answer-hint" className="small">
+        {hint}
+      </p>
       <textarea
         id="answer"
-        aria-describedby="current-question answer-count"
+        aria-describedby="current-question answer-hint answer-count"
         value={draft}
         maxLength={MAX_ANSWER_LENGTH}
         rows={4}
-        placeholder={ANSWER_PLACEHOLDER}
+        placeholder={hint}
         onChange={(e) => setDraft(e.target.value)}
       />
       <div className="form-row">
