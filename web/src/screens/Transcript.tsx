@@ -58,11 +58,11 @@ export function Exchange({ answer, notice }: { answer: Answer; notice?: string |
 }
 
 /** 聞き取り係の吹き出し。毎回、光の存在（ADR-0020）を左に添える */
-export function ListenerLine({ children }: { children: ReactNode }) {
+export function ListenerLine({ children, id }: { children: ReactNode; id?: string }) {
   return (
     <div className="exchange-row">
       <span className="listener-light listener-light-small" aria-hidden="true" />
-      <p className="exchange-question">
+      <p className="exchange-question" id={id}>
         <span className="bubble-name">聞き取り係</span>
         {children}
       </p>

@@ -1,4 +1,4 @@
-import { useState, type Dispatch } from "react";
+import { useEffect, useState, type Dispatch } from "react";
 import {
   ANSWER_HINTS,
   CONFIRM_PROMPT,
@@ -9,13 +9,8 @@ import {
   WAITING_TEXT,
 } from "../flow/content";
 import { currentMode } from "../flow/mode";
-import { MAX_ANSWERS, MAX_ANSWER_LENGTH, isAcceptableAnswer } from "../flow/rules";
-import {
-  countedAnswers,
-  currentQuestion,
-  type TrainingAction,
-  type TrainingState,
-} from "../flow/training";
+import { MAX_ANSWER_LENGTH, isAcceptableAnswer } from "../flow/rules";
+import { currentQuestion, type TrainingAction, type TrainingState } from "../flow/training";
 import type { SourceId } from "../flow/types";
 import { SpeakerControls } from "../voice/SpeakerControls";
 import { TalkButton } from "../voice/TalkButton";
@@ -23,9 +18,9 @@ import { usePushToTalk, useSpeakWhenChanged, useSpeaker } from "../voice/hooks";
 import { appendRecognized, type MicStatus } from "../voice/talk";
 import type { SpeakerSnapshot } from "../voice/speaker";
 import { listenerSpeech, speechKey } from "../voice/speech";
-import { listenerActivity, type ListenerActivity, type ListenerVoiceView } from "../voice/view";
-import { Listener } from "./Listener";
-import { Transcript } from "./Transcript";
+import { listenerActivity } from "../voice/view";
+import { ListenerStage, type DialoguePhase } from "./ListenerStage";
+import { ListenerLine, Transcript } from "./Transcript";
 
 interface Props {
   state: TrainingState;
@@ -36,12 +31,15 @@ interface Props {
 interface VoiceControls {
   speech: SpeakerSnapshot;
   stopSpeech: () => void;
-  replay: () => void;
   /** その回のうちに、マイクが使えないと分かった状態（拒否など）。次の質問でも文字入力だけにする */
   lostMic: MicStatus | null;
   onMicLost: (mic: MicStatus) => void;
 }
 
+/**
+ * 対話の画面（Issue #46）。上に聞き取り係を固定し、やり取りは真ん中で上から下へ流れ、
+ * 回答の欄は下に固定する。新しい発言は下に足され、App.tsx が画面のいちばん下へ送る
+ */
 export function Dialogue({ state, dispatch }: Props) {
   const { stage } = state;
   const question = currentQuestion(state);
@@ -53,103 +51,96 @@ export function Dialogue({ state, dispatch }: Props) {
   const spoken = voiceOn ? listenerSpeech(state) : null;
   useSpeakWhenChanged(speaker, spoken, spoken === null ? null : speechKey(state, spoken));
   const [lostMic, setLostMic] = useState<{ session: number; mic: MicStatus } | null>(null);
+  const [listening, setListening] = useState(false);
   const voice: VoiceControls | null = voiceOn
     ? {
         speech,
         stopSpeech: () => speaker?.stop(),
-        replay: () => speaker?.replay(),
         lostMic: lostMic?.session === state.session ? lostMic.mic : null,
         onMicLost: (mic) => setLostMic({ session: state.session, mic }),
       }
     : null;
 
-  // 聞き取り係の見せ方（Listener.tsx の props、Issue #37）。係の交代のあとは、別の係として見せる。
-  // activity は 3D の対話モードだけで渡す（渡すと 2D でも名前の横に状態の文字が出るため、2D の見た目は今のままにする）
+  // 係の交代のあとは、別の係として見せる。状態はアプリの状態だけで決める（Claude の出力は使わない）
   const relief = state.event === "handover" && stage.name === "second";
-  const viewOf = (activity: ListenerActivity): ListenerVoiceView =>
-    voiceOn ? { mode, activity, relief } : { mode, relief };
-  const speakingView = viewOf(listenerActivity({ waiting: false, listening: false, speaking: speech.speaking }));
+  const activity = listenerActivity({ waiting: state.waiting, listening, speaking: speech.speaking });
+  const phase: DialoguePhase =
+    stage.name === "event" ? "event" : stage.name === "second" ? "second" : "first";
+  const answering = question !== null && !state.waiting;
 
   return (
-    <section className="screen" aria-label="対話">
-      <p className="scene">{SCENE_INTRO}</p>
-      <Transcript state={state} />
+    <section className="screen dialogue" aria-label="対話">
+      <ListenerStage mode={mode} activity={activity} relief={relief} showState={voiceOn} phase={phase}>
+        {voiceOn && (
+          <SpeakerControls
+            snapshot={speech}
+            onStop={() => speaker?.stop()}
+            onReplay={() => speaker?.replay()}
+          />
+        )}
+      </ListenerStage>
 
-      {question !== null && state.waiting && <Thinking view={voiceOn ? viewOf("thinking") : null} />}
+      <div className="dialogue-log">
+        <p className="scene">{SCENE_INTRO}</p>
+        <Transcript state={state} />
 
-      {question !== null && !state.waiting && (
+        {question !== null && state.waiting && <Thinking />}
+
+        {answering && (
+          <ListenerLine id="current-question">{state.prompt?.text ?? question.text}</ListenerLine>
+        )}
+
+        {stage.name === "confirm" && (
+          <ConfirmSource
+            ack={state.closingAck}
+            initial={state.sourceGuess}
+            onConfirm={(source) => dispatch({ type: "confirm", source })}
+          />
+        )}
+
+        {stage.name === "event" && state.event !== null && (
+          <div className="event" role="alert" data-scroll-target tabIndex={-1}>
+            <h2>想定外の出来事</h2>
+            <p className="event-text">{EVENTS[state.event].text}</p>
+            {EVENTS[state.event].unavailable !== null && (
+              <p>
+                <span className="label">使えなくなったもの：</span>
+                {EVENTS[state.event].unavailable}
+              </p>
+            )}
+            <button
+              type="button"
+              className="primary"
+              onClick={() => dispatch({ type: "continue_after_event" })}
+            >
+              続ける
+            </button>
+          </div>
+        )}
+      </div>
+
+      {answering && (
         <AnswerForm
           // 聞き取り係の発言が変わったら下書きを消す
           key={state.answers.length}
-          questionText={state.prompt?.text ?? question.text}
           hint={ANSWER_HINTS[question.answerAs]}
-          answered={countedAnswers(state.answers, "first") + countedAnswers(state.answers, "second")}
           onSubmit={(text) => dispatch({ type: "answer", text })}
-          viewOf={viewOf}
+          onListeningChange={setListening}
           voice={voice}
         />
-      )}
-
-      {stage.name === "confirm" && (
-        <ConfirmSource
-          ack={state.closingAck}
-          initial={state.sourceGuess}
-          onConfirm={(source) => dispatch({ type: "confirm", source })}
-          view={speakingView}
-          voice={voice}
-        />
-      )}
-
-      {stage.name === "event" && state.event !== null && (
-        <div className="event" role="alert" data-scroll-target tabIndex={-1}>
-          <h2>想定外の出来事</h2>
-          <p className="event-text">{EVENTS[state.event].text}</p>
-          {EVENTS[state.event].unavailable !== null && (
-            <p>
-              <span className="label">使えなくなったもの：</span>
-              {EVENTS[state.event].unavailable}
-            </p>
-          )}
-          {voice !== null && (
-            <SpeakerControls snapshot={voice.speech} onStop={voice.stopSpeech} onReplay={voice.replay} />
-          )}
-          <button
-            type="button"
-            className="primary"
-            onClick={() => dispatch({ type: "continue_after_event" })}
-          >
-            続ける
-          </button>
-        </div>
       )}
     </section>
   );
 }
 
 /**
- * 返事を待つ間の「考え中」（ADR-0030）。聞き取り係の光がゆっくり明滅し、文の後ろに点が流れる。
+ * 返事を待つ間の「考え中」（ADR-0030）。光がゆっくり明滅し、文の後ろに点が流れる。
  * 読み上げは文だけ（点は読まない）。動きを減らす設定では動きが止まり、文だけで示す（styles.css、ADR-0020）。
- * 3D の対話モードでは、聞き取り係（Listener）を thinking の様子で出す（Issue #37 のパペットが考え中を示す）
+ * 3D の対話モードでは、上のパペットも考え中の様子になる（ListenerStage）
  */
-function Thinking({ view }: { view: ListenerVoiceView | null }) {
-  if (view !== null) {
-    return (
-      <div className="thinking" role="status" data-scroll-target tabIndex={-1}>
-        <Listener {...view}>
-          <p>
-            {WAITING_TEXT}
-            <span className="thinking-dots" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </span>
-          </p>
-        </Listener>
-      </div>
-    );
-  }
+function Thinking() {
   return (
-    <div className="exchange-row thinking" role="status" data-scroll-target tabIndex={-1}>
+    <div className="exchange-row thinking" role="status" data-scroll-target="end" tabIndex={-1}>
       <span className="listener-light listener-light-small listener-light-thinking" aria-hidden="true" />
       <p className="exchange-question">
         <span className="bubble-name">聞き取り係</span>
@@ -164,20 +155,17 @@ function Thinking({ view }: { view: ListenerVoiceView | null }) {
   );
 }
 
+/** 下に固定する回答の欄。質問文はやり取りの欄の最後（id="current-question"）にある */
 function AnswerForm({
-  questionText,
   hint,
-  answered,
   onSubmit,
-  viewOf,
+  onListeningChange,
   voice,
 }: {
-  questionText: string;
   /** 誰のこととして答えるか（ADR-0022） */
   hint: string;
-  answered: number;
   onSubmit: (text: string) => void;
-  viewOf: (activity: ListenerActivity) => ListenerVoiceView;
+  onListeningChange: (listening: boolean) => void;
   /** 3D の対話モードのときだけ。2D は文字で答える（ADR-0031） */
   voice: VoiceControls | null;
 }) {
@@ -198,12 +186,17 @@ function AnswerForm({
     voice?.lostMic ?? null,
     (mic) => voice?.onMicLost(mic),
   );
-  const view = viewOf(listenerActivity({ waiting: false, listening: talkState.listening, speaking }));
+
+  // マイクが開いている間は、上の聞き取り係を「聞いています」にする
+  useEffect(() => {
+    onListeningChange(talkState.listening);
+  }, [talkState.listening, onListeningChange]);
+  useEffect(() => () => onListeningChange(false), [onListeningChange]);
 
   return (
     <form
-      className="answer-form"
-      data-scroll-target
+      className="answer-form dialogue-dock"
+      data-scroll-target="end"
       tabIndex={-1}
       // 焦点が移ったときに、新しい質問文が読み上げられるように
       aria-labelledby="current-question"
@@ -212,43 +205,33 @@ function AnswerForm({
         if (canSubmit) onSubmit(draft);
       }}
     >
-      <Listener {...view}>
-        <p id="current-question">{questionText}</p>
-      </Listener>
       {voice !== null && (
-        <>
-          <SpeakerControls snapshot={voice.speech} onStop={voice.stopSpeech} onReplay={voice.replay} />
-          <TalkButton
-            snapshot={talkState}
-            inserted={inserted}
-            onPress={() => talk?.press()}
-            onRelease={() => talk?.release()}
-          />
-        </>
+        <TalkButton
+          snapshot={talkState}
+          inserted={inserted}
+          onPress={() => talk?.press()}
+          onRelease={() => talk?.release()}
+        />
       )}
-      <label className="field-label" htmlFor="answer">
+      <label className="visually-hidden" htmlFor="answer">
         あなたの回答
       </label>
-      {/* 入力を始めると消える placeholder だけに頼らず、常に見える位置にも示す */}
-      <p id="answer-hint" className="small">
+      {/* 誰のこととして答えるかは、入力を始めても消えない位置に1か所だけ示す */}
+      <p id="answer-hint" className="small answer-hint">
         {hint}
       </p>
-      <textarea
-        id="answer"
-        aria-describedby="current-question answer-hint answer-count"
-        value={draft}
-        maxLength={MAX_ANSWER_LENGTH}
-        rows={4}
-        placeholder={hint}
-        onChange={(e) => {
-          setDraft(e.target.value);
-          setInserted(false);
-        }}
-      />
-      <div className="form-row">
-        <span id="answer-count" className="count">
-          回答 {answered + 1} / 最大 {MAX_ANSWERS}
-        </span>
+      <div className="dock-row">
+        <textarea
+          id="answer"
+          aria-describedby="current-question answer-hint"
+          value={draft}
+          maxLength={MAX_ANSWER_LENGTH}
+          rows={2}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            setInserted(false);
+          }}
+        />
         <button type="submit" className="primary" disabled={!canSubmit}>
           答える
         </button>
@@ -261,16 +244,12 @@ function ConfirmSource({
   ack,
   initial,
   onConfirm,
-  view,
-  voice,
 }: {
   /** 前半の最後の回答への受け止め（ADR-0029 の2） */
   ack: string | null;
   /** 初期選択の候補（Claude）。本人がタップで確かめてから進む（ADR-0016、項目6） */
   initial: SourceId | null;
   onConfirm: (source: SourceId | null) => void;
-  view: ListenerVoiceView;
-  voice: VoiceControls | null;
 }) {
   const [selected, setSelected] = useState<SourceId | null>(initial);
 
@@ -282,13 +261,8 @@ function ConfirmSource({
       role="group"
       aria-labelledby="confirm-prompt"
     >
-      <Listener {...view}>
-        {ack !== null && <p>{ack}</p>}
-        <p id="confirm-prompt">{CONFIRM_PROMPT}</p>
-      </Listener>
-      {voice !== null && (
-        <SpeakerControls snapshot={voice.speech} onStop={voice.stopSpeech} onReplay={voice.replay} />
-      )}
+      {ack !== null && <ListenerLine>{ack}</ListenerLine>}
+      <ListenerLine id="confirm-prompt">{CONFIRM_PROMPT}</ListenerLine>
       <fieldset className="options" aria-labelledby="confirm-prompt">
         {SOURCE_OPTIONS.map((option) => (
           <label key={option.id} className="option">
