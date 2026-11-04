@@ -1,0 +1,53 @@
+/* 3D の聞き取り係（ADR-0032）と、係の交代の 2D の光。styles.css の色（:root）を使う */
+
+/* 3D のときは、パペットを上に、発言を下に置く（スマホ幅でも発言の幅を狭めない） */
+.listener.listener-3d {
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.listener-3d .listener-speech {
+  align-self: stretch;
+}
+
+/* パペットの舞台。背景を少し色づけて、クリームの体がページの地に溶けないようにする */
+.puppet3d-stage {
+  position: relative;
+  width: min(100%, 220px);
+  height: 176px;
+  border-radius: 48% 48% 16px 16px / 40% 40% 16px 16px;
+  background: radial-gradient(circle at 50% 42%, #ffffff 0%, var(--mint) 72%);
+  overflow: hidden;
+}
+
+/* 交代した係の舞台は、温かいオレンジ寄りにする */
+.puppet3d-stage-relief {
+  background: radial-gradient(circle at 50% 42%, #ffffff 0%, #fde3c8 72%);
+}
+
+.puppet3d-canvas-host,
+.puppet3d-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* three を読み込むまでの間は、2D の光を舞台の中央に置く */
+.puppet3d-placeholder {
+  position: absolute;
+  left: calc(50% - 20px);
+  top: calc(50% - 20px);
+}
+
+.listener-state {
+  margin-left: 2px;
+}
+
+/* 交代した係の 2D の光（3D が使えないとき・2D のとき）。ミントとオレンジを強めて、色が変わったと分かるようにする */
+.listener-light.listener-light-relief {
+  background: radial-gradient(circle at 40% 35%, #fff 0%, var(--mint) 30%, var(--orange) 90%);
+  box-shadow: 0 0 16px 4px rgba(47, 125, 99, 0.3);
+}
