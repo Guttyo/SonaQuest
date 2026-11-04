@@ -467,24 +467,131 @@ textarea {
   color: var(--ink-soft);
 }
 
-/* はじめにのモード選択（A-14）。legend を小見出しとして出す */
-.mode-options {
-  margin-top: 8px;
+/* はじめにのモード選択（A-14）：扉のような大きなカード。太い輪郭と丸み。幅375pxでも指で押しやすい高さ */
+.mode-cards {
+  min-width: 0;
+  margin: 8px 0 0;
+  padding: 0;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.mode-options legend {
+.mode-cards legend {
   font-size: 1.15rem;
   font-weight: 700;
   padding: 0;
   margin-bottom: 8px;
 }
 
-/* 将来構想（C-01）の Coming soon。ボタンではなく文字。今使えるものと見た目で区別する（PRD「Coming soon の表示の決まり」） */
-.coming-soon {
-  padding: 10px 14px;
-  border: 2px dashed var(--control-border);
-  border-radius: 10px;
+.mode-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 96px;
+  margin: 0;
+  padding: 14px 44px 14px 16px;
+  border: 3px solid var(--control-border);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.mode-card:has(input:checked) {
+  border-color: var(--mint-strong);
+  background: var(--mint);
+}
+
+/* ラジオは見えないが焦点は当たる。焦点の枠はカードに出す */
+.mode-card:has(input:focus-visible) {
+  outline: 3px solid var(--orange-strong);
+  outline-offset: 2px;
+}
+
+.mode-card-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.mode-card-icon {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  color: var(--mint-strong);
+}
+
+.mode-card:has(input:checked) .mode-card-icon {
+  color: var(--orange-strong);
+}
+
+.mode-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mode-card-label {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.mode-card-description {
+  font-size: 0.875rem;
   color: var(--ink-soft);
+}
+
+/* 選んでいる印（色だけに頼らない）。選んでいるカードにだけ出す */
+.mode-card-mark {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--mint-strong);
+  color: #fff;
+  font-weight: 700;
+  line-height: 26px;
+  text-align: center;
+  visibility: hidden;
+}
+
+.mode-card:has(input:checked) .mode-card-mark {
+  visibility: visible;
+}
+
+/* 将来構想（C-01）の押せないカード。鍵の印と点線の輪郭で、今使えるものと見た目で区別する（PRD「Coming soon の表示の決まり」） */
+.mode-card.locked {
+  border-style: dashed;
+  color: var(--ink-soft);
+  cursor: default;
+  padding-right: 16px;
+}
+
+.mode-card.locked .mode-card-icon {
+  color: var(--control-border);
+}
+
+.mode-card.locked .mode-card-label {
+  font-size: 1rem;
+}
+
+.intro-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .event {
