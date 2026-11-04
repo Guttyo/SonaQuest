@@ -12,7 +12,8 @@
 # Claude API のキー（必須。/api/turn で使う。docs/phase2-decisions.md 項目12）
 ANTHROPIC_API_KEY=
 
-# ElevenLabs のキーと声の ID（音声合成。ADR-0005）。音声を実装する Issue から使う。今のコードは読まない
+# ElevenLabs のキーと声の ID（音声合成。ADR-0005、ADR-0033）。読み上げの中継（/api/tts）で使う。
+# 無いときは、画面がブラウザの読み上げに切り替える
 ELEVENLABS_API_KEY=
 ELEVENLABS_VOICE_ID=
 

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   SELF_HARM_MESSAGE,
   SELF_HARM_SOURCE,
@@ -5,8 +6,12 @@ import {
   STOP_SOURCE,
 } from "../flow/content";
 import type { StopReason } from "../flow/emergency";
+import { stopAllVoice } from "../voice/browser";
 
-/** 中断の画面。キャラクターの演出は出さず、固定の案内だけを落ち着いて示す（ADR-0011、ADR-0020） */
+/**
+ * 中断の画面。キャラクターの演出は出さず、固定の案内だけを落ち着いて示す（ADR-0011、ADR-0020）。
+ * 読み上げとマイクは、対話の画面を離れたときに止まる。残っていたものも、ここでもう一度止める（ADR-0033）
+ */
 export function Stopped({
   reason,
   onRestart,
@@ -14,6 +19,9 @@ export function Stopped({
   reason: StopReason;
   onRestart: () => void;
 }) {
+  useEffect(() => {
+    stopAllVoice();
+  }, []);
   // 自傷のほのめかしでは、自傷用の案内を出す（ADR-0011）
   const [message, source] =
     reason === "self_harm"
