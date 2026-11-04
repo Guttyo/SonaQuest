@@ -11,10 +11,39 @@
   --control-border: #8a8378; /* 入力欄の枠。背景・白地に対して3:1以上 */
   --surface: #ffffff;
   --alert-bg: #fff1e3;
-  font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
-  line-height: 1.7;
+
+  /* 書体はゴシックで統一する（Issue #71、ADR-0037。2026-11-05 オーナー決定「ゴシックで統一」）。
+     端末に入っているゴシックだけを使い、外部のフォント配信もフォントファイルも使わない（送信先を増やさない。privacy.md）。
+     macOS・iOS はヒラギノ、Windows は BIZ UDPゴシック → 游ゴシック UI → メイリオ、Android は Noto Sans JP か総称の sans-serif。
+     素の "Yu Gothic" は Chrome で細く出るので入れない */
+  --font-gothic: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", "Yu Gothic UI", "Meiryo",
+    "Noto Sans JP", system-ui, sans-serif;
+
+  /* 文字の大きさの段階（スマホ幅が基準。PC の広い画面では下の @media で題と見出しだけ大きくする）。
+     題（h1）→ 見出し（h2）→ 強調（問いかけ・カードの題・出来事の文）→ 小見出し（h3）→ 本文 → 補足 → 名札 */
+  --fs-title: 1.75rem; /* h1。幅375pxで「訓練おつかれさまでした」が1行に収まる上限 */
+  --fs-heading: 1.25rem; /* h2・答え方を選ぶ */
+  --fs-emphasis: 1.125rem; /* 問いかけ・カードの題・出来事の文 */
+  --fs-subheading: 1.0625rem; /* h3 */
+  --fs-body: 1rem; /* 本文・聞き取り係の質問・回答 */
+  --fs-sub: 0.875rem; /* 補足・説明・案内 */
+  --fs-caption: 0.8125rem; /* 吹き出しの名札・場面番号・小さな札 */
+
+  /* 太さは2段階。強調は太さと大きさで付け、色だけに頼らない */
+  --fw-regular: 400;
+  --fw-bold: 700;
+
+  --lh-body: 1.7;
+  --lh-heading: 1.4;
+  --lh-tight: 1.45; /* 札・ボタンの中など、詰めて並べる小さな文字 */
+
+  font-family: var(--font-gothic);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-body);
   color: var(--ink);
   background: var(--cream);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 * {
@@ -49,7 +78,8 @@ body {
 }
 
 .app-title {
-  font-weight: 700;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-bold);
 }
 
 .stop-button {
@@ -60,7 +90,8 @@ body {
   background: var(--surface);
   color: var(--orange-strong);
   font: inherit;
-  font-weight: 700;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-bold);
 }
 
 .app-main {
@@ -82,18 +113,33 @@ body {
   gap: 12px;
 }
 
+/* 題と問いかけは、2行に折り返すときに行の長さをそろえ、1〜2文字だけが次の行に残らないようにする */
+h1,
+h2,
+h3,
+.tagline {
+  text-wrap: balance;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-heading);
+}
+
 h1 {
-  font-size: 1.5rem;
+  font-size: var(--fs-title);
   margin: 0;
 }
 
 h2 {
-  font-size: 1.15rem;
+  font-size: var(--fs-heading);
   margin: 16px 0 0;
 }
 
 h3 {
-  font-size: 1rem;
+  font-size: var(--fs-subheading);
   margin: 8px 0 0;
 }
 
@@ -103,7 +149,9 @@ p {
 
 .tagline {
   color: var(--mint-strong);
-  font-weight: 700;
+  font-size: var(--fs-emphasis);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-heading);
 }
 
 .notice {
@@ -113,7 +161,7 @@ p {
 }
 
 .small {
-  font-size: 0.875rem;
+  font-size: var(--fs-sub);
   color: var(--ink-soft);
 }
 
@@ -123,7 +171,7 @@ p {
 }
 
 .label {
-  font-weight: 700;
+  font-weight: var(--fw-bold);
 }
 
 button.primary,
@@ -132,7 +180,9 @@ button.secondary {
   padding: 0 20px;
   border-radius: 999px;
   font: inherit;
-  font-weight: 700;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
 }
 
 button.primary {
@@ -195,7 +245,7 @@ a:focus-visible {
 
 .listener-name {
   display: block;
-  font-size: 0.8rem;
+  font-size: var(--fs-caption);
   color: var(--ink-soft);
 }
 
@@ -314,8 +364,9 @@ a:focus-visible {
   margin-left: 8px;
   background: var(--surface);
   border: 1px solid var(--line);
-  color: var(--ink-soft);
-  font-size: 0.9rem;
+  /* 聞き取り係の質問は、利用者が読んで答える本文。補足の扱い（小さく薄い色）にせず、本文の大きさと墨の色にする（ADR-0037） */
+  color: var(--ink);
+  font-size: var(--fs-body);
 }
 
 .exchange-question::before,
@@ -342,8 +393,9 @@ a:focus-visible {
 /* 吹き出しの中の話し手の名前 */
 .bubble-name {
   display: block;
-  font-size: 0.75rem;
-  font-weight: 700;
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
   color: var(--ink-soft);
 }
 
@@ -362,7 +414,7 @@ a:focus-visible {
   background: transparent;
   border: 1px dashed var(--control-border);
   color: var(--ink-soft);
-  font-size: 0.85rem;
+  font-size: var(--fs-sub);
   text-align: center;
 }
 
@@ -386,7 +438,7 @@ a:focus-visible {
   padding: 8px 12px;
   border-radius: 8px;
   background: var(--alert-bg);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
 }
 
 .answer-form,
@@ -415,7 +467,7 @@ textarea {
 }
 
 .count {
-  font-size: 0.875rem;
+  font-size: var(--fs-sub);
   color: var(--ink-soft);
 }
 
@@ -459,11 +511,11 @@ textarea {
 }
 
 .option-label {
-  font-weight: 700;
+  font-weight: var(--fw-bold);
 }
 
 .option-description {
-  font-size: 0.875rem;
+  font-size: var(--fs-sub);
   color: var(--ink-soft);
 }
 
@@ -479,8 +531,9 @@ textarea {
 }
 
 .mode-cards legend {
-  font-size: 1.15rem;
-  font-weight: 700;
+  font-size: var(--fs-heading);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-heading);
   padding: 0;
   margin-bottom: 8px;
 }
@@ -542,12 +595,13 @@ textarea {
 }
 
 .mode-card-label {
-  font-weight: 700;
-  font-size: 1.1rem;
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-emphasis);
+  line-height: var(--lh-heading);
 }
 
 .mode-card-description {
-  font-size: 0.875rem;
+  font-size: var(--fs-sub);
   color: var(--ink-soft);
 }
 
@@ -562,7 +616,7 @@ textarea {
   border-radius: 50%;
   background: var(--mint-strong);
   color: #fff;
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   line-height: 26px;
   text-align: center;
   visibility: hidden;
@@ -585,7 +639,22 @@ textarea {
 }
 
 .mode-card.locked .mode-card-label {
-  font-size: 1rem;
+  font-size: var(--fs-body);
+}
+
+/* ③確認の情報源のカード（A-04・A-05 の③）。はじめにと同じ .mode-card を使い、6枚並ぶので高さだけ少し詰める */
+.source-cards {
+  margin-top: 0;
+  gap: 10px;
+}
+
+.source-cards .mode-card {
+  min-height: 76px;
+}
+
+.source-cards .mode-card-icon {
+  width: 48px;
+  height: 48px;
 }
 
 .intro-notes {
@@ -633,8 +702,9 @@ h1:focus-visible {
 }
 
 .event-text {
-  font-weight: 700;
-  font-size: 1.1rem;
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-emphasis);
+  line-height: var(--lh-heading);
 }
 
 .viewpoints {
@@ -657,7 +727,7 @@ h1:focus-visible {
 
 .viewpoint dd {
   margin: 0;
-  font-weight: 700;
+  font-weight: var(--fw-bold);
 }
 
 .choices {
@@ -673,7 +743,7 @@ h1:focus-visible {
 }
 
 .choices legend {
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   padding: 0 4px;
 }
 
@@ -706,8 +776,8 @@ h1:focus-visible {
 }
 
 .field-label {
-  font-size: 0.875rem;
-  font-weight: 700;
+  font-size: var(--fs-sub);
+  font-weight: var(--fw-bold);
 }
 
 .visually-hidden {
@@ -767,8 +837,9 @@ h1:focus-visible {
 }
 
 .dialogue-stage-side .listener-name {
-  font-size: 0.95rem;
-  font-weight: 700;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
   color: var(--ink);
 }
 
@@ -842,8 +913,9 @@ h1:focus-visible {
 
 .scene-title {
   margin: 0;
-  font-size: 0.85rem;
-  font-weight: 700;
+  font-size: var(--fs-sub);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
   color: var(--ink);
   animation: enter-up 280ms ease-out both;
 }
@@ -891,8 +963,8 @@ h1:focus-visible {
   border-radius: 10px;
   background: var(--surface);
   color: var(--ink);
-  font-size: 0.8rem;
-  line-height: 1.4;
+  font-size: var(--fs-caption);
+  line-height: var(--lh-tight);
   animation: enter-up 320ms ease-out both;
 }
 
@@ -914,7 +986,7 @@ h1:focus-visible {
 }
 
 .source-chip-caption {
-  font-size: 0.7rem;
+  font-size: var(--fs-caption);
   color: var(--ink-soft);
 }
 
@@ -929,7 +1001,7 @@ h1:focus-visible {
 }
 
 .source-chip-state {
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   color: var(--orange-strong);
 }
 
@@ -1044,18 +1116,18 @@ body,
 
 .event-scene h2 {
   margin: 0;
-  font-size: 1.4rem;
+  font-size: var(--fs-title);
 }
 
 .event-kicker {
   color: var(--orange);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   letter-spacing: 0.12em;
-  font-size: 0.8rem;
+  font-size: var(--fs-caption);
 }
 
 .event-scene .event-text {
-  font-size: 1.15rem;
+  font-size: var(--fs-emphasis);
 }
 
 .event-scene .label {
@@ -1121,6 +1193,14 @@ body,
 }
 
 @media (min-width: 768px) {
+  /* PC の広い画面では、題と見出しと強調だけを一段大きくする。本文の大きさと根の文字の大きさは変えない
+     （ヘッダーの高さ・スクロールの余白・入力欄が px で決まっているため） */
+  :root {
+    --fs-title: 2rem;
+    --fs-heading: 1.375rem;
+    --fs-emphasis: 1.1875rem;
+  }
+
   .dialogue {
     --stage-h: 240px;
   }
@@ -1137,6 +1217,17 @@ body,
     transition: none !important;
   }
 }
+
+/* 振り返りの「今ここで確かめましょう」に添える、お薬手帳と薬の袋の絵（A-04）。飾りで、意味は文で示す */
+.recall-visual {
+  display: flex;
+  gap: 12px;
+  color: var(--mint-strong);
+}
+
+.recall-icon {
+  width: 44px;
+  height: 44px;
 
 /* 2D の聞き取り係（Issue #47、A-03、ADR-0038）。3D パペットの 2D 版の姿（screens/Puppet2D.tsx）。
    状態ごとの姿勢は止まった transform で決め（data-activity）、動きは別の要素に重ねる。
