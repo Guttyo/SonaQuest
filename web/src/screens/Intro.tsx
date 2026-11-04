@@ -4,6 +4,7 @@ import {
   INTRO_POINTS,
   PRIVACY_EXTERNAL,
   PRIVACY_OWN,
+  PRIVACY_VOICE,
   PROTOTYPE_LEAD,
 } from "../flow/content";
 
@@ -32,6 +33,8 @@ export function Intro({ onStart }: { onStart: () => void }) {
       <ul className="points">
         <li>{PRIVACY_OWN}</li>
         <li>{PRIVACY_EXTERNAL}</li>
+        {/* 3D の対話モードの声の送信先（ADR-0033） */}
+        <li>{PRIVACY_VOICE}</li>
       </ul>
       <button type="button" className="primary" onClick={onStart}>
         訓練をはじめる

@@ -1,18 +1,21 @@
 # 構成（案）
 
-状態：画面（`web/src/`）と、Workers の `/api/turn`（`web/worker/`）がある。開発用サーバーで、本物の Claude API を使った訓練を1回通した（2026-11-04）。読み上げの中継と音声認識はまだない。確定事項は docs/decisions.md を正とする（実装の決まりは ADR-0028）。
+状態：画面（`web/src/`）と、Workers の `/api/turn`・`/api/tts`（`web/worker/`）がある。開発用サーバーで、本物の Claude API を使った訓練を1回通した（2026-11-04）。3D の対話モードの押して話す（音声認識）と読み上げを足した（ADR-0033。ElevenLabs の本物の音声と、本物のマイクでの確認はまだ）。確定事項は docs/decisions.md を正とする（実装の決まりは ADR-0028・ADR-0033）。
 
 ```
 [ウェブブラウザ]  React + TypeScript (Vite)
-   │  文字 / 音声認識の結果（Web Speech API。ADR-0004）。読み上げは ElevenLabs、失敗したらブラウザの読み上げ（ADR-0005）
+   │  文字 / 3D の対話モードでは、押して話す（Web Speech API。ADR-0004・0033）の認識文を直して送る。
+   │  読み上げは ElevenLabs、失敗・5秒で始まらないときはブラウザの読み上げ（ADR-0005・0033）
+   │  （音声認識は、ブラウザが使う外部のサービスへ声を送る。Workers は通らない）
    ▼ HTTPS
-[Cloudflare Workers + Hono]  ← secrets: ANTHROPIC_API_KEY、ELEVENLABS_API_KEY
+[Cloudflare Workers + Hono]  ← secrets: ANTHROPIC_API_KEY、ELEVENLABS_API_KEY、ELEVENLABS_VOICE_ID
    ├─ /api/turn    1ターン分の判定と次の手を返す。Claudeの出力を検証してから返す（ADR-0015）。
    │               検査を通った Claude の文は、監査役の Claude（Haiku 5.5）にも確かめさせる（ADR-0030）
-   ├─ 読み上げの中継  読み上げる文だけを ElevenLabs へ送る（利用者の回答は送らない。ADR-0005）
+   ├─ /api/tts     読み上げの中継。読み上げる文（{ text } だけ）を ElevenLabs へ送り、音声をそのまま返す
+   │               （利用者の回答は送らない。ADR-0005）。手元（localhost・127.0.0.1）からの呼び出しだけを通す（ADR-0033）
    └─ 保存なし。公開する版では本文のログ出力なし（開発中だけの出力は ADR-0007 の追記）
    ▼
-[Claude API]
+[Claude API]  [ElevenLabs]
 ```
 
 ## 状態の持ち方

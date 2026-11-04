@@ -8,6 +8,7 @@ import {
   CLARIFY_TEXTS,
   INTRO_LEAD,
   INTRO_POINTS,
+  PRIVACY_VOICE,
   PROTOTYPE_LEAD,
   PROXY_QUESTION,
   PROXY_QUESTION_AFTER_FAMILY,
@@ -65,6 +66,14 @@ describe("答える範囲（ADR-0022 案B）", () => {
 
   it("本人のこととして答える案内でも、薬の中身は書かないよう示す", () => {
     expect(ANSWER_HINTS.self).toContain("薬の中身は書かないでください");
+  });
+
+  it("声の送信先の説明は、音声認識と ElevenLabs を挙げ、回答や声を ElevenLabs に送らないこと、2D では送らないことを示す（ADR-0033、A-08）", () => {
+    expect(PRIVACY_VOICE).toContain("音声認識");
+    expect(PRIVACY_VOICE).toContain("ElevenLabs");
+    expect(PRIVACY_VOICE).toContain("あなたの回答や声は送りません");
+    expect(PRIVACY_VOICE).toContain("確かめられていません");
+    expect(PRIVACY_VOICE).toContain("2Dのモードでは、どちらにも送りません");
   });
 
   it("利用開始の文面は、架空にするのが薬の中身であることを示す（案Bと食い違わない）", () => {
