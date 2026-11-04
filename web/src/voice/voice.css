@@ -19,7 +19,7 @@
   background: var(--surface);
   color: var(--mint-strong);
   font: inherit;
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   cursor: pointer;
   /* 押し続ける操作で、画面のスクロール・文字の選択・長押しのメニューが出ないように */
   touch-action: none;
@@ -92,7 +92,7 @@
 .speaker-button-blocked {
   border: 2px solid var(--orange-strong);
   color: var(--orange-strong);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
 }
 
 .speaker-note {
