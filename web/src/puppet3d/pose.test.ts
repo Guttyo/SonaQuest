@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAIN_PALETTE, RELIEF_PALETTE, paletteFor } from "./palette";
-import { MOUTH_MAX, MOUTH_REST, blendPose, eyeOpenAt, mouthAt, poseAt, type Pose } from "./pose";
+import { MOUTH_MAX, MOUTH_REST, NOD_SECONDS, blendPose, eyeOpenAt, mouthAt, nodAt, poseAt, type Pose } from "./pose";
 import type { ListenerActivity } from "./types";
 
 const ACTIVITIES: ListenerActivity[] = ["idle", "listening", "speaking", "thinking"];
@@ -93,5 +93,25 @@ describe("係の交代の色", () => {
     expect(paletteFor(true)).toBe(RELIEF_PALETTE);
     expect(RELIEF_PALETTE.body).not.toBe(MAIN_PALETTE.body);
     expect(RELIEF_PALETTE.accent).not.toBe(MAIN_PALETTE.accent);
+  });
+});
+
+describe("顔の向きとうなずき（Issue #55）", () => {
+  it("待機ではゆっくり見回し、聞いている間は利用者のほうを向く", () => {
+    const idle = range("idle", "headTurn");
+    expect(idle.max).toBeGreaterThan(0.1);
+    expect(idle.min).toBeLessThan(-0.1);
+    expect(range("listening", "headTurn")).toEqual({ min: 0, max: 0 });
+  });
+
+  it("うなずきは決まった長さの間だけ頭を前に倒し、前後は 0 に戻る", () => {
+    expect(nodAt(-0.01)).toBe(0);
+    expect(nodAt(-Infinity)).toBe(0);
+    expect(nodAt(Number.NaN)).toBe(0);
+    expect(nodAt(NOD_SECONDS)).toBe(0);
+    expect(nodAt(10)).toBe(0);
+    const values = Array.from({ length: 70 }, (_, i) => nodAt((i / 70) * NOD_SECONDS));
+    expect(Math.max(...values)).toBeGreaterThan(0.25);
+    expect(Math.min(...values)).toBeGreaterThanOrEqual(0);
   });
 });

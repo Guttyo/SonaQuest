@@ -13,6 +13,8 @@ export interface Pose {
   headTilt: number;
   /** 頭の前後（正でうなずく、負で上を見る） */
   headNod: number;
+  /** 頭の左右の向き（0 で利用者のほうを向く。待機のときはゆっくり見回す） */
+  headTurn: number;
   /** 口の開き（0 で閉じる。最大 MOUTH_MAX） */
   mouth: number;
   /** 目線を上に向ける量（0〜1） */
@@ -50,17 +52,19 @@ export function poseAt(activity: ListenerActivity, t: number): Pose {
         bob: 0.03 * Math.sin(t * 1.8),
         headTilt: 0.04 * Math.sin(t * 0.6),
         headNod: 0,
+        headTurn: 0.22 * Math.sin(t * 0.5),
         mouth: MOUTH_REST,
         lookUp: 0,
         eyeOpen,
       };
     case "listening":
-      // 少し傾き、ときどきうなずく
+      // 利用者のほうを向き、少し前に乗り出して傾き、ときどきうなずく
       return {
         sway: 0.02 * Math.sin(t * 0.9),
         bob: 0.015 * Math.sin(t * 1.8),
         headTilt: 0.22,
-        headNod: 0.1 * Math.max(0, Math.sin(t * 2.4)),
+        headNod: 0.06 + 0.1 * Math.max(0, Math.sin(t * 2.4)),
+        headTurn: 0,
         mouth: MOUTH_REST,
         lookUp: 0,
         eyeOpen,
@@ -73,6 +77,7 @@ export function poseAt(activity: ListenerActivity, t: number): Pose {
         bob: 0.03 * (mouth / MOUTH_MAX),
         headTilt: 0.03 * Math.sin(t * 0.8),
         headNod: -0.06 * (mouth / MOUTH_MAX),
+        headTurn: 0.04 * Math.sin(t * 0.5),
         mouth,
         lookUp: 0,
         eyeOpen,
@@ -85,6 +90,7 @@ export function poseAt(activity: ListenerActivity, t: number): Pose {
         bob: 0.02 * Math.sin(t * 1.2),
         headTilt: -0.14,
         headNod: -0.12,
+        headTurn: -0.12,
         mouth: MOUTH_REST,
         lookUp: 1,
         eyeOpen,
@@ -105,8 +111,23 @@ export function blendPose(current: Pose, target: Pose, dt: number): Pose {
     bob: mix(current.bob, target.bob, slow),
     headTilt: mix(current.headTilt, target.headTilt, slow),
     headNod: mix(current.headNod, target.headNod, slow),
+    headTurn: mix(current.headTurn, target.headTurn, slow),
     mouth: mix(current.mouth, target.mouth, fast),
     lookUp: mix(current.lookUp, target.lookUp, slow),
     eyeOpen: target.eyeOpen,
   };
+}
+
+/** 回答を受け取ったときのうなずきの長さ（秒） */
+export const NOD_SECONDS = 0.7;
+
+/**
+ * 回答を受け取ったときの、1回だけのうなずき（Issue #55 の一部）。うなずき始めてからの秒数で、頭を前に倒す量を返す。
+ * 大きく1回、小さく1回うなずく。それ以外の時刻は 0。状態の姿勢に足して使う
+ */
+export function nodAt(elapsed: number): number {
+  if (!(elapsed >= 0) || elapsed >= NOD_SECONDS) return 0;
+  const first = 0.4;
+  if (elapsed < first) return 0.32 * Math.sin((Math.PI * elapsed) / first);
+  return 0.14 * Math.sin((Math.PI * (elapsed - first)) / (NOD_SECONDS - first));
 }

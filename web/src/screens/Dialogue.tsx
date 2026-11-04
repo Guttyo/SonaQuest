@@ -53,6 +53,8 @@ export function Dialogue({ state, dispatch }: Props) {
   useSpeakWhenChanged(speaker, spoken, spoken === null ? null : speechKey(state, spoken));
   const [lostMic, setLostMic] = useState<{ session: number; mic: MicStatus } | null>(null);
   const [listening, setListening] = useState(false);
+  // 回答・確認を受け取るたびに、係が1回うなずく
+  const [nods, setNods] = useState(0);
   const voice: VoiceControls | null = voiceOn
     ? {
         speech,
@@ -80,7 +82,7 @@ export function Dialogue({ state, dispatch }: Props) {
 
   return (
     <section className={stage.name === "event" ? "screen dialogue scene-event" : "screen dialogue"} aria-label="対話">
-      <ListenerStage mode={mode} activity={activity} relief={relief} showState={voiceOn} scene={scene}>
+      <ListenerStage mode={mode} activity={activity} relief={relief} showState={voiceOn} scene={scene} nodKey={nods}>
         {voiceOn && (
           <SpeakerControls
             snapshot={speech}
@@ -108,7 +110,10 @@ export function Dialogue({ state, dispatch }: Props) {
           <ConfirmSource
             ack={state.closingAck}
             initial={state.sourceGuess}
-            onConfirm={(source) => dispatch({ type: "confirm", source })}
+            onConfirm={(source) => {
+              setNods((n) => n + 1);
+              dispatch({ type: "confirm", source });
+            }}
           />
         )}
 
@@ -145,7 +150,10 @@ export function Dialogue({ state, dispatch }: Props) {
           // 聞き取り係の発言が変わったら下書きを消す
           key={state.answers.length}
           hint={ANSWER_HINTS[question.answerAs]}
-          onSubmit={(text) => dispatch({ type: "answer", text })}
+          onSubmit={(text) => {
+            setNods((n) => n + 1);
+            dispatch({ type: "answer", text });
+          }}
           onListeningChange={setListening}
           voice={voice}
         />
