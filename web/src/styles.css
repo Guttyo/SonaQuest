@@ -686,8 +686,11 @@ textarea {
   gap: 8px;
 }
 
-.scene-title,
-.scene-kicker {
+.scene-title-live {
+  min-width: 0;
+}
+
+.scene-title {
   margin: 0;
   font-size: 0.85rem;
   font-weight: 700;
@@ -837,6 +840,8 @@ textarea {
 /* 場面01：係が現れる */
 .stage-figure-enter {
   flex: none;
+  /* 中の光（空の span）が幅と高さを保つように、包む要素も flex にする */
+  display: flex;
   animation: figure-enter 520ms ease-out both;
 }
 
