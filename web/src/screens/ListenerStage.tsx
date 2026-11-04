@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { PuppetView } from "../puppet3d/PuppetView";
 import { ACTIVITY_LABELS, type ListenerActivity, type ListenerMode } from "../puppet3d/types";
 import { useRenderMode } from "../puppet3d/useRenderMode";
+import { Puppet2D } from "./Puppet2D";
 import "../puppet3d/puppet3d.css";
 
 /**
@@ -47,16 +48,6 @@ export function ListenerStage({
   children?: ReactNode;
 }) {
   const shown = useRenderMode(mode);
-  const lightClass = [
-    "listener-light",
-    "listener-light-stage",
-    relief ? "listener-light-relief" : "",
-    activity === "thinking" ? "listener-light-thinking" : "",
-    nodKey > 0 ? "listener-light-nod" : "",
-  ]
-    .filter((c) => c !== "")
-    .join(" ");
-
   return (
     <div className="dialogue-stage">
       <div className="dialogue-stage-figure">
@@ -64,8 +55,8 @@ export function ListenerStage({
           {shown === "3d" ? (
             <PuppetView activity={activity} relief={relief} nodKey={nodKey} />
           ) : (
-            // 2D の光は、作り直して小さく沈む動きをもう一度出す
-            <span key={nodKey} className={lightClass} aria-hidden="true" />
+            // 2D はパペットの 2D 版（Issue #47、ADR-0038）。うなずきは頭だけを作り直して出す
+            <Puppet2D activity={activity} relief={relief} nodKey={nodKey} />
           )}
         </div>
         <div className="dialogue-stage-side">

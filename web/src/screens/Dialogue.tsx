@@ -82,7 +82,7 @@ export function Dialogue({ state, dispatch }: Props) {
 
   return (
     <section className={stage.name === "event" ? "screen dialogue scene-event" : "screen dialogue"} aria-label="対話">
-      <ListenerStage mode={mode} activity={activity} relief={relief} showState={voiceOn} scene={scene} nodKey={nods}>
+      <ListenerStage mode={mode} activity={activity} relief={relief} showState scene={scene} nodKey={nods}>
         {voiceOn && (
           <SpeakerControls
             snapshot={speech}

@@ -3,6 +3,7 @@ import { PuppetView } from "../puppet3d/PuppetView";
 import { ACTIVITY_LABELS, type ListenerActivity, type ListenerMode } from "../puppet3d/types";
 import { useRenderMode } from "../puppet3d/useRenderMode";
 import "../puppet3d/puppet3d.css";
+import { Puppet2D } from "./Puppet2D";
 
 export type { ListenerActivity, ListenerMode };
 
@@ -31,14 +32,11 @@ export function Listener({ children, mode = "2d", activity, relief = false }: Pr
   const showState = mode === "3d" || activity !== undefined;
 
   return (
-    <div className={shown === "3d" ? "listener listener-3d" : "listener"}>
+    <div className={shown === "3d" ? "listener listener-3d" : "listener listener-2d"}>
       {shown === "3d" ? (
         <PuppetView activity={current} relief={relief} />
       ) : (
-        <span
-          className={relief ? "listener-light listener-light-relief" : "listener-light"}
-          aria-hidden="true"
-        />
+        <Puppet2D activity={current} relief={relief} />
       )}
       <div className="listener-speech">
         <span className="listener-name">
