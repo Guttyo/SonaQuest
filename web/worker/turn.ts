@@ -63,7 +63,7 @@ export function parseClaudeOutput(value: unknown): ClaudeOutput | null {
 const QUESTION_TEXT = new Map(ALL_QUESTIONS.map((q) => [q.id, q.text]));
 
 /** 文に含まれてよいアプリの固定の言葉（情報源の分類、出来事）。利用者が同じ言葉を使っても繰り返しとみなさない */
-const ALLOWED_VOCABULARY: readonly string[] = [
+export const ALLOWED_VOCABULARY: readonly string[] = [
   ...ALL_QUESTIONS.map((q) => q.text),
   ...SOURCE_OPTIONS.flatMap((o) => [o.label, o.description]),
   ...Object.values(EVENTS).flatMap((e) => [e.text, e.unavailable ?? ""]),

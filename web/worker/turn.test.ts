@@ -5,6 +5,7 @@ import type { TurnRequest } from "../src/flow/turnContract";
 import { usesFallback, type CallClaude, type ClaudeResult } from "./claude";
 import { contentLogEnabled, devOverrides, logContent } from "./devlog";
 import { DEV_METRICS_HEADER, createApp, type Env } from "./app";
+import { AUDIT_CATEGORIES, AUDIT_SYSTEM_PROMPT, buildAuditMessage } from "./audit";
 import * as entry from "./index";
 import { SYSTEM_PROMPT, buildUserMessage } from "./prompt";
 import { chooseNext, decideNext, parseClaudeOutput, runTurn } from "./turn";
@@ -321,5 +322,34 @@ describe("開発中の比較実験の切り替え（docs/evidence.md）", () => 
       DEV_EXPERIMENT: "1",
     });
     expect(published.headers.get(DEV_METRICS_HEADER)).toBeNull();
+  });
+});
+
+describe("監査役の採点の入口（ADR-0030 の実験）", () => {
+  const init = {
+    method: "POST",
+    body: JSON.stringify({ text: "教えてくださってありがとうございます。", fixed_question: "薬はありますか？" }),
+    headers: { "Content-Type": "application/json" },
+  };
+
+  it("比較実験の切り替えが無いときは使えない（公開する版でも使えない）", async () => {
+    const app = createApp(() => fake(ok(output)));
+    expect((await app.request("http://localhost/api/dev/audit", init, { ANTHROPIC_API_KEY: "test-key" })).status).toBe(404);
+    const published = await app.request("https://sonaquest.example/api/dev/audit", init, {
+      ANTHROPIC_API_KEY: "test-key",
+      DEV_EXPERIMENT: "1",
+    });
+    expect(published.status).toBe(404);
+  });
+
+  it("監査役に送るのは、Claude の文と固定の質問文だけ", () => {
+    const message = buildAuditMessage("その薬は何で確かめられますか？", "その薬のことは、何を見れば確かめられますか？");
+    const payload = JSON.parse(message.slice(message.indexOf("\n") + 1));
+    expect(Object.keys(payload)).toEqual(["text", "fixed_question"]);
+  });
+
+  it("監査役のプロンプトに、止める理由の種類と、止めない文がある", () => {
+    for (const c of AUDIT_CATEGORIES) expect(AUDIT_SYSTEM_PROMPT).toContain(c);
+    expect(AUDIT_SYSTEM_PROMPT).toContain("止めません");
   });
 });

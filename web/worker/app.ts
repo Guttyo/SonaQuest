@@ -5,8 +5,10 @@
 import { Hono } from "hono";
 import { parseTurnRequest } from "../src/flow/turnContract";
 import { MODEL, makeCallClaude, type CallClaude, type ClaudeOptions } from "./claude";
+import { AUDIT_MODEL, makeAudit } from "./audit";
 import { contentLogEnabled, devOverrides, logContent } from "./devlog";
-import { runTurn } from "./turn";
+import { promptTextProblem } from "./checks";
+import { ALLOWED_VOCABULARY, runTurn } from "./turn";
 
 export interface Env {
   /** Workers の secrets（手元では .dev.vars）。ブラウザには出さない */
@@ -78,6 +80,31 @@ export function createApp(
     }
     if (outcome.rejectReason !== null) console.warn(`turn: text_rejected:${outcome.rejectReason}`);
     return c.json(outcome.response);
+  });
+
+  // 監査役の比較実験だけで使う採点の入口（ADR-0030 の実験。docs/evidence.md）。
+  // 比較実験の切り替え（devOverrides）が有効なとき、つまり手元で DEV_EXPERIMENT を指定したときだけ使える
+  app.post("/api/dev/audit", async (c) => {
+    const experiment = devOverrides(c.env, c.req.url);
+    const apiKey = c.env.ANTHROPIC_API_KEY;
+    if (experiment === null || apiKey === undefined || apiKey === "") {
+      return c.json({ error: "not_found" }, 404);
+    }
+    const body = (await c.req.json().catch(() => null)) as {
+      text?: unknown;
+      fixed_question?: unknown;
+    } | null;
+    if (typeof body?.text !== "string" || typeof body.fixed_question !== "string") {
+      return c.json({ error: "bad_request" }, 400);
+    }
+    // 比べるため、正規表現の検査（checks.ts）の結果も返す
+    const regex = promptTextProblem(body.text, {
+      userTexts: [],
+      allowed: [body.fixed_question, ...ALLOWED_VOCABULARY],
+    });
+    const started = Date.now();
+    const result = await makeAudit(apiKey, experiment.model ?? AUDIT_MODEL)(body.text, body.fixed_question);
+    return c.json({ ...result, regex, ms: Date.now() - started });
   });
 
   app.all("/api/*", (c) => c.json({ error: "not_found" }, 404));
