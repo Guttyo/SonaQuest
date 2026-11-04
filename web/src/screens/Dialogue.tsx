@@ -120,7 +120,11 @@ export function Dialogue({ state, dispatch }: Props) {
             <h2>想定外の出来事</h2>
             {EVENT_FOCUS[state.event] !== null && (
               <div className={`event-visual event-visual-${state.event}`} aria-hidden="true">
-                <SourceIcon id={EVENT_FOCUS[state.event]!} className="source-icon event-icon" />
+                <SourceIcon
+                  id={EVENT_FOCUS[state.event]!}
+                  className="source-icon event-icon"
+                  battery={state.event === "battery"}
+                />
                 <span className="event-slash" />
               </div>
             )}

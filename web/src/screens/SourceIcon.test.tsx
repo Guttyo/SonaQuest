@@ -57,3 +57,15 @@ describe("情報源と薬のまわりのものの絵（A-04）", () => {
     expect(new Set(drawn).size).toBe(ids.length);
   });
 });
+
+describe("スマホと雲の絵（2026-11-05 オーナーの指摘：電池・波線は要らない）", () => {
+  it("カードなどで使うスマホの絵には電池の印が無く、電池切れの場面でだけ出す", () => {
+    expect(renderToStaticMarkup(<SourceIcon id="smartphone" />)).not.toContain("battery-level");
+    expect(renderToStaticMarkup(<SourceIcon id="smartphone" battery />)).toContain("battery-level");
+  });
+
+  it("アプリ・マイナポータルの絵は雲だけ（線は1本）", () => {
+    const html = renderToStaticMarkup(<SourceIcon id="online" />);
+    expect(html.match(/<path/g)).toHaveLength(1);
+  });
+});

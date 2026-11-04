@@ -45,7 +45,16 @@ export type IllustrationId = DrawnSource | ExtraIllustration;
  * 情報源と薬のまわりのものの絵（A-04 の一部。期間中に描いた SVG。実在の製品・サービスのロゴ、医療者の記号、
  * 実在の薬の名前・形、薬効や量は描かない）。絵は飾りで、意味は必ず隣の文字で示す（A-05）
  */
-export function SourceIcon({ id, className }: { id: IllustrationId; className?: string }) {
+export function SourceIcon({
+  id,
+  className,
+  battery = false,
+}: {
+  id: IllustrationId;
+  className?: string;
+  /** スマホの画面に電池の印を出す。電池切れの出来事の場面だけで使う（カードやほかの場所では出さない） */
+  battery?: boolean;
+}) {
   return (
     <svg
       className={className ?? "source-icon"}
@@ -60,19 +69,23 @@ export function SourceIcon({ id, className }: { id: IllustrationId; className?: 
     >
       {id === "smartphone" && (
         <>
+          {/* 本体と、上の受話口・下のボタンだけの、どの製品にも似せないスマホ */}
           <rect x="13" y="4" width="22" height="40" rx="4" />
           <path d="M21 9h6" />
-          {/* 電池の印。電池切れの場面では中の量が減る（styles.css の .battery-level） */}
-          <rect x="18" y="19" width="12" height="16" rx="2" />
-          <path d="M22 17h4" />
-          <rect className="battery-level" x="20.5" y="21.5" width="7" height="11" rx="1" fill="currentColor" stroke="none" />
+          <path d="M22 39h4" />
+          {battery && (
+            <>
+              {/* 電池の印。電池切れの場面では中の量が減る（styles.css の .battery-level） */}
+              <rect x="18" y="17" width="12" height="16" rx="2" />
+              <path d="M22 15h4" />
+              <rect className="battery-level" x="20.5" y="19.5" width="7" height="11" rx="1" fill="currentColor" stroke="none" />
+            </>
+          )}
         </>
       )}
       {id === "online" && (
-        <>
-          <path d="M14 34a9 9 0 0 1 1-18 12 12 0 0 1 22 3 8 8 0 0 1-1 15z" />
-          <path d="M18 40l3-3 3 3 3-3 3 3" />
-        </>
+        // インターネットにつないで見るもの：雲だけ（下の波線は外した）。上下の中ほどに置く
+        <path d="M14 37a9 9 0 0 1 1-18 12 12 0 0 1 22 3 8 8 0 0 1-1 15z" />
       )}
       {id === "notebook" && (
         <>
