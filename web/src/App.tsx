@@ -43,7 +43,12 @@ export function App() {
     const target = main.querySelector<HTMLElement>("[data-scroll-target]");
     if (target !== null) {
       target.focus({ preventScroll: true });
-      target.scrollIntoView({ block: "start" });
+      // 対話の画面の回答の欄と「考え中」は、新しい発言が下に足されるので、画面のいちばん下へ送る（Issue #46）
+      if (target.dataset.scrollTarget === "end") {
+        window.scrollTo(0, document.documentElement.scrollHeight);
+      } else {
+        target.scrollIntoView({ block: "start" });
+      }
     } else {
       main.focus({ preventScroll: true });
       window.scrollTo(0, 0);

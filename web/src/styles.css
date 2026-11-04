@@ -569,6 +569,158 @@ textarea {
   white-space: nowrap;
 }
 
+/* 対話の画面（Issue #46）：聞き取り係を上に固定し、やり取りは真ん中で上から下へ流れ、回答の欄を下に固定する。
+   ヘッダーの高さは「上の余白（安全領域）＋ボタン44px＋下の余白10px＋線1px」で決まる */
+.dialogue {
+  --header-h: calc(max(10px, env(safe-area-inset-top)) + 55px);
+  --stage-h: 164px;
+  /* 対話が短いときも、回答の欄が画面の下端に来るように、ヘッダーの下の高さを埋める */
+  min-height: calc(100dvh - var(--header-h));
+}
+
+.app-main:has(.dialogue) {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.dialogue-stage {
+  position: sticky;
+  top: var(--header-h);
+  z-index: 1;
+  margin: 0 -16px;
+  padding: 8px 16px 6px;
+  background: var(--cream);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dialogue-stage-figure {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dialogue-stage .puppet3d-stage {
+  flex: none;
+  width: 128px;
+  height: 104px;
+}
+
+.dialogue-stage-side {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dialogue-stage-side .listener-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.dialogue-stage-side .speaker-controls {
+  margin: 0;
+}
+
+.listener-light.listener-light-stage {
+  width: 64px;
+  height: 64px;
+  margin: 8px 20px;
+}
+
+.progress {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 4px;
+}
+
+.progress-step {
+  flex: 1;
+  padding: 2px 0;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.progress-done {
+  background: var(--mint);
+  border-color: var(--mint);
+}
+
+.progress-current {
+  background: var(--mint-strong);
+  border-color: var(--mint-strong);
+  color: #fff;
+  font-weight: 700;
+}
+
+.dialogue-log {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 0 16px;
+}
+
+/* 固定した上の聞き取り係の下に隠れないように */
+.dialogue [data-scroll-target] {
+  scroll-margin-top: calc(var(--header-h) + var(--stage-h) + 8px);
+}
+
+.dialogue-dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin: auto -16px 0;
+  padding: 8px 16px max(10px, env(safe-area-inset-bottom));
+  background: var(--cream);
+  border-top: 1px solid var(--line);
+  gap: 6px;
+}
+
+.dialogue-dock .talk {
+  margin: 0;
+}
+
+.dock-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.dock-row textarea {
+  flex: 1;
+  min-width: 0;
+}
+
+.dock-row button.primary {
+  flex: none;
+}
+
+.answer-hint {
+  color: var(--ink-soft);
+}
+
+@media (min-width: 768px) {
+  .dialogue {
+    --stage-h: 220px;
+  }
+
+  .dialogue-stage .puppet3d-stage {
+    width: 200px;
+    height: 160px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation: none !important;
