@@ -495,3 +495,19 @@ export const SELF_HARM_SOURCE = {
   url: "https://www.mhlw.go.jp/mamorouyokokoro/",
   checkedOn: "2026-11-02",
 } as const;
+
+// --- BGM（B-03、ADR-0039） ---------------------------------------------------
+
+// [TODO-OWNER: BGM の操作の文字と説明（Claude Code の下書き）]
+export const BGM_LABELS = {
+  /** ヘッダーの開閉ボタン。後ろに今の状態（オン・オフ）を続ける */
+  name: "BGM",
+  on: "オン",
+  off: "オフ",
+  /** 開いた欄の、鳴らす・止めるボタン */
+  toggle: "BGM を鳴らす",
+  volume: "BGM の音量",
+  close: "閉じる",
+  unavailable: "この端末では BGM を使えません。訓練はそのまま続けられます。",
+  note: "読み上げの間は小さくなります。訓練をやめると止まります。",
+} as const;

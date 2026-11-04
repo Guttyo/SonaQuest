@@ -1,4 +1,7 @@
 import { useEffect, useReducer, useRef } from "react";
+import { bgmStopsOn } from "./bgm/bgm";
+import { BgmControls } from "./bgm/BgmControls";
+import { getBgm, stopBgm, useBgmSnapshot } from "./bgm/browser";
 import { requestTurn } from "./flow/api";
 import { STOP_LABEL } from "./flow/content";
 import { buildTurnRequest, initialState, trainingReducer } from "./flow/training";
@@ -13,6 +16,13 @@ export function App() {
   const [state, dispatch] = useReducer(trainingReducer, initialState);
   const { stage } = state;
   const mainRef = useRef<HTMLElement>(null);
+  const bgm = useBgmSnapshot();
+
+  // 中断の画面（訓練をやめた・体調の訴え・自傷の案内）では BGM を止める（ADR-0011、ADR-0039）。
+  // 終わりの画面でも止める（下書き。bgm.ts のマーカー）。振り返りでは鳴らし続ける
+  useEffect(() => {
+    if (bgmStopsOn(stage.name)) stopBgm();
+  }, [stage.name]);
 
   // 回答を受け取ったら Claude に1回だけ聞く（開発中の StrictMode で effect が2回動いても送り直さない）。
   // やめた・やり直した後に届いた返事は、reducer が回と件数を見て捨てる
@@ -59,6 +69,14 @@ export function App() {
     <div className="app">
       <header className="app-header">
         <span className="app-title">お薬の避難訓練</span>
+        {/* BGM の操作はヘッダーの決まった1か所。中断の画面では出さない（B-03） */}
+        {stage.name !== "stopped" && (
+          <BgmControls
+            snapshot={bgm}
+            onToggle={() => getBgm().toggle()}
+            onVolume={(volume) => getBgm().setVolume(volume)}
+          />
+        )}
         {stage.name !== "stopped" && (
           <button
             type="button"
@@ -71,7 +89,13 @@ export function App() {
       </header>
       <main ref={mainRef} tabIndex={-1} className="app-main">
         {stage.name === "intro" && (
-          <Intro onStart={(mode) => dispatch({ type: "start", mode })} />
+          <Intro
+            onStart={(mode) => {
+              // 初期状態がオンのときだけ、始めるボタンを押したところで鳴らす（下書きはオフ）
+              getBgm().startIfDefaultOn();
+              dispatch({ type: "start", mode });
+            }}
+          />
         )}
         {(stage.name === "first" ||
           stage.name === "confirm" ||

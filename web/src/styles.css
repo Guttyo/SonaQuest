@@ -1229,3 +1229,122 @@ body,
   width: 44px;
   height: 44px;
 }
+
+/* BGM の操作（B-03、ADR-0039）。ヘッダーの決まった1か所に、今の状態を文字で出す。
+   開いた欄はヘッダーの下に重ねて出し、ヘッダーの高さ（--header-h）は変えない */
+.app-header {
+  z-index: 3;
+}
+
+.app-header .app-title {
+  margin-right: auto;
+}
+
+.bgm-opener {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 2px solid var(--control-border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sub);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.bgm-opener-on {
+  border-color: var(--mint-strong);
+  color: var(--mint-strong);
+}
+
+.bgm-state {
+  font-weight: var(--fw-regular);
+}
+
+.bgm-panel {
+  position: absolute;
+  top: 100%;
+  right: max(16px, env(safe-area-inset-right));
+  width: min(280px, calc(100vw - 32px));
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
+}
+
+.bgm-toggle,
+.bgm-close {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 2px solid var(--mint-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--mint-strong);
+  font: inherit;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  cursor: pointer;
+}
+
+.bgm-toggle[aria-pressed="true"] {
+  background: var(--mint);
+}
+
+.bgm-close {
+  border-color: var(--control-border);
+  color: var(--ink);
+  font-weight: var(--fw-regular);
+}
+
+.bgm-volume {
+  display: grid;
+  gap: 4px;
+  font-size: var(--fs-sub);
+}
+
+.bgm-volume input {
+  width: 100%;
+  min-height: 44px;
+  accent-color: var(--mint-strong);
+}
+
+.bgm-note {
+  margin: 0;
+  line-height: var(--lh-tight);
+}
+
+.bgm-opener:focus-visible,
+.bgm-toggle:focus-visible,
+.bgm-close:focus-visible,
+.bgm-volume input:focus-visible {
+  outline: 3px solid var(--orange-strong);
+  outline-offset: 2px;
+}
+
+/* 幅375pxでも、題・BGM・訓練をやめるを1行に収め、ヘッダーの高さを変えない */
+.app-header .app-title,
+.app-header .stop-button {
+  white-space: nowrap;
+}
+
+@media (max-width: 400px) {
+  .app-header {
+    gap: 6px;
+  }
+
+  .bgm-opener {
+    gap: 2px;
+    padding: 0 8px;
+  }
+}
