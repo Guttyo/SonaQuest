@@ -127,7 +127,7 @@ npm --prefix web run dev:worker
 - `wrangler dev` は workerd を使う。npm が workerd のインストール時のスクリプトを止めたときは、オーナーが中身を確かめて許可する（Claude Code は許可しない）
 - Workers は、手元からの呼び出しのときだけ Claude を呼ぶ。公開する版で Claude を使うには、回数制限と支出の上限（docs/safety-test-plan.md P7・P9）を満たした後に、Workers の設定で `PUBLIC_TURN=1` を入れる（デプロイと設定はオーナーの承認の後）
 - 読み上げの中継（`/api/tts`、ElevenLabs）も、同じ `PUBLIC_TURN=1` で公開の宛先から使えるようになる（2026-11-04 オーナー決定、ADR-0033）。そのときは接続元ごとの回数制限（ADR-0035）を通し、別のサイトのページからの呼び出しは拒む。ElevenLabs が使えないときは、画面がブラウザの読み上げに切り替える。ElevenLabs のアカウントには、オーナーが使用量の上限を設定した。上限に達したときも、画面はブラウザの読み上げに切り替える
-- 3D の対話モード（押して話す・読み上げ）は、はじめにの画面で「3D：声で答えて読み上げを聞く」を選ぶ。http://localhost:5173/?mode=3d を開くと、3D が最初から選ばれた状態になる（選び直せる）
+- 3D の対話モード（押して話す・読み上げ）は、はじめにの画面で「3D：声で答えて読み上げを聞く」を選ぶ。http://localhost:5173/?mode=3d を開くと、最初の表示だけ 3D が選ばれた状態になる（選び直せる。「はじめに戻る」で戻ると既定の 2D）
 - Workers のまとめ（デプロイはしない確かめ）：
 ```bash
 npm --prefix web run bundle:worker
