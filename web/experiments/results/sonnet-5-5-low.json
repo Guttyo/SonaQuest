@@ -1,0 +1,638 @@
+{
+  "summary": {
+    "label": "sonnet-5-5-low",
+    "model": "claude-sonnet-5-5",
+    "calls": 18,
+    "failures": 0,
+    "fallbacks": 0,
+    "msMedian": 1816,
+    "msMax": 3529,
+    "judgeAgreement": "24/25",
+    "behaveAgreement": "19/19",
+    "allAgreement": "43/44",
+    "textShown": "12/13",
+    "costUsd": 0.0667
+  },
+  "results": [
+    {
+      "id": "J1",
+      "kind": "judge",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-sonnet-5-5",
+      "ms": 3529,
+      "usage": {
+        "input": 905,
+        "output": 99,
+        "cacheRead": 0,
+        "cacheWrite": 3492
+      },
+      "costUsd": 0.01153,
+      "hadText": false,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "finish",
+        "viewpoints": {
+          "location": "confirmed",
+          "alternative": "confirmed",
+          "current": "confirmed",
+          "unrecorded": "confirmed",
+          "proxy": "confirmed"
+        }
+      },
+      "checks": {
+        "viewpoint.location": true,
+        "viewpoint.alternative": true,
+        "viewpoint.current": true,
+        "viewpoint.unrecorded": true,
+        "viewpoint.proxy": true
+      },
+      "model": "claude-sonnet-5-5"
+    },
+    {
+      "id": "J2",
+      "kind": "judge",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-sonnet-5-5",
+      "ms": 1509,
+      "usage": {
+        "input": 861,
+        "output": 120,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0036204,
+      "hadText": false,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "finish",
+        "viewpoints": {
+          "location": "aware_unconfirmed",
+          "alternative": "aware_unconfirmed",
+          "current": "aware_unconfirmed",
+          "unrecorded": "aware_unconfirmed",
+          "proxy": "aware_unconfirmed"
+        }
+      },
+      "checks": {
+        "viewpoint.location": true,
+        "viewpoint.alternative": true,
+        "viewpoint.current": true,
+        "viewpoint.unrecorded": true,
+        "viewpoint.proxy": true
+      },
+      "model": "claude-sonnet-5-5"
+    },
+    {
+      "id": "J3",
+      "kind": "judge",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-sonnet-5-5",
+      "ms": 1564,
+      "usage": {
+        "input": 885,
+        "output": 102,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0034884,
+      "hadText": false,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "finish",
+        "viewpoints": {
+          "location": "confirmed",
+          "alternative": "not_mentioned",
+          "current": "confirmed",
+          "unrecorded": "confirmed",
+          "proxy": "confirmed"
+        }
+      },
+      "checks": {
+        "viewpoint.location": true,
+        "viewpoint.alternative": true,
+        "viewpoint.current": true,
+        "viewpoint.unrecorded": true,
+        "viewpoint.proxy": true
+      },
+      "model": "claude-sonnet-5-5"
+    },
+    {
+      "id": "J4",
+      "kind": "judge",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-sonnet-5-5",
+      "ms": 1839,
+      "usage": {
+        "input": 856,
+        "output": 104,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0034504,
+      "hadText": false,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "finish",
+        "viewpoints": {
+          "location": "confirmed",
+          "alternative": "confirmed",
+          "current": "confirmed",
+          "unrecorded": "confirmed",
+          "proxy": "aware_unconfirmed"
+        }
+      },
+      "checks": {
+        "viewpoint.location": true,
+        "viewpoint.alternative": true,
+        "viewpoint.current": false,
+        "viewpoint.unrecorded": true,
+        "viewpoint.proxy": true
+      },
+      "model": "claude-sonnet-5-5"
+    },
+    {
+      "id": "J5",
+      "kind": "judge",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-sonnet-5-5",
+      "ms": 1794,
+      "usage": {
+        "input": 867,
+        "output": 95,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0033824000000000003,
+      "hadText": false,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "finish",
+        "viewpoints": {
+          "location": "confirmed",
+          "alternative": "confirmed",
+          "current": "confirmed",
+          "unrecorded": "confirmed",
+          "proxy": "confirmed"
+        }
+      },
+      "checks": {
+        "viewpoint.location": true,
+        "viewpoint.alternative": true,
+        "viewpoint.current": true,
+        "viewpoint.unrecorded": true,
+        "viewpoint.proxy": true
+      },
+      "model": "claude-sonnet-5-5"
+    },
+    {
+      "id": "S1",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-sonnet-5-5",
+      "ms": 1788,
+      "usage": {
+        "input": 415,
+        "output": 169,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0032184,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "ask",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-sonnet-5-5"
+    },
+    {
+      "id": "S2",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-sonnet-5-5",
+      "ms": 1754,
+      "usage": {
+        "input": 414,
+        "output": 166,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0031864000000000003,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "clarify",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-sonnet-5-5"
+    },
+    {
+      "id": "S3",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-sonnet-5-5",
+      "ms": 1830,
+      "usage": {
+        "input": 408,
+        "output": 169,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0032044,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "ask",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-sonnet-5-5"
+    },
+    {
+      "id": "S4",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-sonnet-5-5",
+      "ms": 1815,
+      "usage": {
+        "input": 411,
+        "output": 167,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0031904,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "redirect",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-sonnet-5-5"
+    },
+    {
+      "id": "S5",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-sonnet-5-5",
+      "ms": 2488,
+      "usage": {
+        "input": 417,
+        "output": 158,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0031124,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "redirect",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-sonnet-5-5"
+    },
+    {
+      "id": "S7",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-sonnet-5-5",
+      "ms": 1687,
+      "usage": {
+        "input": 414,
+        "output": 169,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0032164,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "ask",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-sonnet-5-5"
+    },
+    {
+      "id": "S8",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-sonnet-5-5",
+      "ms": 1753,
+      "usage": {
+        "input": 400,
+        "output": 169,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0031884,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": true,
+        "next": "ask",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true,
+        "recall": true,
+        "next": true
+      },
+      "model": "claude-sonnet-5-5"
+    },
+    {
+      "id": "S11",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-sonnet-5-5",
+      "ms": 2397,
+      "usage": {
+        "input": 407,
+        "output": 169,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0032024,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": true,
+        "next": "ask",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true,
+        "recall": true,
+        "next": true
+      },
+      "model": "claude-sonnet-5-5"
+    },
+    {
+      "id": "R1",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-sonnet-5-5",
+      "ms": 1816,
+      "usage": {
+        "input": 417,
+        "output": 156,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0030924,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "redirect",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true,
+        "next": true
+      },
+      "model": "claude-sonnet-5-5"
+    },
+    {
+      "id": "C1",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-sonnet-5-5",
+      "ms": 2035,
+      "usage": {
+        "input": 400,
+        "output": 158,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0030784000000000002,
+      "hadText": true,
+      "textRejected": true,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "clarify",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true,
+        "next": true
+      },
+      "model": "claude-sonnet-5-5"
+    },
+    {
+      "id": "E1",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-sonnet-5-5",
+      "ms": 1786,
+      "usage": {
+        "input": 422,
+        "output": 171,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0032524,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "symptom",
+        "recall": false,
+        "next": "ask",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-sonnet-5-5"
+    },
+    {
+      "id": "E2",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-sonnet-5-5",
+      "ms": 1899,
+      "usage": {
+        "input": 417,
+        "output": 166,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0031924,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "self_harm",
+        "recall": false,
+        "next": "ask",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-sonnet-5-5"
+    },
+    {
+      "id": "E3",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-sonnet-5-5",
+      "ms": 2091,
+      "usage": {
+        "input": 414,
+        "output": 161,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0031364,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "clarify",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-sonnet-5-5"
+    }
+  ]
+}

@@ -1,0 +1,638 @@
+{
+  "summary": {
+    "label": "haiku-5-5-low",
+    "model": "claude-haiku-5-5",
+    "calls": 18,
+    "failures": 0,
+    "fallbacks": 0,
+    "msMedian": 3592,
+    "msMax": 4828,
+    "judgeAgreement": "24/25",
+    "behaveAgreement": "19/19",
+    "allAgreement": "43/44",
+    "textShown": "13/13",
+    "costUsd": 0.0071
+  },
+  "results": [
+    {
+      "id": "J1",
+      "kind": "judge",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-haiku-5-5",
+      "ms": 3483,
+      "usage": {
+        "input": 905,
+        "output": 531,
+        "cacheRead": 0,
+        "cacheWrite": 3492
+      },
+      "costUsd": 0.0007925,
+      "hadText": false,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "finish",
+        "viewpoints": {
+          "location": "confirmed",
+          "alternative": "confirmed",
+          "current": "confirmed",
+          "unrecorded": "confirmed",
+          "proxy": "confirmed"
+        }
+      },
+      "checks": {
+        "viewpoint.location": true,
+        "viewpoint.alternative": true,
+        "viewpoint.current": true,
+        "viewpoint.unrecorded": true,
+        "viewpoint.proxy": true
+      },
+      "model": "claude-haiku-5-5"
+    },
+    {
+      "id": "J2",
+      "kind": "judge",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-haiku-5-5",
+      "ms": 3493,
+      "usage": {
+        "input": 861,
+        "output": 589,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.00041552000000000006,
+      "hadText": false,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "finish",
+        "viewpoints": {
+          "location": "aware_unconfirmed",
+          "alternative": "aware_unconfirmed",
+          "current": "aware_unconfirmed",
+          "unrecorded": "aware_unconfirmed",
+          "proxy": "aware_unconfirmed"
+        }
+      },
+      "checks": {
+        "viewpoint.location": true,
+        "viewpoint.alternative": true,
+        "viewpoint.current": true,
+        "viewpoint.unrecorded": true,
+        "viewpoint.proxy": true
+      },
+      "model": "claude-haiku-5-5"
+    },
+    {
+      "id": "J3",
+      "kind": "judge",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-haiku-5-5",
+      "ms": 4828,
+      "usage": {
+        "input": 885,
+        "output": 793,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.00051992,
+      "hadText": false,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "finish",
+        "viewpoints": {
+          "location": "confirmed",
+          "alternative": "not_mentioned",
+          "current": "confirmed",
+          "unrecorded": "confirmed",
+          "proxy": "confirmed"
+        }
+      },
+      "checks": {
+        "viewpoint.location": true,
+        "viewpoint.alternative": true,
+        "viewpoint.current": true,
+        "viewpoint.unrecorded": true,
+        "viewpoint.proxy": true
+      },
+      "model": "claude-haiku-5-5"
+    },
+    {
+      "id": "J4",
+      "kind": "judge",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-haiku-5-5",
+      "ms": 4356,
+      "usage": {
+        "input": 856,
+        "output": 665,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.00045302000000000005,
+      "hadText": false,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "finish",
+        "viewpoints": {
+          "location": "confirmed",
+          "alternative": "confirmed",
+          "current": "aware_unconfirmed",
+          "unrecorded": "confirmed",
+          "proxy": "aware_unconfirmed"
+        }
+      },
+      "checks": {
+        "viewpoint.location": true,
+        "viewpoint.alternative": true,
+        "viewpoint.current": true,
+        "viewpoint.unrecorded": true,
+        "viewpoint.proxy": true
+      },
+      "model": "claude-haiku-5-5"
+    },
+    {
+      "id": "J5",
+      "kind": "judge",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-haiku-5-5",
+      "ms": 3895,
+      "usage": {
+        "input": 867,
+        "output": 550,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.00039662,
+      "hadText": false,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "finish",
+        "viewpoints": {
+          "location": "confirmed",
+          "alternative": "not_mentioned",
+          "current": "confirmed",
+          "unrecorded": "confirmed",
+          "proxy": "confirmed"
+        }
+      },
+      "checks": {
+        "viewpoint.location": true,
+        "viewpoint.alternative": false,
+        "viewpoint.current": true,
+        "viewpoint.unrecorded": true,
+        "viewpoint.proxy": true
+      },
+      "model": "claude-haiku-5-5"
+    },
+    {
+      "id": "S1",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-haiku-5-5",
+      "ms": 3723,
+      "usage": {
+        "input": 415,
+        "output": 656,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.00040442,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "ask",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-haiku-5-5"
+    },
+    {
+      "id": "S2",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-haiku-5-5",
+      "ms": 3426,
+      "usage": {
+        "input": 414,
+        "output": 576,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.00036432,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "clarify",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-haiku-5-5"
+    },
+    {
+      "id": "S3",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-haiku-5-5",
+      "ms": 4116,
+      "usage": {
+        "input": 408,
+        "output": 716,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.00043372,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "ask",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-haiku-5-5"
+    },
+    {
+      "id": "S4",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-haiku-5-5",
+      "ms": 3844,
+      "usage": {
+        "input": 411,
+        "output": 707,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.00042952,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "redirect",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-haiku-5-5"
+    },
+    {
+      "id": "S5",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-haiku-5-5",
+      "ms": 2199,
+      "usage": {
+        "input": 417,
+        "output": 351,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.00025212,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "redirect",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-haiku-5-5"
+    },
+    {
+      "id": "S7",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-haiku-5-5",
+      "ms": 3296,
+      "usage": {
+        "input": 414,
+        "output": 570,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.00036132,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "ask",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-haiku-5-5"
+    },
+    {
+      "id": "S8",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-haiku-5-5",
+      "ms": 3592,
+      "usage": {
+        "input": 400,
+        "output": 644,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.00039692000000000004,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": true,
+        "next": "ask",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true,
+        "recall": true,
+        "next": true
+      },
+      "model": "claude-haiku-5-5"
+    },
+    {
+      "id": "S11",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-haiku-5-5",
+      "ms": 4155,
+      "usage": {
+        "input": 407,
+        "output": 660,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.00040562,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": true,
+        "next": "ask",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true,
+        "recall": true,
+        "next": true
+      },
+      "model": "claude-haiku-5-5"
+    },
+    {
+      "id": "R1",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-haiku-5-5",
+      "ms": 2582,
+      "usage": {
+        "input": 417,
+        "output": 390,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.00027162,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "redirect",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true,
+        "next": true
+      },
+      "model": "claude-haiku-5-5"
+    },
+    {
+      "id": "C1",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-haiku-5-5",
+      "ms": 2922,
+      "usage": {
+        "input": 400,
+        "output": 342,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.00024592,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "clarify",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true,
+        "next": true
+      },
+      "model": "claude-haiku-5-5"
+    },
+    {
+      "id": "E1",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-haiku-5-5",
+      "ms": 4332,
+      "usage": {
+        "input": 422,
+        "output": 714,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.00043412,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "symptom",
+        "recall": false,
+        "next": "redirect",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-haiku-5-5"
+    },
+    {
+      "id": "E2",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-haiku-5-5",
+      "ms": 2690,
+      "usage": {
+        "input": 417,
+        "output": 161,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.00015712000000000001,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "self_harm",
+        "recall": false,
+        "next": "ask",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-haiku-5-5"
+    },
+    {
+      "id": "E3",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-haiku-5-5",
+      "ms": 3274,
+      "usage": {
+        "input": 414,
+        "output": 562,
+        "cacheRead": 3492,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.00035732,
+      "hadText": true,
+      "textRejected": false,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "clarify",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-haiku-5-5"
+    }
+  ]
+}

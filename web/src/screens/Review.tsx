@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  AI_FAILED_NOTE,
   EVENTS,
   JUDGMENT_LABELS,
   JUDGMENT_NOTE,
@@ -13,7 +14,7 @@ import {
 import { isWeak, orderPrepActions, undeterminedJudgments } from "../flow/rules";
 import type { TrainingState } from "../flow/training";
 import type { PrepActionId, TimingId } from "../flow/types";
-import { Exchange, questionText } from "./Transcript";
+import { Exchange, ListenerLine } from "./Transcript";
 
 interface Props {
   state: TrainingState;
@@ -21,8 +22,9 @@ interface Props {
 }
 
 export function Review({ state, onChoose }: Props) {
-  // Phase 1 は Claude を使わないので、判定はすべて「判定できませんでした」（ADR-0012）
-  const judgments = undeterminedJudgments();
+  // Claude を使わない版と、途中で失敗した回は、判定をすべて「判定できませんでした」にする（ADR-0012）
+  const judgments =
+    state.ai === "on" && state.judgments !== null ? state.judgments : undeterminedJudgments();
   const allUndetermined = VIEWPOINT_ORDER.every((v) => judgments[v] === "undetermined");
   const weak = VIEWPOINT_ORDER.filter((v) => isWeak(judgments[v]));
   const first = state.answers.filter((a) => a.half === "first");
@@ -37,10 +39,16 @@ export function Review({ state, onChoose }: Props) {
   return (
     <section className="screen" aria-labelledby="review-title">
       <h1 id="review-title">ふりかえり</h1>
+      {/* 後半の最後の回答への受け止め（ADR-0029 の2） */}
+      {state.closingAck !== null && (
+        <ListenerLine>{state.closingAck}</ListenerLine>
+      )}
       <p>点数や合否はありません。伝えられたこと、まだ確かめていないことを振り返りましょう。</p>
 
       <h2>5つの観点</h2>
-      {allUndetermined && <p className="notice">{UNDETERMINED_NOTE}</p>}
+      {allUndetermined && (
+        <p className="notice">{state.ai === "off" ? UNDETERMINED_NOTE : AI_FAILED_NOTE}</p>
+      )}
       <dl className="viewpoints">
         {VIEWPOINT_ORDER.map((v) => (
           <div key={v} className="viewpoint">
@@ -64,8 +72,8 @@ export function Review({ state, onChoose }: Props) {
       <h2>あなたの回答（入力したまま）</h2>
       <h3>出来事の前</h3>
       <ol className="transcript">
-        {first.map((a) => (
-          <Exchange key={a.questionId} answer={a} question={questionText(state, a)} />
+        {first.map((a, i) => (
+          <Exchange key={`first-${i}`} answer={a} />
         ))}
       </ol>
       {state.event !== null && (
@@ -82,8 +90,8 @@ export function Review({ state, onChoose }: Props) {
       )}
       <h3>出来事の後</h3>
       <ol className="transcript">
-        {second.map((a) => (
-          <Exchange key={a.questionId} answer={a} question={questionText(state, a)} />
+        {second.map((a, i) => (
+          <Exchange key={`second-${i}`} answer={a} />
         ))}
       </ol>
 

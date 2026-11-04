@@ -9,7 +9,10 @@ import {
 } from "./training";
 import type { SourceId } from "./types";
 
-function run(actions: TrainingAction[], from = initialState): TrainingState {
+/** Claude を使わない固定の進行（AI_CONNECTED=false、または失敗の後と同じ流れ） */
+const offline: TrainingState = { ...initialState, ai: "off" };
+
+function run(actions: TrainingAction[], from = offline): TrainingState {
   return actions.reduce(trainingReducer, from);
 }
 
@@ -85,10 +88,12 @@ describe("訓練の流れ", () => {
   it("回答は入力そのものを保持し、前半と後半を区別する", () => {
     const raw = "  手帳は台所の引き出し。\n最近変わった気がする  ";
     const state = run([{ type: "start" }, answer(raw)]);
-    expect(state.answers[0]).toEqual({
+    expect(state.answers[0]).toMatchObject({
       questionId: "first_medicines",
       half: "first",
       text: raw,
+      kind: "answer",
+      recall: false,
     });
   });
 
@@ -185,7 +190,7 @@ describe("体調の訴えらしい入力での中断（ADR-0011）", () => {
       { type: "confirm", source: "smartphone" },
       { type: "restart" },
     ]);
-    expect(state).toEqual(initialState);
+    expect(state).toEqual({ ...initialState, session: 1 });
   });
 });
 

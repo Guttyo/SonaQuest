@@ -6,9 +6,11 @@ import {
   SCENE_INTRO,
   SKIP_CONFIRM_LABEL,
   SOURCE_OPTIONS,
+  WAITING_TEXT,
 } from "../flow/content";
 import { MAX_ANSWERS, MAX_ANSWER_LENGTH, isAcceptableAnswer } from "../flow/rules";
 import {
+  countedAnswers,
   currentQuestion,
   type TrainingAction,
   type TrainingState,
@@ -31,19 +33,27 @@ export function Dialogue({ state, dispatch }: Props) {
       <p className="scene">{SCENE_INTRO}</p>
       <Transcript state={state} />
 
-      {question !== null && (
+      {question !== null && state.waiting && (
+        <p className="notice" role="status" data-scroll-target tabIndex={-1}>
+          {WAITING_TEXT}
+        </p>
+      )}
+
+      {question !== null && !state.waiting && (
         <AnswerForm
-          // 質問が変わったら下書きを消す
-          key={question.id}
-          questionText={question.text}
+          // 聞き取り係の発言が変わったら下書きを消す
+          key={state.answers.length}
+          questionText={state.prompt?.text ?? question.text}
           hint={ANSWER_HINTS[question.answerAs]}
-          answered={state.answers.length}
+          answered={countedAnswers(state.answers, "first") + countedAnswers(state.answers, "second")}
           onSubmit={(text) => dispatch({ type: "answer", text })}
         />
       )}
 
       {stage.name === "confirm" && (
         <ConfirmSource
+          ack={state.closingAck}
+          initial={state.sourceGuess}
           onConfirm={(source) => dispatch({ type: "confirm", source })}
         />
       )}
@@ -130,11 +140,17 @@ function AnswerForm({
 }
 
 function ConfirmSource({
+  ack,
+  initial,
   onConfirm,
 }: {
+  /** 前半の最後の回答への受け止め（ADR-0029 の2） */
+  ack: string | null;
+  /** 初期選択の候補（Claude）。本人がタップで確かめてから進む（ADR-0016、項目6） */
+  initial: SourceId | null;
   onConfirm: (source: SourceId | null) => void;
 }) {
-  const [selected, setSelected] = useState<SourceId | null>(null);
+  const [selected, setSelected] = useState<SourceId | null>(initial);
 
   return (
     <div
@@ -145,6 +161,7 @@ function ConfirmSource({
       aria-labelledby="confirm-prompt"
     >
       <Listener>
+        {ack !== null && <p>{ack}</p>}
         <p id="confirm-prompt">{CONFIRM_PROMPT}</p>
       </Listener>
       <fieldset className="options" aria-labelledby="confirm-prompt">
