@@ -7,7 +7,10 @@ export type ListenerMode = "2d" | "3d";
  */
 export type ListenerActivity = "idle" | "listening" | "speaking" | "thinking";
 
-/** 状態は動きだけでなく文字でも示す（ADR-0020） */
+/**
+ * 状態は動きだけでなく文字でも示す（ADR-0020）。
+ * [TODO-OWNER: 状態の文字の文面（Claude Code の下書き。ADR-0032 の状態の見せ方のマーカーとあわせて確かめる）]
+ */
 export const ACTIVITY_LABELS: Record<ListenerActivity, string> = {
   idle: "待っています",
   listening: "聞いています",
