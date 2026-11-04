@@ -100,7 +100,7 @@
 - Claudeのモデル選定と比較実験（ADR-0006、docs/evidence.md）
 - GitHubのRulesets設定、CI
 - 公開前の利用制限のうち、Claude APIの支出の上限（P9。オーナーが管理画面で設定）と、回数制限の実環境での確認（P7。Issue #58）。入力の大きさの上限（P8）と回数制限の実装（Issue #57）は済み（ADR-0003、ADR-0035、safety-test-plan P7〜P9）
-- 公開前のGit履歴全体の検査のうち、ブロックリストの語（safety-test-plan P5。オーナーが `sh .claude/hooks/run-python.sh .claude/hooks/scan_history.py --blocklist`（PowerShell では `py .claude\hooks\scan_history.py --blocklist`）を実行する。2026-11-04 時点で、リポジトリの `.claude/local/` が見当たらず、ブロックリストの場所をオーナーに確かめる）。秘密情報の形・非公開のパスは問題なし（Issue #58）
+- 公開前のGit履歴全体の検査のうち、ブロックリストの語（safety-test-plan P5。オーナーが `sh .claude/hooks/run-python.sh .claude/hooks/scan_history.py --blocklist`（PowerShell では `py .claude\hooks\scan_history.py --blocklist`）を実行する。2026-11-04 のオーナーの回答：ブロックリストのファイルは**まだ無い**。作るまで、コミット前フックと編集前 hook の「公開リポジトリに書けない語」の検出も働かない。作ったら、この検査を実行する）。秘密情報の形・非公開のパスは問題なし（Issue #58）
 - デモ動画、提出タグ
 - 状況データの書き出しスクリプト（Issue #5。ブランチ・PRはまだ無い）
 
