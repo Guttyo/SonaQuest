@@ -13,5 +13,15 @@
   // Workers Logs は使わない（ADR-0007。会話の本文を Cloudflare 側に残さない）
   "observability": {
     "enabled": false
-  }
+  },
+  // 回数制限（ADR-0035、safety-test-plan P7）。接続元の IP ごとに、60秒で10回まで（Issue #57 のオーナー決定）。
+  // Cloudflare の拠点ごとに数える近似の制限。namespace_id はアカウント内で重ならない数字の文字列（同じ値の binding は数を共有する）。
+  // 値を変えたら、デプロイし直すまで反映されない。公開の切り替え（PUBLIC_TURN=1）のときだけ使う
+  "ratelimits": [
+    {
+      "name": "TURN_LIMITER",
+      "namespace_id": "5701",
+      "simple": { "limit": 10, "period": 60 }
+    }
+  ]
 }

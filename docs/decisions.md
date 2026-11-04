@@ -611,3 +611,32 @@
   - [TODO-OWNER: 監査役を待つ時間と、画面が待つ上限（Claude Code の下書き：監査役6秒、画面16秒）]
   - 監査役のシステムプロンプトと、実験の期待の値は、それぞれのファイルのマーカーで確かめる（`web/worker/audit.ts`、`web/experiments/audit-cases.mjs`）
   - 考え中の表示の文言と動きは、`web/src/flow/content.ts` の `WAITING_TEXT` のマーカーで確かめる
+
+## ADR-0035 /api/turn の回数制限（Rate Limiting binding、IP ごと）
+- 状態：採用（実装。実環境の確認は Issue #58）　日付：2026-11-04（Issue #57）
+- 背景：`/api/turn` は誰でも呼べる、お金のかかる呼び出し口になる。公開前の必須条件の1つ（ADR-0003、safety-test-plan P7）として、リクエストの回数制限が要る。支出の上限（P9、Anthropic 側）は最後の守りで、総量は抑えられるが、短い間の連打は抑えられない。
+- → オーナー決定（2026-11-04、チャット）：「案どおり#57に着手して」。案は、方式 (a) Workers の Rate Limiting binding、IP ごと、60 秒で 10 回（同日のチャットの提示と、Issue #57 の本文）。全体の上限の併用は案に含まれていない。
+- 決定：
+  1. **方式**：Workers の Rate Limiting binding（`wrangler.jsonc` の `ratelimits`、binding 名 `TURN_LIMITER`、`namespace_id` は `"5701"`、`simple: { limit: 10, period: 60 }`）。依存パッケージは足さない（`wrangler` 4.156.0 が読む。型は `web/worker/ratelimit.ts` に最小限を自分で持つ）。
+  2. **数えるもの**：接続元の IP（Cloudflare が付ける `cf-connecting-ip`）ごと。キーは `turn:<IP>`。ヘッダーが無いときは `turn:unknown` を全員で共有して数える（数えるのをやめない）。関数は接頭辞を引数に取るので、別のお金のかかる呼び出し口（読み上げの中継など）は別の接頭辞で同じ関数を呼べる。
+  3. **数える場所**：`/api/turn` の、Claude を呼ぶ直前の最後の関門（公開の切り替えの確認、本文の大きさ・形・固定の順番の検査、API キーの確認の後）。外部へのお金のかかる呼び出しが起きない入力（形の違う入力、大きすぎる入力、API キー無し）は数えない。
+  4. **数える条件**：公開の切り替え（`PUBLIC_TURN=1`）のときだけ。手元の開発では数えない（比較実験が続けて呼ぶため）。公開の切り替えが無い公開環境は、回数制限の前にこれまでどおり閉じる。
+  5. **閉じ方**：上限を超えたら 429（`{"error":"rate_limited"}`、`Retry-After: 60`）で拒否し、Claude も監査役も呼ばない。公開の切り替えなのに binding が無い（設定漏れ）・binding が失敗したときは 503 で閉じる（回数制限の無いまま課金の呼び出しを開かない）。画面は `!response.ok` を失敗として扱うので、固定の進行で最後まで進む（ADR-0012、ADR-0028 項目6）。
+  6. **ログ**：`turn: rate_limited`、`turn: rate_limiter_no_limiter`、`turn: rate_limiter_error` の種類だけ。IP と本文は出さない（ADR-0007）。
+- 理由：
+  - 設定が `wrangler.jsonc` の数行で済み、状態を持つ部品（DB・Durable Objects）を足さない。「DB なし」の方針（ADR-0003）に合う。会話の本文は binding に渡さない。
+  - 近似でも、短い間の連打（誤動作・簡単な悪用）は止められる。総量は P9 で受ける。
+  - 公開の切り替えで binding が無いときに閉じることで、設定の誤りが課金に直結しない（ADR-0028 の12と同じ考え方）。
+- 却下案：
+  - Durable Objects で厳密に数える：状態を持つ（「DB なし」との調整が要る）。今の規模では厳密さは要らず、P9 が最後の守り。
+  - WAF の回数制限ルール：無料プランは 1 ルール・IP のみ・10 秒だけ。`workers.dev` ではゾーンが無く使えない見込み（確かめていない）。
+  - IP 以外のキー：ログインが無く、使える識別子がほとんど無い。公式は IP を勧めていない（共有されうるため）が、ほかに無い。
+  - 全体の上限だけにする：1 人の連打で全員が止まる。案に含まれていないので、併用もしていない。
+- 限界：
+  - **近似**：Cloudflare の拠点ごとに数え、世界全体では合算されない。上限をわずかに超えることがある。期間は 10 秒か 60 秒だけで、1 日あたりの上限は作れない（Cloudflare の公式ドキュメント、2026-11-04 に確認）。
+  - **同じ IP を多くの人が使う場所**（展示・授業・避難所の共有の回線など）では、正常な利用者も拒否されうる。拒否されても固定の進行で最後まで進む。1 人の通常の訓練は、数分かけて最大 10 回の呼び出しなので、1 人では超えない。同じ IP の複数人が同時に訓練すると、60 秒に合計 10 回を超えて拒否されることがある。入力を即時にした自動の通し（34〜71 秒）も、続けて 2 回流すと超える。値は `wrangler.jsonc` の1か所で、変えたらデプロイし直す。
+  - **実環境では未確認**：試験は偽の binding で行った。`wrangler dev` での binding の動作と、`workers.dev` での拠点ごとの挙動は確かめていない（Issue #58 で、デプロイした Workers に上限を超える回数を送って確かめる）。
+  - binding のカウンターを Cloudflare 側がどう保持するかを、公式は明示していない。アプリは IP を保存せず、ログにも出さない。
+- 影響：`web/worker/ratelimit.ts`（新規）、`web/worker/app.ts`（`Env` に `TURN_LIMITER`、入口で1回呼ぶ）、`web/wrangler.jsonc`、`web/worker/ratelimit.test.ts`・`turn.test.ts`、docs/safety-test-plan.md（P7）、docs/architecture.md、docs/STATUS.md。
+- オーナーが判断する点：
+  - [TODO-OWNER: 初回画面と README に、回数制限のために接続元の IP を Cloudflare が数えることを書くか（Claude Code の下書き：書く。アプリは IP を保存せず、ログにも出さない。privacy.md の「外部へ送るものを初回画面で示す」に沿う）]

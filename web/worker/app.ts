@@ -8,6 +8,7 @@ import { MODEL, makeCallClaude, type CallClaude, type ClaudeOptions } from "./cl
 import { AUDIT_MODEL, makeAudit, type Audit } from "./audit";
 import { contentLogEnabled, devOverrides, logContent } from "./devlog";
 import { promptTextProblem } from "./checks";
+import { checkRateLimit, type RateLimiter } from "./ratelimit";
 import { ALLOWED_VOCABULARY, followsFixedOrder, runTurn } from "./turn";
 
 export interface Env {
@@ -27,6 +28,11 @@ export interface Env {
    * 設定しないままデプロイしても、Claude を呼ばずに失敗を返す（画面は固定の進行で最後まで進む）
    */
   PUBLIC_TURN?: string;
+  /**
+   * 回数制限の binding（wrangler.jsonc の ratelimits。ADR-0035、safety-test-plan P7）。
+   * 公開の切り替え（PUBLIC_TURN=1）のときは必須で、無ければ /api/turn を閉じる
+   */
+  TURN_LIMITER?: RateLimiter;
 }
 
 /** 比較実験で測った値を載せる応答の見出し（開発中の比較実験のときだけ付ける） */
@@ -102,6 +108,23 @@ export function createApp(
     const apiKey = c.env.ANTHROPIC_API_KEY;
     if (apiKey === undefined || apiKey === "") {
       console.warn("turn: no_api_key");
+      return c.json({ error: "unavailable" }, 503);
+    }
+
+    // お金のかかる呼び出し（Claude）の直前の最後の関門。公開の切り替えのときだけ、接続元の IP ごとに数える
+    // （ADR-0003、ADR-0035、safety-test-plan P7）。binding が無い・失敗したときは閉じる。ログは種類だけ（IP を出さない）
+    const rate = await checkRateLimit(c.req.raw, {
+      enforce: c.env.PUBLIC_TURN === "1",
+      limiter: c.env.TURN_LIMITER,
+      prefix: "turn",
+    });
+    if (rate === "limited") {
+      console.warn("turn: rate_limited");
+      c.header("retry-after", "60");
+      return c.json({ error: "rate_limited" }, 429);
+    }
+    if (rate !== "allowed") {
+      console.warn(`turn: rate_limiter_${rate}`);
       return c.json({ error: "unavailable" }, 503);
     }
 
