@@ -8,7 +8,7 @@
 - STATUS.md の更新漏れを知らせる hook（`.claude/hooks/status_check.py`。Issue #13、ADR-0023）：セッション開始時に、STATUS.md に残ったマージ済みのブランチ名を知らせる。`gh pr create` の前に、ブランチで STATUS.md が変わっていなければ止める
 - gitのフック（`.githooks/`）：秘密ファイル・APIキー・ブロックリストの語・マーカー削除・main へのコミットとマージコミットの検出
 - hookの試験スクリプト（`.claude/hooks/test_hooks.py`）
-- Git 履歴の検査スクリプト（`.claude/hooks/scan_history.py`。Issue #58、PR #61、safety-test-plan P5）：全部の参照の全コミットのメッセージと差分を、コミット前フックと同じ秘密情報の形で調べ、履歴に入った非公開のパスも調べる。`--blocklist` を付けるとブロックリストの語も調べる（オーナーが実行する。Claude Code は `.claude/local/blocklist.txt` を読まない）。`--self-test` は、使い捨てのリポジトリで検査が効くことを確かめる。一致した値や語は出さない。公開の前に毎回実行する
+- Git 履歴の検査スクリプト（`.claude/hooks/scan_history.py`。Issue #58、PR #61、safety-test-plan P5）：全部の参照の全コミットのメッセージと差分を、コミット前フックと同じ秘密情報の形で調べ、履歴に入った非公開のパスも調べる。`--blocklist` を付けるとブロックリストの語も調べる（オーナーが実行する。Claude Code は `.claude/local/blocklist.txt` を読まない）。`--self-test` は、使い捨てのリポジトリで検査が効くことを確かめる。一致した値や語は出さない。PowerShell では `py .claude\hooks\scan_history.py` と書く（`sh` が無いため）。ブロックリストが見つからないときは「検査できなかった」と報告する。公開の前に毎回実行する
 - アプリ本体（Phase 1 の試作版、`web/`。Issue #8、PR #10）
   - React / TypeScript / Vite の雛形（ADR-0003）
   - 実装の3画面（はじめに／対話／振り返り）と、中断の画面・終わりの画面
@@ -100,7 +100,7 @@
 - Claudeのモデル選定と比較実験（ADR-0006、docs/evidence.md）
 - GitHubのRulesets設定、CI
 - 公開前の利用制限のうち、Claude APIの支出の上限（P9。オーナーが管理画面で設定）と、回数制限の実環境での確認（P7。Issue #58）。入力の大きさの上限（P8）と回数制限の実装（Issue #57）は済み（ADR-0003、ADR-0035、safety-test-plan P7〜P9）
-- 公開前のGit履歴全体の検査のうち、ブロックリストの語（safety-test-plan P5。オーナーが `sh .claude/hooks/run-python.sh .claude/hooks/scan_history.py --blocklist` を実行する）。秘密情報の形・非公開のパスは問題なし（Issue #58）
+- 公開前のGit履歴全体の検査のうち、ブロックリストの語（safety-test-plan P5。オーナーが `sh .claude/hooks/run-python.sh .claude/hooks/scan_history.py --blocklist`（PowerShell では `py .claude\hooks\scan_history.py --blocklist`）を実行する。2026-11-04 時点で、リポジトリの `.claude/local/` が見当たらず、ブロックリストの場所をオーナーに確かめる）。秘密情報の形・非公開のパスは問題なし（Issue #58）
 - デモ動画、提出タグ
 - 状況データの書き出しスクリプト（Issue #5。ブランチ・PRはまだ無い）
 

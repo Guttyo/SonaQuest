@@ -1,9 +1,12 @@
-"""P5：Git 履歴全体の検査（docs/safety-test-plan.md P5、Issue #58）。公開の前に何度でも実行できる。
+r"""P5：Git 履歴全体の検査（docs/safety-test-plan.md P5、Issue #58）。公開の前に何度でも実行できる。
 
 実行：
   sh .claude/hooks/run-python.sh .claude/hooks/scan_history.py              秘密情報の形と非公開のパスを調べる
   sh .claude/hooks/run-python.sh .claude/hooks/scan_history.py --blocklist   ブロックリストの語も調べる（オーナーが実行する）
   sh .claude/hooks/run-python.sh .claude/hooks/scan_history.py --self-test   検査が効くことを、使い捨てのリポジトリで確かめる
+PowerShell には sh が無いので、`py .claude\hooks\scan_history.py [--blocklist | --self-test]` と書く（Python 3.9 以上）。
+ブロックリストは、実行するリポジトリ（作業ツリー）の .claude/local/blocklist.txt を読む。別の場所に置いているときは、
+環境変数 SONAQUEST_BLOCKLIST にそのパスを入れる。見つからないときは「検査できなかった」と報告する（「問題なし」にはしない）。
 
 - 全部の参照（git log --all）の全コミットについて、コミットメッセージと差分を、秘密情報の形で調べる。
   形は sonaguard.SECRET_PATTERNS で、コミット前フックと同じ判定。消した後の履歴にも残る値を拾う。
