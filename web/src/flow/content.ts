@@ -87,6 +87,14 @@ export const MODE_OPTIONS: readonly ModeOption[] = [
 export const MODE_CHOSEN_LABEL = "選んでいる答え方：";
 
 /**
+ * はじめにの2画面（2026-11-05 オーナー決定「2画面目に全文」、ADR-0036）。
+ * 1画面目はカードで選ぶだけ、2画面目「はじめる前に」に必ず見せる説明の全文と「訓練をはじめる」。文言は Claude Code の下書き
+ */
+export const NEXT_LABEL = "次へ";
+export const NOTES_TITLE = "はじめる前に";
+export const BACK_LABEL = "答え方を選び直す";
+
+/**
  * 医療者の立場で確認する訓練（C-01）の Coming soon。将来構想で、押せない文字として出す（ADR-0031）。
  * 文言は PRD「Coming soon の表示の決まり」のオーナー決定（2026-11-04、下書きのまま）
  */

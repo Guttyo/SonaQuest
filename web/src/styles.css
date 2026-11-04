@@ -594,6 +594,29 @@ textarea {
   gap: 12px;
 }
 
+/* 2画面目「はじめる前に」の、選んだ答え方の表示 */
+.chosen-mode {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 2px solid var(--mint-strong);
+  border-radius: 12px;
+  background: var(--mint);
+}
+
+.chosen-mode-icon {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  color: var(--orange-strong);
+}
+
+h1:focus-visible {
+  outline: 3px solid var(--orange-strong);
+  outline-offset: 2px;
+}
+
 .event {
   display: flex;
   flex-direction: column;
