@@ -8,7 +8,6 @@ import {
   SOURCE_OPTIONS,
   WAITING_TEXT,
 } from "../flow/content";
-import { currentMode } from "../flow/mode";
 import { MAX_ANSWER_LENGTH, isAcceptableAnswer } from "../flow/rules";
 import { currentQuestion, type TrainingAction, type TrainingState } from "../flow/training";
 import type { SourceId } from "../flow/types";
@@ -45,8 +44,9 @@ export function Dialogue({ state, dispatch }: Props) {
   const { stage } = state;
   const question = currentQuestion(state);
 
-  // 声を使うかは、3D の対話モードを選んだかだけで決める。3D を描画できるか（WebGL・動きを減らす設定）では決めない（ADR-0033）
-  const [mode] = useState(currentMode);
+  // 声を使うかは、はじめにの画面で 3D の対話モードを選んだか（state.mode、A-14）だけで決める。
+  // 3D を描画できるか（WebGL・動きを減らす設定）では決めない（ADR-0033）
+  const { mode } = state;
   const voiceOn = mode === "3d";
   const { speaker, snapshot: speech } = useSpeaker(voiceOn, state.session);
   const spoken = voiceOn ? listenerSpeech(state) : null;

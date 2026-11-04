@@ -467,6 +467,26 @@ textarea {
   color: var(--ink-soft);
 }
 
+/* はじめにのモード選択（A-14）。legend を小見出しとして出す */
+.mode-options {
+  margin-top: 8px;
+}
+
+.mode-options legend {
+  font-size: 1.15rem;
+  font-weight: 700;
+  padding: 0;
+  margin-bottom: 8px;
+}
+
+/* 将来構想（C-01）の Coming soon。ボタンではなく文字。今使えるものと見た目で区別する（PRD「Coming soon の表示の決まり」） */
+.coming-soon {
+  padding: 10px 14px;
+  border: 2px dashed var(--control-border);
+  border-radius: 10px;
+  color: var(--ink-soft);
+}
+
 .event {
   display: flex;
   flex-direction: column;
