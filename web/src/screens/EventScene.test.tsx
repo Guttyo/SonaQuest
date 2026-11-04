@@ -51,8 +51,22 @@ describe("出来事の場面の絵と文（B-01、Issue #54）", () => {
     }
   });
 
-  it("6つの絵はそれぞれ違う", () => {
-    expect(new Set(EVENT_IDS.map(visual)).size).toBe(EVENT_IDS.length);
+  it("6つの絵はそれぞれ違う（class を除いた形で比べる）", () => {
+    // class の名前は出来事ごとに違うので、外して描画の部分（要素の並びと d などの属性）だけを比べる
+    const shape = (id: EventId) => visual(id).replace(/\s+class="[^"]*"/g, "");
+    const shapes = EVENT_IDS.map(shape);
+    for (const s of shapes) expect(s).not.toContain("class=");
+    expect(new Set(shapes).size).toBe(EVENT_IDS.length);
+  });
+
+  it("通信の途絶の電波の棒は、高い棒から順に薄くなる（高さの名前と形が合っている）", () => {
+    const html = visual("network");
+    const order = ["top", "high", "mid", "low"].map((name) => {
+      const m = html.match(new RegExp(`event-mark-bar-${name}" d="M\\d+ 40v-(\\d+)"`));
+      expect(m).not.toBeNull();
+      return Number(m![1]);
+    });
+    expect([...order].sort((a, b) => b - a)).toEqual(order);
   });
 
   it("「続ける」は演出を待たずに押せる（無効にしない）", () => {

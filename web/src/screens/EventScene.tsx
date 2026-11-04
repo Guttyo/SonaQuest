@@ -94,10 +94,11 @@ function EventMark({ event }: { event: Exclude<EventId, "handover"> }) {
       // 通信がつながらない：電波の棒が、高いほうから順に消える
       return (
         <Svg className="event-mark event-mark-network">
-          <path className="event-mark-bar" d="M9 40v-6" />
-          <path className="event-mark-bar" d="M19 40v-12" />
-          <path className="event-mark-bar" d="M29 40v-18" />
-          <path className="event-mark-bar" d="M39 40v-24" />
+          {/* 順番は DOM の並びに頼らず、棒の高さの名前（low〜top）で styles.css の遅れを決める */}
+          <path className="event-mark-bar event-mark-bar-low" d="M9 40v-6" />
+          <path className="event-mark-bar event-mark-bar-mid" d="M19 40v-12" />
+          <path className="event-mark-bar event-mark-bar-high" d="M29 40v-18" />
+          <path className="event-mark-bar event-mark-bar-top" d="M39 40v-24" />
         </Svg>
       );
     case "notebook_home":

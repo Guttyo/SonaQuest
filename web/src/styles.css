@@ -1291,19 +1291,20 @@ body,
   animation: mark-fade 300ms ease-in both;
 }
 
-.event-mark-network .event-mark-bar:nth-child(4) {
+/* 遅れは棒の高さの名前で決める（いちばん高い top が最初、いちばん低い low が最後） */
+.event-mark-network .event-mark-bar-top {
   animation-delay: 400ms;
 }
 
-.event-mark-network .event-mark-bar:nth-child(3) {
+.event-mark-network .event-mark-bar-high {
   animation-delay: 650ms;
 }
 
-.event-mark-network .event-mark-bar:nth-child(2) {
+.event-mark-network .event-mark-bar-mid {
   animation-delay: 900ms;
 }
 
-.event-mark-network .event-mark-bar:nth-child(1) {
+.event-mark-network .event-mark-bar-low {
   animation-delay: 1100ms;
 }
 
