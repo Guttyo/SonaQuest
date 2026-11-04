@@ -14,7 +14,7 @@ import {
 import { isWeak, orderPrepActions, undeterminedJudgments } from "../flow/rules";
 import type { TrainingState } from "../flow/training";
 import type { PrepActionId, TimingId } from "../flow/types";
-import { Exchange } from "./Transcript";
+import { Exchange, ListenerLine } from "./Transcript";
 
 interface Props {
   state: TrainingState;
@@ -41,10 +41,7 @@ export function Review({ state, onChoose }: Props) {
       <h1 id="review-title">ふりかえり</h1>
       {/* 後半の最後の回答への受け止め（ADR-0029 の2） */}
       {state.closingAck !== null && (
-        <p className="exchange-question">
-          <span className="bubble-name">聞き取り係</span>
-          {state.closingAck}
-        </p>
+        <ListenerLine>{state.closingAck}</ListenerLine>
       )}
       <p>点数や合否はありません。伝えられたこと、まだ確かめていないことを振り返りましょう。</p>
 

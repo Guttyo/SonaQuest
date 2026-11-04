@@ -224,6 +224,31 @@ a:focus-visible {
   border-radius: 12px;
 }
 
+/* 吹き出しの行。聞き取り係は左に光、利用者は右にアイコン */
+.exchange-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.exchange-row-user {
+  justify-content: flex-end;
+}
+
+.listener-light-small {
+  width: 28px;
+  height: 28px;
+  margin-top: 4px;
+  box-shadow: 0 0 10px 3px rgba(244, 162, 89, 0.35);
+}
+
+.user-avatar {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin-top: 4px;
+}
+
 /* 聞き取り係：左の白い吹き出し。しっぽは左へ */
 .exchange-question {
   align-self: flex-start;

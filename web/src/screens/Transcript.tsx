@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { EVENTS, FALLBACK_NOTICE, RECALL_NOW } from "../flow/content";
 import type { TrainingState } from "../flow/training";
 import type { Answer } from "../flow/types";
@@ -38,25 +39,47 @@ function notice(state: TrainingState, answer: Answer): string | null {
 export function Exchange({ answer, notice }: { answer: Answer; notice?: string | null }) {
   return (
     <li className="exchange">
-      <p className="exchange-question">
-        <span className="bubble-name">聞き取り係</span>
-        {answer.prompt}
-      </p>
-      <p className="exchange-answer">
-        <span className="visually-hidden">あなた：</span>
-        <span className="raw">{answer.text}</span>
-      </p>
-      {answer.recall && (
-        <p className="exchange-question">
-          <span className="bubble-name">聞き取り係</span>
-          {RECALL_NOW}
+      <ListenerLine>{answer.prompt}</ListenerLine>
+      <div className="exchange-row exchange-row-user">
+        <p className="exchange-answer">
+          <span className="visually-hidden">あなた：</span>
+          <span className="raw">{answer.text}</span>
         </p>
-      )}
+        <UserAvatar />
+      </div>
+      {answer.recall && <ListenerLine>{RECALL_NOW}</ListenerLine>}
       {notice != null && (
         <p className="notice" role="status">
           {notice}
         </p>
       )}
     </li>
+  );
+}
+
+/** 聞き取り係の吹き出し。毎回、光の存在（ADR-0020）を左に添える */
+export function ListenerLine({ children }: { children: ReactNode }) {
+  return (
+    <div className="exchange-row">
+      <span className="listener-light listener-light-small" aria-hidden="true" />
+      <p className="exchange-question">
+        <span className="bubble-name">聞き取り係</span>
+        {children}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * 利用者のアイコン。実在の人の写真は使わず、人の形を描いた飾り（モックアップ）。
+ * 画面の読み上げでは読まない
+ */
+export function UserAvatar() {
+  return (
+    <svg className="user-avatar" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+      <circle cx="20" cy="20" r="20" fill="#cfe9dc" />
+      <circle cx="20" cy="15" r="7" fill="#fffaf0" />
+      <path d="M7 34c2-7 7-10 13-10s11 3 13 10" fill="#fffaf0" />
+    </svg>
   );
 }
