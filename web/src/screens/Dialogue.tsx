@@ -21,6 +21,7 @@ import { listenerActivity } from "../voice/view";
 import { ListenerStage, sceneNumber, type SceneId } from "./ListenerStage";
 import { EVENT_FOCUS, LOST_BY_EVENT, SourceChip, SourceIcon } from "./SourceIcon";
 import { ListenerLine, Transcript } from "./Transcript";
+import { Puppet2DFace } from "./Puppet2D";
 
 interface Props {
   state: TrainingState;
@@ -163,14 +164,14 @@ export function Dialogue({ state, dispatch }: Props) {
 }
 
 /**
- * 返事を待つ間の「考え中」（ADR-0030）。光がゆっくり明滅し、文の後ろに点が流れる。
+ * 返事を待つ間の「考え中」（ADR-0030）。小さな顔が上を見て（止まった姿勢）、文の後ろに点が流れる。
  * 読み上げは文だけ（点は読まない）。動きを減らす設定では動きが止まり、文だけで示す（styles.css、ADR-0020）。
  * 3D の対話モードでは、上のパペットも考え中の様子になる（ListenerStage）
  */
 function Thinking() {
   return (
     <div className="exchange-row thinking" role="status" data-scroll-target="end" tabIndex={-1}>
-      <span className="listener-light listener-light-small listener-light-thinking" aria-hidden="true" />
+      <Puppet2DFace activity="thinking" />
       <p className="exchange-question">
         <span className="bubble-name">聞き取り係</span>
         {WAITING_TEXT}

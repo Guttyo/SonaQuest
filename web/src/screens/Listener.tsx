@@ -21,9 +21,8 @@ interface Props {
 }
 
 /**
- * 聞き取り係の発言。2D は光の存在として表す（ADR-0020）。3D はパペット（ADR-0032）。
- * props を省いたときは、これまでと同じ表示（止まった光と発言）になる。
- * 2D の光は止まったまま。動くのは返事を待つ間の「考え中」だけ（Dialogue.tsx の Thinking、ADR-0030）。
+ * 聞き取り係の発言。2D はパペットの 2D 版（Puppet2D、ADR-0038）。3D はパペット（ADR-0032）。
+ * props を省いたときは、待機の 2D の姿と発言になる。
  * 状態は動きだけでなく文字でも示す（mode か activity を渡したとき）。
  */
 export function Listener({ children, mode = "2d", activity, relief = false }: Props) {

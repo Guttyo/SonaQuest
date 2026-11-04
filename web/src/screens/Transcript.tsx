@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Puppet2DFace } from "./Puppet2D";
 import { EVENTS, FALLBACK_NOTICE, RECALL_NOW } from "../flow/content";
 import type { TrainingState } from "../flow/training";
 import type { Answer } from "../flow/types";
@@ -57,11 +58,11 @@ export function Exchange({ answer, notice }: { answer: Answer; notice?: string |
   );
 }
 
-/** 聞き取り係の吹き出し。毎回、光の存在（ADR-0020）を左に添える */
+/** 聞き取り係の吹き出し。毎回、パペットの 2D 版の小さな顔（Issue #47、ADR-0038）を左に添える */
 export function ListenerLine({ children, id }: { children: ReactNode; id?: string }) {
   return (
     <div className="exchange-row">
-      <span className="listener-light listener-light-small" aria-hidden="true" />
+      <Puppet2DFace />
       <p className="exchange-question" id={id}>
         <span className="bubble-name">聞き取り係</span>
         {children}

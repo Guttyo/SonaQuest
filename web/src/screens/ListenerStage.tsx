@@ -25,8 +25,8 @@ export function sceneNumber(id: SceneId): string {
 
 /**
  * 対話の画面の上に固定する聞き取り係（Issue #46）。やり取りが流れても、係の姿はここに残る。
- * 3D はこの1か所だけで描く（WebGL の文脈を1つにする）。3D が使えないときと 2D のときは光（ADR-0020）。
- * 状態の文字は 3D の対話モードのときだけ出す（2D の見た目は変えない。Listener.tsx と同じ決まり）
+ * 3D はこの1か所だけで描く（WebGL の文脈を1つにする）。3D が使えないときと 2D のときは、パペットの 2D 版（Puppet2D、ADR-0038）。
+ * 状態の文字は showState のときに出す（Dialogue は 2D・3D とも出す。Issue #47）
  */
 export function ListenerStage({
   mode,
