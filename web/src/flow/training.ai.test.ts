@@ -88,11 +88,12 @@ describe("Claude を使う進行", () => {
     for (const [text, next] of [
       ["A薬", ask("first_location")],
       ["手帳", ask("first_other")],
+      ["ない", ask("first_unrecorded")],
     ] as const) {
       state = trainingReducer(state, answer(text));
       state = trainingReducer(state, result(state, reply(next)));
     }
-    state = trainingReducer(state, answer("ない"));
+    state = trainingReducer(state, answer("特にない"));
     const withAck = trainingReducer(
       state,
       result(state, reply({ type: "finish", question_id: null, text: "ありがとうございます。よく分かりました。" })),
@@ -126,8 +127,15 @@ describe("Claude を使う進行", () => {
     // 以後は待たずに進む。回答は失わない
     state = trainingReducer(state, answer("ありません"));
     expect(state.waiting).toBe(false);
+    expect(state.stage).toEqual({ name: "first", index: 3 });
+    state = trainingReducer(state, answer("特にありません"));
     expect(state.stage).toEqual({ name: "confirm" });
-    expect(state.answers.map((a) => a.text)).toEqual(["A薬を朝に1錠", "お薬手帳です", "ありません"]);
+    expect(state.answers.map((a) => a.text)).toEqual([
+      "A薬を朝に1錠",
+      "お薬手帳です",
+      "ありません",
+      "特にありません",
+    ]);
   });
 
   it("前の回や古い返事は使わない", () => {
@@ -219,19 +227,81 @@ describe("Claude を使う進行", () => {
     state = trainingReducer(state, result(state, reply(ask("first_location"))));
     const locationText = state.prompt?.text;
     state = trainingReducer(state, answer("たぶん手帳"));
-    expect(buildTurnRequest(state)?.allow_clarify).toBe(false);
-    expect(buildTurnRequest(state)?.next_question_id).toBeNull();
-    // 3回目の回答の後に聞き返しが来ても、確認へ進む
     state = trainingReducer(
       state,
       result(state, reply({ type: "clarify", question_id: "first_location", text: null })),
+    );
+    state = trainingReducer(state, answer("お薬手帳です"));
+    state = trainingReducer(state, result(state, reply(ask("first_other"))));
+    const otherText = state.prompt?.text;
+    state = trainingReducer(state, answer("たぶんない"));
+    // 聞き返しが2回入ったので、5回目の回答で上限に達し、前半の4問目は聞かない（Issue #41）
+    expect(buildTurnRequest(state)?.allow_clarify).toBe(false);
+    expect(buildTurnRequest(state)?.next_question_id).toBeNull();
+    // 上限の回答の後に聞き返しが来ても、確認へ進む
+    state = trainingReducer(
+      state,
+      result(state, reply({ type: "clarify", question_id: "first_other", text: null })),
     );
     expect(state.stage).toEqual({ name: "confirm" });
     expect(state.answers.map((a) => a.prompt)).toEqual([
       firstText,
       CLARIFY_TEXTS.first_medicines,
       locationText,
+      CLARIFY_TEXTS.first_location,
+      otherText,
     ]);
+  });
+
+  it("聞き返しが1回なら、前半の固定の4問をすべて聞ける（Issue #41。残りの1回は聞き返しの余裕）", () => {
+    let state = run([{ type: "start" }]);
+    const steps: [string, TurnResponse["next"]][] = [
+      ["うーん", { type: "clarify", question_id: "first_medicines", text: null }],
+      ["A薬", ask("first_location")],
+      ["手帳", ask("first_other")],
+      ["ない", ask("first_unrecorded")],
+    ];
+    for (const [text, next] of steps) {
+      state = trainingReducer(state, answer(text));
+      state = trainingReducer(state, result(state, reply(next)));
+    }
+    expect(currentQuestion(state)?.id).toBe("first_unrecorded");
+    state = trainingReducer(state, answer("特にない"));
+    expect(countedAnswers(state.answers, "first")).toBe(5);
+    expect(buildTurnRequest(state)?.next_question_id).toBeNull();
+    expect(buildTurnRequest(state)?.allow_clarify).toBe(false);
+    state = trainingReducer(state, result(state, reply({ type: "finish", question_id: null, text: null })));
+    expect(state.stage).toEqual({ name: "confirm" });
+  });
+
+  it("後半の最後の問いは、思い出せなかったことを聞く（Issue #41）", () => {
+    let state = run([{ type: "start" }]);
+    const steps: [string, TurnResponse["next"]][] = [
+      ["A薬", ask("first_location")],
+      ["手帳", ask("first_other")],
+      ["ない", ask("first_unrecorded")],
+      ["特にない", { type: "finish", question_id: null, text: null }],
+    ];
+    for (const [text, next] of steps) {
+      state = trainingReducer(state, answer(text));
+      state = trainingReducer(state, result(state, reply(next)));
+    }
+    state = run([{ type: "confirm", source: "notebook" }, { type: "continue_after_event" }], state);
+    for (const [text, next] of [
+      ["スマホの写真", ask("second_recent")],
+      ["飲めています", ask("second_proxy")],
+      ["妻が知っています", ask("second_recheck")],
+    ] as const) {
+      state = trainingReducer(state, answer(text));
+      state = trainingReducer(state, result(state, reply(next)));
+    }
+    expect(currentQuestion(state)?.id).toBe("second_recheck");
+    state = trainingReducer(state, answer("量が思い出せなかった。手帳で確かめる"));
+    // 聞き返しを使っていないので、最後の問いの後も1回だけ聞き返せる
+    expect(buildTurnRequest(state)?.next_question_id).toBeNull();
+    expect(buildTurnRequest(state)?.allow_clarify).toBe(true);
+    state = trainingReducer(state, result(state, reply({ type: "finish", question_id: null, text: null })));
+    expect(state.stage).toEqual({ name: "review" });
   });
 
   it("思い出せないという回答に印を付け、③確認の初期選択の候補を持つ", () => {
@@ -258,7 +328,8 @@ describe("Claude を使う進行", () => {
     const steps: [string, TurnResponse["next"]][] = [
       ["A薬", ask("first_location")],
       ["手帳", ask("first_other")],
-      ["ない", { type: "finish", question_id: null, text: null }],
+      ["ない", ask("first_unrecorded")],
+      ["特にない", { type: "finish", question_id: null, text: null }],
     ];
     for (const [text, next] of steps) {
       state = trainingReducer(state, answer(text));

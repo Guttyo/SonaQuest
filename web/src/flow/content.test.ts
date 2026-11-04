@@ -1,27 +1,21 @@
 import { describe, expect, it } from "vitest";
+import { detectDistress } from "./emergency";
+import { MAX_PROMPT_LENGTH } from "./turnContract";
 import {
+  ACK_TEXT,
+  ALL_QUESTIONS,
   ANSWER_HINTS,
-  FIRST_HALF_QUESTIONS,
-  HANDOVER_QUESTION,
+  CLARIFY_TEXTS,
   INTRO_LEAD,
   INTRO_POINTS,
   PROTOTYPE_LEAD,
   PROXY_QUESTION,
   PROXY_QUESTION_AFTER_FAMILY,
   RECALL_FEEDBACK,
-  RECENT_QUESTION,
-  RECOVERY_QUESTION,
+  RECHECK_QUESTION,
+  REDIRECT_TEXTS,
 } from "./content";
-import type { AnswerAs, Question } from "./types";
-
-const ALL_QUESTIONS: readonly Question[] = [
-  ...FIRST_HALF_QUESTIONS,
-  RECOVERY_QUESTION,
-  HANDOVER_QUESTION,
-  RECENT_QUESTION,
-  PROXY_QUESTION,
-  PROXY_QUESTION_AFTER_FAMILY,
-];
+import type { AnswerAs } from "./types";
 
 const answerAsOf = (id: string): AnswerAs | undefined =>
   ALL_QUESTIONS.find((q) => q.id === id)?.answerAs;
@@ -30,9 +24,10 @@ describe("答える範囲（ADR-0022 案B）", () => {
   it("薬の中身を聞く質問は、架空の内容で答える", () => {
     expect(answerAsOf("first_medicines")).toBe("fictional");
     expect(answerAsOf("first_other")).toBe("fictional");
+    expect(answerAsOf("first_unrecorded")).toBe("fictional");
   });
 
-  it.each(["first_location", "second_recovery", "second_proxy", "second_proxy_other"])(
+  it.each(["first_location", "second_recovery", "second_proxy", "second_proxy_other", "second_recheck"])(
     "在りか・伝え方・知っている人を聞く %s は、本人のこととして答える",
     (id) => {
       expect(answerAsOf(id)).toBe("self");
@@ -87,6 +82,34 @@ describe("答える範囲（ADR-0022 案B）", () => {
       expect(q.text).toContain("電話番号や薬の名前は書かなくて大丈夫です");
     },
   );
+
+  it("思い出せなかったことの問いは、候補を出さず、確かめた内容の入力も求めない（ADR-0022、Issue #41）", () => {
+    expect(RECHECK_QUESTION.text).toContain("思い出せなかったこと");
+    expect(RECHECK_QUESTION.text).not.toContain("ではないですか");
+    expect(RECHECK_QUESTION.text).not.toContain("確かめた内容");
+    expect(RECHECK_QUESTION.text).not.toContain("書いて");
+  });
+
+  it("固定の質問文は、体調の訴えの照合に当たらない（利用者が質問の言葉を言い返しても中断しないように）", () => {
+    for (const q of ALL_QUESTIONS) {
+      expect(detectDistress(q.text), q.id).toBeNull();
+    }
+    // 足した問いの例をなぞった回答でも中断しない（Issue #41）
+    expect(detectDistress("ときどきだけ飲む薬があります。最近やめた薬はありません")).toBeNull();
+  });
+
+  it("どの固定の質問にも、聞き返しと質問し直しの固定文がある", () => {
+    for (const q of ALL_QUESTIONS) {
+      expect(CLARIFY_TEXTS[q.id]).toBeTruthy();
+      expect(REDIRECT_TEXTS[q.id]).toBeTruthy();
+    }
+  });
+
+  it("固定の質問文は、受け止めの一言を前に付けても、画面に出した文の上限に収まる（/api/turn で拒否されない）", () => {
+    for (const q of ALL_QUESTIONS) {
+      expect((ACK_TEXT + q.text).length).toBeLessThanOrEqual(MAX_PROMPT_LENGTH);
+    }
+  });
 
   it("初回画面は、すべてを架空の人として答えるようには案内しない", () => {
     expect(INTRO_POINTS.join("")).not.toContain("架空の人になったつもり");

@@ -2,7 +2,13 @@
 
 import { describe, expect, it } from "vitest";
 import { requestTurn } from "./api";
-import { parseTurnRequest, parseTurnResponse, type TurnRequest, type TurnResponse } from "./turnContract";
+import {
+  MAX_TURN_INPUTS,
+  parseTurnRequest,
+  parseTurnResponse,
+  type TurnRequest,
+  type TurnResponse,
+} from "./turnContract";
 
 const request: TurnRequest = {
   inputs: [
@@ -34,6 +40,12 @@ describe("入力の検査（Workers）", () => {
     expect(parseTurnRequest(request)).toEqual(request);
   });
 
+  it("回答は最大10件まで通す（ADR-0019、Issue #41）", () => {
+    expect(MAX_TURN_INPUTS).toBe(10);
+    const ten = { ...request, inputs: Array(10).fill(request.inputs[0]) };
+    expect(parseTurnRequest(ten)).toEqual(ten);
+  });
+
   it.each<[string, unknown]>([
     ["空の入力", { ...request, inputs: [] }],
     ["空白だけの回答", { ...request, inputs: [{ ...request.inputs[0], text: "  " }] }],
@@ -41,7 +53,7 @@ describe("入力の検査（Workers）", () => {
     ["知らない出来事", { ...request, event: "earthquake" }],
     ["画面に出した文が空", { ...request, inputs: [{ ...request.inputs[0], asked: "" }] }],
     ["画面に出した文が長すぎる", { ...request, inputs: [{ ...request.inputs[0], asked: "あ".repeat(201) }] }],
-    ["回答が7件", { ...request, inputs: Array(7).fill(request.inputs[0]) }],
+    ["回答が11件", { ...request, inputs: Array(MAX_TURN_INPUTS + 1).fill(request.inputs[0]) }],
     ["真偽値でない", { ...request, allow_clarify: "yes" }],
     ["余分なキー", { ...request, answers: [] }],
   ])("%s は拒否する", (_label, value) => {

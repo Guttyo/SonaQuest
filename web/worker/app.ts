@@ -30,8 +30,11 @@ export interface Env {
 /** 比較実験で測った値を載せる応答の見出し（開発中の比較実験のときだけ付ける） */
 export const DEV_METRICS_HEADER = "x-dev-metrics";
 
-/** 受け取る本文の大きさの上限（文字数）。回答6件×500字と画面に出した文6件×200字に、形の分の余裕を足したもの */
-export const MAX_BODY_LENGTH = 12_000;
+/**
+ * 受け取る本文の大きさの上限（文字数）。回答10件×500字と画面に出した文10件×200字（計7,000字）に、
+ * 形（キーや引用符）と、引用符などを逃がした分の余裕を足したもの。6件のときの 12,000字と同じ割合（約2.9倍）にした
+ */
+export const MAX_BODY_LENGTH = 20_000;
 /** 本文を読み込む前に確かめるバイト数の上限（UTF-8 の日本語は1文字3バイト） */
 export const MAX_BODY_BYTES = MAX_BODY_LENGTH * 3;
 

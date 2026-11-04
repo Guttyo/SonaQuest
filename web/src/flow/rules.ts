@@ -7,6 +7,7 @@ import {
   PROXY_QUESTION,
   PROXY_QUESTION_AFTER_FAMILY,
   RECENT_QUESTION,
+  RECHECK_QUESTION,
   RECOVERY_QUESTION,
   VIEWPOINT_ORDER,
 } from "./content";
@@ -19,9 +20,12 @@ import type {
   SourceId,
 } from "./types";
 
-/** 前半・後半それぞれの回答の上限と、合計の上限（ADR-0019） */
-export const MAX_FIRST_HALF_ANSWERS = 3;
-export const MAX_SECOND_HALF_ANSWERS = 3;
+/**
+ * 前半・後半それぞれの回答の上限と、合計の上限（ADR-0019。Issue #41 で 3＋3 から 5＋5 にした）。
+ * 固定の質問は半分ごとに4問で、残りの1回は聞き返しの余裕
+ */
+export const MAX_FIRST_HALF_ANSWERS = 5;
+export const MAX_SECOND_HALF_ANSWERS = 5;
 export const MAX_ANSWERS = MAX_FIRST_HALF_ANSWERS + MAX_SECOND_HALF_ANSWERS;
 
 /** 1回の回答の文字数の上限。超える入力は受け付けない（切り詰めると原文でなくなるため） */
@@ -49,14 +53,14 @@ export function firstHalfQuestions(): readonly Question[] {
 }
 
 /**
- * 後半の質問。最初は立て直しの問い（係の交代のときは交代用の問い）。
+ * 後半の質問。最初は立て直しの問い（係の交代のときは交代用の問い）。最後は思い出せなかったことの問い（Issue #41）。
  * 出来事で答えが決まってしまう問いは、出来事に合わせて言い方を変える（家族と連絡がつかない → 家族のほかの人）
  */
 export function secondHalfQuestions(event: EventId): readonly Question[] {
   const opening = event === "handover" ? HANDOVER_QUESTION : RECOVERY_QUESTION;
   const proxy =
     event === "family_unreachable" ? PROXY_QUESTION_AFTER_FAMILY : PROXY_QUESTION;
-  return [opening, RECENT_QUESTION, proxy].slice(0, MAX_SECOND_HALF_ANSWERS);
+  return [opening, RECENT_QUESTION, proxy, RECHECK_QUESTION].slice(0, MAX_SECOND_HALF_ANSWERS);
 }
 
 export function isAcceptableAnswer(text: string): boolean {

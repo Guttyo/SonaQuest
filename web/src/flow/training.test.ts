@@ -22,10 +22,11 @@ const firstHalf: TrainingAction[] = [
   answer("お薬手帳です"),
   answer("たぶん同じです"),
   answer("特にありません"),
+  answer("最近やめた薬はありません"),
 ];
 
 describe("訓練の流れ", () => {
-  it("前半の3回の後は③確認へ進む", () => {
+  it("前半の固定の4問の後は③確認へ進む（聞き返しの余裕の1回は使わない）", () => {
     expect(run(firstHalf).stage).toEqual({ name: "confirm" });
   });
 
@@ -61,9 +62,12 @@ describe("訓練の流れ", () => {
         answer("紙のメモがあります"),
         answer("妻が知っています"),
         answer("ありません"),
+        answer("思い出せなかったことはありません"),
       ]);
       expect(state.stage).toEqual({ name: "review" });
-      expect(state.answers).toHaveLength(MAX_ANSWERS);
+      // 固定の質問は8問。聞き返しが無ければ、上限の10回より少なく終わる
+      expect(state.answers).toHaveLength(8);
+      expect(state.answers.length).toBeLessThan(MAX_ANSWERS);
     },
   );
 
@@ -75,14 +79,16 @@ describe("訓練の流れ", () => {
       answer("a"),
       answer("b"),
       answer("c"),
+      answer("d"),
     ]);
+    expect(review.stage).toEqual({ name: "review" });
     const after = trainingReducer(review, answer("さらに追加"));
     expect(after).toBe(review);
   });
 
   it("確認のタップは回答の回数に数えない", () => {
     const state = run([...firstHalf, { type: "confirm", source: "notebook" }]);
-    expect(state.answers).toHaveLength(3);
+    expect(state.answers).toHaveLength(4);
   });
 
   it("回答は入力そのものを保持し、前半と後半を区別する", () => {
@@ -110,6 +116,7 @@ describe("訓練の流れ", () => {
       answer("a"),
       answer("b"),
       answer("c"),
+      answer("d"),
     ]);
     const done = trainingReducer(review, {
       type: "choose_prep",
@@ -180,6 +187,7 @@ describe("体調の訴えらしい入力での中断（ADR-0011）", () => {
       answer("もし薬が切れたら困る"),
       answer("お薬手帳です"),
       answer("以前、具合が悪くなった薬はない"),
+      answer("もし手帳が無かったら、と考えたことはある"),
     ]);
     expect(state.stage).toEqual({ name: "confirm" });
   });
