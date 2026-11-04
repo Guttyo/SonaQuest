@@ -39,6 +39,13 @@ export function Review({ state, onChoose }: Props) {
   return (
     <section className="screen" aria-labelledby="review-title">
       <h1 id="review-title">ふりかえり</h1>
+      {/* 後半の最後の回答への受け止め（ADR-0029 の2） */}
+      {state.closingAck !== null && (
+        <p className="exchange-question">
+          <span className="label">聞き取り係：</span>
+          {state.closingAck}
+        </p>
+      )}
       <p>点数や合否はありません。伝えられたこと、まだ確かめていないことを振り返りましょう。</p>
 
       <h2>5つの観点</h2>

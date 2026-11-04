@@ -7,7 +7,7 @@ import { contentLogEnabled, devOverrides, logContent } from "./devlog";
 import { DEV_METRICS_HEADER, createApp, type Env } from "./app";
 import * as entry from "./index";
 import { SYSTEM_PROMPT, buildUserMessage } from "./prompt";
-import { decideNext, parseClaudeOutput, runTurn } from "./turn";
+import { chooseNext, decideNext, parseClaudeOutput, runTurn } from "./turn";
 
 const request: TurnRequest = {
   inputs: [
@@ -81,12 +81,27 @@ describe("次の手の決め方（ADR-0025 の A）", () => {
     });
   });
 
-  it("半分の終わりでは finish にし、文を使わない", () => {
-    expect(decideNext({ ...request, next_question_id: null }, parsed)).toEqual({
+  it("半分の終わりでは finish にし、受け止めの一言は検査を通したものだけ使う（ADR-0029 の2）", () => {
+    const end = { ...request, next_question_id: null };
+    expect(decideNext(end, { ...parsed, text: "教えてくださってありがとうございます。" })).toEqual({
       type: "finish",
       question_id: null,
-      text: null,
+      text: "教えてくださってありがとうございます。",
     });
+    expect(chooseNext(end, { ...parsed, text: "高血圧のお薬ですね。" })).toEqual({
+      next: { type: "finish", question_id: null, text: null },
+      rejected: "forbidden",
+    });
+  });
+
+  it.each<[string, string, string]>([
+    ["length", "あ".repeat(201), "A薬"],
+    ["forbidden", "それはロキソニンではないですか？", "A薬"],
+    ["unknown_term", "アムロジピンを飲んでいますか？", "A薬"],
+    ["repeat", "台所の引き出しのことですね。何で確かめられますか？", "台所の引き出しにあります"],
+  ])("捨てた理由の種類を返す：%s（ADR-0029 の1）", (reason, text, answerText) => {
+    const req = { ...request, inputs: [{ ...request.inputs[0], text: answerText }] };
+    expect(chooseNext(req, { ...parsed, text }).rejected).toBe(reason);
   });
 
   it("許していない聞き返しは、次へ進むに直し、Claude の文を使わない", () => {

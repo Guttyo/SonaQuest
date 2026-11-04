@@ -1,6 +1,6 @@
 // 訓練の状態と遷移。状態はメモリにだけ持ち、保存しない（ADR-0007）。
 
-import { AI_CONNECTED, CLARIFY_TEXTS, REDIRECT_TEXTS } from "./content";
+import { ACK_TEXT, AI_CONNECTED, CLARIFY_TEXTS, REDIRECT_TEXTS } from "./content";
 import { detectDistress, type StopReason } from "./emergency";
 import {
   MAX_FIRST_HALF_ANSWERS,
@@ -56,6 +56,10 @@ export interface TrainingState {
   judgments: Judgments | null;
   /** ③確認の初期選択の候補（Claude。docs/phase2-decisions.md 項目6） */
   sourceGuess: SourceId | null;
+  /** 前半・後半の最後の回答への受け止め。③確認と振り返りの冒頭に出す（ADR-0029 の2） */
+  closingAck: string | null;
+  /** 固定の進行に切り替えたときの入力の件数。その回答の後に1回だけ知らせを出す（ADR-0029 の4） */
+  failedAfter: number | null;
 }
 
 export type TrainingAction =
@@ -80,6 +84,8 @@ export const initialState: TrainingState = {
   waiting: false,
   judgments: null,
   sourceGuess: null,
+  closingAck: null,
+  failedAfter: null,
 };
 
 /** 今の段階で出している固定の質問。質問を出していない段階では null */
@@ -110,8 +116,10 @@ function askPrompt(question: Question, text: string | null): Prompt {
 }
 
 /**
- * 次の固定の質問へ進む。半分の上限に達したか、固定の質問が尽きたら、
- * 前半は③確認、後半は振り返りへ進む（ADR-0019）。text は Claude の言い回し（無ければ固定文）
+ * 回答の後に、次の固定の質問へ進む。半分の上限に達したか、固定の質問が尽きたら、
+ * 前半は③確認、後半は振り返りへ進む（ADR-0019）。
+ * text は Claude の文（次の質問の言い回し、または半分の最後の受け止め）。無ければ、
+ * 固定の受け止めの一言と固定の質問文を使う（ADR-0029 の2・3）
  */
 function advance(state: TrainingState, text: string | null): TrainingState {
   const { stage } = state;
@@ -125,13 +133,14 @@ function advance(state: TrainingState, text: string | null): TrainingState {
     return {
       ...state,
       stage: { name: half, index: nextIndex },
-      prompt: askPrompt(questions[nextIndex], text),
+      prompt: askPrompt(questions[nextIndex], text ?? ACK_TEXT + questions[nextIndex].text),
     };
   }
   return {
     ...state,
     stage: half === "first" ? { name: "confirm" } : { name: "review" },
     prompt: null,
+    closingAck: text ?? ACK_TEXT,
   };
 }
 
@@ -212,9 +221,13 @@ function applyTurn(state: TrainingState, result: TurnResponse): TrainingState {
       },
     };
   }
-  // 質問を進める。Claude の言い回しは、次の固定の質問のためのものだけを使う
+  // 質問を進める。Claude の文は、次の固定の質問の言い回しか、半分の最後の受け止めのときだけ使う
   const nextId = nextQuestionId(state);
-  const useText = type === "ask" && nextId !== null && question_id === nextId ? text : null;
+  const useText =
+    (type === "ask" && nextId !== null && question_id === nextId) ||
+    (type === "finish" && nextId === null)
+      ? text
+      : null;
   return advance(judged, useText);
 }
 
@@ -282,7 +295,16 @@ export function trainingReducer(
       const settled = { ...state, waiting: false };
       if (action.result === null) {
         // 失敗したら、その回の残りは固定の進行にし、判定は使わない（ADR-0012、項目9）
-        return advance({ ...settled, ai: "failed", judgments: null, sourceGuess: null }, null);
+        return advance(
+          {
+            ...settled,
+            ai: "failed",
+            judgments: null,
+            sourceGuess: null,
+            failedAfter: state.answers.length,
+          },
+          null,
+        );
       }
       // Claude の緊急の判定は補助。自傷のほのめかしには自傷用の案内を出す（ADR-0011）
       if (action.result.emergency !== "none") {
@@ -304,7 +326,12 @@ export function trainingReducer(
       if (stage.name !== "event") return state;
       // 後半の最初は固定の立て直しの問い（ADR-0019）。Claude の言い回しにしない
       const opening = secondHalfQuestions(state.event ?? "handover")[0];
-      return { ...state, stage: { name: "second", index: 0 }, prompt: askPrompt(opening, null) };
+      return {
+        ...state,
+        stage: { name: "second", index: 0 },
+        prompt: askPrompt(opening, null),
+        closingAck: null,
+      };
     }
 
     case "choose_prep":

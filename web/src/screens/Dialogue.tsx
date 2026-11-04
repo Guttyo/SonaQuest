@@ -52,6 +52,7 @@ export function Dialogue({ state, dispatch }: Props) {
 
       {stage.name === "confirm" && (
         <ConfirmSource
+          ack={state.closingAck}
           initial={state.sourceGuess}
           onConfirm={(source) => dispatch({ type: "confirm", source })}
         />
@@ -139,9 +140,12 @@ function AnswerForm({
 }
 
 function ConfirmSource({
+  ack,
   initial,
   onConfirm,
 }: {
+  /** 前半の最後の回答への受け止め（ADR-0029 の2） */
+  ack: string | null;
   /** 初期選択の候補（Claude）。本人がタップで確かめてから進む（ADR-0016、項目6） */
   initial: SourceId | null;
   onConfirm: (source: SourceId | null) => void;
@@ -157,6 +161,7 @@ function ConfirmSource({
       aria-labelledby="confirm-prompt"
     >
       <Listener>
+        {ack !== null && <p>{ack}</p>}
         <p id="confirm-prompt">{CONFIRM_PROMPT}</p>
       </Listener>
       <fieldset className="options" aria-labelledby="confirm-prompt">

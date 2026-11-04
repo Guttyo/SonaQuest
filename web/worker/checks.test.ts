@@ -112,9 +112,31 @@ describe("利用者の言葉の繰り返しは捨てる（S17）", () => {
     expect(repeatsUserWords("毎朝飲んでいるのですね", ["毎朝一錠飲んでる"], [])).toBe(true);
   });
 
+  it("受け止めの決まった言葉は、利用者が使っていても繰り返しとみなさない（ADR-0029 の5）", () => {
+    expect(repeatsUserWords("わかりました。その薬は何で確かめられますか？", ["わかりました、手帳です"], [])).toBe(false);
+    // 「わからない」を受け止める文は許さない
+    expect(repeatsUserWords("わからないことに気づけたのも大切です", ["わからないです"], [])).toBe(true);
+  });
+
   it("ひらがなの短い言葉は見ない", () => {
     expect(repeatsUserWords("はい、ありがとうございます", ["はい"], [])).toBe(false);
   });
+});
+
+describe("「大丈夫」の例外（ADR-0029 の6）", () => {
+  it.each(["ゆっくりで大丈夫です。その薬は何で確かめられますか？", "急がなくて大丈夫です。", "あわてなくて大丈夫ですよ。"])(
+    "急がなくてよいことを伝える受け止めは通す：%s",
+    (text) => {
+      expect(isAcceptablePromptText(text, context())).toBe(true);
+    },
+  );
+
+  it.each(["その薬なら大丈夫です。", "ゆっくりで大丈夫です。体調も大丈夫ですよ。", "飲まなくても大丈夫です。"])(
+    "それ以外の「大丈夫」は捨てる：%s",
+    (text) => {
+      expect(isAcceptablePromptText(text, context())).toBe(false);
+    },
+  );
 });
 
 describe("長さ（S18）", () => {

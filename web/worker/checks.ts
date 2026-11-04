@@ -40,7 +40,7 @@ export const FORBIDDEN_PATTERNS: readonly RegExp[] = [
   // 診断・緊急度・体調の判断・安心させる判断
   /診断|病気です|症状(?:です|が出|は)|疑い/,
   /緊急|救急|危険|命に|急いで|すぐに(?:受診|病院|医)/,
-  /心配(?:ない|いら|いりません|ありません|は)|問題(?:ない|ありません)|(?<!(?:書かなくて|答えなくて|言わなくて))(?:大丈夫|だいじょうぶ)|様子を見|安心して|ご安心|平気/,
+  /心配(?:ない|いら|いりません|ありません|は)|問題(?:ない|ありません)|(?<!(?:書かなくて|答えなくて|言わなくて|ゆっくりで|急がなくて|あわてなくて|慌てなくて))(?:大丈夫|だいじょうぶ)|様子を見|安心して|ご安心|平気/,
   // 備蓄・公的な制度
   /備蓄|ストック|多めに|日分/,
   /制度|助成|補助金|特例|処方箋/,
@@ -88,14 +88,22 @@ export function watchedWords(userText: string): string[] {
   return [...words];
 }
 
-/** 利用者の言葉を繰り返していないか。固定の文にもある言葉は除く */
+/**
+ * 受け止めに使う決まった言葉。利用者が同じ言葉を使っていても、繰り返しとみなさない（ADR-0029 の5）。
+ * 「わからない」「覚えていない」を受け止める言葉は入れない（RECALL_NOW と重なり、答えの言い直しにもなるため）。
+ * 禁止表現の「大丈夫」の例外（ゆっくりで・急がなくて・あわてなくて）は FORBIDDEN_PATTERNS の中にある（ADR-0029 の6）
+ */
+// [TODO-OWNER: 繰り返しの検査で許す、受け止めの決まった言葉の一覧（Claude Code の下書き：「わかりました」「承知しました」）]
+export const ACK_WORDS: readonly string[] = ["わかりました", "分かりました", "承知しました"];
+
+/** 利用者の言葉を繰り返していないか。固定の文と、受け止めの決まった言葉にもある言葉は除く */
 export function repeatsUserWords(
   text: string,
   userTexts: readonly string[],
   allowed: readonly string[],
 ): boolean {
   const target = normalize(text);
-  const allowedText = allowed.map(normalize).join("\n");
+  const allowedText = [...allowed, ...ACK_WORDS].map(normalize).join("\n");
   return userTexts.some((userText) =>
     watchedWords(userText).some((w) => target.includes(w) && !allowedText.includes(w)),
   );
@@ -122,12 +130,21 @@ export interface TextCheckContext {
   allowed: readonly string[];
 }
 
-/** 文を画面に出してよいか。長さ・禁止表現・固定の文に無い薬らしい言葉・繰り返し */
-export function isAcceptablePromptText(text: string, context: TextCheckContext): boolean {
+/** 文を捨てた理由の種類。本文を含まないので、公開する版でもログに出してよい（ADR-0029 の1） */
+export type RejectReason = "length" | "forbidden" | "unknown_term" | "repeat";
+
+/** 文の問題を1つ返す。画面に出してよければ null。長さ・禁止表現・固定の文に無い薬らしい言葉・繰り返しの順に見る */
+export function promptTextProblem(text: string, context: TextCheckContext): RejectReason | null {
   const trimmed = text.trim();
-  if (trimmed.length === 0 || text.length > MAX_PROMPT_LENGTH) return false;
+  if (trimmed.length === 0 || text.length > MAX_PROMPT_LENGTH) return "length";
   const nfkc = text.normalize("NFKC");
-  if (FORBIDDEN_PATTERNS.some((p) => p.test(nfkc))) return false;
-  if (unknownTerms(text, context.allowed).length > 0) return false;
-  return !repeatsUserWords(text, context.userTexts, context.allowed);
+  if (FORBIDDEN_PATTERNS.some((p) => p.test(nfkc))) return "forbidden";
+  if (unknownTerms(text, context.allowed).length > 0) return "unknown_term";
+  if (repeatsUserWords(text, context.userTexts, context.allowed)) return "repeat";
+  return null;
+}
+
+/** 文を画面に出してよいか */
+export function isAcceptablePromptText(text: string, context: TextCheckContext): boolean {
+  return promptTextProblem(text, context) === null;
 }

@@ -29,15 +29,25 @@
   - Workers の入口（`web/worker/index.ts`）は `default` だけを出す。受け口の中身は `web/worker/app.ts`
   - 本文のログは `DEV_CONTENT_LOG=1` かつ宛先が localhost のときだけ（ADR-0007 の追記）。Workers Logs は使わない（`web/wrangler.jsonc`）
   - 初回画面と README の送信の説明を、Anthropic へ送る版に合わせた（ゼロ保持の契約なし）
+  - 応答を自然にする（ADR-0029、2026-11-04 オーナー決定）：
+    - 半分の最後にも受け止めの一言を出す（Claude の文が使えないときは固定の一言）。
+    - Claude の文が使えずに固定の質問へ進むときは、固定の一言を前に付ける。
+    - 固定の進行に切り替えたら、知らせを1回だけ出す。
+    - 受け止めの決まった言葉を、繰り返しの検査で許す。
+    - 「ゆっくりで大丈夫」など、急がなくてよいことを伝える言い方を、禁止表現の例外にする。
+    - 文を捨てた理由の種類をログに出す。
+    - システムプロンプトにも、受け止めの言い方と「大丈夫」の使い方を足した。
+    - 固定の一言・知らせ・許す言葉・例外の文面は、下書きで `[TODO-OWNER]` 付き。
   - 足した依存（オーナーの承認 2026-11-04）：`@anthropic-ai/sdk` 1.3.0、`hono` 4.13.14、`wrangler` 4.156.0（開発用）
 
 ## 動作確認済み
 - hookとgitのフックの試験：`test_hooks.py` で247/247 PASS（2026-11-03、Windows 11・Git Bash・Python 3.14。STATUS.md の hook の21件と、Issue #19 で足した79件（決定の行によるマーカー解除、ローカルの main を動かす操作の停止と、main を起点に使うだけの操作を止めないこと）を含む）
 - STATUS.md の hook を、このリポジトリで手で動かした（2026-11-03）：修正前の STATUS.md で、PR #10 でマージ済みのブランチ名が残る2か所を挙げ、修正後は何も出さなかった。STATUS.md を変えていないブランチでの `gh pr create` を止めた。Claude Code のセッション開始時に実際に呼ばれるかは未確認
-- アプリの単体試験：`npm --prefix web test` で 253/253 PASS（8ファイル。Claude 連携の試験 `web/worker/turn.test.ts`・`checks.test.ts`、`web/src/flow/turnContract.test.ts`・`training.ai.test.ts` を含む。Claude は呼ばず、偽の返事を渡す）。型の検査（TypeScript 7.0）、ビルド（`npm --prefix web run build`）、Workers のまとめ（`npm --prefix web run bundle:worker`、デプロイはしない）も成功（2026-11-04、Issue #15 の後半の作業、Windows 11・Node.js 26.13）
+- アプリの単体試験：`npm --prefix web test` で 272/272 PASS（8ファイル。Claude 連携の試験 `web/worker/turn.test.ts`・`checks.test.ts`、`web/src/flow/turnContract.test.ts`・`training.ai.test.ts` を含む。Claude は呼ばず、偽の返事を渡す）。型の検査（TypeScript 7.0）、ビルド（`npm --prefix web run build`）、Workers のまとめ（`npm --prefix web run bundle:worker`、デプロイはしない）も成功（2026-11-04、Issue #15 の後半の作業、Windows 11・Node.js 26.13）
 - Workers を手元で起動した（2026-11-04、`wrangler dev`、API キーは置かない状態）：知らない道は 404、形の違う入力は 400、正しい形の入力はキーが無いので Claude を呼ばずに 503、画面のファイルは 200 を返した。Workers のログには失敗の種類（`turn: no_api_key`）だけが出て、本文は出なかった
 - 本物の Claude API での通し（2026-11-04、オーナーの承認、合計8回の呼び出し）：API キーを `wrangler dev` に読ませ、Claude desktop のブラウザ画面から架空の回答で訓練を1回通した。6回の呼び出しは1.6〜3.5秒で返った（8秒の待ち時間の内）。Claude の言い回しが4回画面に出て、検査で捨てられた文と、別のモデルでの答え直しは無かった。③確認の初期選択に候補（お薬手帳）が入り、「分からない」の回答の後に思い出せないときの固定文が出て、振り返りに5観点の判定（確認できた4、未確認と気づいた1）が出た。ストレージは空で、コンソールにエラーは無かった。先に curl で2回呼んだときは、Git Bash の curl が日本語を UTF-8 で送らず、Claude に文字化けした回答が届いた（試し方の問題で、アプリの問題ではない）
 - モデルの比較（2026-11-04、オーナーの承認、54回の呼び出し、見積もり約 $0.22）：架空の回答の18件を Opus 5.5・Sonnet 5.5・Haiku 5.5（effort low）に送った。下書きの期待の値との一致は 44/44・43/44・43/44、応答時間の中央値は 2.7秒・1.8秒・3.6秒（docs/evidence.md「モデルの比較」、`web/experiments/`）
+- システムプロンプトを直した後の比較実験（2026-11-04、Opus 5.5、18回、約 $0.14）：一致 44/44。Claude の文は 17/17 が検査を通った。半分の最後の5件すべてに受け止めの一言が出た。画面でも、失敗の後の知らせ（1回）、固定の質問の前の受け止め、③確認の冒頭の受け止めを確かめた
 - Claude 連携の安全の試験 S9、S16〜S19、F1〜F3、P8 を偽の返事の単体試験で、P3 をビルド成果物の検索で実施した（2026-11-04。docs/safety-test-plan.md「実施の記録」）。本物の Claude の出力での確認は未実施
 - Claude 連携の画面（2026-11-04、Claude desktop のブラウザ画面、Chromium 152、幅375px）：Workers を動かさない開発用サーバーで、最初の回答で `/api/turn` が失敗した後、問い合わせを送らずに固定の質問で振り返りまで進み、観点がすべて「判定できませんでした」になった（F1）。ページの中で偽の返事を返すようにして、待っている間の表示、質問し直しの固定文、思い出せないときのその場の文、Claude の言い回し、聞き返し、③確認の初期選択が出ることも確かめた
 - 安全の試験 E1〜E9（Issue #14、2026-11-03）：単体試験で実施。E7 は言い換え26件中4件を見逃した（docs/safety-test-plan.md「実施の記録」）。ブラウザ画面でも、体調の訴えで中断の案内、自傷のほのめかしで自傷用の案内が出ることを確かめた

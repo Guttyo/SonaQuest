@@ -1,7 +1,7 @@
 // Claude を使う進行の試験（Issue #15、docs/phase2-decisions.md、ADR-0025）。Claude の返事は作った値で渡す。
 
 import { describe, expect, it } from "vitest";
-import { CLARIFY_TEXTS, REDIRECT_TEXTS } from "./content";
+import { ACK_TEXT, CLARIFY_TEXTS, REDIRECT_TEXTS } from "./content";
 import {
   buildTurnRequest,
   countedAnswers,
@@ -74,12 +74,45 @@ describe("Claude を使う進行", () => {
   it("文が無いときや、次の質問と違うIDの文は使わず、固定文を出す", () => {
     const waiting = run([{ type: "start" }, answer("A薬を朝に1錠")]);
     const noText = trainingReducer(waiting, result(waiting, reply(ask("first_location"))));
-    expect(noText.prompt?.text).toBe(currentQuestion(noText)?.text);
+    // Claude の文が使えないときは、固定の受け止めの一言と固定の質問文（ADR-0029 の3）
+    expect(noText.prompt?.text).toBe(ACK_TEXT + currentQuestion(noText)?.text);
     const wrongId = trainingReducer(
       waiting,
       result(waiting, reply(ask("second_proxy", "別の質問"))),
     );
-    expect(wrongId.prompt?.text).toBe(currentQuestion(wrongId)?.text);
+    expect(wrongId.prompt?.text).toBe(ACK_TEXT + currentQuestion(wrongId)?.text);
+  });
+
+  it("半分の最後は、Claude の受け止めを③確認の冒頭に出し、無ければ固定の一言を出す（ADR-0029 の2）", () => {
+    let state = run([{ type: "start" }]);
+    for (const [text, next] of [
+      ["A薬", ask("first_location")],
+      ["手帳", ask("first_other")],
+    ] as const) {
+      state = trainingReducer(state, answer(text));
+      state = trainingReducer(state, result(state, reply(next)));
+    }
+    state = trainingReducer(state, answer("ない"));
+    const withAck = trainingReducer(
+      state,
+      result(state, reply({ type: "finish", question_id: null, text: "ありがとうございます。よく分かりました。" })),
+    );
+    expect(withAck.stage).toEqual({ name: "confirm" });
+    expect(withAck.closingAck).toBe("ありがとうございます。よく分かりました。");
+    const withoutAck = trainingReducer(
+      state,
+      result(state, reply({ type: "finish", question_id: null, text: null })),
+    );
+    expect(withoutAck.closingAck).toBe(ACK_TEXT);
+  });
+
+  it("失敗したときは、その回答の位置を覚えて、知らせを1回だけ出せるようにする（ADR-0029 の4）", () => {
+    let state = run([{ type: "start" }, answer("A薬を朝に1錠")]);
+    state = trainingReducer(state, result(state, null));
+    expect(state.failedAfter).toBe(1);
+    expect(state.prompt?.text).toBe(ACK_TEXT + currentQuestion(state)?.text);
+    state = trainingReducer(state, answer("手帳です"));
+    expect(state.failedAfter).toBe(1);
   });
 
   it("失敗したら、その回の残りは固定の進行にし、判定を使わない（F1〜F3）", () => {

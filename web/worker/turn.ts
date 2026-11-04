@@ -10,7 +10,7 @@ import {
   type TurnRequest,
   type TurnResponse,
 } from "../src/flow/turnContract";
-import { isAcceptablePromptText } from "./checks";
+import { promptTextProblem, type RejectReason } from "./checks";
 import type { CallClaude, ClaudeFailure, Usage } from "./claude";
 import { SYSTEM_PROMPT, buildUserMessage } from "./prompt";
 
@@ -72,32 +72,44 @@ const ALLOWED_VOCABULARY: readonly string[] = [
 
 /**
  * 次の手を決める。質問IDは Claude に選ばせず、固定の順番から決める（ADR-0025 の A）。
- * 許していない聞き返し・質問し直しは「次へ進む」に直し、そのときは Claude の文を使わない
+ * 許していない聞き返し・質問し直しは「次へ進む」に直し、そのときは Claude の文を使わない。
+ * 半分の最後（次の固定の質問が無い）は finish にし、文は受け止めの一言として同じ検査を通す（ADR-0029 の2）。
+ * rejected は、Claude の文を検査で捨てた理由（捨てなければ null）
  */
-export function decideNext(request: TurnRequest, output: ClaudeOutput): TurnResponse["next"] {
+export function chooseNext(
+  request: TurnRequest,
+  output: ClaudeOutput,
+): { next: TurnResponse["next"]; rejected: RejectReason | null } {
   const current = request.inputs[request.inputs.length - 1].question_id;
-  let type: ClaudeOutput["next_type"] = output.next_type;
+  let type: TurnResponse["next"]["type"] = output.next_type;
   let text = output.text;
   if ((type === "clarify" && !request.allow_clarify) || (type === "redirect" && !request.allow_redirect)) {
     type = "ask";
     text = null;
   }
-  if (type === "ask" && request.next_question_id === null) {
-    return { type: "finish", question_id: null, text: null };
-  }
-  const questionId = type === "ask" ? (request.next_question_id as string) : current;
+  if (type === "ask" && request.next_question_id === null) type = "finish";
+  const questionId =
+    type === "finish" ? null : type === "ask" ? (request.next_question_id as string) : current;
 
-  const accepted =
-    text !== null &&
-    isAcceptablePromptText(text, {
-      userTexts: request.inputs.map((i) => i.text),
-      allowed: [
-        QUESTION_TEXT.get(current) ?? "",
-        QUESTION_TEXT.get(questionId) ?? "",
-        ...ALLOWED_VOCABULARY,
-      ],
-    });
-  return { type, question_id: questionId, text: accepted ? text : null };
+  const rejected =
+    text === null
+      ? null
+      : promptTextProblem(text, {
+          userTexts: request.inputs.map((i) => i.text),
+          allowed: [
+            QUESTION_TEXT.get(current) ?? "",
+            questionId === null ? "" : QUESTION_TEXT.get(questionId) ?? "",
+            ...ALLOWED_VOCABULARY,
+          ],
+        });
+  return {
+    next: { type, question_id: questionId, text: rejected === null ? text : null },
+    rejected,
+  };
+}
+
+export function decideNext(request: TurnRequest, output: ClaudeOutput): TurnResponse["next"] {
+  return chooseNext(request, output).next;
 }
 
 export type TurnOutcome =
@@ -110,6 +122,8 @@ export type TurnOutcome =
       /** Claude が作った文（検査の前）。比較実験で、捨てられた文を数えるために使う */
       claudeText: string | null;
       textRejected: boolean;
+      /** 文を捨てた理由（ADR-0029 の1）。捨てなければ null */
+      rejectReason: RejectReason | null;
     }
   | { ok: false; failure: ClaudeFailure | "invalid_output" };
 
@@ -118,7 +132,7 @@ export async function runTurn(request: TurnRequest, callClaude: CallClaude): Pro
   if (!result.ok) return { ok: false, failure: result.failure };
   const output = parseClaudeOutput(result.value);
   if (output === null) return { ok: false, failure: "invalid_output" };
-  const next = decideNext(request, output);
+  const { next, rejected } = chooseNext(request, output);
   return {
     ok: true,
     raw: result.raw,
@@ -126,6 +140,7 @@ export async function runTurn(request: TurnRequest, callClaude: CallClaude): Pro
     usage: result.usage,
     claudeText: output.text,
     textRejected: output.text !== null && next.text === null,
+    rejectReason: rejected,
     response: {
       emergency: output.emergency,
       viewpoints: output.viewpoints,

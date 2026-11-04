@@ -72,10 +72,11 @@ export function createApp(
         usage: outcome.usage,
         claudeText: outcome.claudeText,
         textRejected: outcome.textRejected,
+        rejectReason: outcome.rejectReason,
       };
       c.header(DEV_METRICS_HEADER, encodeURIComponent(JSON.stringify(metrics)));
     }
-    if (outcome.textRejected) console.warn("turn: text_rejected");
+    if (outcome.rejectReason !== null) console.warn(`turn: text_rejected:${outcome.rejectReason}`);
     return c.json(outcome.response);
   });
 
