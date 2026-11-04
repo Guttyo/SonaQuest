@@ -1,10 +1,11 @@
 // /api/turn の中身と入口の試験。Claude は呼ばず、返事を作って渡す（docs/safety-test-plan.md S9、F1〜F3、P8）
 
 import { describe, expect, it, vi } from "vitest";
-import type { TurnRequest } from "../src/flow/turnContract";
+import { MAX_ANSWER_LENGTH } from "../src/flow/rules";
+import { MAX_PROMPT_LENGTH, MAX_TURN_INPUTS, type TurnRequest } from "../src/flow/turnContract";
 import { usesFallback, type CallClaude, type ClaudeResult } from "./claude";
 import { contentLogEnabled, devOverrides, logContent } from "./devlog";
-import { DEV_METRICS_HEADER, MAX_BODY_BYTES, createApp, type Env } from "./app";
+import { DEV_METRICS_HEADER, MAX_BODY_BYTES, MAX_BODY_LENGTH, createApp, type Env } from "./app";
 import { AUDIT_CATEGORIES, AUDIT_SYSTEM_PROMPT, buildAuditMessage } from "./audit";
 import * as entry from "./index";
 import { SYSTEM_PROMPT, buildUserMessage } from "./prompt";
@@ -202,7 +203,7 @@ describe("/api/turn の入口", () => {
   it("形の違う入力・大きすぎる入力は、Claude を呼ばずに拒否する（P8）", async () => {
     const call = vi.fn(fake(ok(output)));
     const app = createApp(() => call);
-    const tooMany = { ...request, inputs: Array(7).fill(request.inputs[0]) };
+    const tooMany = { ...request, inputs: Array(MAX_TURN_INPUTS + 1).fill(request.inputs[0]) };
     const tooLong = { ...request, inputs: [{ ...request.inputs[0], text: "あ".repeat(501) }] };
     const unknownId = { ...request, next_question_id: "q99" };
     for (const body of [
@@ -214,8 +215,20 @@ describe("/api/turn の入口", () => {
     ]) {
       expect((await post(app, body)).status).toBe(400);
     }
-    expect((await post(app, "x".repeat(12_001))).status).toBe(413);
+    expect((await post(app, "x".repeat(MAX_BODY_LENGTH + 1))).status).toBe(413);
     expect(call).not.toHaveBeenCalled();
+  });
+
+  it("いちばん大きい正しい入力（回答10件×500字、画面の文10件×200字、すべて逃がしの要る文字）も、本文の上限に収まる（Issue #41）", () => {
+    const largest = {
+      ...request,
+      inputs: Array(MAX_TURN_INPUTS).fill({
+        ...request.inputs[0],
+        asked: '"'.repeat(MAX_PROMPT_LENGTH),
+        text: '"'.repeat(MAX_ANSWER_LENGTH),
+      }),
+    };
+    expect(JSON.stringify(largest).length).toBeLessThanOrEqual(MAX_BODY_LENGTH);
   });
 
   it("キーが無いときは Claude を呼ばずに失敗を返す", async () => {
