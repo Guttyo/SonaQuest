@@ -836,6 +836,6 @@
   - Google Fonts で Noto Sans JP などを配信する（送信先が増える。privacy.md）。
   - Noto Sans JP・Noto Serif JP のファイルを自前で置く（容量と依存が増える。日本語の書体は数 MB になる）。
   - PC の幅で根の文字の大きさごと上げる（px で決めた高さ・余白とずれる）。
-- 影響：`web/src/styles.css` だけ。`voice.css` は rem と `font: inherit` で書かれているので、変数の書体がそのまま当たる。コントラストの確認の結果は docs/STATUS.md「動作確認済み」。
+- 影響：`web/src/styles.css`。`voice.css` は rem と `font: inherit` で書かれているので、変数の書体がそのまま当たる。`voice.css` の太さの直書き（700）2か所は `var(--fw-bold)` にそろえた（PR #73 の自動レビューの指摘）。コントラストの確認の結果は docs/STATUS.md「動作確認済み」。
 - オーナーが判断する点（Issue #71 の PR の説明にも一覧）：
   - [TODO-OWNER: 書体の並びの順（Claude Code の下書き。Windows で BIZ UDPゴシックを游ゴシック UI より先にした）と、大きさの段階の値（決定3・5）、聞き取り係の質問を本文の大きさと墨の色にしたこと（決定6）]
