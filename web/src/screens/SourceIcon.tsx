@@ -33,10 +33,19 @@ export function sourceLabel(id: DrawnSource): string {
 }
 
 /**
- * 情報源の絵（A-04 の一部。期間中に描いた SVG。実在の製品・サービスのロゴや、医療者の記号は使わない）。
- * 絵は飾りで、意味は必ず隣の文字で示す（A-05）
+ * 情報源のほかに描く、薬のまわりのもの（A-04）。③確認の選択肢には足さない（SOURCE_OPTIONS は変えない）。
+ * leaflet：お薬の説明書、bag：薬の袋。中の文字・薬の形・量は描かない
  */
-export function SourceIcon({ id, className }: { id: DrawnSource; className?: string }) {
+export type ExtraIllustration = "leaflet" | "bag";
+
+/** SourceIcon で描ける絵 */
+export type IllustrationId = DrawnSource | ExtraIllustration;
+
+/**
+ * 情報源と薬のまわりのものの絵（A-04 の一部。期間中に描いた SVG。実在の製品・サービスのロゴ、医療者の記号、
+ * 実在の薬の名前・形、薬効や量は描かない）。絵は飾りで、意味は必ず隣の文字で示す（A-05）
+ */
+export function SourceIcon({ id, className }: { id: IllustrationId; className?: string }) {
   return (
     <svg
       className={className ?? "source-icon"}
@@ -78,6 +87,22 @@ export function SourceIcon({ id, className }: { id: DrawnSource; className?: str
           <circle cx="33" cy="18" r="5" />
           <path d="M6 40c1-8 5-13 11-13s10 5 11 13" />
           <path d="M26 40c1-6 3-10 7-10s7 4 8 10" />
+        </>
+      )}
+      {id === "leaflet" && (
+        <>
+          {/* お薬の説明書：角を折った1枚の紙。中の文字は線で表し、読める字は書かない */}
+          <path d="M12 5h17l9 9v29H12z" />
+          <path d="M29 5v9h9" />
+          <path d="M18 22h14M18 29h14M18 36h9" />
+        </>
+      )}
+      {id === "bag" && (
+        <>
+          {/* 薬の袋：口を折った紙の袋と、名前を書く欄（中の字・薬の形は描かない） */}
+          <path d="M10 14l4-8h20l4 8" />
+          <path d="M10 14h28v29H10z" />
+          <rect x="16" y="22" width="16" height="11" rx="2" />
         </>
       )}
       {id === "clinic" && (

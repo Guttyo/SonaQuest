@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { EVENTS } from "../flow/content";
 import type { EventId } from "../flow/types";
-import { EVENT_FOCUS, LOST_BY_EVENT, SourceChip } from "./SourceIcon";
+import { EVENT_FOCUS, LOST_BY_EVENT, SourceChip, SourceIcon, type IllustrationId } from "./SourceIcon";
 
 const EVENT_IDS = Object.keys(EVENTS) as EventId[];
 
@@ -35,5 +35,25 @@ describe("頼りにしているもの", () => {
     expect(html).toContain("スマートフォン");
     expect(html).toContain("（使えない）");
     expect(renderToStaticMarkup(<SourceChip source="smartphone" lost={false} />)).not.toContain("使えない");
+  });
+});
+
+describe("情報源と薬のまわりのものの絵（A-04）", () => {
+  const ids: IllustrationId[] = ["smartphone", "online", "notebook", "family", "clinic", "leaflet", "bag"];
+
+  it("お薬の説明書と薬の袋を含め、どの絵も描かれ、読み上げない飾りで、字を含まない", () => {
+    for (const id of ids) {
+      const html = renderToStaticMarkup(<SourceIcon id={id} />);
+      expect(html).toMatch(/^<svg class="source-icon"[^>]*aria-hidden="true"/);
+      expect(html).toContain('focusable="false"');
+      expect(html).toMatch(/<(path|rect|circle)/);
+      expect(html).not.toContain("<text");
+      expect(html).not.toContain("<title");
+    }
+  });
+
+  it("説明書と袋はそれぞれ別の絵で、ほかの絵と同じものではない", () => {
+    const drawn = ids.map((id) => renderToStaticMarkup(<SourceIcon id={id} />));
+    expect(new Set(drawn).size).toBe(ids.length);
   });
 });
