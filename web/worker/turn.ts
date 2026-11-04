@@ -16,6 +16,7 @@ import {
   type TurnRequest,
   type TurnResponse,
 } from "../src/flow/turnContract";
+import type { Audit, AuditCategory, AuditResult } from "./audit";
 import { promptTextProblem, type RejectReason } from "./checks";
 import type { CallClaude, ClaudeFailure, Usage } from "./claude";
 import { SYSTEM_PROMPT, buildUserMessage } from "./prompt";
@@ -138,6 +139,19 @@ export function decideNext(request: TurnRequest, output: ClaudeOutput): TurnResp
   return chooseNext(request, output).next;
 }
 
+/** 文を捨てた理由。正規表現の検査（checks.ts）か、監査役（audit.ts、ADR-0030）。本文を含まないのでログに出してよい */
+export type TextRejectReason = RejectReason | `audit_${AuditCategory}`;
+
+/** 監査役の呼び出しの結果。比較実験の見出しとログに使う（本文を含まない） */
+export interface AuditReport {
+  ms: number;
+  pass: boolean | null;
+  category: AuditCategory | null;
+  failure: Extract<AuditResult, { ok: false }>["failure"] | null;
+  usage: Usage | null;
+  servedBy: string | null;
+}
+
 export type TurnOutcome =
   | {
       ok: true;
@@ -148,17 +162,66 @@ export type TurnOutcome =
       /** Claude が作った文（検査の前）。比較実験で、捨てられた文を数えるために使う */
       claudeText: string | null;
       textRejected: boolean;
-      /** 文を捨てた理由（ADR-0029 の1）。捨てなければ null */
-      rejectReason: RejectReason | null;
+      /** 文を捨てた理由（ADR-0029 の1、ADR-0030）。捨てなければ null。監査役の失敗では null（audit.failure を見る） */
+      rejectReason: TextRejectReason | null;
+      /** 監査役を呼んだときの結果。呼ばなかったとき（文が無い、正規表現の検査で捨てた、監査役を使わない）は null */
+      audit: AuditReport | null;
     }
   | { ok: false; failure: ClaudeFailure | "invalid_output" };
 
-export async function runTurn(request: TurnRequest, callClaude: CallClaude): Promise<TurnOutcome> {
+/**
+ * 監査役に渡す固定の質問文。Claude の文が言い直している質問にする（監査役の比較実験と同じ渡し方）。
+ * 次の質問へ進むときは次の質問、聞き返し・質問し直し・半分の最後の受け止めは、いま答えた質問
+ */
+export function auditedQuestion(request: TurnRequest, next: TurnResponse["next"]): string {
+  const current = request.inputs[request.inputs.length - 1].question_id;
+  const id = next.type === "ask" && next.question_id !== null ? next.question_id : current;
+  return QUESTION_TEXT.get(id) ?? "";
+}
+
+/**
+ * 1回のやり取り。Claude の出力を検査し、正規表現の検査を通った文だけを監査役に確かめさせる（ADR-0030）。
+ * 監査役が止めたとき・失敗したときは、その文だけを捨てて固定文に戻す（判定と次の手はそのまま使う）。
+ * audit が null のときは監査役を呼ばない（試験と、開発中の比較実験の「監査役なし」）
+ */
+export async function runTurn(
+  request: TurnRequest,
+  callClaude: CallClaude,
+  audit: Audit | null = null,
+): Promise<TurnOutcome> {
   const result = await callClaude(SYSTEM_PROMPT, buildUserMessage(request));
   if (!result.ok) return { ok: false, failure: result.failure };
   const output = parseClaudeOutput(result.value);
   if (output === null) return { ok: false, failure: "invalid_output" };
-  const { next, rejected } = chooseNext(request, output);
+  const chosen = chooseNext(request, output);
+  let next = chosen.next;
+  let rejectReason: TextRejectReason | null = chosen.rejected;
+  let report: AuditReport | null = null;
+
+  if (next.text !== null && audit !== null) {
+    const started = Date.now();
+    const verdict = await audit(next.text, auditedQuestion(request, next));
+    const ms = Date.now() - started;
+    if (verdict.ok) {
+      report = {
+        ms,
+        pass: verdict.pass,
+        category: verdict.category,
+        failure: null,
+        usage: verdict.usage,
+        servedBy: verdict.servedBy,
+      };
+      if (!verdict.pass) {
+        next = { ...next, text: null };
+        rejectReason = `audit_${verdict.category ?? "other"}`;
+      }
+    } else {
+      // 監査役が答えられなかったときは、確かめられなかった文として捨てる（安全な側に倒す）
+      report = { ms, pass: null, category: null, failure: verdict.failure, usage: null, servedBy: null };
+      next = { ...next, text: null };
+    }
+  }
+
   return {
     ok: true,
     raw: result.raw,
@@ -166,7 +229,8 @@ export async function runTurn(request: TurnRequest, callClaude: CallClaude): Pro
     usage: result.usage,
     claudeText: output.text,
     textRejected: output.text !== null && next.text === null,
-    rejectReason: rejected,
+    rejectReason,
+    audit: report,
     response: {
       emergency: output.emergency,
       viewpoints: output.viewpoints,

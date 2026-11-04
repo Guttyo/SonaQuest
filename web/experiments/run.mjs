@@ -4,6 +4,7 @@
 // 1. 別のターミナルで、比較するモデルを指定して Workers を動かす（DEV_EXPERIMENT は手元だけで効く）
 //      npx --prefix web wrangler dev --port 8787 --var DEV_EXPERIMENT:1 --var DEV_MODEL:claude-haiku-5-5
 // 2. node web/experiments/run.mjs --label haiku-low [--only J1,S8] [--show-text]
+//    監査役（ADR-0030）を外して比べるときは、Workers に --var DEV_AUDIT:off も付ける
 //
 // 結果は web/experiments/results/<label>.json に、測った値だけを書く（Claude の文は書かない。
 // 文は --show-text のときに画面に出すだけ）。
@@ -68,9 +69,15 @@ for (const c of CASES.filter((x) => only === undefined || only.includes(x.id))) 
     servedBy: metrics.servedBy ?? null,
     ms: metrics.ms,
     usage: metrics.usage ?? null,
-    costUsd: cost(metrics.servedBy ?? metrics.model, metrics.usage),
+    costUsd: cost(metrics.servedBy ?? metrics.model, metrics.usage) + cost(metrics.audit?.servedBy ?? "claude-haiku-5-5", metrics.audit?.usage ?? undefined),
     hadText: metrics.claudeText !== null && metrics.claudeText !== undefined,
     textRejected: metrics.textRejected ?? null,
+    rejectReason: metrics.rejectReason ?? null,
+    // 監査役の結果（判定・理由の種類・失敗の種類・時間）。本文は含まない
+    audit:
+      metrics.audit === null || metrics.audit === undefined
+        ? null
+        : { ms: metrics.audit.ms, pass: metrics.audit.pass, category: metrics.audit.category, failure: metrics.audit.failure },
     got: body === null ? null : { emergency: body.emergency, recall: body.recall, next: body.next.type, viewpoints: body.viewpoints },
     checks,
   };
@@ -79,6 +86,8 @@ for (const c of CASES.filter((x) => only === undefined || only.includes(x.id))) 
   console.log(
     `${c.id.padEnd(4)} ${String(metrics.ms).padStart(5)}ms ${row.ok ? "ok " : "NG "} checks ${passed}/${Object.keys(checks).length}` +
       ` text:${row.hadText ? (row.textRejected ? "rejected" : "shown") : "none"}` +
+      (row.rejectReason ? ` reason:${row.rejectReason}` : "") +
+      (row.audit ? ` audit:${row.audit.failure ?? (row.audit.pass ? "pass" : row.audit.category)} ${row.audit.ms}ms` : "") +
       (metrics.failure ? ` failure:${metrics.failure}` : ""),
   );
   if (showText && metrics.claudeText) console.log(`      ${metrics.claudeText}`);
@@ -89,6 +98,8 @@ const allChecks = results.flatMap((r) => Object.values(r.checks));
 const judgeChecks = results.filter((r) => r.kind === "judge").flatMap((r) => Object.values(r.checks));
 const behaveChecks = results.filter((r) => r.kind === "behave").flatMap((r) => Object.values(r.checks));
 const withText = results.filter((r) => r.hadText);
+const audited = results.filter((r) => r.audit !== null);
+const auditMs = audited.map((r) => r.audit.ms).sort((a, b) => a - b);
 const summary = {
   label,
   model: results[0]?.model ?? null,
@@ -101,6 +112,11 @@ const summary = {
   behaveAgreement: `${behaveChecks.filter(Boolean).length}/${behaveChecks.length}`,
   allAgreement: `${allChecks.filter(Boolean).length}/${allChecks.length}`,
   textShown: `${withText.filter((r) => !r.textRejected).length}/${withText.length}`,
+  auditCalls: audited.length,
+  auditBlocked: audited.filter((r) => r.audit.pass === false).length,
+  auditFailed: audited.filter((r) => r.audit.failure !== null).length,
+  auditMsMedian: auditMs[Math.floor(auditMs.length / 2)] ?? null,
+  auditMsMax: auditMs[auditMs.length - 1] ?? null,
   costUsd: Number(results.reduce((s, r) => s + r.costUsd, 0).toFixed(4)),
 };
 console.log(JSON.stringify(summary, null, 2));

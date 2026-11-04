@@ -33,11 +33,7 @@ export function Dialogue({ state, dispatch }: Props) {
       <p className="scene">{SCENE_INTRO}</p>
       <Transcript state={state} />
 
-      {question !== null && state.waiting && (
-        <p className="notice" role="status" data-scroll-target tabIndex={-1}>
-          {WAITING_TEXT}
-        </p>
-      )}
+      {question !== null && state.waiting && <Thinking />}
 
       {question !== null && !state.waiting && (
         <AnswerForm
@@ -78,6 +74,27 @@ export function Dialogue({ state, dispatch }: Props) {
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * 返事を待つ間の「考え中」（ADR-0030）。聞き取り係の光がゆっくり明滅し、文の後ろに点が流れる。
+ * 読み上げは文だけ（点は読まない）。動きを減らす設定では動きが止まり、文だけで示す（styles.css、ADR-0020）
+ */
+function Thinking() {
+  return (
+    <div className="exchange-row thinking" role="status" data-scroll-target tabIndex={-1}>
+      <span className="listener-light listener-light-small listener-light-thinking" aria-hidden="true" />
+      <p className="exchange-question">
+        <span className="bubble-name">聞き取り係</span>
+        {WAITING_TEXT}
+        <span className="thinking-dots" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </span>
+      </p>
+    </div>
   );
 }
 

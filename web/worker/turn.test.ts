@@ -1,11 +1,12 @@
 // /api/turn の中身と入口の試験。Claude は呼ばず、返事を作って渡す（docs/safety-test-plan.md S9、F1〜F3、P8）
 
 import { describe, expect, it, vi } from "vitest";
+import { ALL_QUESTIONS } from "../src/flow/content";
 import type { TurnRequest } from "../src/flow/turnContract";
 import { usesFallback, type CallClaude, type ClaudeResult } from "./claude";
 import { contentLogEnabled, devOverrides, logContent } from "./devlog";
-import { DEV_METRICS_HEADER, MAX_BODY_BYTES, createApp, type Env } from "./app";
-import { AUDIT_CATEGORIES, AUDIT_SYSTEM_PROMPT, buildAuditMessage } from "./audit";
+import { DEV_METRICS_HEADER, MAX_BODY_BYTES, createApp as createAppWith, type Env } from "./app";
+import { AUDIT_CATEGORIES, AUDIT_SYSTEM_PROMPT, buildAuditMessage, type Audit, type AuditResult } from "./audit";
 import * as entry from "./index";
 import { SYSTEM_PROMPT, buildUserMessage } from "./prompt";
 import { chooseNext, decideNext, followsFixedOrder, parseClaudeOutput, runTurn } from "./turn";
@@ -49,6 +50,15 @@ const ok = (value: unknown): ClaudeResult => ({
   usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 });
 const fake = (result: ClaudeResult): CallClaude => async () => result;
+
+const usage0 = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+const passed: AuditResult = { ok: true, pass: true, category: null, usage: usage0, servedBy: "claude-haiku-5-5" };
+const fakeAudit = (result: AuditResult): Audit => async () => result;
+/** 試験では本物の監査役を呼ばない。指定が無ければ、いつも通す監査役を渡す */
+const createApp = (
+  makeClaude: Parameters<typeof createAppWith>[0],
+  makeAuditor: Parameters<typeof createAppWith>[1] = () => fakeAudit(passed),
+) => createAppWith(makeClaude, makeAuditor);
 
 describe("Claude の出力の検査（S9）", () => {
   it("決めた形の出力は通す", () => {
@@ -406,5 +416,118 @@ describe("2026-11-04 の PR #39 のレビューへの対応", () => {
     }
     expect(call).not.toHaveBeenCalled();
     expect(followsFixedOrder(request)).toBe(true);
+  });
+});
+
+describe("監査役を /api/turn に組み込む（ADR-0030、safety-test-plan S20）", () => {
+  const parsed = parseClaudeOutput(output)!;
+  const questionText = (id: string) => ALL_QUESTIONS.find((q) => q.id === id)!.text;
+  const blocked: AuditResult = { ok: true, pass: false, category: "medical_guess", usage: usage0, servedBy: "claude-haiku-5-5" };
+
+  it("監査役が通した文は、そのまま画面に出す", async () => {
+    const outcome = await runTurn(request, fake(ok(output)), fakeAudit(passed));
+    if (!outcome.ok) throw new Error("ok のはず");
+    expect(outcome.response.next.text).toBe(output.text);
+    expect(outcome.textRejected).toBe(false);
+    expect(outcome.audit).toMatchObject({ pass: true, category: null, failure: null });
+  });
+
+  it("監査役が止めた文は捨てて固定文に戻す。判定と次の手はそのまま使う", async () => {
+    const outcome = await runTurn(request, fake(ok(output)), fakeAudit(blocked));
+    if (!outcome.ok) throw new Error("ok のはず");
+    expect(outcome.response.next).toEqual({ type: "ask", question_id: "first_location", text: null });
+    expect(outcome.response.viewpoints).toEqual(output.viewpoints);
+    expect(outcome.textRejected).toBe(true);
+    expect(outcome.rejectReason).toBe("audit_medical_guess");
+  });
+
+  it.each(["timeout", "api_error", "refusal", "invalid"] as const)(
+    "監査役が答えられない（%s）ときも、文を捨てて固定文に戻す",
+    async (failure) => {
+      const outcome = await runTurn(request, fake(ok(output)), fakeAudit({ ok: false, failure }));
+      if (!outcome.ok) throw new Error("ok のはず");
+      expect(outcome.response.next.text).toBeNull();
+      expect(outcome.response.next.question_id).toBe("first_location");
+      expect(outcome.textRejected).toBe(true);
+      expect(outcome.rejectReason).toBeNull();
+      expect(outcome.audit).toMatchObject({ pass: null, failure });
+    },
+  );
+
+  it("文が無いとき、正規表現の検査で捨てたときは、監査役を呼ばない", async () => {
+    const audit = vi.fn(fakeAudit(passed));
+    await runTurn(request, fake(ok({ ...output, text: null })), audit);
+    const outcome = await runTurn(request, fake(ok({ ...output, text: "朝と夜にお飲みください。" })), audit);
+    expect(audit).not.toHaveBeenCalled();
+    if (!outcome.ok) throw new Error("ok のはず");
+    expect(outcome.rejectReason).toBe("forbidden");
+    expect(outcome.audit).toBeNull();
+  });
+
+  it("監査役に渡すのは、Claude の文と、その文が言い直している固定の質問文だけ（回答は渡さない）", async () => {
+    const audit = vi.fn(fakeAudit(passed));
+    await runTurn(request, fake(ok(output)), audit);
+    expect(audit).toHaveBeenLastCalledWith(output.text, questionText("first_location"));
+    const clarify = { ...output, next_type: "clarify", text: "もう少し教えてください。" };
+    await runTurn(request, fake(ok(clarify)), audit);
+    expect(audit).toHaveBeenLastCalledWith("もう少し教えてください。", questionText("first_medicines"));
+    const last = { ...request, next_question_id: null, allow_clarify: false };
+    await runTurn(last, fake(ok({ ...output, text: "教えてくださってありがとうございます。" })), audit);
+    expect(audit).toHaveBeenLastCalledWith("教えてくださってありがとうございます。", questionText("first_medicines"));
+    for (const args of audit.mock.calls) expect(JSON.stringify(args)).not.toContain(request.inputs[0].text);
+  });
+
+  it("監査役が null のときは呼ばずに、正規表現の検査だけで決める", async () => {
+    const outcome = await runTurn(request, fake(ok(output)));
+    if (!outcome.ok) throw new Error("ok のはず");
+    expect(outcome.response.next.text).toBe(output.text);
+    expect(outcome.audit).toBeNull();
+    expect(decideNext(request, parsed).text).toBe(output.text);
+  });
+
+  describe("入口", () => {
+    const env: Env = { ANTHROPIC_API_KEY: "test-key" };
+    const post = (app: ReturnType<typeof createApp>, e: Env = env, url = "http://localhost/api/turn") =>
+      app.request(url, { method: "POST", body: JSON.stringify(request), headers: { "Content-Type": "application/json" } }, e);
+
+    it("止めた理由と失敗の種類だけをログに出し、本文は出さない（P1）", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const log = vi.spyOn(console, "log").mockImplementation(() => {});
+      const stop = await post(createApp(() => fake(ok(output)), () => fakeAudit(blocked)));
+      expect(stop.status).toBe(200);
+      expect(((await stop.json()) as { next: { text: unknown } }).next.text).toBeNull();
+      expect(warn).toHaveBeenCalledWith("turn: text_rejected:audit_medical_guess");
+      const fail = await post(createApp(() => fake(ok(output)), () => fakeAudit({ ok: false, failure: "timeout" })));
+      expect(fail.status).toBe(200);
+      expect(warn).toHaveBeenCalledWith("turn: audit_failed:timeout");
+      for (const [message] of warn.mock.calls) expect(String(message)).not.toContain(output.text);
+      expect(log).not.toHaveBeenCalled();
+      warn.mockRestore();
+      log.mockRestore();
+    });
+
+    it("監査役を外せるのは、手元の比較実験で DEV_AUDIT=off のときだけ", async () => {
+      const makeAuditor = vi.fn(() => fakeAudit(passed));
+      const app = createApp(() => fake(ok(output)), makeAuditor);
+      await post(app, { ...env, DEV_EXPERIMENT: "1", DEV_AUDIT: "off" });
+      expect(makeAuditor).not.toHaveBeenCalled();
+      await post(app, { ...env, DEV_AUDIT: "off" });
+      await post(app, { ...env, DEV_EXPERIMENT: "1", DEV_AUDIT: "off", PUBLIC_TURN: "1" }, "https://sonaquest.example/api/turn");
+      expect(makeAuditor).toHaveBeenCalledTimes(2);
+    });
+
+    it("比較実験の見出しに、監査役の結果（本文を含まない）を載せる", async () => {
+      const app = createApp(() => fake(ok(output)), () => fakeAudit(blocked));
+      const response = await post(app, { ...env, DEV_EXPERIMENT: "1" });
+      const metrics = JSON.parse(decodeURIComponent(response.headers.get(DEV_METRICS_HEADER) ?? ""));
+      expect(metrics.audit).toMatchObject({ pass: false, category: "medical_guess", failure: null });
+      expect(metrics.rejectReason).toBe("audit_medical_guess");
+      expect(JSON.stringify(metrics.audit)).not.toContain(output.text);
+    });
+
+    it("DEV_AUDIT は比較実験の切り替えの中でだけ読む", () => {
+      expect(devOverrides({ DEV_EXPERIMENT: "1", DEV_AUDIT: "off" }, "http://localhost/api/turn")).toEqual({ audit: false });
+      expect(devOverrides({ DEV_AUDIT: "off" }, "http://localhost/api/turn")).toBeNull();
+    });
   });
 });

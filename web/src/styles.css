@@ -169,7 +169,7 @@ a:focus-visible {
   color: var(--ink-soft);
 }
 
-/* 聞き取り係（静止した光。動きの演出は Phase 1 では入れない） */
+/* 聞き取り係（光の存在。ADR-0020）。動くのは返事を待つ間の「考え中」だけ（下の .listener-light-thinking、ADR-0030） */
 .listener {
   display: flex;
   gap: 12px;
@@ -240,6 +240,65 @@ a:focus-visible {
   height: 28px;
   margin-top: 4px;
   box-shadow: 0 0 10px 3px rgba(244, 162, 89, 0.35);
+}
+
+/* 考え中（ADR-0030）：光がゆっくり明滅し、文の後ろに点が流れる。
+   動きを減らす設定では、下の prefers-reduced-motion で動きが止まり、光と点は止まったまま見える */
+.thinking {
+  margin-top: 8px;
+}
+
+.listener-light-thinking {
+  animation: listener-thinking 1.6s ease-in-out infinite alternate;
+}
+
+@keyframes listener-thinking {
+  from {
+    opacity: 0.7;
+    transform: scale(0.92);
+    box-shadow: 0 0 6px 2px rgba(244, 162, 89, 0.25);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.05);
+    box-shadow: 0 0 14px 5px rgba(244, 162, 89, 0.45);
+  }
+}
+
+.thinking-dots {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.thinking-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ink-soft);
+  animation: thinking-dot 1.2s ease-in-out infinite;
+}
+
+.thinking-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.thinking-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes thinking-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
 }
 
 .user-avatar {
