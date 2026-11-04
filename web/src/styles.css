@@ -574,6 +574,8 @@ textarea {
 .dialogue {
   --header-h: calc(max(10px, env(safe-area-inset-top)) + 55px);
   --stage-h: 196px;
+  /* 対話が短いときも、回答の欄が画面の下端に来るように、ヘッダーの下の高さを埋める */
+  min-height: calc(100dvh - var(--header-h));
 }
 
 .app-main:has(.dialogue) {
