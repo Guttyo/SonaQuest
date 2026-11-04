@@ -33,10 +33,28 @@ export function sourceLabel(id: DrawnSource): string {
 }
 
 /**
- * 情報源の絵（A-04 の一部。期間中に描いた SVG。実在の製品・サービスのロゴや、医療者の記号は使わない）。
- * 絵は飾りで、意味は必ず隣の文字で示す（A-05）
+ * 情報源のほかに描く、薬のまわりのもの（A-04）。③確認の選択肢には足さない（SOURCE_OPTIONS は変えない）。
+ * leaflet：お薬の説明書、bag：薬の袋。中の文字・薬の形・量は描かない
  */
-export function SourceIcon({ id, className }: { id: DrawnSource; className?: string }) {
+export type ExtraIllustration = "leaflet" | "bag";
+
+/** SourceIcon で描ける絵 */
+export type IllustrationId = DrawnSource | ExtraIllustration;
+
+/**
+ * 情報源と薬のまわりのものの絵（A-04 の一部。期間中に描いた SVG。実在の製品・サービスのロゴ、医療者の記号、
+ * 実在の薬の名前・形、薬効や量は描かない）。絵は飾りで、意味は必ず隣の文字で示す（A-05）
+ */
+export function SourceIcon({
+  id,
+  className,
+  battery = false,
+}: {
+  id: IllustrationId;
+  className?: string;
+  /** スマホの画面に電池の印を出す。電池切れの出来事の場面だけで使う（カードやほかの場所では出さない） */
+  battery?: boolean;
+}) {
   return (
     <svg
       className={className ?? "source-icon"}
@@ -51,19 +69,23 @@ export function SourceIcon({ id, className }: { id: DrawnSource; className?: str
     >
       {id === "smartphone" && (
         <>
+          {/* 本体と、上の受話口・下のボタンだけの、どの製品にも似せないスマホ */}
           <rect x="13" y="4" width="22" height="40" rx="4" />
           <path d="M21 9h6" />
-          {/* 電池の印。電池切れの場面では中の量が減る（styles.css の .battery-level） */}
-          <rect x="18" y="19" width="12" height="16" rx="2" />
-          <path d="M22 17h4" />
-          <rect className="battery-level" x="20.5" y="21.5" width="7" height="11" rx="1" fill="currentColor" stroke="none" />
+          <path d="M22 39h4" />
+          {battery && (
+            <>
+              {/* 電池の印。電池切れの場面では中の量が減る（styles.css の .battery-level） */}
+              <rect x="18" y="17" width="12" height="16" rx="2" />
+              <path d="M22 15h4" />
+              <rect className="battery-level" x="20.5" y="19.5" width="7" height="11" rx="1" fill="currentColor" stroke="none" />
+            </>
+          )}
         </>
       )}
       {id === "online" && (
-        <>
-          <path d="M14 34a9 9 0 0 1 1-18 12 12 0 0 1 22 3 8 8 0 0 1-1 15z" />
-          <path d="M18 40l3-3 3 3 3-3 3 3" />
-        </>
+        // インターネットにつないで見るもの：雲だけ（下の波線は外した）。上下の中ほどに置く
+        <path d="M14 37a9 9 0 0 1 1-18 12 12 0 0 1 22 3 8 8 0 0 1-1 15z" />
       )}
       {id === "notebook" && (
         <>
@@ -78,6 +100,22 @@ export function SourceIcon({ id, className }: { id: DrawnSource; className?: str
           <circle cx="33" cy="18" r="5" />
           <path d="M6 40c1-8 5-13 11-13s10 5 11 13" />
           <path d="M26 40c1-6 3-10 7-10s7 4 8 10" />
+        </>
+      )}
+      {id === "leaflet" && (
+        <>
+          {/* お薬の説明書：角を折った1枚の紙。中の文字は線で表し、読める字は書かない */}
+          <path d="M12 5h17l9 9v29H12z" />
+          <path d="M29 5v9h9" />
+          <path d="M18 22h14M18 29h14M18 36h9" />
+        </>
+      )}
+      {id === "bag" && (
+        <>
+          {/* 薬の袋：口を折った紙の袋と、名前を書く欄（中の字・薬の形は描かない） */}
+          <path d="M10 14l4-8h20l4 8" />
+          <path d="M10 14h28v29H10z" />
+          <rect x="16" y="22" width="16" height="11" rx="2" />
         </>
       )}
       {id === "clinic" && (

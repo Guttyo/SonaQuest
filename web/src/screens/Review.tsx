@@ -15,6 +15,7 @@ import { isWeak, orderPrepActions, undeterminedJudgments } from "../flow/rules";
 import type { TrainingState } from "../flow/training";
 import type { PrepActionId, TimingId } from "../flow/types";
 import { SceneBar } from "./ListenerStage";
+import { SourceIcon } from "./SourceIcon";
 import { Exchange, ListenerLine } from "./Transcript";
 
 interface Props {
@@ -100,6 +101,11 @@ export function Review({ state, onChoose }: Props) {
       {/* 思い出せなかったことは、候補を出さず、実物の確認と訓練の繰り返しに向ける（ADR-0022） */}
       <h2>今ここで確かめましょう</h2>
       <div className="notice recall">
+        {/* 下の文が名前を挙げる、お薬手帳と薬の袋の絵（A-04・A-05）。飾りで、意味は文で示す */}
+        <div className="recall-visual" aria-hidden="true">
+          <SourceIcon id="notebook" className="source-icon recall-icon" />
+          <SourceIcon id="bag" className="source-icon recall-icon" />
+        </div>
         {RECALL_FEEDBACK.map((line) => (
           <p key={line}>{line}</p>
         ))}
