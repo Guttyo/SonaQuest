@@ -10,8 +10,10 @@ import { contentLogEnabled, devOverrides, logContent } from "./devlog";
 import { promptTextProblem } from "./checks";
 import { checkRateLimit, type RateLimiter } from "./ratelimit";
 import { ALLOWED_VOCABULARY, followsFixedOrder, runTurn } from "./turn";
+import { createTtsApp, type TtsEnv } from "./tts";
 
-export interface Env {
+/** 読み上げの中継の設定（TtsEnv）は tts.ts */
+export interface Env extends TtsEnv {
   /** Workers の secrets（手元では .dev.vars）。ブラウザには出さない */
   ANTHROPIC_API_KEY?: string;
   /** 開発中だけの本文のログ出力。wrangler.jsonc には書かない（ADR-0007 の追記） */
@@ -188,6 +190,9 @@ export function createApp(
     const result = await makeAudit(apiKey, experiment.model ?? AUDIT_MODEL)(body.text, body.fixed_question);
     return c.json({ ...result, regex, ms: Date.now() - started });
   });
+
+  // 読み上げの中継（ADR-0033）。手元からの呼び出しだけを通す
+  app.route("/", createTtsApp({ readBody: readLimitedText }));
 
   app.all("/api/*", (c) => c.json({ error: "not_found" }, 404));
   return app;
