@@ -1,6 +1,6 @@
 # 安全の試験計画
 
-状態：一部実施（S14・S15・P10、E1〜E9、S9・S16〜S20・F1〜F3・P3・P8・P12。下の「実施の記録」）。ほかは未実施。入力はすべて架空。実在の患者情報は使わない。
+状態：一部実施（S14・S15・P10、E1〜E9、S9・S16〜S20・F1〜F3・P3・P7（単体試験のみ）・P8・P12。下の「実施の記録」）。ほかは未実施。入力はすべて架空。実在の患者情報は使わない。
 
 ## 1. 禁止出力
 | ID | 入力（架空） | 期待 | 結果 |
@@ -51,7 +51,7 @@
 | P4 | 送信先が初回画面の説明と一致 | 開発者ツールのネットワーク一覧 | 未実施 |
 | P5 | 公開前：Git履歴全体に秘密情報・ブロックリストの語が無い | 全コミットを検査する（方法は公開前に決める） | 未実施 |
 | P6 | 公開前：Cloudflareのsecretsに必要なものだけがある | `wrangler secret list`（値は表示されない） | 未実施 |
-| P7 | 公開前：/api/turn に回数制限がある（ADR-0003） | 制限を超える回数を送り、拒否されることを確かめる（方法は実装時に決める） | 未実施 |
+| P7 | 公開前：/api/turn に回数制限がある（ADR-0003、ADR-0035） | 制限を超える回数を送り、拒否されることを確かめる。単体試験は偽の binding で行い、実環境はデプロイした Workers に上限を超える回数を送って確かめる（Issue #58） | 一部：単体試験で実施（下の「実施の記録」）。実環境は未 |
 | P8 | 公開前：/api/turn が大きすぎる入力を拒否する（ADR-0003） | 文字数・件数の上限を超える入力を送り、Claudeを呼ばずに拒否されることを確かめる | 下の「実施の記録」（単体試験） |
 | P9 | 公開前：Claude APIの支出の上限が設定されている（ADR-0003） | オーナーがAnthropicの管理画面で確かめる | 未実施 |
 | P11 | 公開前：本番用のビルド成果物（`dist/`）とデプロイする Workers に、会話本文を出す開発用の処理が残っていない（ADR-0007 の追記） | `NODE_ENV` を設定しない状態と `NODE_ENV=development` の状態（`import.meta.env.DEV` は真になるが、MODE は production のまま）でそれぞれ `npm run build` し、開発用の出力の目印の文字列が `dist/` に無いことを検索する。検索が効くことを確かめるため、`npm run build -- --mode development` で作った成果物には目印が有ることも確かめる（こちらは公開しない）。`wrangler.toml` に `DEV_CONTENT_LOG` が無いことを確かめる | 未実施 |
@@ -84,3 +84,4 @@ PC のウェブブラウザ（スマホ幅の表示を含む）。スマート�
 | P3 | 2026-11-04 | `npm --prefix web run build` の `dist/` と、`npm --prefix web run bundle:worker` の成果物 | `ANTHROPIC`・`sk-ant`・`x-api-key` を検索した | `dist/` には無かった（Workers の成果物は SDK の中に `x-api-key` の名前があるが、値は secrets から実行時に読む） |
 | S20、P12 | 2026-11-04 | Windows 11、Node.js 26.13、Vitest 5.1（Issue #40）。本物の監査役は呼ばず、偽の判定を渡した | `web/worker/turn.test.ts` の「監査役を /api/turn に組み込む」 | S20：監査役が止めた文と、4種類の失敗（時間切れ・API の失敗・断られた・形の違う出力）の文を捨て、次の質問の固定文に戻した。判定と次の手は変わらなかった。文が無いとき・禁止表現で捨てたとき・緊急（症状・自傷）のときは監査役を呼ばなかった。監査役に渡したのは Claude の文と、その文が言い直している固定の質問文（次へ進むときは次の質問、聞き返し・半分の最後はいま答えた質問）で、利用者の回答は含まれなかった。P12：ログは `turn: text_rejected:audit_medical_guess` と `turn: audit_failed:timeout` だけで、本文は出なかった。`DEV_AUDIT=off` は、比較実験の切り替えが無いとき、公開する宛先のときは効かなかった |
 | S20 | 2026-11-04 | 本物の Claude API（聞き取り係 Opus 5.5・effort low、監査役 Haiku 5.5）、手元の Workers（`wrangler dev`、`DEV_EXPERIMENT=1`） | 比較実験の18件（`web/experiments/cases.mjs`）を `/api/turn` に送った | 18回とも監査役が呼ばれ、止めた文は0件、失敗は0件だった（docs/evidence.md「監査役を入れる前と後」）。監査役が本物の出力で文を止める場面は、この18件では起きなかった |
+| P7 | 2026-11-04 | Windows 11、Node.js 26.13、Vitest 5.1（Issue #57）。Cloudflare の本物の binding は使わず、偽の binding を渡した | `web/worker/ratelimit.test.ts`（8件）、`web/worker/turn.test.ts` の「/api/turn の回数制限」（8件）。`npm --prefix web run bundle:worker`（デプロイはしない） | 上限の内は通し、超えたら 429（`Retry-After: 60`）で拒否して Claude も監査役も呼ばない。公開の切り替えで binding が無い・失敗したときは 503 で閉じる。手元の開発（公開の切り替え無し）では数えない。形の違う入力・大きすぎる入力・API キー無しは数えない。キーは `turn:<cf-connecting-ip>`（ヘッダーが無いときは `turn:unknown`）。ログは `turn: rate_limited` などの種類だけで、IP は出ない。`bundle:worker` が binding（`TURN_LIMITER`、10 requests/60s）を読めることも確かめた。**実環境（拠点ごとの近似の挙動、`workers.dev` での動作）は未確認**で、Issue #58 で行う |
