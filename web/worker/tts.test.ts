@@ -8,10 +8,12 @@ import {
   TTS_MODEL,
   TTS_OUTPUT_FORMAT,
   createTtsApp,
+  crossSiteRequest,
   parseTtsText,
   ttsAllowed,
   type TtsFetch,
 } from "./tts";
+import type { RateLimiter } from "./ratelimit";
 
 const TEXT = "普段の薬の情報は、どこに記録していますか？";
 const KEY = "test-elevenlabs-key-not-real";
@@ -42,28 +44,108 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("/api/tts は手元からの呼び出しだけを通す（公開の切り替えは D-01）", () => {
-  it("公開のドメインからは、PUBLIC_TURN=1 でも呼べない。ElevenLabs を呼ばない", async () => {
+const PUBLIC_URL = "https://sonaquest.example/api/tts";
+
+/** 偽の回数制限の binding。数えたキーを残す */
+function fakeLimiter(success = true): RateLimiter & { keys: string[] } {
+  const keys: string[] = [];
+  return {
+    keys,
+    limit: async ({ key }) => {
+      keys.push(key);
+      return { success };
+    },
+  };
+}
+
+describe("/api/tts は /api/turn と同じ条件で通す（2026-11-04 オーナー決定、ADR-0033）", () => {
+  it("公開のドメインからは、公開の切り替えが無ければ呼べない。ElevenLabs を呼ばない", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const { calls, fetchImpl } = fakeUpstream();
     const app = createTtsApp({ readBody: readLimitedText, fetchImpl });
-    const response = await post(app, JSON.stringify({ text: TEXT }), { ...env, PUBLIC_TURN: "1" } as Env, "https://sonaquest.example/api/tts");
+    const response = await post(app, JSON.stringify({ text: TEXT }), env, PUBLIC_URL);
     expect(response.status).toBe(503);
     expect(calls).toHaveLength(0);
   });
 
-  it("Workers の入口（createApp）でも、公開のドメインからは 503", async () => {
+  it("Workers の入口（createApp）でも、公開の切り替えが無ければ公開のドメインからは 503", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    const response = await post(createApp(), JSON.stringify({ text: TEXT }), { ...env, PUBLIC_TURN: "1" }, "https://sonaquest.example/api/tts");
+    const response = await post(createApp(), JSON.stringify({ text: TEXT }), env, PUBLIC_URL);
     expect(response.status).toBe(503);
   });
 
-  it("宛先は localhost と 127.0.0.1 だけ", () => {
-    expect(ttsAllowed("http://localhost:8787/api/tts")).toBe(true);
-    expect(ttsAllowed("http://127.0.0.1:8787/api/tts")).toBe(true);
-    expect(ttsAllowed("https://sonaquest.example/api/tts")).toBe(false);
-    expect(ttsAllowed("https://localhost.example/api/tts")).toBe(false);
-    expect(ttsAllowed("not a url")).toBe(false);
+  it("公開の切り替え（PUBLIC_TURN=1）のときは、接頭辞 tts で接続元ごとに1回数えてから ElevenLabs を呼ぶ", async () => {
+    const { calls, fetchImpl } = fakeUpstream();
+    const limiter = fakeLimiter();
+    const app = createTtsApp({ readBody: readLimitedText, fetchImpl });
+    const response = await app.request(
+      PUBLIC_URL,
+      {
+        method: "POST",
+        body: JSON.stringify({ text: TEXT }),
+        headers: { "Content-Type": "application/json", "cf-connecting-ip": "203.0.113.7" },
+      },
+      { ...env, PUBLIC_TURN: "1", TURN_LIMITER: limiter },
+    );
+    expect(response.status).toBe(200);
+    expect(limiter.keys).toEqual(["tts:203.0.113.7"]);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("上限を超えたら 429（Retry-After: 60）、binding が無い・失敗したら 503 で閉じ、ElevenLabs を呼ばない", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { calls, fetchImpl } = fakeUpstream();
+    const app = createTtsApp({ readBody: readLimitedText, fetchImpl });
+    const body = JSON.stringify({ text: TEXT });
+    const limited = await post(app, body, { ...env, PUBLIC_TURN: "1", TURN_LIMITER: fakeLimiter(false) }, PUBLIC_URL);
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("retry-after")).toBe("60");
+    expect((await post(app, body, { ...env, PUBLIC_TURN: "1" }, PUBLIC_URL)).status).toBe(503);
+    const broken: RateLimiter = { limit: async () => Promise.reject(new Error("binding")) };
+    expect((await post(app, body, { ...env, PUBLIC_TURN: "1", TURN_LIMITER: broken }, PUBLIC_URL)).status).toBe(503);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("手元の開発では数えない（/api/turn と同じ）", async () => {
+    const limiter = fakeLimiter(false);
+    const app = createTtsApp({ readBody: readLimitedText, fetchImpl: fakeUpstream().fetchImpl });
+    expect((await post(app, JSON.stringify({ text: TEXT }), { ...env, TURN_LIMITER: limiter })).status).toBe(200);
+    expect(limiter.keys).toEqual([]);
+  });
+
+  it("通す条件は、宛先が localhost・127.0.0.1 か、PUBLIC_TURN が \"1\" のとき", () => {
+    expect(ttsAllowed({}, "http://localhost:8787/api/tts")).toBe(true);
+    expect(ttsAllowed({}, "http://127.0.0.1:8787/api/tts")).toBe(true);
+    expect(ttsAllowed({}, PUBLIC_URL)).toBe(false);
+    expect(ttsAllowed({}, "https://localhost.example/api/tts")).toBe(false);
+    expect(ttsAllowed({}, "not a url")).toBe(false);
+    expect(ttsAllowed({ PUBLIC_TURN: "1" }, PUBLIC_URL)).toBe(true);
+    expect(ttsAllowed({ PUBLIC_TURN: "true" }, PUBLIC_URL)).toBe(false);
+  });
+});
+
+describe("別のサイトのページからの呼び出しを拒む（PR #63 のレビュー）", () => {
+  it("JSON の形を宣言しない呼び出しと、Sec-Fetch-Site: cross-site の呼び出しは 403 で、ElevenLabs を呼ばない", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { calls, fetchImpl } = fakeUpstream();
+    const app = createTtsApp({ readBody: readLimitedText, fetchImpl });
+    const body = JSON.stringify({ text: TEXT });
+    const send = (headers: Record<string, string>) =>
+      app.request("http://localhost/api/tts", { method: "POST", body, headers }, env);
+    expect((await send({ "Content-Type": "text/plain" })).status).toBe(403);
+    expect((await send({})).status).toBe(403);
+    expect((await send({ "Content-Type": "application/json", "Sec-Fetch-Site": "cross-site" })).status).toBe(403);
+    expect(calls).toHaveLength(0);
+    expect((await send({ "Content-Type": "application/json", "Sec-Fetch-Site": "same-origin" })).status).toBe(200);
+    expect((await send({ "Content-Type": "application/json; charset=utf-8" })).status).toBe(200);
+  });
+
+  it("判定だけを確かめる", () => {
+    const req = (headers: Record<string, string>) => new Request("http://localhost/api/tts", { method: "POST", headers });
+    expect(crossSiteRequest(req({ "Content-Type": "application/json" }))).toBe(false);
+    expect(crossSiteRequest(req({ "Content-Type": "application/json", "Sec-Fetch-Site": "same-site" }))).toBe(false);
+    expect(crossSiteRequest(req({ "Content-Type": "application/x-www-form-urlencoded" }))).toBe(true);
+    expect(crossSiteRequest(req({ "Content-Type": "application/json", "Sec-Fetch-Site": "cross-site" }))).toBe(true);
   });
 });
 

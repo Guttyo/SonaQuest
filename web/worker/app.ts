@@ -191,7 +191,7 @@ export function createApp(
     return c.json({ ...result, regex, ms: Date.now() - started });
   });
 
-  // 読み上げの中継（ADR-0033）。手元からの呼び出しだけを通す
+  // 読み上げの中継（ADR-0033）。/api/turn と同じく、手元からか PUBLIC_TURN=1 のときだけ通す
   app.route("/", createTtsApp({ readBody: readLimitedText }));
 
   app.all("/api/*", (c) => c.json({ error: "not_found" }, 404));
