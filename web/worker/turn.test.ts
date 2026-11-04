@@ -403,7 +403,11 @@ describe("2026-11-04 の PR #39 のレビューへの対応", () => {
     const app = createApp(() => call);
     expect((await post(app, JSON.stringify(request), env, "https://sonaquest.example/api/turn")).status).toBe(503);
     expect(call).not.toHaveBeenCalled();
-    expect((await post(app, JSON.stringify(request), { ...env, PUBLIC_TURN: "1" }, "https://sonaquest.example/api/turn")).status).toBe(200);
+    // 公開の切り替えでは回数制限の binding が要る（ADR-0035）。ここでは通す偽の binding を渡す
+    const open = { limit: async () => ({ success: true }) };
+    expect(
+      (await post(app, JSON.stringify(request), { ...env, PUBLIC_TURN: "1", TURN_LIMITER: open }, "https://sonaquest.example/api/turn")).status,
+    ).toBe(200);
   });
 
   it("Content-Length が上限を超える本文は、読み込まずに拒否する", async () => {
@@ -537,7 +541,8 @@ describe("監査役を /api/turn に組み込む（ADR-0030、safety-test-plan S
       await post(app, { ...env, DEV_EXPERIMENT: "1", DEV_AUDIT: "off" });
       expect(makeAuditor).not.toHaveBeenCalled();
       await post(app, { ...env, DEV_AUDIT: "off" });
-      await post(app, { ...env, DEV_EXPERIMENT: "1", DEV_AUDIT: "off", PUBLIC_TURN: "1" }, "https://sonaquest.example/api/turn");
+      const open = { limit: async () => ({ success: true }) };
+      await post(app, { ...env, DEV_EXPERIMENT: "1", DEV_AUDIT: "off", PUBLIC_TURN: "1", TURN_LIMITER: open }, "https://sonaquest.example/api/turn");
       expect(makeAuditor).toHaveBeenCalledTimes(2);
     });
 
@@ -554,5 +559,103 @@ describe("監査役を /api/turn に組み込む（ADR-0030、safety-test-plan S
       expect(devOverrides({ DEV_EXPERIMENT: "1", DEV_AUDIT: "off" }, "http://localhost/api/turn")).toEqual({ audit: false });
       expect(devOverrides({ DEV_AUDIT: "off" }, "http://localhost/api/turn")).toBeNull();
     });
+  });
+});
+
+describe("/api/turn の回数制限（ADR-0035、safety-test-plan P7）", () => {
+  const publicUrl = "https://sonaquest.example/api/turn";
+  const base: Env = { ANTHROPIC_API_KEY: "test-key", PUBLIC_TURN: "1" };
+  const ip = "203.0.113.5";
+  const limiter = (success: boolean) => ({ limit: vi.fn(async (_options: { key: string }) => ({ success })) });
+  const post = (app: ReturnType<typeof createApp>, e: Env, body = JSON.stringify(request), url = publicUrl, headers: Record<string, string> = { "cf-connecting-ip": ip }) =>
+    app.request(url, { method: "POST", body, headers: { "Content-Type": "application/json", ...headers } }, e);
+
+  it("上限の内なら通し、接続元の IP でキーを作る", async () => {
+    const call = vi.fn(fake(ok(output)));
+    const turn = limiter(true);
+    const response = await post(createApp(() => call), { ...base, TURN_LIMITER: turn });
+    expect(response.status).toBe(200);
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(turn.limit).toHaveBeenCalledTimes(1);
+    expect(turn.limit).toHaveBeenCalledWith({ key: `turn:${ip}` });
+  });
+
+  it("上限を超えたら 429 で拒否し、Claude も監査役も呼ばない。ログに IP を出さない", async () => {
+    const call = vi.fn(fake(ok(output)));
+    const makeAuditor = vi.fn(() => fakeAudit(passed));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const response = await post(createApp(() => call, makeAuditor), { ...base, TURN_LIMITER: limiter(false) });
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("60");
+    expect(await response.json()).toEqual({ error: "rate_limited" });
+    expect(call).not.toHaveBeenCalled();
+    expect(makeAuditor).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith("turn: rate_limited");
+    for (const spy of [warn, log]) {
+      for (const args of spy.mock.calls) expect(args.map(String).join(" ")).not.toContain(ip);
+    }
+    expect(log).not.toHaveBeenCalled();
+    warn.mockRestore();
+    log.mockRestore();
+  });
+
+  it("公開の切り替えで binding が無いときは閉じる（設定漏れで課金の呼び出しを開かない）", async () => {
+    const call = vi.fn(fake(ok(output)));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const response = await post(createApp(() => call), base);
+    expect(response.status).toBe(503);
+    expect(call).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith("turn: rate_limiter_no_limiter");
+    warn.mockRestore();
+  });
+
+  it("binding が失敗したときも閉じる", async () => {
+    const call = vi.fn(fake(ok(output)));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const broken = { limit: vi.fn(async () => { throw new Error("binding failed"); }) };
+    const response = await post(createApp(() => call), { ...base, TURN_LIMITER: broken });
+    expect(response.status).toBe(503);
+    expect(call).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith("turn: rate_limiter_error");
+    warn.mockRestore();
+  });
+
+  it("手元の開発（公開の切り替え無し）では数えない。binding が無くても通る", async () => {
+    const call = vi.fn(fake(ok(output)));
+    const turn = limiter(false);
+    const local = "http://localhost/api/turn";
+    expect((await post(createApp(() => call), { ANTHROPIC_API_KEY: "test-key" }, JSON.stringify(request), local, {})).status).toBe(200);
+    expect((await post(createApp(() => call), { ANTHROPIC_API_KEY: "test-key", TURN_LIMITER: turn }, JSON.stringify(request), local, {})).status).toBe(200);
+    expect(turn.limit).not.toHaveBeenCalled();
+    expect(call).toHaveBeenCalledTimes(2);
+  });
+
+  it("公開の切り替えが無い公開環境では、回数制限の前に閉じる（数えない）", async () => {
+    const call = vi.fn(fake(ok(output)));
+    const turn = limiter(true);
+    const response = await post(createApp(() => call), { ANTHROPIC_API_KEY: "test-key", TURN_LIMITER: turn });
+    expect(response.status).toBe(503);
+    expect(turn.limit).not.toHaveBeenCalled();
+    expect(call).not.toHaveBeenCalled();
+  });
+
+  it("お金のかかる呼び出しの直前で数える：形の違う入力・大きすぎる入力・キー無しは数えない", async () => {
+    const call = vi.fn(fake(ok(output)));
+    const turn = limiter(true);
+    const app = createApp(() => call);
+    const e = { ...base, TURN_LIMITER: turn };
+    expect((await post(app, e, "{ not json")).status).toBe(400);
+    expect((await post(app, e, JSON.stringify({ ...request, next_question_id: null }))).status).toBe(400);
+    expect((await post(app, e, "x".repeat(MAX_BODY_LENGTH + 1))).status).toBe(413);
+    expect((await post(app, { ...e, ANTHROPIC_API_KEY: "" })).status).toBe(503);
+    expect(turn.limit).not.toHaveBeenCalled();
+    expect(call).not.toHaveBeenCalled();
+  });
+
+  it("接続元のヘッダーが無いときは、共有のキーで数える（数えるのをやめない）", async () => {
+    const turn = limiter(true);
+    await post(createApp(() => fake(ok(output))), { ...base, TURN_LIMITER: turn }, JSON.stringify(request), publicUrl, {});
+    expect(turn.limit).toHaveBeenCalledWith({ key: "turn:unknown" });
   });
 });
