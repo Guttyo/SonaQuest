@@ -164,7 +164,7 @@ export type TurnOutcome =
       textRejected: boolean;
       /** 文を捨てた理由（ADR-0029 の1、ADR-0030）。捨てなければ null。監査役の失敗では null（audit.failure を見る） */
       rejectReason: TextRejectReason | null;
-      /** 監査役を呼んだときの結果。呼ばなかったとき（文が無い、正規表現の検査で捨てた、監査役を使わない）は null */
+      /** 監査役を呼んだときの結果。呼ばなかったとき（文が無い、正規表現の検査で捨てた、緊急、監査役を使わない）は null */
       audit: AuditReport | null;
     }
   | { ok: false; failure: ClaudeFailure | "invalid_output" };
@@ -198,7 +198,8 @@ export async function runTurn(
   let rejectReason: TextRejectReason | null = chosen.rejected;
   let report: AuditReport | null = null;
 
-  if (next.text !== null && audit !== null) {
+  // 緊急（症状・自傷）のときは、画面は文を使わずに中断の案内を出す（ADR-0011）。監査役を待たせず、すぐ返す
+  if (next.text !== null && audit !== null && output.emergency === "none") {
     const started = Date.now();
     const verdict = await audit(next.text, auditedQuestion(request, next));
     const ms = Date.now() - started;

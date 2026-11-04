@@ -477,6 +477,18 @@ describe("監査役を /api/turn に組み込む（ADR-0030、safety-test-plan S
     for (const args of audit.mock.calls) expect(JSON.stringify(args)).not.toContain(request.inputs[0].text);
   });
 
+  it.each(["symptom", "self_harm"] as const)(
+    "緊急（%s）のときは監査役を呼ばない（画面は文を使わずに中断の案内を出すので、待たせない）",
+    async (emergency) => {
+      const audit = vi.fn(fakeAudit(passed));
+      const outcome = await runTurn(request, fake(ok({ ...output, emergency })), audit);
+      expect(audit).not.toHaveBeenCalled();
+      if (!outcome.ok) throw new Error("ok のはず");
+      expect(outcome.response.emergency).toBe(emergency);
+      expect(outcome.audit).toBeNull();
+    },
+  );
+
   it("監査役が null のときは呼ばずに、正規表現の検査だけで決める", async () => {
     const outcome = await runTurn(request, fake(ok(output)));
     if (!outcome.ok) throw new Error("ok のはず");
