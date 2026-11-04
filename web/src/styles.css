@@ -1229,3 +1229,74 @@ body,
   width: 44px;
   height: 44px;
 }
+
+/* 振り返りの「手薄なところ」（A-05 の⑥）。観点の絵と、観点の名前・判定の文字を並べる。色だけに頼らず、判定は文字で示す */
+.weak-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.weak-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 3px solid var(--orange);
+  border-radius: 16px;
+  background: var(--alert-bg);
+}
+
+.weak-icon {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  color: var(--orange-strong);
+}
+
+.weak-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.weak-label {
+  font-weight: var(--fw-bold);
+}
+
+.weak-judgment {
+  font-size: var(--fs-sub);
+  color: var(--ink-soft);
+}
+
+/* 振り返りで、出来事で使えなくなったもの（絵・斜線・「（使えない）」） */
+.lost-sources {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lost-sources .source-chip {
+  animation: none;
+}
+
+/* 準備行動といつやるかのカード。文が長いので絵を少し小さくし、いつやるかは絵なしで高さを詰める */
+.prep-cards .mode-card {
+  min-height: 76px;
+}
+
+.prep-cards .mode-card-icon {
+  width: 44px;
+  height: 44px;
+}
+
+.timing-cards .mode-card {
+  min-height: 56px;
+}
