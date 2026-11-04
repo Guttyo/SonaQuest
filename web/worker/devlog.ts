@@ -30,6 +30,8 @@ const EXPERIMENT_EFFORTS: ReadonlySet<string> = new Set(["low", "medium", "high"
 export interface DevOverrides {
   model?: string;
   effort?: "low" | "medium" | "high";
+  /** false のとき、/api/turn で監査役を呼ばない（監査役を入れる前と後を比べるため。ADR-0030） */
+  audit?: boolean;
 }
 
 /**
@@ -39,11 +41,13 @@ export interface DevOverrides {
  * 公開する版では宛先の条件で必ず無効（null）になる
  */
 export function devOverrides(
-  env: { DEV_EXPERIMENT?: string; DEV_MODEL?: string; DEV_EFFORT?: string },
+  env: { DEV_EXPERIMENT?: string; DEV_MODEL?: string; DEV_EFFORT?: string; DEV_AUDIT?: string },
   requestUrl: string,
 ): DevOverrides | null {
   if (!contentLogEnabled(env.DEV_EXPERIMENT, requestUrl)) return null;
   const overrides: DevOverrides = {};
+  // 監査役を外せるのは、この比較実験の切り替えの中だけ。公開する版では必ず監査役を通す
+  if (env.DEV_AUDIT === "off") overrides.audit = false;
   if (env.DEV_MODEL !== undefined && EXPERIMENT_MODELS.has(env.DEV_MODEL)) overrides.model = env.DEV_MODEL;
   if (env.DEV_EFFORT !== undefined && EXPERIMENT_EFFORTS.has(env.DEV_EFFORT)) {
     overrides.effort = env.DEV_EFFORT as DevOverrides["effort"];

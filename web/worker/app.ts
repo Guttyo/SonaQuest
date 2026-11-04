@@ -5,7 +5,7 @@
 import { Hono } from "hono";
 import { parseTurnRequest } from "../src/flow/turnContract";
 import { MODEL, makeCallClaude, type CallClaude, type ClaudeOptions } from "./claude";
-import { AUDIT_MODEL, makeAudit } from "./audit";
+import { AUDIT_MODEL, makeAudit, type Audit } from "./audit";
 import { contentLogEnabled, devOverrides, logContent } from "./devlog";
 import { promptTextProblem } from "./checks";
 import { ALLOWED_VOCABULARY, followsFixedOrder, runTurn } from "./turn";
@@ -19,6 +19,8 @@ export interface Env {
   DEV_EXPERIMENT?: string;
   DEV_MODEL?: string;
   DEV_EFFORT?: string;
+  /** "off" のとき、/api/turn で監査役を呼ばない（比較実験の「監査役なし」。ADR-0030） */
+  DEV_AUDIT?: string;
   /**
    * 公開する版で /api/turn を使えるようにする切り替え。"1" のときだけ、手元以外の宛先からも Claude を呼ぶ。
    * 回数の制限と支出の上限（ADR-0003、safety-test-plan P7・P9）を満たすまで設定しない。
@@ -75,6 +77,7 @@ export async function readLimitedText(request: Request, maxBytes: number): Promi
 
 export function createApp(
   makeClaude: (apiKey: string, options?: ClaudeOptions) => CallClaude = makeCallClaude,
+  makeAuditor: (apiKey: string) => Audit = makeAudit,
 ) {
   const app = new Hono<{ Bindings: Env }>();
 
@@ -106,7 +109,9 @@ export function createApp(
     const experiment = devOverrides(c.env, c.req.url);
     const model = experiment?.model ?? MODEL;
     const started = Date.now();
-    const outcome = await runTurn(request, makeClaude(apiKey, experiment ?? {}));
+    // 監査役は、正規表現の検査を通った Claude の文だけを確かめる（ADR-0030）。外せるのは手元の比較実験だけ
+    const auditor = experiment?.audit === false ? null : makeAuditor(apiKey);
+    const outcome = await runTurn(request, makeClaude(apiKey, experiment ?? {}), auditor);
     const ms = Date.now() - started;
     if (!outcome.ok) {
       console.warn(`turn: ${outcome.failure}`);
@@ -126,10 +131,13 @@ export function createApp(
         claudeText: outcome.claudeText,
         textRejected: outcome.textRejected,
         rejectReason: outcome.rejectReason,
+        // 監査役の結果（判定・理由の種類・失敗の種類・時間・使った量）。本文は含まない
+        audit: outcome.audit,
       };
       c.header(DEV_METRICS_HEADER, encodeURIComponent(JSON.stringify(metrics)));
     }
     if (outcome.rejectReason !== null) console.warn(`turn: text_rejected:${outcome.rejectReason}`);
+    if (outcome.audit?.failure) console.warn(`turn: audit_failed:${outcome.audit.failure}`);
     return c.json(outcome.response);
   });
 
