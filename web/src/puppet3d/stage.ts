@@ -244,7 +244,8 @@ class PuppetStage {
     for (const m of Object.values(this.materials)) m.dispose();
     this.gradient.dispose();
     this.renderer.dispose();
-    this.renderer.forceContextLoss();
+    // すでに失われた文脈は手放せない（three が警告を出す）
+    if (!this.lost) this.renderer.forceContextLoss();
   }
 
   private resize(host: HTMLElement): void {
