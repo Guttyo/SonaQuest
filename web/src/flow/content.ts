@@ -1,6 +1,7 @@
 // 画面に出す固定文。Claudeには作らせない（ADR-0015、ADR-0019）。
 // 出典が要る文は docs/references.md の確認済みのものだけを使う。
 
+import type { TrainingMode } from "./mode";
 import type {
   AnswerAs,
   EventId,
@@ -54,6 +55,51 @@ export const PRIVACY_EXTERNAL =
 // [TODO-OWNER: 音声の送信先と保持方針の書き方（Claude Code の下書き。ADR-0033 の要約）]
 export const PRIVACY_VOICE =
   "3Dで話すモードを選んだとき：声で答えると、あなたの声は、文字にするためにブラウザが使う音声認識のサービスへ送られます（ブラウザによって送り先が違います。Microsoft Edge は Microsoft、Safari は Apple です。Google Chrome は Google と見られますが、送り先と保持方針は確かめられていません）。Microsoft は録音を保存しないと、Apple は音声入力の改善に同意していなければ音声を保存しないと公表しています。また、聞き取り係の文を読み上げるため、画面に出した聞き取り係の文と固定の文を ElevenLabs へ送ります（あなたの回答や声は送りません）。ElevenLabs は、読み上げた文と音声を既定で履歴に残し、AIの学習に使うことがあると公表しています。文字で答える2Dのモードでは、どちらにも送りません。";
+
+/** はじめにの 2D／3D のモード選択（A-14、ADR-0031、ADR-0036）。文言は Claude Code の下書き（Issue #51 の PR の説明で確認） */
+export const MODE_LEGEND = "答え方を選ぶ";
+
+export interface ModeOption {
+  id: TrainingMode;
+  label: string;
+  description: string;
+  /** 選んだ結果を文字で添えるときの言い方 */
+  result: string;
+}
+
+export const MODE_OPTIONS: readonly ModeOption[] = [
+  {
+    id: "2d",
+    label: "2D：文字で答える",
+    description: "聞き取り係の2Dの姿を見ながら、文字で答えます。声は使いません。",
+    result: "文字で答える",
+  },
+  {
+    id: "3d",
+    label: "3D：声で答えて読み上げを聞く",
+    description:
+      "3Dのパペットと会話します。「話す」を押している間だけ声を聞き取り、聞き取り係の文を読み上げます。文字でも答えられます。",
+    result: "声で答えて読み上げを聞く",
+  },
+];
+
+/** 選んだ結果の前に付ける見出し */
+export const MODE_CHOSEN_LABEL = "選んでいる答え方：";
+
+/**
+ * はじめにの2画面（2026-11-05 オーナー決定「2画面目に全文」、ADR-0036）。
+ * 1画面目はカードで選ぶだけ、2画面目「はじめる前に」に必ず見せる説明の全文と「訓練をはじめる」。文言は Claude Code の下書き
+ */
+export const NEXT_LABEL = "次へ";
+export const NOTES_TITLE = "はじめる前に";
+export const BACK_LABEL = "答え方を選び直す";
+
+/**
+ * 医療者の立場で確認する訓練（C-01）の Coming soon。将来構想で、押せない文字として出す（ADR-0031）。
+ * 文言は PRD「Coming soon の表示の決まり」のオーナー決定（2026-11-04、下書きのまま）
+ */
+export const COMING_SOON_C01 =
+  "医療者の立場で確認する訓練（Coming soon）— 将来構想で、提供の時期は決まっていません";
 
 // --- 対話 -----------------------------------------------------------------
 

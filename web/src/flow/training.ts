@@ -2,6 +2,7 @@
 
 import { ACK_TEXT, AI_CONNECTED, CLARIFY_TEXTS, REDIRECT_TEXTS } from "./content";
 import { detectDistress, type StopReason } from "./emergency";
+import type { TrainingMode } from "./mode";
 import {
   MAX_FIRST_HALF_ANSWERS,
   MAX_SECOND_HALF_ANSWERS,
@@ -42,6 +43,12 @@ export type AiStatus = "on" | "failed" | "off";
 export interface TrainingState {
   /** 何回目の訓練か。やり直すと増え、前の回の Claude の返事を取り違えないために使う */
   session: number;
+  /**
+   * 見せ方のモード。2D は文字で答え、3D は声で答えて読み上げを聞く（ADR-0031）。
+   * はじめにの画面で選び、start で入る（A-14）。声を使うかはこの値だけで決める（ADR-0033）。
+   * 質問・回答・段階の進み方には影響しない。保存しない
+   */
+  mode: TrainingMode;
   stage: Stage;
   answers: readonly Answer[];
   /** ③確認で本人が選んだ情報源。選ばずに進んだら null */
@@ -63,7 +70,8 @@ export interface TrainingState {
 }
 
 export type TrainingAction =
-  | { type: "start" }
+  /** はじめにで選んだモードを渡す。省くと 2D（文字で答える） */
+  | { type: "start"; mode?: TrainingMode }
   | { type: "answer"; text: string }
   /** session と seq（そのやり取りを始めたときの入力の件数）で、古い返事を取り違えないようにする */
   | { type: "turn_result"; session: number; seq: number; result: TurnResponse | null }
@@ -75,6 +83,7 @@ export type TrainingAction =
 
 export const initialState: TrainingState = {
   session: 0,
+  mode: "2d",
   stage: { name: "intro" },
   answers: [],
   source: null,
@@ -252,6 +261,7 @@ export function trainingReducer(
         ...initialState,
         session: state.session,
         ai: state.ai,
+        mode: action.mode ?? "2d",
         stage: { name: "first", index: 0 },
         prompt: askPrompt(first, null),
       };

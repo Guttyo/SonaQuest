@@ -213,3 +213,37 @@ describe("段階に合わない操作は無視する", () => {
     expect(trainingReducer(started, { type: "start" })).toBe(started);
   });
 });
+
+describe("2D／3D のモード（A-14、ADR-0036）", () => {
+  it("start で選んだモードが入り、省くと 2D", () => {
+    expect(initialState.mode).toBe("2d");
+    expect(run([{ type: "start", mode: "3d" }]).mode).toBe("3d");
+    expect(run([{ type: "start", mode: "2d" }]).mode).toBe("2d");
+    expect(run([{ type: "start" }]).mode).toBe("2d");
+  });
+
+  it("訓練中に start しても、モードは変わらない", () => {
+    const started = run([{ type: "start", mode: "3d" }, answer("x")]);
+    expect(trainingReducer(started, { type: "start", mode: "2d" })).toBe(started);
+  });
+
+  it("やり直すと初期状態に戻り、モードも選び直す", () => {
+    const state = run([{ type: "start", mode: "3d" }, answer("お薬手帳です"), { type: "restart" }]);
+    expect(state).toEqual({ ...initialState, session: 1 });
+    expect(state.mode).toBe("2d");
+  });
+
+  it("モードは進行（質問・回答・段階・出来事）に影響しない", () => {
+    const rest: TrainingAction[] = [
+      ...firstHalf.slice(1),
+      { type: "confirm", source: "smartphone" },
+      { type: "continue_after_event" },
+      answer("家族に電話します"),
+    ];
+    const in3d = run([{ type: "start", mode: "3d" }, ...rest]);
+    const in2d = run([{ type: "start", mode: "2d" }, ...rest]);
+    expect(in3d.mode).toBe("3d");
+    expect({ ...in3d, mode: "2d" }).toEqual(in2d);
+    expect(currentQuestion(in3d)).toEqual(currentQuestion(in2d));
+  });
+});

@@ -71,7 +71,7 @@ export function App() {
       </header>
       <main ref={mainRef} tabIndex={-1} className="app-main">
         {stage.name === "intro" && (
-          <Intro onStart={() => dispatch({ type: "start" })} />
+          <Intro onStart={(mode) => dispatch({ type: "start", mode })} />
         )}
         {(stage.name === "first" ||
           stage.name === "confirm" ||
