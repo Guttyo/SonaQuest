@@ -1,16 +1,12 @@
 import { useEffect, useState, type Dispatch } from "react";
 import {
   ANSWER_HINTS,
-  CONFIRM_PROMPT,
   EVENTS,
   SCENE_INTRO,
-  SKIP_CONFIRM_LABEL,
-  SOURCE_OPTIONS,
   WAITING_TEXT,
 } from "../flow/content";
 import { MAX_ANSWER_LENGTH, isAcceptableAnswer } from "../flow/rules";
 import { currentQuestion, type TrainingAction, type TrainingState } from "../flow/training";
-import type { SourceId } from "../flow/types";
 import { SpeakerControls } from "../voice/SpeakerControls";
 import { TalkButton } from "../voice/TalkButton";
 import { usePushToTalk, useSpeakWhenChanged, useSpeaker } from "../voice/hooks";
@@ -18,6 +14,7 @@ import { appendRecognized, type MicStatus } from "../voice/talk";
 import type { SpeakerSnapshot } from "../voice/speaker";
 import { listenerSpeech, speechKey } from "../voice/speech";
 import { listenerActivity } from "../voice/view";
+import { ConfirmSource } from "./ConfirmSource";
 import { ListenerStage, sceneNumber, type SceneId } from "./ListenerStage";
 import { EVENT_FOCUS, LOST_BY_EVENT, SourceChip, SourceIcon } from "./SourceIcon";
 import { ListenerLine, Transcript } from "./Transcript";
@@ -123,7 +120,11 @@ export function Dialogue({ state, dispatch }: Props) {
             <h2>想定外の出来事</h2>
             {EVENT_FOCUS[state.event] !== null && (
               <div className={`event-visual event-visual-${state.event}`} aria-hidden="true">
-                <SourceIcon id={EVENT_FOCUS[state.event]!} className="source-icon event-icon" />
+                <SourceIcon
+                  id={EVENT_FOCUS[state.event]!}
+                  className="source-icon event-icon"
+                  battery={state.event === "battery"}
+                />
                 <span className="event-slash" />
               </div>
             )}
@@ -266,62 +267,5 @@ function AnswerForm({
         </button>
       </div>
     </form>
-  );
-}
-
-function ConfirmSource({
-  ack,
-  initial,
-  onConfirm,
-}: {
-  /** 前半の最後の回答への受け止め（ADR-0029 の2） */
-  ack: string | null;
-  /** 初期選択の候補（Claude）。本人がタップで確かめてから進む（ADR-0016、項目6） */
-  initial: SourceId | null;
-  onConfirm: (source: SourceId | null) => void;
-}) {
-  const [selected, setSelected] = useState<SourceId | null>(initial);
-
-  return (
-    <div
-      className="confirm"
-      data-scroll-target
-      tabIndex={-1}
-      role="group"
-      aria-labelledby="confirm-prompt"
-    >
-      {ack !== null && <ListenerLine>{ack}</ListenerLine>}
-      <ListenerLine id="confirm-prompt">{CONFIRM_PROMPT}</ListenerLine>
-      <fieldset className="options" aria-labelledby="confirm-prompt">
-        {SOURCE_OPTIONS.map((option) => (
-          <label key={option.id} className="option">
-            <input
-              type="radio"
-              name="main-source"
-              value={option.id}
-              checked={selected === option.id}
-              onChange={() => setSelected(option.id)}
-            />
-            <span className="option-text">
-              <span className="option-label">{option.label}</span>
-              {option.description !== "" && (
-                <span className="option-description">{option.description}</span>
-              )}
-            </span>
-          </label>
-        ))}
-      </fieldset>
-      <button
-        type="button"
-        className="primary"
-        disabled={selected === null}
-        onClick={() => onConfirm(selected)}
-      >
-        これで進む
-      </button>
-      <button type="button" className="secondary" onClick={() => onConfirm(null)}>
-        {SKIP_CONFIRM_LABEL}
-      </button>
-    </div>
   );
 }

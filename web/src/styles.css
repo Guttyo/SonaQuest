@@ -642,6 +642,21 @@ textarea {
   font-size: var(--fs-body);
 }
 
+/* ③確認の情報源のカード（A-04・A-05 の③）。はじめにと同じ .mode-card を使い、6枚並ぶので高さだけ少し詰める */
+.source-cards {
+  margin-top: 0;
+  gap: 10px;
+}
+
+.source-cards .mode-card {
+  min-height: 76px;
+}
+
+.source-cards .mode-card-icon {
+  width: 48px;
+  height: 48px;
+}
+
 .intro-notes {
   display: flex;
   flex-direction: column;
@@ -1201,4 +1216,16 @@ body,
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* 振り返りの「今ここで確かめましょう」に添える、お薬手帳と薬の袋の絵（A-04）。飾りで、意味は文で示す */
+.recall-visual {
+  display: flex;
+  gap: 12px;
+  color: var(--mint-strong);
+}
+
+.recall-icon {
+  width: 44px;
+  height: 44px;
 }
