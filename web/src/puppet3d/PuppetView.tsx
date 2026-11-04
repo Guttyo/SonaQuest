@@ -61,9 +61,15 @@ export function PuppetView({
     handleRef.current?.update(activity, relief);
   }, [activity, relief]);
 
+  // 読み込みの途中で回答を受け取ったときは、描けるようになってからうなずく。
+  // 出たときにすでに受け取っていた分（appliedNod の初期値）はうなずき直さない
+  const appliedNod = useRef(nodKey);
   useEffect(() => {
-    if (nodKey > 0) handleRef.current?.nod();
-  }, [nodKey]);
+    const handle = handleRef.current;
+    if (handle === null || nodKey <= appliedNod.current) return;
+    appliedNod.current = nodKey;
+    handle.nod();
+  }, [nodKey, ready]);
 
   return (
     <div className={relief ? "puppet3d-stage puppet3d-stage-relief" : "puppet3d-stage"}>
