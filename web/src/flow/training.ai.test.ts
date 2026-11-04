@@ -244,6 +244,15 @@ describe("Claude を使う進行", () => {
     expect(state.sourceGuess).toBe("notebook");
   });
 
+  it("③確認の候補は、最新の返事で置き換える（候補が無くなったら選ばない）", () => {
+    let state = run([{ type: "start" }, answer("手帳です")]);
+    state = trainingReducer(state, result(state, reply(ask("first_location"), { source_guess: "notebook" })));
+    expect(state.sourceGuess).toBe("notebook");
+    state = trainingReducer(state, answer("やっぱり家族が知っています"));
+    state = trainingReducer(state, result(state, reply(ask("first_other"), { source_guess: null })));
+    expect(state.sourceGuess).toBeNull();
+  });
+
   it("後半の最初は、Claude を使っていても固定の立て直しの問いにする（ADR-0019）", () => {
     let state = run([{ type: "start" }]);
     const steps: [string, TurnResponse["next"]][] = [

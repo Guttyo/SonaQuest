@@ -27,12 +27,12 @@
 - 前半から後半への切り替えと、後半の最初の立て直しの問い（固定文。ADR-0019）
 
 ## /api/turn の入出力（案）
-入力（`web/src/flow/turnContract.ts` の `TurnRequest`）：これまでの入力（数える回答と、質問し直した入力。最後がいま答えたもの。それぞれ質問ID・前半か後半か・扱い・原文）、出来事のID、③確認で選んだ情報源、次の固定の質問のID、聞き返し・質問し直しをしてよいか。訓練に必要な範囲に限り、それ以外は送らない。Workers は固定の質問文・出来事の文を足して Claude に送る（docs/phase2-decisions.md 項目4）
+入力（`web/src/flow/turnContract.ts` の `TurnRequest`）：これまでの数える回答（最後がいま答えたもの。それぞれ質問ID・前半か後半か・その前に画面に出した文・原文）、出来事のID、③確認で選んだ情報源、次の固定の質問のID、聞き返し・質問し直しをしてよいか。関係のない話として質問し直した入力は、画面の記録（振り返り）にだけ残し、その後の問い合わせには入れない。訓練に必要な範囲に限り、それ以外は送らない。Workers は、次の固定の質問のIDと聞き返しの可否が固定の順番と回数の上限に合っているかを確かめ（合わなければ拒否）、固定の質問文・出来事の文を足して Claude に送る（docs/phase2-decisions.md 項目4、ADR-0028）
 Claude に返させる形（`web/worker/claude.ts`）：観点の判定、`next_type`（ask・clarify・redirect）、文、`recall`、`source_guess`、`emergency`。質問IDは Claude に選ばせず、Workers が固定の順番から決めて、画面には次の形で返す（ADR-0028）
 出力（画面へ返す形。Claude の構造化出力を Workers で検証してから組み立てる）：
 ```json
 {
-  "emergency": false,
+  "emergency": "none | symptom | self_harm",
   "viewpoints": {
     "location": "confirmed | aware_unconfirmed | not_mentioned",
     "alternative": "...", "current": "...", "unrecorded": "...", "proxy": "..."
@@ -48,7 +48,8 @@ Claude に返させる形（`web/worker/claude.ts`）：観点の判定、`next_
 ```
 - 値の決まり（許す値、`source_guess` の値、`next.text` の扱い）は docs/phase2-decisions.md の項目13。
 - 検証（ADR-0015）：スキーマ、許可した値だけか、文字列の長さの上限、余分なキーの拒否。失敗したら固定の進行へ。
-- 公開前の必須条件（ADR-0003）：回数制限、入力の大きさの上限（上限を超えたらClaudeを呼ばずに拒否）、Claude APIの支出の上限。
+- 公開前の必須条件（ADR-0003）：回数制限、入力の大きさの上限（上限を超えたらClaudeを呼ばずに拒否。本文は上限のバイト数までしか読まない）、Claude APIの支出の上限。
+- 公開の切り替え：Workers は、手元（localhost・127.0.0.1）からの呼び出しか、`PUBLIC_TURN=1` のときだけ Claude を呼ぶ。回数制限と支出の上限（P7・P9）を満たすまで `PUBLIC_TURN` は設定しない。設定しないままデプロイしても、Claude を呼ばずに失敗を返し、画面は固定の進行で最後まで進む。
 - 画面に出す質問文・聞き返し文：Claude が作ってよいのは質問文、受け止めの一言、質問し直す文だけで、Workers で長さ・禁止表現・利用者の発言の繰り返しを検査し、通らなければ ID から固定文を引く（ADR-0025）。
 - `emergency` は補助。中断は語の照合でも行う。
 

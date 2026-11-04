@@ -45,7 +45,7 @@ export const FORBIDDEN_PATTERNS: readonly RegExp[] = [
   /備蓄|ストック|多めに|日分/,
   /制度|助成|補助金|特例|処方箋/,
   // 個人の情報を尋ねること
-  /電話番号を|住所|氏名|お名前|フルネーム/,
+  /電話番号を|住所|氏名|お名前|フルネーム|住んで|お住まい|勤め|職業|お仕事|年齢|生年月日|何歳/,
   // 外部への誘導
   /https?:|www\./i,
 ];
@@ -110,17 +110,19 @@ export function repeatsUserWords(
 }
 
 /**
- * アプリの固定の文に無いカタカナの言葉と、「〜薬」「〜剤」の言葉を探す。
- * 利用者が言っていない薬の名前や薬の種類を、Claude が推測して出すのを止めるため
+ * アプリの固定の文に無いカタカナの言葉、英字の言葉、「〜薬」「〜剤」の言葉を探す。
+ * 利用者が言っていない薬の名前や薬の種類を、Claude が推測して出すのを止めるため。
+ * ひらがなで書いた薬の名前など、ここで見つけられない形は、意味で判断する監査役（Issue #40）で補う
  */
 export function unknownTerms(text: string, allowed: readonly string[]): string[] {
   const nfkc = text.normalize("NFKC");
-  const allowedText = allowed.map((a) => a.normalize("NFKC")).join("\n");
+  const allowedText = allowed.map((a) => a.normalize("NFKC")).join("\n").toLowerCase();
   const found = [
     ...nfkc.matchAll(new RegExp(`${KATAKANA}{2,}`, "gu")),
+    ...nfkc.matchAll(/[A-Za-z]{2,}/gu),
     ...nfkc.matchAll(new RegExp(`${KANJI}+(?:薬|剤)`, "gu")),
   ].map((m) => m[0]);
-  return found.filter((w) => !allowedText.includes(w));
+  return found.filter((w) => !allowedText.includes(w.toLowerCase()));
 }
 
 export interface TextCheckContext {
@@ -137,7 +139,8 @@ export type RejectReason = "length" | "forbidden" | "unknown_term" | "repeat";
 export function promptTextProblem(text: string, context: TextCheckContext): RejectReason | null {
   const trimmed = text.trim();
   if (trimmed.length === 0 || text.length > MAX_PROMPT_LENGTH) return "length";
-  const nfkc = text.normalize("NFKC");
+  // 語の間に空白や改行をはさんで禁止表現をすり抜けないよう、空白を除いた文で照合する（表示は元の文のまま）
+  const nfkc = text.normalize("NFKC").replace(/\s+/g, "");
   if (FORBIDDEN_PATTERNS.some((p) => p.test(nfkc))) return "forbidden";
   if (unknownTerms(text, context.allowed).length > 0) return "unknown_term";
   if (repeatsUserWords(text, context.userTexts, context.allowed)) return "repeat";

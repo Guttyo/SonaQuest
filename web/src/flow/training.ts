@@ -191,7 +191,8 @@ function applyTurn(state: TrainingState, result: TurnResponse): TrainingState {
   const judged: TrainingState = {
     ...state,
     judgments: result.viewpoints,
-    sourceGuess: result.source_guess ?? state.sourceGuess,
+    // 毎回それまでの回答をすべて送るので、最新の候補（無ければ null）をそのまま使う
+    sourceGuess: result.source_guess,
     answers: [...earlier, { ...last, recall: result.recall }],
   };
 

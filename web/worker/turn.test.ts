@@ -4,11 +4,11 @@ import { describe, expect, it, vi } from "vitest";
 import type { TurnRequest } from "../src/flow/turnContract";
 import { usesFallback, type CallClaude, type ClaudeResult } from "./claude";
 import { contentLogEnabled, devOverrides, logContent } from "./devlog";
-import { DEV_METRICS_HEADER, createApp, type Env } from "./app";
+import { DEV_METRICS_HEADER, MAX_BODY_BYTES, createApp, type Env } from "./app";
 import { AUDIT_CATEGORIES, AUDIT_SYSTEM_PROMPT, buildAuditMessage } from "./audit";
 import * as entry from "./index";
 import { SYSTEM_PROMPT, buildUserMessage } from "./prompt";
-import { chooseNext, decideNext, parseClaudeOutput, runTurn } from "./turn";
+import { chooseNext, decideNext, followsFixedOrder, parseClaudeOutput, runTurn } from "./turn";
 
 const request: TurnRequest = {
   inputs: [
@@ -351,5 +351,60 @@ describe("監査役の採点の入口（ADR-0030 の実験）", () => {
   it("監査役のプロンプトに、止める理由の種類と、止めない文がある", () => {
     for (const c of AUDIT_CATEGORIES) expect(AUDIT_SYSTEM_PROMPT).toContain(c);
     expect(AUDIT_SYSTEM_PROMPT).toContain("止めません");
+  });
+});
+
+describe("2026-11-04 の PR #39 のレビューへの対応", () => {
+  const env: Env = { ANTHROPIC_API_KEY: "test-key" };
+  const post = (app: ReturnType<typeof createApp>, body: string, e: Env = env, url = "http://localhost/api/turn", headers: Record<string, string> = {}) =>
+    app.request(url, { method: "POST", body, headers: { "Content-Type": "application/json", ...headers } }, e);
+
+  it("空白や改行をはさんでも、禁止表現は止める", () => {
+    for (const text of ["お薬は飲んで\nください。", "お薬は飲んで ください。"]) {
+      expect(chooseNext(request, { ...parseClaudeOutput(output)!, text }).rejected).toBe("forbidden");
+    }
+  });
+
+  it("固定の文に無い英字の言葉（薬の名前の推測）は止める", () => {
+    expect(chooseNext(request, { ...parseClaudeOutput(output)!, text: "Aspirinを飲んでいますか？" }).rejected).toBe("unknown_term");
+  });
+
+  it("訓練の外の個人のことを尋ねる文は止める", () => {
+    for (const text of ["どこに住んでいますか？", "お仕事は何をされていますか？", "何歳ですか？"]) {
+      expect(chooseNext(request, { ...parseClaudeOutput(output)!, text }).rejected).toBe("forbidden");
+    }
+  });
+
+  it("公開の切り替えが無いときは、手元以外からの呼び出しで Claude を呼ばない", async () => {
+    const call = vi.fn(fake(ok(output)));
+    const app = createApp(() => call);
+    expect((await post(app, JSON.stringify(request), env, "https://sonaquest.example/api/turn")).status).toBe(503);
+    expect(call).not.toHaveBeenCalled();
+    expect((await post(app, JSON.stringify(request), { ...env, PUBLIC_TURN: "1" }, "https://sonaquest.example/api/turn")).status).toBe(200);
+  });
+
+  it("Content-Length が上限を超える本文は、読み込まずに拒否する", async () => {
+    const call = vi.fn(fake(ok(output)));
+    const app = createApp(() => call);
+    const response = await post(app, JSON.stringify(request), env, "http://localhost/api/turn", {
+      "Content-Length": String(MAX_BODY_BYTES + 1),
+    });
+    expect(response.status).toBe(413);
+    expect(call).not.toHaveBeenCalled();
+  });
+
+  it("次の質問が固定の順番と合わない問い合わせは拒否する", async () => {
+    const call = vi.fn(fake(ok(output)));
+    const app = createApp(() => call);
+    for (const forged of [
+      { ...request, next_question_id: "second_proxy" },
+      { ...request, next_question_id: null },
+      { ...request, allow_clarify: false },
+    ]) {
+      expect(followsFixedOrder(forged)).toBe(false);
+      expect((await post(app, JSON.stringify(forged))).status).toBe(400);
+    }
+    expect(call).not.toHaveBeenCalled();
+    expect(followsFixedOrder(request)).toBe(true);
   });
 });

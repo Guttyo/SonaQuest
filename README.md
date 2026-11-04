@@ -124,6 +124,7 @@ cp web/.dev.vars.example web/.dev.vars
 npm --prefix web run dev:worker
 ```
 - `wrangler dev` は workerd を使う。npm が workerd のインストール時のスクリプトを止めたときは、オーナーが中身を確かめて許可する（Claude Code は許可しない）
+- Workers は、手元からの呼び出しのときだけ Claude を呼ぶ。公開する版で Claude を使うには、回数制限と支出の上限（docs/safety-test-plan.md P7・P9）を満たした後に、Workers の設定で `PUBLIC_TURN=1` を入れる（デプロイと設定はオーナーの承認の後）
 - Workers のまとめ（デプロイはしない確かめ）：
 ```bash
 npm --prefix web run bundle:worker

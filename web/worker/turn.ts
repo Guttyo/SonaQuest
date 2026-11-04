@@ -2,6 +2,12 @@
 
 import { ALL_QUESTIONS, EVENTS, SCENE_INTRO, SOURCE_OPTIONS } from "../src/flow/content";
 import {
+  MAX_FIRST_HALF_ANSWERS,
+  MAX_SECOND_HALF_ANSWERS,
+  firstHalfQuestions,
+  secondHalfQuestions,
+} from "../src/flow/rules";
+import {
   EMERGENCY_KINDS,
   JUDGMENT_VALUES,
   SOURCE_GUESS_IDS,
@@ -69,6 +75,26 @@ export const ALLOWED_VOCABULARY: readonly string[] = [
   ...Object.values(EVENTS).flatMap((e) => [e.text, e.unavailable ?? ""]),
   SCENE_INTRO,
 ];
+
+/**
+ * 画面が送ってきた「次の質問」と「聞き返してよいか」が、固定の順番と回数の上限に合っているか。
+ * 合わない問い合わせ（作り替えた、古い）は拒否する（ADR-0025 の A、ADR-0028）
+ */
+export function followsFixedOrder(request: TurnRequest): boolean {
+  const last = request.inputs[request.inputs.length - 1];
+  const half = last.half;
+  if (half === "second" && request.event === null) return false;
+  const ids = (half === "first" ? firstHalfQuestions() : secondHalfQuestions(request.event ?? "handover")).map(
+    (q) => q.id,
+  );
+  const index = ids.indexOf(last.question_id);
+  if (index === -1) return false;
+  const counted = request.inputs.filter((i) => i.half === half).length;
+  const max = half === "first" ? MAX_FIRST_HALF_ANSWERS : MAX_SECOND_HALF_ANSWERS;
+  if (counted > max) return false;
+  const expectedNext = counted < max && index + 1 < ids.length ? ids[index + 1] : null;
+  return request.next_question_id === expectedNext && request.allow_clarify === counted < max;
+}
 
 /**
  * 次の手を決める。質問IDは Claude に選ばせず、固定の順番から決める（ADR-0025 の A）。
