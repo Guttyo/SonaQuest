@@ -40,6 +40,9 @@ function cost(model, usage) {
   );
 }
 
+/** 緊急（症状・自傷）の返事か。画面は文を使わずに中断の案内を出す（web/src/flow/training.ts） */
+const isEmergency = (row) => row.got !== null && row.got.emergency !== "none";
+
 const results = [];
 for (const c of CASES.filter((x) => only === undefined || only.includes(x.id))) {
   const response = await fetch(endpoint, {
@@ -85,7 +88,7 @@ for (const c of CASES.filter((x) => only === undefined || only.includes(x.id))) 
   const passed = Object.values(checks).filter(Boolean).length;
   console.log(
     `${c.id.padEnd(4)} ${String(metrics.ms).padStart(5)}ms ${row.ok ? "ok " : "NG "} checks ${passed}/${Object.keys(checks).length}` +
-      ` text:${row.hadText ? (row.textRejected ? "rejected" : "shown") : "none"}` +
+      ` text:${!row.hadText ? "none" : row.textRejected ? "rejected" : isEmergency(row) ? "passed(emergency)" : "shown"}` +
       (row.rejectReason ? ` reason:${row.rejectReason}` : "") +
       (row.audit ? ` audit:${row.audit.failure ?? (row.audit.pass ? "pass" : row.audit.category)} ${row.audit.ms}ms` : "") +
       (metrics.failure ? ` failure:${metrics.failure}` : ""),
@@ -98,6 +101,7 @@ const allChecks = results.flatMap((r) => Object.values(r.checks));
 const judgeChecks = results.filter((r) => r.kind === "judge").flatMap((r) => Object.values(r.checks));
 const behaveChecks = results.filter((r) => r.kind === "behave").flatMap((r) => Object.values(r.checks));
 const withText = results.filter((r) => r.hadText);
+const shownCandidates = withText.filter((r) => !isEmergency(r));
 const audited = results.filter((r) => r.audit !== null);
 const auditMs = audited.map((r) => r.audit.ms).sort((a, b) => a - b);
 const summary = {
@@ -111,7 +115,11 @@ const summary = {
   judgeAgreement: `${judgeChecks.filter(Boolean).length}/${judgeChecks.length}`,
   behaveAgreement: `${behaveChecks.filter(Boolean).length}/${behaveChecks.length}`,
   allAgreement: `${allChecks.filter(Boolean).length}/${allChecks.length}`,
-  textShown: `${withText.filter((r) => !r.textRejected).length}/${withText.length}`,
+  // 検査（と監査役）を通った文。緊急の件も含む
+  textPassed: `${withText.filter((r) => !r.textRejected).length}/${withText.length}`,
+  // 画面に出る文。緊急の件は画面が文を使わずに中断の案内を出す（training.ts）ので除く。
+  // Issue #40 より前の結果ファイル（haiku-5-5-low.json など）の textShown は、今の textPassed と同じ意味
+  textShown: `${shownCandidates.filter((r) => !r.textRejected).length}/${shownCandidates.length}`,
   auditCalls: audited.length,
   auditBlocked: audited.filter((r) => r.audit.pass === false).length,
   auditFailed: audited.filter((r) => r.audit.failure !== null).length,
