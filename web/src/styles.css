@@ -1229,3 +1229,99 @@ body,
   width: 44px;
   height: 44px;
 }
+
+/* 場面の点（B-02、Issue #55）：場面が進むと、点がなめらかに伸びて色が付く。動きを減らす設定では止まり、すぐに変わる */
+.scene-dot {
+  transition:
+    width 480ms ease-out,
+    background-color 480ms ease-out;
+}
+
+/* 出来事のあとの情報源の並び（B-02、Issue #55）。後半だけ、係の横に出す。
+   動きは最後の姿を基本の見た目にし、from だけを書く（動きを減らす設定では、止まった最後の姿になる）。繰り返さず、点滅させない */
+.source-shift {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.source-shift-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.source-shift-item {
+  display: flex;
+}
+
+.source-shift-icon {
+  position: relative;
+  display: flex;
+  padding: 2px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--mint-strong);
+}
+
+.source-shift-icon .source-icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* 頼りにしていたものは枠で囲む（色だけに頼らない） */
+.source-shift-chosen .source-shift-icon {
+  border-color: var(--mint-strong);
+}
+
+.source-shift-lost .source-shift-icon {
+  color: var(--control-border);
+  animation: shift-fade 600ms ease-out both;
+}
+
+.source-shift-lost.source-shift-chosen .source-shift-icon {
+  border-color: var(--control-border);
+  border-style: dashed;
+}
+
+/* 斜線が左から引かれる */
+.source-shift-slash {
+  position: absolute;
+  left: -5%;
+  top: 50%;
+  width: 110%;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--orange-strong);
+  transform: rotate(-35deg);
+  transform-origin: left center;
+  animation: shift-slash 520ms ease-out 240ms both;
+}
+
+/* 残ったものは、少し遅れて小さく浮き上がる（1回だけ） */
+.source-shift-kept .source-shift-icon {
+  animation: enter-up 360ms ease-out 480ms both;
+}
+
+.source-shift-text {
+  margin: 0;
+  font-size: var(--fs-caption);
+  line-height: var(--lh-tight);
+  color: var(--ink-soft);
+}
+
+@keyframes shift-fade {
+  from {
+    color: var(--mint-strong);
+  }
+}
+
+@keyframes shift-slash {
+  from {
+    transform: rotate(-35deg) scaleX(0);
+  }
+}

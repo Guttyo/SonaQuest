@@ -18,6 +18,7 @@ import { ConfirmSource } from "./ConfirmSource";
 import { ListenerStage, sceneNumber, type SceneId } from "./ListenerStage";
 import { EVENT_FOCUS, LOST_BY_EVENT, SourceChip, SourceIcon } from "./SourceIcon";
 import { ListenerLine, Transcript } from "./Transcript";
+import { SourceShift } from "./SourceShift";
 
 interface Props {
   state: TrainingState;
@@ -88,6 +89,8 @@ export function Dialogue({ state, dispatch }: Props) {
           />
         )}
         {chosen !== null && <SourceChip source={chosen} lost={lost} />}
+        {/* 後半は、出来事で使えなくなった情報源と残った情報源の並びも出す（B-02） */}
+        {stage.name === "second" && state.event !== null && <SourceShift event={state.event} chosen={chosen} />}
       </ListenerStage>
 
       <div className="dialogue-log">

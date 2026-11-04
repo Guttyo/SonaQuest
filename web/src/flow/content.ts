@@ -495,3 +495,17 @@ export const SELF_HARM_SOURCE = {
   url: "https://www.mhlw.go.jp/mamorouyokokoro/",
   checkedOn: "2026-11-02",
 } as const;
+
+// --- 出来事のあとの情報源（B-02、Issue #55） ------------------------------------
+
+/**
+ * 後半（それでも伝えられる？）で、係の横に出す情報源の並びの文（SourceShift.tsx）。
+ * 何が使えなくなったかは PRD「出来事で使えなくなるもの」の表だけで決め、利用者の回答も Claude の判断も使わない
+ */
+// [TODO-OWNER: 出来事のあとの情報源の並びの文面（B-02 の下書き。点数や正解に見えないか、後半の答えの手がかりになりすぎないか）]
+export const SHIFT_CAPTION = "出来事のあとの情報源";
+export const SHIFT_LOST_PREFIX = "使えない：";
+export const SHIFT_NONE_LOST = "使えなくなった情報源はありません";
+export const SHIFT_LOST_STATE = "使えない";
+export const SHIFT_KEPT_STATE = "この出来事では使えなくなっていない";
+export const SHIFT_CHOSEN_STATE = "頼りにしていた";
