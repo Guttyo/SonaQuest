@@ -63,9 +63,11 @@ export function Dialogue({ state, dispatch }: Props) {
       }
     : null;
 
-  // 聞き取り係の見せ方（Listener.tsx の props、Issue #37）。係の交代のあとは、別の係として見せる
+  // 聞き取り係の見せ方（Listener.tsx の props、Issue #37）。係の交代のあとは、別の係として見せる。
+  // activity は 3D の対話モードだけで渡す（渡すと 2D でも名前の横に状態の文字が出るため、2D の見た目は今のままにする）
   const relief = state.event === "handover" && stage.name === "second";
-  const viewOf = (activity: ListenerActivity): ListenerVoiceView => ({ mode, activity, relief });
+  const viewOf = (activity: ListenerActivity): ListenerVoiceView =>
+    voiceOn ? { mode, activity, relief } : { mode, relief };
   const speakingView = viewOf(listenerActivity({ waiting: false, listening: false, speaking: speech.speaking }));
 
   return (
