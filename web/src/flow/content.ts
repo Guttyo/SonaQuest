@@ -496,6 +496,13 @@ export const SELF_HARM_SOURCE = {
   checkedOn: "2026-11-02",
 } as const;
 
+// --- ⑥振り返りの並びと絵（Issue #49 の④⑥、A-05） ----------------------------
+
+/** 振り返りで、出来事と、出来事の直後の立て直しの問いへの回答（原文）をまとめて示す区切り */
+// [TODO-OWNER: 振り返りの「出来事と立て直し」の見出しと、立て直しの回答の見出し（Claude Code の下書き）]
+export const REVIEW_EVENT_HEADING = "出来事と立て直しの回答";
+export const REVIEW_RECOVERY_LABEL = "出来事の後の、あなたの回答（入力したまま）";
+
 // --- 出来事のあとの情報源（B-02、Issue #55） ------------------------------------
 
 /**
