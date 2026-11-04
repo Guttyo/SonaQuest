@@ -19,7 +19,8 @@ import { appendRecognized, type MicStatus } from "../voice/talk";
 import type { SpeakerSnapshot } from "../voice/speaker";
 import { listenerSpeech, speechKey } from "../voice/speech";
 import { listenerActivity } from "../voice/view";
-import { ListenerStage, type DialoguePhase } from "./ListenerStage";
+import { ListenerStage, sceneNumber, type SceneId } from "./ListenerStage";
+import { EVENT_FOCUS, LOST_BY_EVENT, SourceChip, SourceIcon } from "./SourceIcon";
 import { ListenerLine, Transcript } from "./Transcript";
 
 interface Props {
@@ -52,6 +53,8 @@ export function Dialogue({ state, dispatch }: Props) {
   useSpeakWhenChanged(speaker, spoken, spoken === null ? null : speechKey(state, spoken));
   const [lostMic, setLostMic] = useState<{ session: number; mic: MicStatus } | null>(null);
   const [listening, setListening] = useState(false);
+  // 回答・確認を受け取るたびに、係が1回うなずく
+  const [nods, setNods] = useState(0);
   const voice: VoiceControls | null = voiceOn
     ? {
         speech,
@@ -64,13 +67,22 @@ export function Dialogue({ state, dispatch }: Props) {
   // 係の交代のあとは、別の係として見せる。状態はアプリの状態だけで決める（Claude の出力は使わない）
   const relief = state.event === "handover" && stage.name === "second";
   const activity = listenerActivity({ waiting: state.waiting, listening, speaking: speech.speaking });
-  const phase: DialoguePhase =
-    stage.name === "event" ? "event" : stage.name === "second" ? "second" : "first";
+  const scene: SceneId =
+    stage.name === "event"
+      ? "event"
+      : stage.name === "second"
+        ? "retell"
+        : stage.name === "first" && state.answers.length === 0
+          ? "arrive"
+          : "tell";
   const answering = question !== null && !state.waiting;
+  // 頼りにしているもの：③確認で本人が選んだものだけ（Claude の候補は初期選択に使うだけ）
+  const chosen = state.source !== null && state.source !== "none" ? state.source : null;
+  const lost = chosen !== null && state.event !== null && LOST_BY_EVENT[state.event].includes(chosen);
 
   return (
-    <section className="screen dialogue" aria-label="対話">
-      <ListenerStage mode={mode} activity={activity} relief={relief} showState={voiceOn} phase={phase}>
+    <section className={stage.name === "event" ? "screen dialogue scene-event" : "screen dialogue"} aria-label="対話">
+      <ListenerStage mode={mode} activity={activity} relief={relief} showState={voiceOn} scene={scene} nodKey={nods}>
         {voiceOn && (
           <SpeakerControls
             snapshot={speech}
@@ -78,6 +90,7 @@ export function Dialogue({ state, dispatch }: Props) {
             onReplay={() => speaker?.replay()}
           />
         )}
+        {chosen !== null && <SourceChip source={chosen} lost={lost} />}
       </ListenerStage>
 
       <div className="dialogue-log">
@@ -87,20 +100,33 @@ export function Dialogue({ state, dispatch }: Props) {
         {question !== null && state.waiting && <Thinking />}
 
         {answering && (
-          <ListenerLine id="current-question">{state.prompt?.text ?? question.text}</ListenerLine>
+          // 聞き取り係の発言が変わるたびに、下から入る（key で作り直す）
+          <div key={`${state.answers.length}-${state.prompt?.text ?? question.id}`} className="enter-up">
+            <ListenerLine id="current-question">{state.prompt?.text ?? question.text}</ListenerLine>
+          </div>
         )}
 
         {stage.name === "confirm" && (
           <ConfirmSource
             ack={state.closingAck}
             initial={state.sourceGuess}
-            onConfirm={(source) => dispatch({ type: "confirm", source })}
+            onConfirm={(source) => {
+              setNods((n) => n + 1);
+              dispatch({ type: "confirm", source });
+            }}
           />
         )}
 
         {stage.name === "event" && state.event !== null && (
-          <div className="event" role="alert" data-scroll-target tabIndex={-1}>
+          <div className="event event-scene" role="alert" data-scroll-target tabIndex={-1}>
+            <p className="event-kicker">{sceneNumber("event")}</p>
             <h2>想定外の出来事</h2>
+            {EVENT_FOCUS[state.event] !== null && (
+              <div className={`event-visual event-visual-${state.event}`} aria-hidden="true">
+                <SourceIcon id={EVENT_FOCUS[state.event]!} className="source-icon event-icon" />
+                <span className="event-slash" />
+              </div>
+            )}
             <p className="event-text">{EVENTS[state.event].text}</p>
             {EVENTS[state.event].unavailable !== null && (
               <p>
@@ -124,7 +150,10 @@ export function Dialogue({ state, dispatch }: Props) {
           // 聞き取り係の発言が変わったら下書きを消す
           key={state.answers.length}
           hint={ANSWER_HINTS[question.answerAs]}
-          onSubmit={(text) => dispatch({ type: "answer", text })}
+          onSubmit={(text) => {
+            setNods((n) => n + 1);
+            dispatch({ type: "answer", text });
+          }}
           onListeningChange={setListening}
           voice={voice}
         />

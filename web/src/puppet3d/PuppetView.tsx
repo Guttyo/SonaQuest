@@ -13,9 +13,12 @@ import type { ListenerActivity } from "./types";
 export function PuppetView({
   activity,
   relief,
+  nodKey = 0,
 }: {
   activity: ListenerActivity;
   relief: boolean;
+  /** 増えるたびに1回うなずく（回答を受け取ったとき。0 ではうなずかない） */
+  nodKey?: number;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<PuppetHandle | null>(null);
@@ -57,6 +60,16 @@ export function PuppetView({
   useEffect(() => {
     handleRef.current?.update(activity, relief);
   }, [activity, relief]);
+
+  // 読み込みの途中で回答を受け取ったときは、描けるようになってからうなずく。
+  // 出たときにすでに受け取っていた分（appliedNod の初期値）はうなずき直さない
+  const appliedNod = useRef(nodKey);
+  useEffect(() => {
+    const handle = handleRef.current;
+    if (handle === null || nodKey <= appliedNod.current) return;
+    appliedNod.current = nodKey;
+    handle.nod();
+  }, [nodKey, ready]);
 
   return (
     <div className={relief ? "puppet3d-stage puppet3d-stage-relief" : "puppet3d-stage"}>

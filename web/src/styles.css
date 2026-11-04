@@ -573,7 +573,7 @@ textarea {
    ヘッダーの高さは「上の余白（安全領域）＋ボタン44px＋下の余白10px＋線1px」で決まる */
 .dialogue {
   --header-h: calc(max(10px, env(safe-area-inset-top)) + 55px);
-  --stage-h: 164px;
+  --stage-h: 196px;
   /* 対話が短いときも、回答の欄が画面の下端に来るように、ヘッダーの下の高さを埋める */
   min-height: calc(100dvh - var(--header-h));
 }
@@ -632,38 +632,6 @@ textarea {
   margin: 8px 20px;
 }
 
-.progress {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  gap: 4px;
-}
-
-.progress-step {
-  flex: 1;
-  padding: 2px 0;
-  border-radius: 999px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  color: var(--ink-soft);
-  font-size: 0.75rem;
-  text-align: center;
-  white-space: nowrap;
-}
-
-.progress-done {
-  background: var(--mint);
-  border-color: var(--mint);
-}
-
-.progress-current {
-  background: var(--mint-strong);
-  border-color: var(--mint-strong);
-  color: #fff;
-  font-weight: 700;
-}
-
 .dialogue-log {
   display: flex;
   flex-direction: column;
@@ -710,9 +678,301 @@ textarea {
   color: var(--ink-soft);
 }
 
+/* 場面（Issue #55 の一部）：「SCENE 02 普段の薬を伝える」と、5つの点 */
+.scene-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.scene-title-live {
+  min-width: 0;
+}
+
+.scene-title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink);
+  animation: enter-up 280ms ease-out both;
+}
+
+.scene-number {
+  margin-right: 0.5em;
+  color: var(--mint-strong);
+  letter-spacing: 0.08em;
+}
+
+.scene-dots {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 6px;
+}
+
+.scene-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid var(--mint-strong);
+  background: var(--surface);
+}
+
+.scene-dot-done {
+  background: var(--mint);
+}
+
+.scene-dot-current {
+  width: 20px;
+  border-radius: 999px;
+  background: var(--mint-strong);
+}
+
+/* 頼りにしているもの（③確認で本人が選んだもの） */
+.source-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 4px 10px 4px 6px;
+  border: 1px solid var(--mint-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  animation: enter-up 320ms ease-out both;
+}
+
+.source-chip-icon {
+  position: relative;
+  flex: none;
+  color: var(--mint-strong);
+}
+
+.source-icon {
+  display: block;
+  width: 28px;
+  height: 28px;
+}
+
+.source-chip-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.source-chip-caption {
+  font-size: 0.7rem;
+  color: var(--ink-soft);
+}
+
+.source-chip-lost {
+  border-color: var(--control-border);
+  border-style: dashed;
+  color: var(--ink-soft);
+}
+
+.source-chip-lost .source-chip-icon {
+  color: var(--control-border);
+}
+
+.source-chip-state {
+  font-weight: 700;
+  color: var(--orange-strong);
+}
+
+/* 斜線。文字の「（使えない）」と一緒に示し、色だけに頼らない */
+.source-chip-slash,
+.event-slash {
+  position: absolute;
+  left: -10%;
+  top: 50%;
+  width: 120%;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--orange-strong);
+  transform: rotate(-35deg);
+  transform-origin: center;
+}
+
+/* 質問の入れ替え（250ms）。動きを減らす設定では止まり、すぐに出る */
+.enter-up {
+  animation: enter-up 260ms ease-out both;
+}
+
+@keyframes enter-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+/* 回答を受け取ったときのうなずき（2D の光）。小さく2回沈む */
+.listener-light-nod {
+  animation: light-nod 700ms ease-in-out both;
+}
+
+/* 考え中と重なるときは、うなずいてから明滅を始める */
+.listener-light-nod.listener-light-thinking {
+  animation:
+    light-nod 700ms ease-in-out,
+    listener-thinking 1.6s ease-in-out 700ms infinite alternate;
+}
+
+@keyframes light-nod {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(7px);
+  }
+  55% {
+    transform: translateY(0);
+  }
+  75% {
+    transform: translateY(3px);
+  }
+}
+
+/* 場面01：係が現れる */
+.stage-figure-enter {
+  flex: none;
+  /* 中の光（空の span）が幅と高さを保つように、包む要素も flex にする */
+  display: flex;
+  animation: figure-enter 520ms ease-out both;
+}
+
+@keyframes figure-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.92);
+  }
+}
+
+/* 場面03：想定外の出来事。背景が暗転し、頼っていたものが使えなくなる（B-01）。
+   ヘッダーと「訓練をやめる」は暗くしない。点滅はさせない */
+body:has(.scene-event) {
+  background: #1d2427;
+}
+
+body,
+.dialogue-stage {
+  transition: background-color 700ms ease, color 700ms ease;
+}
+
+.scene-event .dialogue-stage {
+  background: #1d2427;
+  border-bottom-color: #3a4549;
+}
+
+.scene-event .dialogue-stage .listener-name,
+.scene-event .scene-title {
+  color: #f5efe4;
+}
+
+.scene-event .scene-number {
+  color: var(--orange);
+}
+
+/* 出来事の間は、それまでのやり取りを隠して場面を切り替える（後半に入ると戻る。原文は振り返りにも出る） */
+.scene-event .dialogue-log > :not(.event) {
+  display: none;
+}
+
+.event.event-scene {
+  align-items: center;
+  text-align: center;
+  padding: 20px 16px;
+  background: #263034;
+  border: 2px solid var(--orange);
+  color: #f5efe4;
+  animation: scene-in 640ms ease-out 120ms both;
+}
+
+.event-scene h2 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.event-kicker {
+  color: var(--orange);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  font-size: 0.8rem;
+}
+
+.event-scene .event-text {
+  font-size: 1.15rem;
+}
+
+.event-scene .label {
+  color: var(--orange);
+}
+
+.event-scene button.primary {
+  align-self: stretch;
+}
+
+@keyframes scene-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+  }
+}
+
+.event-visual {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  color: #8a9599;
+  animation: icon-fade 900ms ease-in 300ms both;
+}
+
+.event-icon {
+  width: 96px;
+  height: 96px;
+}
+
+@keyframes icon-fade {
+  from {
+    color: var(--mint);
+  }
+}
+
+.event-slash {
+  height: 5px;
+  animation: slash-in 260ms ease-out 1000ms both;
+}
+
+@keyframes slash-in {
+  from {
+    transform: rotate(-35deg) scaleX(0);
+  }
+}
+
+/* 電池切れ：電池の印の中が減っていく */
+.battery-level {
+  transform-box: fill-box;
+  transform-origin: bottom;
+}
+
+.event-visual-battery .battery-level {
+  transform: scaleY(0.1);
+  animation: battery-drain 800ms ease-in 300ms both;
+}
+
+@keyframes battery-drain {
+  from {
+    transform: scaleY(1);
+  }
+}
+
 @media (min-width: 768px) {
   .dialogue {
-    --stage-h: 220px;
+    --stage-h: 240px;
   }
 
   .dialogue-stage .puppet3d-stage {
