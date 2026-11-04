@@ -690,6 +690,9 @@
   - **実環境では未確認**：試験は偽の binding で行った。`wrangler dev` での binding の動作と、`workers.dev` での拠点ごとの挙動は確かめていない（Issue #58 で、デプロイした Workers に上限を超える回数を送って確かめる）。
   - binding のカウンターを Cloudflare 側がどう保持するかを、公式は明示していない。アプリは IP を保存せず、ログにも出さない。
 - 影響：`web/worker/ratelimit.ts`（新規）、`web/worker/app.ts`（`Env` に `TURN_LIMITER`、入口で1回呼ぶ）、`web/wrangler.jsonc`、`web/worker/ratelimit.test.ts`・`turn.test.ts`、docs/safety-test-plan.md（P7）、docs/architecture.md、docs/STATUS.md。
+- 追記（2026-11-04、Issue #58）：公開環境で回数制限を確かめたところ、上限（10回 / 60秒）を超える33回の呼び出しで、429 が1度も出なかった（14件の同時、逐次4件、逐次14件。docs/safety-test-plan.md「実施の記録」の P7）。原因は未調査。ADR-0028 の12（P7・P9 を満たすまで `PUBLIC_TURN` を設定しない）の P7 を、実環境では満たせていない。
+  - → オーナー決定（2026-11-04、チャット）：「このまま続ける」（質問は「回数制限が効くと確認できるまで、PUBLIC_TURN を外しますか？」）。`PUBLIC_TURN=1` を設定したまま続ける。
+  - Claude Code の整理（決定ではない）：この間、支出の最後の守りは P9（Anthropic 側の月の上限。オーナーが設定したと申告）だけになる。原因の調査と対処は、別の Issue で扱う案。
 - オーナーが判断する点：
   - [TODO-OWNER: 初回画面と README に、回数制限のために接続元の IP を Cloudflare が数えることを書くか（Claude Code の下書き：書く。アプリは IP を保存せず、ログにも出さない。privacy.md の「外部へ送るものを初回画面で示す」に沿う）]
 
