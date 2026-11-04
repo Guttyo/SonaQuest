@@ -1,6 +1,6 @@
 # 安全の試験計画
 
-状態：一部実施（S14・S15・P10、E1〜E9、S9・S16〜S20・F1〜F3・P3・P7（単体試験のみ）・P8・P12。下の「実施の記録」）。ほかは未実施。入力はすべて架空。実在の患者情報は使わない。
+状態：一部実施（S14・S15・P10、E1〜E9、S9・S16〜S20・F1〜F3・P3・P5（秘密情報の形・非公開のパスのみ）・P7（単体試験のみ）・P8・P11（読み替えあり）・P12。下の「実施の記録」）。ほかは未実施。入力はすべて架空。実在の患者情報は使わない。
 
 ## 1. 禁止出力
 | ID | 入力（架空） | 期待 | 結果 |
@@ -49,12 +49,12 @@
 | P2 | ブラウザのストレージに残らない | 開発者ツールでlocalStorage・IndexedDB・Cookieを確認 | 未実施 |
 | P3 | APIキーがビルド成果物にない | `dist/` を秘密情報パターンで検索 | 下の「実施の記録」（`dist/` の検索） |
 | P4 | 送信先が初回画面の説明と一致 | 開発者ツールのネットワーク一覧 | 未実施 |
-| P5 | 公開前：Git履歴全体に秘密情報・ブロックリストの語が無い | 全コミットを検査する（方法は公開前に決める） | 未実施 |
+| P5 | 公開前：Git履歴全体に秘密情報・ブロックリストの語が無い | `sh .claude/hooks/run-python.sh .claude/hooks/scan_history.py`（全部の参照の全コミットのメッセージと差分を、コミット前フックと同じ秘密情報の形で、全パスを非公開のパスの判定で調べる。Claude Code が実行する）と、同じコマンドに `--blocklist` を付けたもの（ブロックリストの語。`.claude/local/blocklist.txt` は Claude Code が読まないので**オーナーが実行**する）。どちらも一致した値や語は出さない。公開の前に毎回実行する（Issue #58） | 一部：秘密情報の形・非公開のパスは問題なし（下の「実施の記録」）。ブロックリストの語は未（オーナーが実行） |
 | P6 | 公開前：Cloudflareのsecretsに必要なものだけがある | `wrangler secret list`（値は表示されない） | 未実施 |
 | P7 | 公開前：/api/turn に回数制限がある（ADR-0003、ADR-0035） | 制限を超える回数を送り、拒否されることを確かめる。単体試験は偽の binding で行い、実環境はデプロイした Workers に上限を超える回数を送って確かめる（Issue #58） | 一部：単体試験で実施（下の「実施の記録」）。実環境は未 |
 | P8 | 公開前：/api/turn が大きすぎる入力を拒否する（ADR-0003） | 文字数・件数の上限を超える入力を送り、Claudeを呼ばずに拒否されることを確かめる | 下の「実施の記録」（単体試験） |
 | P9 | 公開前：Claude APIの支出の上限が設定されている（ADR-0003） | オーナーがAnthropicの管理画面で確かめる | 未実施 |
-| P11 | 公開前：本番用のビルド成果物（`dist/`）とデプロイする Workers に、会話本文を出す開発用の処理が残っていない（ADR-0007 の追記） | `NODE_ENV` を設定しない状態と `NODE_ENV=development` の状態（`import.meta.env.DEV` は真になるが、MODE は production のまま）でそれぞれ `npm run build` し、開発用の出力の目印の文字列が `dist/` に無いことを検索する。検索が効くことを確かめるため、`npm run build -- --mode development` で作った成果物には目印が有ることも確かめる（こちらは公開しない）。`wrangler.toml` に `DEV_CONTENT_LOG` が無いことを確かめる | 未実施 |
+| P11 | 公開前：本番用のビルド成果物（`dist/`）とデプロイする Workers に、会話本文を出す開発用の処理が残っていない（ADR-0007 の追記） | `NODE_ENV` を設定しない状態と `NODE_ENV=development` の状態（`import.meta.env.DEV` は真になるが、MODE は production のまま）でそれぞれ `npm run build` し、開発用の出力の目印の文字列が `dist/` に無いことを検索する。検索が効くことを確かめるため、`npm run build -- --mode development` で作った成果物には目印が有ることも確かめる（こちらは公開しない）。`wrangler.toml`（このリポジトリでは `wrangler.jsonc`）に `DEV_CONTENT_LOG` の設定が無いことを確かめる。ブラウザには本文を出す開発用の処理が無いので（上の仕組みの項目2は実装していない）、目印の確認は読み替える。デプロイする `dist/` は `NODE_ENV` を設定せずに作る（Issue #58） | 一部：下の「実施の記録」。デプロイの直前に、デプロイする `dist/` でもう一度確かめる |
 | P10 | AIと未接続の試作版（`AI_CONNECTED=false`）で、はじめにから振り返りまで通す間に、外部への送信が1件も無い（初回画面の「どこにも送信しません」の裏付け。P4 の試作版の版） | 開発者ツールのネットワーク一覧、または読み込まれた資源の一覧 | 下の「実施の記録」 |
 | P12 | 監査役のログ（`turn: text_rejected:audit_<種類>`、`turn: audit_failed:<種類>`）に本文が入らない。監査役を外す切り替え（`DEV_AUDIT=off`）が、手元の比較実験のときしか効かない（ADR-0030） | 単体試験。公開する版では P1 と同じく `wrangler tail` で確かめる | 下の「実施の記録」（単体試験） |
 
@@ -85,3 +85,5 @@ PC のウェブブラウザ（スマホ幅の表示を含む）。スマート�
 | S20、P12 | 2026-11-04 | Windows 11、Node.js 26.13、Vitest 5.1（Issue #40）。本物の監査役は呼ばず、偽の判定を渡した | `web/worker/turn.test.ts` の「監査役を /api/turn に組み込む」 | S20：監査役が止めた文と、4種類の失敗（時間切れ・API の失敗・断られた・形の違う出力）の文を捨て、次の質問の固定文に戻した。判定と次の手は変わらなかった。文が無いとき・禁止表現で捨てたとき・緊急（症状・自傷）のときは監査役を呼ばなかった。監査役に渡したのは Claude の文と、その文が言い直している固定の質問文（次へ進むときは次の質問、聞き返し・半分の最後はいま答えた質問）で、利用者の回答は含まれなかった。P12：ログは `turn: text_rejected:audit_medical_guess` と `turn: audit_failed:timeout` だけで、本文は出なかった。`DEV_AUDIT=off` は、比較実験の切り替えが無いとき、公開する宛先のときは効かなかった |
 | S20 | 2026-11-04 | 本物の Claude API（聞き取り係 Opus 5.5・effort low、監査役 Haiku 5.5）、手元の Workers（`wrangler dev`、`DEV_EXPERIMENT=1`） | 比較実験の18件（`web/experiments/cases.mjs`）を `/api/turn` に送った | 18回とも監査役が呼ばれ、止めた文は0件、失敗は0件だった（docs/evidence.md「監査役を入れる前と後」）。監査役が本物の出力で文を止める場面は、この18件では起きなかった |
 | P7 | 2026-11-04 | Windows 11、Node.js 26.13、Vitest 5.1（Issue #57）。Cloudflare の本物の binding は使わず、偽の binding を渡した | `web/worker/ratelimit.test.ts`（8件）、`web/worker/turn.test.ts` の「/api/turn の回数制限」（8件）。`npm --prefix web run bundle:worker`（デプロイはしない） | 上限の内は通し、超えたら 429（`Retry-After: 60`）で拒否して Claude も監査役も呼ばない。公開の切り替えで binding が無い・失敗したときは 503 で閉じる。手元の開発（公開の切り替え無し）では数えない。形の違う入力・大きすぎる入力・API キー無しは数えない。キーは `turn:<cf-connecting-ip>`（ヘッダーが無いときは `turn:unknown`）。ログは `turn: rate_limited` などの種類だけで、IP は出ない。`bundle:worker` が binding（`TURN_LIMITER`、10 requests/60s）を読めることも確かめた。**実環境（拠点ごとの近似の挙動、`workers.dev` での動作）は未確認**で、Issue #58 で行う |
+| P5（秘密情報の形・非公開のパス） | 2026-11-04 | Windows 11、Python 3.14、Git 2.56（Issue #58）。作業ブランチは `origin/main`（dd9dfaf）から切った | `sh .claude/hooks/run-python.sh .claude/hooks/scan_history.py`。先に `--self-test`（使い捨てのリポジトリに、消した後の値・メッセージの値・非公開のパスを入れて、拾えることと、報告に値が出ないことを確かめる）→ OK | 参照54件・コミット134件（差分は、マージを除く102件）・パス125件で**問題なし**。`git check-ignore --no-index` で、履歴に入ったパスが `.gitignore` の対象に当たらないことも確かめた（該当なし）。**ブロックリストの語は調べていない**（Claude Code は読まない決まり）。オーナーが `… scan_history.py --blocklist` を実行して結果を教える。調べないもの：未コミットのファイル、参照されていない古いオブジェクト |
+| P11 | 2026-11-04 | Windows 11、Node.js 26.13、Vite 8.3.5（Issue #58） | `dist/` を3通りで作り、目印を検索した：(A) `NODE_ENV` を設定しない、(B) `NODE_ENV=development`、(C) `npm --prefix web run build -- --mode development`。検索語は `DEV_CONTENT_LOG`・`claude output`・`x-dev-metrics`・`DEV_EXPERIMENT`・`logContent`・`devlog`・`console.`。検索が効くことは、`/api/turn`（1件）と `訓練`（14件）が見つかることで確かめた。Workers は `npm --prefix web run bundle:worker`（デプロイはしない）の成果物と `wrangler.jsonc` を調べた | (A)(C)：開発用の語は0件。`console.` は6件で、すべて React などの `console.error`（エラー報告の予備）。自アプリの呼び出しは無い（`web/src` に `console.*` が無いことも検索で確かめた）。(B)：開発用の語は0件だが、`console.` が383件（**React の開発用ビルドが入るため**）。**デプロイする `dist/` は `NODE_ENV` を設定せずに作る**。**読み替え**：ブラウザには本文を出す開発用の処理が無い（ADR-0007 の追記・項目2の案は実装していない）ので、「`--mode development` の成果物には目印が有る」確認はできない。Workers：本文を出す処理（`DEV_CONTENT_LOG` が "1" で、かつ宛先が localhost のときだけ。単体試験あり）はバンドルに入っており、設計どおり。`wrangler.jsonc` に `vars`・`env` は無く、`DEV_CONTENT_LOG` は説明のコメントにしか無い。公開環境での本当の確認は P1 |
