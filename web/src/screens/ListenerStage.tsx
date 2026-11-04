@@ -33,6 +33,7 @@ export function ListenerStage({
   relief,
   showState,
   scene,
+  nodKey = 0,
   children,
 }: {
   mode: ListenerMode;
@@ -40,6 +41,8 @@ export function ListenerStage({
   relief: boolean;
   showState: boolean;
   scene: SceneId;
+  /** 増えるたびに、係が1回うなずく（回答を受け取ったとき） */
+  nodKey?: number;
   /** 読み上げの操作や、頼りにしているものなど、係の横に置くもの */
   children?: ReactNode;
 }) {
@@ -50,6 +53,7 @@ export function ListenerStage({
     "listener-light-stage",
     relief ? "listener-light-relief" : "",
     activity === "thinking" ? "listener-light-thinking" : "",
+    nodKey > 0 ? "listener-light-nod" : "",
   ]
     .filter((c) => c !== "")
     .join(" ");
@@ -59,9 +63,10 @@ export function ListenerStage({
       <div className="dialogue-stage-figure">
         <div className="stage-figure-enter">
           {shown === "3d" ? (
-            <PuppetView activity={activity} relief={relief} />
+            <PuppetView activity={activity} relief={relief} nodKey={nodKey} />
           ) : (
-            <span className={lightClass} aria-hidden="true" />
+            // 2D の光は、作り直して小さく沈む動きをもう一度出す
+            <span key={nodKey} className={lightClass} aria-hidden="true" />
           )}
         </div>
         <div className="dialogue-stage-side">

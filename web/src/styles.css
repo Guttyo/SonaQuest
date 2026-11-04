@@ -806,6 +806,34 @@ textarea {
   }
 }
 
+/* 回答を受け取ったときのうなずき（2D の光）。小さく2回沈む */
+.listener-light-nod {
+  animation: light-nod 700ms ease-in-out both;
+}
+
+/* 考え中と重なるときは、うなずいてから明滅を始める */
+.listener-light-nod.listener-light-thinking {
+  animation:
+    light-nod 700ms ease-in-out,
+    listener-thinking 1.6s ease-in-out 700ms infinite alternate;
+}
+
+@keyframes light-nod {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(7px);
+  }
+  55% {
+    transform: translateY(0);
+  }
+  75% {
+    transform: translateY(3px);
+  }
+}
+
 /* 場面01：係が現れる */
 .stage-figure-enter {
   flex: none;

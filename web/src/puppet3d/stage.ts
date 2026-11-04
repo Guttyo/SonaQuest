@@ -19,7 +19,7 @@ import {
   type BufferGeometry,
 } from "three";
 import { paletteFor, type PuppetPalette } from "./palette";
-import { blendPose, poseAt, type Pose } from "./pose";
+import { blendPose, nodAt, poseAt, type Pose } from "./pose";
 import type { ListenerActivity } from "./types";
 
 /**
@@ -30,6 +30,8 @@ import type { ListenerActivity } from "./types";
 
 export interface PuppetHandle {
   update(activity: ListenerActivity, relief: boolean): void;
+  /** 回答を受け取ったときに、1回うなずく */
+  nod(): void;
   /** 描画を止めて、描画の領域を画面から外す。片づけはこの後に行う */
   detach(): void;
 }
@@ -61,6 +63,8 @@ class PuppetStage {
   private activity: ListenerActivity = "idle";
   private pose: Pose = poseAt("idle", 0);
   private lastFrame = -Infinity;
+  /** うなずき始めた時刻（秒）。うなずいていないときは -Infinity */
+  private nodStart = -Infinity;
   private palette: PuppetPalette | null = null;
 
   constructor() {
@@ -209,6 +213,10 @@ class PuppetStage {
     }
   }
 
+  nod(): void {
+    this.nodStart = performance.now() / 1000;
+  }
+
   setState(activity: ListenerActivity, relief: boolean): void {
     this.activity = activity;
     this.setPalette(paletteFor(relief));
@@ -269,7 +277,8 @@ class PuppetStage {
     this.lastFrame = now;
     const t = now / 1000;
     this.pose = blendPose(this.pose, poseAt(this.activity, t), dt);
-    this.applyPose(this.pose);
+    // うなずきは状態の姿勢に足す（なめらかにする前の値に足すと、うなずきが鈍るため）
+    this.applyPose({ ...this.pose, headNod: this.pose.headNod + nodAt(t - this.nodStart) });
     this.renderer.render(this.scene, this.camera);
   };
 
@@ -278,10 +287,15 @@ class PuppetStage {
     this.root.position.y = 0.1 + pose.bob;
     this.head.rotation.z = pose.headTilt;
     this.head.rotation.x = pose.headNod;
+    this.head.rotation.y = pose.headTurn;
     this.upperJaw.rotation.x = -pose.mouth * 0.75;
     this.lowerJaw.rotation.x = pose.mouth * 0.35;
     for (const eye of this.eyes) eye.scale.y = pose.eyeOpen;
-    for (const pupil of this.pupils) pupil.position.y = 0.05 * pose.lookUp;
+    for (const pupil of this.pupils) {
+      pupil.position.y = 0.05 * pose.lookUp;
+      // 黒目は顔の向きより少し先に動かし、見ている方向を分かりやすくする
+      pupil.position.x = 0.04 * pose.headTurn;
+    }
   }
 }
 
@@ -324,6 +338,9 @@ export function attachPuppet(
   return {
     update(activity, relief) {
       if (!detached) stage.setState(activity, relief);
+    },
+    nod() {
+      if (!detached) stage.nod();
     },
     detach() {
       if (detached) return;
