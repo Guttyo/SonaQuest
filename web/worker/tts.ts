@@ -74,6 +74,32 @@ function fail(kind: string): void {
   console.warn(`tts: ${kind}`);
 }
 
+/** エラーの本文として読む上限（バイト）。ElevenLabs のエラーは小さな JSON */
+const MAX_ERROR_BYTES = 2_048;
+/** ログに出してよい符号の形。英小文字・数字・下線だけ（文や本文は出さない） */
+const ERROR_CODE_PATTERN = /^[a-z0-9_]{1,64}$/;
+
+/**
+ * ElevenLabs のエラーの符号（`{"detail":{"status":"…"}}` の status）を `:<符号>` の形で返す。
+ * 符号の形でないもの、JSON でないもの、大きすぎるものは使わず、空文字を返す。本文はほかに使わずに捨てる
+ */
+export async function upstreamErrorCode(upstream: Response): Promise<string> {
+  const type = upstream.headers.get("content-type") ?? "";
+  if (upstream.ok || upstream.body === null || !type.includes("json")) {
+    await upstream.body?.cancel();
+    return "";
+  }
+  try {
+    const bytes = new Uint8Array(await upstream.arrayBuffer());
+    if (bytes.byteLength > MAX_ERROR_BYTES) return "";
+    const json = JSON.parse(new TextDecoder().decode(bytes)) as { detail?: { status?: unknown } };
+    const status = json?.detail?.status;
+    return typeof status === "string" && ERROR_CODE_PATTERN.test(status) ? `:${status}` : "";
+  } catch {
+    return "";
+  }
+}
+
 export function createTtsApp(deps: TtsDeps) {
   const fetchImpl: TtsFetch = deps.fetchImpl ?? ((url, init) => fetch(url, init));
   const app = new Hono<{ Bindings: TtsEnv }>();
@@ -115,9 +141,8 @@ export function createTtsApp(deps: TtsDeps) {
     }
     const type = upstream.headers.get("content-type") ?? "";
     if (!upstream.ok || upstream.body === null || !type.startsWith("audio/")) {
-      // 事業者の返した本文（エラーの説明）も読まずに捨てる
-      await upstream.body?.cancel();
-      fail(`upstream_${upstream.status}`);
+      // 事業者のエラーの種類（英小文字の符号）だけを出す。説明の文や本文は出さない
+      fail(`upstream_${upstream.status}${await upstreamErrorCode(upstream)}`);
       return c.json({ error: "unavailable" }, 502);
     }
     // 音声はためずにそのまま流す。事業者の見出し（履歴の ID など）は渡さない。ブラウザにも残させない

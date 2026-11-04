@@ -182,4 +182,26 @@ describe("本文・キーをログに出さない（ADR-0007）", () => {
       }
     }
   });
+
+  it("事業者のエラーは、英小文字の符号だけを足し、説明の文や本文は出さない", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errorJson = (detail: unknown, status = 400) => () =>
+      new Response(JSON.stringify({ detail }), { status, headers: { "Content-Type": "application/json" } });
+    const body = JSON.stringify({ text: TEXT });
+    const cases: [() => Response, string][] = [
+      [errorJson({ status: "api_key_id_used_as_api_key", message: `説明の文 ${TEXT}` }), "tts: upstream_400:api_key_id_used_as_api_key"],
+      [errorJson({ status: "invalid_api_key" }, 401), "tts: upstream_401:invalid_api_key"],
+      // 符号の形でないもの（空白・大文字・日本語・長すぎる）は出さない
+      [errorJson({ status: `bad ${TEXT}` }), "tts: upstream_400"],
+      [errorJson({ status: "Invalid Key" }), "tts: upstream_400"],
+      [errorJson({ status: "x".repeat(65) }), "tts: upstream_400"],
+      [errorJson(TEXT), "tts: upstream_400"],
+      [() => new Response("not json", { status: 422, headers: { "Content-Type": "application/json" } }), "tts: upstream_422"],
+    ];
+    for (const [response] of cases) {
+      await post(createTtsApp({ readBody: readLimitedText, fetchImpl: fakeUpstream(response).fetchImpl }), body);
+    }
+    expect(warn.mock.calls.map((c) => String(c[0]))).toEqual(cases.map(([, expected]) => expected));
+    for (const call of warn.mock.calls) expect(JSON.stringify(call)).not.toContain(TEXT);
+  });
 });
