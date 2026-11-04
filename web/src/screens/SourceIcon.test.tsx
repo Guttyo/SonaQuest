@@ -39,7 +39,20 @@ describe("頼りにしているもの", () => {
 });
 
 describe("情報源と薬のまわりのものの絵（A-04）", () => {
-  const ids: IllustrationId[] = ["smartphone", "online", "notebook", "family", "clinic", "leaflet", "bag"];
+  const ids: IllustrationId[] = [
+    "smartphone",
+    "online",
+    "notebook",
+    "family",
+    "clinic",
+    "leaflet",
+    "bag",
+    // 振り返りの観点・準備行動に添える絵（Issue #49 の⑥）
+    "pack",
+    "wallet",
+    "calendar",
+    "talk",
+  ];
 
   it("お薬の説明書と薬の袋を含め、どの絵も描かれ、読み上げない飾りで、字を含まない", () => {
     for (const id of ids) {
