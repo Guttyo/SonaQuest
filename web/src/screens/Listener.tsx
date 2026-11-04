@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 /**
  * 聞き取り係の発言。光の存在として表す（ADR-0020）。
- * Phase 1 では静止した光の丸だけを置き、動きの演出は入れない。
+ * 発言の光は止まったまま。動くのは返事を待つ間の「考え中」だけ（Dialogue.tsx の Thinking、ADR-0030）。
  */
 export function Listener({ children }: { children: ReactNode }) {
   return (

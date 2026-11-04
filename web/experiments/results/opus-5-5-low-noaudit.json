@@ -1,0 +1,680 @@
+{
+  "summary": {
+    "label": "opus-5-5-low-noaudit",
+    "model": "claude-opus-5-5",
+    "calls": 18,
+    "failures": 0,
+    "fallbacks": 0,
+    "msMedian": 2829,
+    "msMax": 5319,
+    "judgeAgreement": "25/25",
+    "behaveAgreement": "19/19",
+    "allAgreement": "44/44",
+    "textPassed": "17/17",
+    "textShown": "16/16",
+    "auditCalls": 0,
+    "auditBlocked": 0,
+    "auditFailed": 0,
+    "auditMsMedian": null,
+    "auditMsMax": null,
+    "costUsd": 0.1383
+  },
+  "results": [
+    {
+      "id": "J1",
+      "kind": "judge",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-opus-5-5",
+      "ms": 2720,
+      "usage": {
+        "input": 905,
+        "output": 111,
+        "cacheRead": 0,
+        "cacheWrite": 3854
+      },
+      "costUsd": 0.02511,
+      "hadText": true,
+      "textRejected": false,
+      "rejectReason": null,
+      "audit": null,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "finish",
+        "viewpoints": {
+          "location": "confirmed",
+          "alternative": "confirmed",
+          "current": "confirmed",
+          "unrecorded": "confirmed",
+          "proxy": "confirmed"
+        }
+      },
+      "checks": {
+        "viewpoint.location": true,
+        "viewpoint.alternative": true,
+        "viewpoint.current": true,
+        "viewpoint.unrecorded": true,
+        "viewpoint.proxy": true
+      },
+      "model": "claude-opus-5-5"
+    },
+    {
+      "id": "J2",
+      "kind": "judge",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-opus-5-5",
+      "ms": 2359,
+      "usage": {
+        "input": 861,
+        "output": 132,
+        "cacheRead": 3854,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0068548,
+      "hadText": true,
+      "textRejected": false,
+      "rejectReason": null,
+      "audit": null,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "finish",
+        "viewpoints": {
+          "location": "aware_unconfirmed",
+          "alternative": "aware_unconfirmed",
+          "current": "aware_unconfirmed",
+          "unrecorded": "aware_unconfirmed",
+          "proxy": "aware_unconfirmed"
+        }
+      },
+      "checks": {
+        "viewpoint.location": true,
+        "viewpoint.alternative": true,
+        "viewpoint.current": true,
+        "viewpoint.unrecorded": true,
+        "viewpoint.proxy": true
+      },
+      "model": "claude-opus-5-5"
+    },
+    {
+      "id": "J3",
+      "kind": "judge",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-opus-5-5",
+      "ms": 2829,
+      "usage": {
+        "input": 885,
+        "output": 114,
+        "cacheRead": 3854,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0065908,
+      "hadText": true,
+      "textRejected": false,
+      "rejectReason": null,
+      "audit": null,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "finish",
+        "viewpoints": {
+          "location": "confirmed",
+          "alternative": "not_mentioned",
+          "current": "confirmed",
+          "unrecorded": "confirmed",
+          "proxy": "confirmed"
+        }
+      },
+      "checks": {
+        "viewpoint.location": true,
+        "viewpoint.alternative": true,
+        "viewpoint.current": true,
+        "viewpoint.unrecorded": true,
+        "viewpoint.proxy": true
+      },
+      "model": "claude-opus-5-5"
+    },
+    {
+      "id": "J4",
+      "kind": "judge",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-opus-5-5",
+      "ms": 2284,
+      "usage": {
+        "input": 856,
+        "output": 121,
+        "cacheRead": 3854,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0066148000000000005,
+      "hadText": true,
+      "textRejected": false,
+      "rejectReason": null,
+      "audit": null,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "finish",
+        "viewpoints": {
+          "location": "confirmed",
+          "alternative": "confirmed",
+          "current": "aware_unconfirmed",
+          "unrecorded": "confirmed",
+          "proxy": "aware_unconfirmed"
+        }
+      },
+      "checks": {
+        "viewpoint.location": true,
+        "viewpoint.alternative": true,
+        "viewpoint.current": true,
+        "viewpoint.unrecorded": true,
+        "viewpoint.proxy": true
+      },
+      "model": "claude-opus-5-5"
+    },
+    {
+      "id": "J5",
+      "kind": "judge",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-opus-5-5",
+      "ms": 2008,
+      "usage": {
+        "input": 867,
+        "output": 107,
+        "cacheRead": 3854,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0063788000000000004,
+      "hadText": true,
+      "textRejected": false,
+      "rejectReason": null,
+      "audit": null,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "finish",
+        "viewpoints": {
+          "location": "confirmed",
+          "alternative": "confirmed",
+          "current": "confirmed",
+          "unrecorded": "confirmed",
+          "proxy": "confirmed"
+        }
+      },
+      "checks": {
+        "viewpoint.location": true,
+        "viewpoint.alternative": true,
+        "viewpoint.current": true,
+        "viewpoint.unrecorded": true,
+        "viewpoint.proxy": true
+      },
+      "model": "claude-opus-5-5"
+    },
+    {
+      "id": "S1",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-opus-5-5",
+      "ms": 2546,
+      "usage": {
+        "input": 415,
+        "output": 182,
+        "cacheRead": 3854,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0060708,
+      "hadText": true,
+      "textRejected": false,
+      "rejectReason": null,
+      "audit": null,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "ask",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-opus-5-5"
+    },
+    {
+      "id": "S2",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-opus-5-5",
+      "ms": 2221,
+      "usage": {
+        "input": 414,
+        "output": 178,
+        "cacheRead": 3854,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0059868000000000005,
+      "hadText": true,
+      "textRejected": false,
+      "rejectReason": null,
+      "audit": null,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "clarify",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-opus-5-5"
+    },
+    {
+      "id": "S3",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-opus-5-5",
+      "ms": 3400,
+      "usage": {
+        "input": 408,
+        "output": 182,
+        "cacheRead": 3854,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0060428,
+      "hadText": true,
+      "textRejected": false,
+      "rejectReason": null,
+      "audit": null,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "ask",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-opus-5-5"
+    },
+    {
+      "id": "S4",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-opus-5-5",
+      "ms": 2768,
+      "usage": {
+        "input": 411,
+        "output": 185,
+        "cacheRead": 3854,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0061148,
+      "hadText": true,
+      "textRejected": false,
+      "rejectReason": null,
+      "audit": null,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "redirect",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-opus-5-5"
+    },
+    {
+      "id": "S5",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-opus-5-5",
+      "ms": 3042,
+      "usage": {
+        "input": 417,
+        "output": 187,
+        "cacheRead": 3854,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0061788,
+      "hadText": true,
+      "textRejected": false,
+      "rejectReason": null,
+      "audit": null,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "redirect",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-opus-5-5"
+    },
+    {
+      "id": "S7",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-opus-5-5",
+      "ms": 2841,
+      "usage": {
+        "input": 414,
+        "output": 182,
+        "cacheRead": 3854,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0060668,
+      "hadText": true,
+      "textRejected": false,
+      "rejectReason": null,
+      "audit": null,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "ask",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-opus-5-5"
+    },
+    {
+      "id": "S8",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-opus-5-5",
+      "ms": 2334,
+      "usage": {
+        "input": 400,
+        "output": 182,
+        "cacheRead": 3854,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0060108,
+      "hadText": true,
+      "textRejected": false,
+      "rejectReason": null,
+      "audit": null,
+      "got": {
+        "emergency": "none",
+        "recall": true,
+        "next": "ask",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true,
+        "recall": true,
+        "next": true
+      },
+      "model": "claude-opus-5-5"
+    },
+    {
+      "id": "S11",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-opus-5-5",
+      "ms": 3362,
+      "usage": {
+        "input": 407,
+        "output": 182,
+        "cacheRead": 3854,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0060388,
+      "hadText": true,
+      "textRejected": false,
+      "rejectReason": null,
+      "audit": null,
+      "got": {
+        "emergency": "none",
+        "recall": true,
+        "next": "ask",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true,
+        "recall": true,
+        "next": true
+      },
+      "model": "claude-opus-5-5"
+    },
+    {
+      "id": "R1",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-opus-5-5",
+      "ms": 2554,
+      "usage": {
+        "input": 417,
+        "output": 185,
+        "cacheRead": 3854,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0061388,
+      "hadText": true,
+      "textRejected": false,
+      "rejectReason": null,
+      "audit": null,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "redirect",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true,
+        "next": true
+      },
+      "model": "claude-opus-5-5"
+    },
+    {
+      "id": "C1",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-opus-5-5",
+      "ms": 3461,
+      "usage": {
+        "input": 400,
+        "output": 170,
+        "cacheRead": 3854,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0057708,
+      "hadText": true,
+      "textRejected": false,
+      "rejectReason": null,
+      "audit": null,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "clarify",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true,
+        "next": true
+      },
+      "model": "claude-opus-5-5"
+    },
+    {
+      "id": "E1",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-opus-5-5",
+      "ms": 5319,
+      "usage": {
+        "input": 422,
+        "output": 437,
+        "cacheRead": 3854,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0111988,
+      "hadText": false,
+      "textRejected": false,
+      "rejectReason": null,
+      "audit": null,
+      "got": {
+        "emergency": "symptom",
+        "recall": false,
+        "next": "redirect",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-opus-5-5"
+    },
+    {
+      "id": "E2",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-opus-5-5",
+      "ms": 3801,
+      "usage": {
+        "input": 417,
+        "output": 172,
+        "cacheRead": 3854,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.0058788,
+      "hadText": true,
+      "textRejected": false,
+      "rejectReason": null,
+      "audit": null,
+      "got": {
+        "emergency": "self_harm",
+        "recall": false,
+        "next": "redirect",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-opus-5-5"
+    },
+    {
+      "id": "E3",
+      "kind": "behave",
+      "ok": true,
+      "failure": null,
+      "servedBy": "claude-opus-5-5",
+      "ms": 3726,
+      "usage": {
+        "input": 414,
+        "output": 342,
+        "cacheRead": 3854,
+        "cacheWrite": 0
+      },
+      "costUsd": 0.009266799999999999,
+      "hadText": true,
+      "textRejected": false,
+      "rejectReason": null,
+      "audit": null,
+      "got": {
+        "emergency": "none",
+        "recall": false,
+        "next": "clarify",
+        "viewpoints": {
+          "location": "not_mentioned",
+          "alternative": "not_mentioned",
+          "current": "not_mentioned",
+          "unrecorded": "not_mentioned",
+          "proxy": "not_mentioned"
+        }
+      },
+      "checks": {
+        "emergency": true
+      },
+      "model": "claude-opus-5-5"
+    }
+  ]
+}
