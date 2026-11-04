@@ -39,16 +39,16 @@ export function Exchange({ answer, notice }: { answer: Answer; notice?: string |
   return (
     <li className="exchange">
       <p className="exchange-question">
-        <span className="label">聞き取り係：</span>
+        <span className="bubble-name">聞き取り係</span>
         {answer.prompt}
       </p>
       <p className="exchange-answer">
-        <span className="label">あなた：</span>
+        <span className="visually-hidden">あなた：</span>
         <span className="raw">{answer.text}</span>
       </p>
       {answer.recall && (
         <p className="exchange-question">
-          <span className="label">聞き取り係：</span>
+          <span className="bubble-name">聞き取り係</span>
           {RECALL_NOW}
         </p>
       )}

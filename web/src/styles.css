@@ -208,16 +208,89 @@ a:focus-visible {
   gap: 8px;
 }
 
+/* やり取りは会話の吹き出しで示す。聞き取り係は左、利用者は右の薄緑 */
 .exchange {
-  padding: 8px 12px;
-  border-radius: 8px;
-  background: var(--surface);
-  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
+.exchange-question,
+.exchange-answer {
+  position: relative;
+  max-width: 85%;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+}
+
+/* 聞き取り係：左の白い吹き出し。しっぽは左へ */
 .exchange-question {
+  align-self: flex-start;
+  margin-left: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
   color: var(--ink-soft);
   font-size: 0.9rem;
+}
+
+.exchange-question::before,
+.exchange-question::after {
+  content: "";
+  position: absolute;
+  top: 12px;
+  border-style: solid;
+  border-color: transparent;
+}
+
+.exchange-question::before {
+  left: -9px;
+  border-width: 7px 9px 7px 0;
+  border-right-color: var(--line);
+}
+
+.exchange-question::after {
+  left: -7px;
+  border-width: 7px 8px 7px 0;
+  border-right-color: var(--surface);
+}
+
+/* 吹き出しの中の話し手の名前 */
+.bubble-name {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+/* 利用者：右の薄緑の吹き出し。しっぽは右へ */
+.exchange-answer {
+  align-self: flex-end;
+  margin-right: 8px;
+  background: var(--mint);
+  color: var(--ink);
+}
+
+/* やり取りの中の知らせ（固定の進行への切り替え）。利用者の薄緑の吹き出しと見分けるため、中央に点線の枠で出す */
+.exchange .notice {
+  align-self: center;
+  max-width: 95%;
+  background: transparent;
+  border: 1px dashed var(--control-border);
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.exchange-answer::after {
+  content: "";
+  position: absolute;
+  top: 12px;
+  right: -8px;
+  border-style: solid;
+  border-color: transparent;
+  border-width: 7px 0 7px 9px;
+  border-left-color: var(--mint);
 }
 
 .raw {

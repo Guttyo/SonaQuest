@@ -42,7 +42,7 @@ export function Review({ state, onChoose }: Props) {
       {/* 後半の最後の回答への受け止め（ADR-0029 の2） */}
       {state.closingAck !== null && (
         <p className="exchange-question">
-          <span className="label">聞き取り係：</span>
+          <span className="bubble-name">聞き取り係</span>
           {state.closingAck}
         </p>
       )}
