@@ -44,7 +44,6 @@ export function ListenerStage({
   children?: ReactNode;
 }) {
   const shown = useRenderMode(mode);
-  const current = SCENES.findIndex((s) => s.id === scene);
   const lightClass = [
     "listener-light",
     "listener-light-stage",
@@ -72,24 +71,37 @@ export function ListenerStage({
           {children}
         </div>
       </div>
-      <div className="scene-bar">
+      <SceneBar scene={scene} />
+    </div>
+  );
+}
+
+/**
+ * 場面の見出しと5つの点。対話の画面（係の下）と振り返りの画面で同じものを出す。
+ * 見出しを包む要素は作り直さず、読み上げの領域（aria-live）にして、場面が変わったことを読み上げる
+ */
+export function SceneBar({ scene }: { scene: SceneId }) {
+  const current = SCENES.findIndex((s) => s.id === scene);
+  return (
+    <div className="scene-bar">
+      <div className="scene-title-live" aria-live="polite" aria-atomic="true">
         {/* 場面が変わるたびに、見出しが入れ替わる（key で作り直して、入る動きをもう一度出す） */}
         <p key={scene} className="scene-title">
           <span className="scene-number">{sceneNumber(scene)}</span>
           {SCENES[current].title}
         </p>
-        <ol className="scene-dots" aria-label="訓練の場面">
-          {SCENES.map((s, i) => (
-            <li
-              key={s.id}
-              className={i < current ? "scene-dot scene-dot-done" : i === current ? "scene-dot scene-dot-current" : "scene-dot"}
-              aria-current={i === current ? "step" : undefined}
-            >
-              <span className="visually-hidden">{s.title}</span>
-            </li>
-          ))}
-        </ol>
       </div>
+      <ol className="scene-dots" aria-label="訓練の場面">
+        {SCENES.map((s, i) => (
+          <li
+            key={s.id}
+            className={i < current ? "scene-dot scene-dot-done" : i === current ? "scene-dot scene-dot-current" : "scene-dot"}
+            aria-current={i === current ? "step" : undefined}
+          >
+            <span className="visually-hidden">{s.title}</span>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
