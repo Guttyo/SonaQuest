@@ -10,6 +10,7 @@ import { contentLogEnabled, devOverrides, logContent } from "./devlog";
 import { promptTextProblem } from "./checks";
 import { checkRateLimit, type RateLimiter } from "./ratelimit";
 import { ALLOWED_VOCABULARY, followsFixedOrder, runTurn } from "./turn";
+import { createProbeApp } from "./probe";
 import { createTtsApp, type TtsEnv } from "./tts";
 
 /** 読み上げの中継の設定（TtsEnv）は tts.ts */
@@ -193,6 +194,9 @@ export function createApp(
 
   // 読み上げの中継（ADR-0033）。/api/turn と同じく、手元からか PUBLIC_TURN=1 のときだけ通す
   app.route("/", createTtsApp({ readBody: readLimitedText }));
+
+  // 【一時的。Issue #65 の調査が終わったら消す】回数制限の binding だけを試す口
+  app.route("/", createProbeApp());
 
   app.all("/api/*", (c) => c.json({ error: "not_found" }, 404));
   return app;
