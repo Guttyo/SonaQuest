@@ -50,7 +50,7 @@ const NEXT_TYPES: ReadonlySet<string> = new Set(["ask", "clarify", "redirect", "
 export const EMERGENCY_KINDS: ReadonlySet<string> = new Set(["none", "symptom", "self_harm"]);
 
 /**
- * 1回のやり取りで送る入力の件数の上限（数える回答の最大6件）。
+ * 1回のやり取りで送る入力の件数の上限（数える回答の最大10件。ADR-0019）。
  * 関係のない話として質問し直した入力は、その後のやり取りでは送らない（送るものは必要な範囲に限る）
  */
 export const MAX_TURN_INPUTS = MAX_ANSWERS;

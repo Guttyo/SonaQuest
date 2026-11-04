@@ -62,6 +62,21 @@ describe("質問の数", () => {
     );
   });
 
+  it("回答の上限は前半5回・後半5回で、固定の質問は半分ごとに4問（残りの1回は聞き返しの余裕。Issue #41）", () => {
+    expect(MAX_FIRST_HALF_ANSWERS).toBe(5);
+    expect(MAX_SECOND_HALF_ANSWERS).toBe(5);
+    expect(firstHalfQuestions().map((q) => q.id)).toEqual([
+      "first_medicines",
+      "first_location",
+      "first_other",
+      "first_unrecorded",
+    ]);
+    for (const event of ["battery", "family_unreachable", "handover"] as const) {
+      expect(secondHalfQuestions(event)).toHaveLength(4);
+      expect(secondHalfQuestions(event)[3].id).toBe("second_recheck");
+    }
+  });
+
   it("後半の最初は立て直しの問い", () => {
     expect(secondHalfQuestions("battery")[0].id).toBe("second_recovery");
   });
