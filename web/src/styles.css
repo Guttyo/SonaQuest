@@ -1229,3 +1229,207 @@ body,
   width: 44px;
   height: 44px;
 }
+
+/* 出来事の6候補それぞれの絵（B-01、Issue #54）。使えなくなったものの大きな絵と、何が起きたかの小さな印を並べる。
+   どの動きも1回だけで繰り返さず、点滅させない（1.4秒以内）。基本の見た目を最後の姿にしてあるので、
+   動きを減らす設定（上の prefers-reduced-motion）では止まった絵になる。「続ける」は動きを待たずに押せる */
+.event-visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+}
+
+.event-focus {
+  position: relative;
+  flex: none;
+  width: 96px;
+  height: 96px;
+}
+
+.event-mark {
+  flex: none;
+  width: 56px;
+  height: 56px;
+}
+
+.event-mark g,
+.event-mark path,
+.event-mark circle,
+.event-handover g,
+.event-handover path {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes mark-fade {
+  from {
+    opacity: 1;
+  }
+}
+
+/* 電池切れ：プラグが差し込み口から抜ける */
+@keyframes mark-unplug {
+  from {
+    transform: translateX(8px);
+  }
+}
+
+.event-mark-battery .event-mark-move {
+  animation: mark-unplug 500ms ease-out 700ms both;
+}
+
+/* 通信の途絶：電波の棒が高いほうから順に薄くなる */
+.event-mark-bar {
+  opacity: 0.25;
+}
+
+.event-mark-network .event-mark-bar {
+  animation: mark-fade 300ms ease-in both;
+}
+
+.event-mark-network .event-mark-bar:nth-child(4) {
+  animation-delay: 400ms;
+}
+
+.event-mark-network .event-mark-bar:nth-child(3) {
+  animation-delay: 650ms;
+}
+
+.event-mark-network .event-mark-bar:nth-child(2) {
+  animation-delay: 900ms;
+}
+
+.event-mark-network .event-mark-bar:nth-child(1) {
+  animation-delay: 1100ms;
+}
+
+/* 手帳が自宅にある：手帳の入った家が小さく遠ざかる */
+.event-mark-recede {
+  transform: scale(0.72) translateY(4px);
+  opacity: 0.7;
+}
+
+@keyframes mark-recede {
+  from {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.event-mark-notebook .event-mark-recede {
+  animation: mark-recede 700ms ease-in-out 500ms both;
+}
+
+/* 家族と連絡がつかない：返事の点が順に薄くなる */
+.event-mark-dot {
+  opacity: 0.2;
+}
+
+.event-mark-family .event-mark-dot {
+  animation: mark-fade 300ms ease-in both;
+}
+
+.event-mark-family .event-mark-dot:nth-of-type(1) {
+  animation-delay: 500ms;
+}
+
+.event-mark-family .event-mark-dot:nth-of-type(2) {
+  animation-delay: 750ms;
+}
+
+.event-mark-family .event-mark-dot:nth-of-type(3) {
+  animation-delay: 1000ms;
+}
+
+/* かかりつけ先と連絡がつかない：つないでいた線が切れて離れ、建物にひびが入る */
+.event-mark-apart-left {
+  transform: translateX(-3px);
+}
+
+.event-mark-apart-right {
+  transform: translateX(3px);
+}
+
+@keyframes mark-apart-left {
+  from {
+    transform: translateX(3px);
+  }
+}
+
+@keyframes mark-apart-right {
+  from {
+    transform: translateX(-3px);
+  }
+}
+
+.event-mark-clinic .event-mark-apart-left {
+  animation: mark-apart-left 500ms ease-out 700ms both;
+}
+
+.event-mark-clinic .event-mark-apart-right {
+  animation: mark-apart-right 500ms ease-out 700ms both;
+}
+
+.event-crack {
+  position: absolute;
+  inset: 0;
+  color: var(--orange);
+}
+
+.event-crack-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: crack-draw 500ms ease-out 600ms both;
+}
+
+@keyframes crack-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+/* 係の交代：使えなくなるものは無いので、色は落とさず斜線も引かない。前の係が離れ、新しい係が入る */
+.event-visual-handover {
+  color: #f5efe4;
+  animation: none;
+}
+
+.event-handover {
+  width: 144px;
+  height: 68px;
+}
+
+.event-handover-out {
+  opacity: 0.55;
+  transform: translateX(-4px);
+}
+
+.event-handover-arrow {
+  stroke: var(--orange);
+}
+
+@keyframes handover-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes handover-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+}
+
+.event-handover .event-handover-out {
+  animation: handover-out 600ms ease-in 300ms both;
+}
+
+.event-handover .event-handover-in {
+  animation: handover-in 600ms ease-out 700ms both;
+}

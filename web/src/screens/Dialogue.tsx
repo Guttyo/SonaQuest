@@ -1,7 +1,6 @@
 import { useEffect, useState, type Dispatch } from "react";
 import {
   ANSWER_HINTS,
-  EVENTS,
   SCENE_INTRO,
   WAITING_TEXT,
 } from "../flow/content";
@@ -15,8 +14,9 @@ import type { SpeakerSnapshot } from "../voice/speaker";
 import { listenerSpeech, speechKey } from "../voice/speech";
 import { listenerActivity } from "../voice/view";
 import { ConfirmSource } from "./ConfirmSource";
-import { ListenerStage, sceneNumber, type SceneId } from "./ListenerStage";
-import { EVENT_FOCUS, LOST_BY_EVENT, SourceChip, SourceIcon } from "./SourceIcon";
+import { EventScene } from "./EventScene";
+import { ListenerStage, type SceneId } from "./ListenerStage";
+import { LOST_BY_EVENT, SourceChip } from "./SourceIcon";
 import { ListenerLine, Transcript } from "./Transcript";
 
 interface Props {
@@ -115,34 +115,7 @@ export function Dialogue({ state, dispatch }: Props) {
         )}
 
         {stage.name === "event" && state.event !== null && (
-          <div className="event event-scene" role="alert" data-scroll-target tabIndex={-1}>
-            <p className="event-kicker">{sceneNumber("event")}</p>
-            <h2>想定外の出来事</h2>
-            {EVENT_FOCUS[state.event] !== null && (
-              <div className={`event-visual event-visual-${state.event}`} aria-hidden="true">
-                <SourceIcon
-                  id={EVENT_FOCUS[state.event]!}
-                  className="source-icon event-icon"
-                  battery={state.event === "battery"}
-                />
-                <span className="event-slash" />
-              </div>
-            )}
-            <p className="event-text">{EVENTS[state.event].text}</p>
-            {EVENTS[state.event].unavailable !== null && (
-              <p>
-                <span className="label">使えなくなったもの：</span>
-                {EVENTS[state.event].unavailable}
-              </p>
-            )}
-            <button
-              type="button"
-              className="primary"
-              onClick={() => dispatch({ type: "continue_after_event" })}
-            >
-              続ける
-            </button>
-          </div>
+          <EventScene event={state.event} onContinue={() => dispatch({ type: "continue_after_event" })} />
         )}
       </div>
 
