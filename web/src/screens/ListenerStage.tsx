@@ -7,7 +7,10 @@ import "../puppet3d/puppet3d.css";
 /** 訓練の進み具合（Issue #55 の一部）。点数や残りの回数ではなく、いまどの段階かだけを示す */
 export type DialoguePhase = "first" | "event" | "second";
 
-const PHASES: readonly { id: DialoguePhase | "review"; label: string }[] = [
+/** 振り返りも含めた4つの段階。振り返りの画面では ProgressSteps だけを出す */
+export type TrainingPhase = DialoguePhase | "review";
+
+const PHASES: readonly { id: TrainingPhase; label: string }[] = [
   { id: "first", label: "前半" },
   { id: "event", label: "出来事" },
   { id: "second", label: "後半" },
@@ -36,7 +39,6 @@ export function ListenerStage({
   children?: ReactNode;
 }) {
   const shown = useRenderMode(mode);
-  const current = PHASES.findIndex((p) => p.id === phase);
   const lightClass = [
     "listener-light",
     "listener-light-stage",
@@ -62,17 +64,25 @@ export function ListenerStage({
           {children}
         </div>
       </div>
-      <ol className="progress" aria-label="訓練の進み具合">
-        {PHASES.map((p, i) => (
-          <li
-            key={p.id}
-            className={i < current ? "progress-step progress-done" : i === current ? "progress-step progress-current" : "progress-step"}
-            aria-current={i === current ? "step" : undefined}
-          >
-            {p.label}
-          </li>
-        ))}
-      </ol>
+      <ProgressSteps phase={phase} />
     </div>
+  );
+}
+
+/** 訓練の進み具合（前半・出来事・後半・ふりかえり）。いまの段階を色と aria-current で示す */
+export function ProgressSteps({ phase }: { phase: TrainingPhase }) {
+  const current = PHASES.findIndex((p) => p.id === phase);
+  return (
+    <ol className="progress" aria-label="訓練の進み具合">
+      {PHASES.map((p, i) => (
+        <li
+          key={p.id}
+          className={i < current ? "progress-step progress-done" : i === current ? "progress-step progress-current" : "progress-step"}
+          aria-current={i === current ? "step" : undefined}
+        >
+          {p.label}
+        </li>
+      ))}
+    </ol>
   );
 }
