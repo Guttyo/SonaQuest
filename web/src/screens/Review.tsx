@@ -14,6 +14,7 @@ import {
 import { isWeak, orderPrepActions, undeterminedJudgments } from "../flow/rules";
 import type { TrainingState } from "../flow/training";
 import type { PrepActionId, TimingId } from "../flow/types";
+import { SCENES, sceneNumber } from "./ListenerStage";
 import { Exchange, ListenerLine } from "./Transcript";
 
 interface Props {
@@ -38,6 +39,10 @@ export function Review({ state, onChoose }: Props) {
 
   return (
     <section className="screen" aria-labelledby="review-title">
+      <p className="scene-kicker enter-up">
+        <span className="scene-number">{sceneNumber("review")}</span>
+        {SCENES.find((s) => s.id === "review")?.title}
+      </p>
       <h1 id="review-title">ふりかえり</h1>
       {/* 後半の最後の回答への受け止め（ADR-0029 の2） */}
       {state.closingAck !== null && (
