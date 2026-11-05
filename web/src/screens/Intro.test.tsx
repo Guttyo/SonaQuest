@@ -24,6 +24,7 @@ function escapeHtml(text: string): string {
 
 /** 試験は DOM の無い環境で動くので、文字列に描いて確かめる。window が無いので初期選択は 2D */
 const choose = renderToStaticMarkup(<Intro onStart={() => {}} />);
+const choose3d = renderToStaticMarkup(<Intro onStart={() => {}} initialMode="3d" />);
 const notes2d = renderToStaticMarkup(<Intro onStart={() => {}} initialView="notes" initialMode="2d" />);
 const notes3d = renderToStaticMarkup(<Intro onStart={() => {}} initialView="notes" initialMode="3d" />);
 const lead = AI_CONNECTED ? INTRO_LEAD : PROTOTYPE_LEAD;
@@ -123,5 +124,22 @@ describe("はじめにの2画面目「はじめる前に」：必ず見せる説
     ].map((needle) => notes2d.indexOf(needle));
     for (const index of order) expect(index).toBeGreaterThanOrEqual(0);
     for (let i = 1; i < order.length; i++) expect(order[i]).toBeGreaterThan(order[i - 1]);
+  });
+});
+
+describe("はじめにの初期選択の受け渡し（Issue #83）", () => {
+  // App は currentIntroMode(session) を initialMode に渡す（最初の表示だけ ?mode=3d を読む。mode.test.ts）。
+  // 「答え方を選び直す」は画面だけを戻し、選んだ値は Intro の中に残る（画面での確認は docs/STATUS.md）
+  it("initialMode に 3D を渡すと、1画面目で 3D のカードが選ばれている", () => {
+    const radios3d = choose3d.match(/<input[^>]*type="radio"[^>]*>/g) ?? [];
+    expect(radios3d).toHaveLength(2);
+    expect(radios3d[0]).not.toContain("checked");
+    expect(radios3d[1]).toContain('value="3d"');
+    expect(radios3d[1]).toContain('checked=""');
+  });
+
+  it("initialMode を省くと、URL を読まずに既定の 2D", () => {
+    expect(radios[0]).toContain('checked=""');
+    expect(radios[1]).not.toContain("checked");
   });
 });
