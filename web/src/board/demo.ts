@@ -36,9 +36,16 @@ export interface DemoRecord {
   undelivered: number;
 }
 
+/** 「前回から変わったこと」の1行で数える出来事の種類（Issue #107）。件数を足すだけで、文は作らない */
+export type DemoEventKind = "登録" | "未交付" | "提案" | "承認" | "受領" | "在庫切れ";
+
 export interface DemoLog {
   at: number;
   text: string;
+  /** 数える出来事の種類（数えないものは無し） */
+  kind?: DemoEventKind;
+  /** どの救護所の出来事か（本部の画面では全部、救護所の画面ではその救護所の分を数える） */
+  site?: SiteId;
 }
 
 /**
@@ -174,7 +181,8 @@ function stampText(minutes: number): string {
 }
 
 export function initialDemo(): DemoState {
-  return refreshProposals({
+  // 最初の提案は始まりの状態で、「変わったこと」ではないので記録に残さない
+  const start = refreshProposals({
     minutes: 0,
     running: false,
     stock: STOCK.map((r) => ({ ...r })),
@@ -189,6 +197,7 @@ export function initialDemo(): DemoState {
     seq: 0,
     rev: 0,
   });
+  return { ...start, log: [] };
 }
 
 /** 承認した搬送が本部を出るまでの時間（分。デモの仮の値） */
@@ -267,11 +276,15 @@ export function refreshProposals(state: DemoState): DemoState {
   const pending = state.proposals.filter((p) => p.status === "提案");
   let seq = state.seq;
   const next: OrderProposal[] = [];
+  const log: DemoLog[] = [];
   for (const s of suggestOrders(state.stock, state.needs, state.inbound)) {
     const dismissedNeed = state.dismissed[s.key];
     if (dismissedNeed !== undefined && s.basis.need <= dismissedNeed) continue;
     const before = pending.find((p) => p.key === s.key);
-    if (!before) seq += 1;
+    if (!before) {
+      seq += 1;
+      log.push({ at: state.minutes, text: `本部：発注の提案 P-${String(seq).padStart(2, "0")}（${s.site}・${s.item}）が出た`, kind: "提案", site: s.site });
+    }
     next.push({
       ...s,
       id: before ? before.id : `P-${String(seq).padStart(2, "0")}`,
@@ -284,7 +297,7 @@ export function refreshProposals(state: DemoState): DemoState {
       vendorId: null,
     });
   }
-  return { ...state, proposals: [...next, ...approved], seq };
+  return { ...state, proposals: [...next, ...approved], seq, log: log.length > 0 ? [...log.reverse(), ...state.log] : state.log };
 }
 
 /** 提案の画面の状態。承認済みは、搬送の行の状態（引当済み → 搬送中 → 受領）から決める */
@@ -330,7 +343,7 @@ function approve(state: DemoState, id: string): DemoState {
       arriveAt,
       proposalId: p.id,
     });
-    log.push({ at: state.minutes, text: `本部：${p.id} を承認。本部備蓄の ${p.item} ${fromHq}${p.unit} を ${p.site} 向けに引当（${clockText(departAt)} 出発予定）` });
+    log.push({ at: state.minutes, text: `本部：${p.id} を承認。本部備蓄の ${p.item} ${fromHq}${p.unit} を ${p.site} 向けに引当（${clockText(departAt)} 出発予定）`, kind: "承認", site: p.site });
   }
   if (fromVendor > 0) {
     seq += 1;
@@ -346,12 +359,17 @@ function approve(state: DemoState, id: string): DemoState {
       forSite: p.site,
       proposalId: p.id,
     });
-    log.push({ at: state.minutes, text: `本部：${p.id} を承認。${p.item} ${fromVendor}${p.unit} を卸に照会（${p.site} 向け）` });
+    log.push({
+      at: state.minutes,
+      text: `本部：${p.id} を承認。${p.item} ${fromVendor}${p.unit} を卸に照会（${p.site} 向け）`,
+      // 1件の提案の承認は1回と数える（本部備蓄の分を先に記録したときは、こちらは数えない）
+      ...(log.length === 0 ? { kind: "承認" as const, site: p.site } : {}),
+    });
   }
   const proposals = state.proposals.map((x) =>
     x.id === id ? { ...x, status: "承認済み" as const, fromHq, fromVendor, approvedAt: state.minutes, shipmentId, vendorId, rev: state.rev } : x,
   );
-  return { ...state, stock, inbound: [...state.inbound, ...added], proposals, seq, log: [...log.reverse(), ...state.log].slice(0, 30) };
+  return { ...state, stock, inbound: [...state.inbound, ...added], proposals, seq, log: [...log.reverse(), ...state.log] };
 }
 
 /** 却下：提案を消すだけ（在庫・搬送は変えない） */
@@ -362,7 +380,7 @@ function reject(state: DemoState, id: string): DemoState {
     ...state,
     proposals: state.proposals.filter((x) => x.id !== id),
     dismissed: { ...state.dismissed, [p.key]: p.basis.need },
-    log: [{ at: state.minutes, text: `本部：${p.id}（${p.site}・${p.item}）を却下` }, ...state.log].slice(0, 30),
+    log: [{ at: state.minutes, text: `本部：${p.id}（${p.site}・${p.item}）を却下` }, ...state.log],
   };
 }
 
@@ -413,7 +431,7 @@ function tick(state: DemoState, hours: number): DemoState {
     if (at <= from || at > to) return cur;
     const target = stock.find((s) => s.site === r.to && s.item === r.item);
     if (target) target.onHand = (target.onHand ?? 0) + r.qty;
-    log.push({ at, text: `${r.to}：${r.item} ${r.qty}${target?.unit ?? ""} を受領（${r.from} から）` });
+    log.push({ at, text: `${r.to}：${r.item} ${r.qty}${target?.unit ?? ""} を受領（${r.from} から）`, kind: "受領", site: r.to });
     return { ...cur, status: "受領" as const };
   });
   // 搬送便・連絡員・定時報告の時刻に、紙の記録が本部に届く
@@ -431,10 +449,10 @@ function tick(state: DemoState, hours: number): DemoState {
   for (const r of stock) {
     const before = state.stock.find((s) => s.site === r.site && s.item === r.item);
     if (before && before.onHand !== null && before.onHand > 0 && r.onHand === 0) {
-      log.push({ at: to, text: `${r.site}：${r.item} が在庫切れ` });
+      log.push({ at: to, text: `${r.site}：${r.item} が在庫切れ`, kind: "在庫切れ", site: r.site });
     }
   }
-  return { ...state, minutes: to, stock, inbound, sync, log: [...log.sort((a, b) => b.at - a.at), ...state.log].slice(0, 30) };
+  return { ...state, minutes: to, stock, inbound, sync, log: [...log.sort((a, b) => b.at - a.at), ...state.log] };
 }
 
 function addRecord(state: DemoState, a: Extract<DemoAction, { type: "add_record" }>): DemoState {
@@ -442,7 +460,7 @@ function addRecord(state: DemoState, a: Extract<DemoAction, { type: "add_record"
   const id = `${a.site.replace("救護所", "")}-D${String(n).padStart(2, "0")}`;
   const stock = state.stock.map((r) => ({ ...r }));
   const needs = [...state.needs];
-  const log: DemoLog[] = [{ at: state.minutes, text: `${a.site}：問診の記録 ${id} を追加（架空）` }];
+  const log: DemoLog[] = [{ at: state.minutes, text: `${a.site}：問診の記録 ${id} を追加（架空）`, kind: "登録", site: a.site }];
   let prescription: DemoRecord["prescription"] = null;
   let undelivered = 0;
   if (a.prescription && a.prescription.qty > 0) {
@@ -456,7 +474,7 @@ function addRecord(state: DemoState, a: Extract<DemoAction, { type: "add_record"
     log.push({ at: state.minutes, text: `${a.site}：${a.prescription.item} ${out}${unit} を出庫（処方 ${a.prescription.qty}${unit}・${a.prescription.days}日分）` });
     if (undelivered > 0) {
       needs.push({ site: a.site, item: a.prescription.item, qty: undelivered, by: stampText(state.minutes + 6 * 60) });
-      log.push({ at: state.minutes, text: `${a.site}：${a.prescription.item} ${undelivered}${unit} が未交付（需要に載せた）` });
+      log.push({ at: state.minutes, text: `${a.site}：${a.prescription.item} ${undelivered}${unit} が未交付（需要に載せた）`, kind: "未交付", site: a.site });
     }
   }
   const extra = state.extraPatients[a.site] ?? { patients: 0, chronic: 0 };
@@ -472,7 +490,7 @@ function addRecord(state: DemoState, a: Extract<DemoAction, { type: "add_record"
     sync,
     extraPatients: { ...state.extraPatients, [a.site]: { patients: extra.patients + 1, chronic: extra.chronic + (prescription ? 1 : 0) } },
     records: [{ id, site: a.site, name: a.name, at: state.minutes, items: a.items, prescription, undelivered }, ...state.records],
-    log: [...log.reverse(), ...state.log].slice(0, 30),
+    log: [...log.reverse(), ...state.log],
   };
 }
 
@@ -600,4 +618,23 @@ export const FICTIONAL_NAMES: readonly string[] = ["架空 太郎", "架空 花�
 
 export function nextFictionalName(used: number): string {
   return FICTIONAL_NAMES[used % FICTIONAL_NAMES.length];
+}
+
+/**
+ * 「前回から変わったこと」（Issue #107）：デモの開始（BOARD_AS_OF）からの出来事を種類ごとに数える。
+ * site を渡すとその救護所の分だけ。記録の文・氏名・品目名・数量は使わない（件数だけ）
+ */
+export function changesSince(log: readonly DemoLog[], site?: SiteId): Record<DemoEventKind, number> {
+  const counts: Record<DemoEventKind, number> = { 登録: 0, 未交付: 0, 提案: 0, 承認: 0, 受領: 0, 在庫切れ: 0 };
+  for (const l of log) {
+    if (!l.kind || l.at < 0) continue;
+    if (site !== undefined && l.site !== site) continue;
+    counts[l.kind] += 1;
+  }
+  return counts;
+}
+
+/** 架空の時刻の文字（「2026-11-05 07:30」）→ BOARD_AS_OF からの経過（分） */
+export function stampMinutes(stamp: string): number {
+  return minutesAt(stamp.slice(0, 10), Number(stamp.slice(11, 13)) * 60 + Number(stamp.slice(14, 16)));
 }

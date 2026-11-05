@@ -79,6 +79,37 @@ export const BOARD_ORDERS = {
   goSupply: "本部の発注の提案を見る",
   count: "件",
 } as const;
+
+/**
+ * 「前回から変わったこと」の1行と、記録の新しさ（Issue #107）。
+ * デモの記録の件数を足してルールで組み立てる固定文。Claude も文の生成も使わない。氏名・品目名・数量は入れない
+ */
+// [TODO-OWNER: 「前回から変わったこと」の1行と、最終報告の相対時間の文言（Claude Code の下書き。ひな形・空のときの文・出来事の名前・「最終報告 N 時間前」）]
+export const BOARD_CHANGES = {
+  label: "前回から変わったこと",
+  since: (time: string) => `${time} 以降：`,
+  none: (time: string) => `${time} 以降、変わったことはありません`,
+  /** 並べる順と名前。未交付は「+N 件」、ほかは「N 件」 */
+  kinds: [
+    { kind: "登録", name: "登録" },
+    { kind: "未交付", name: "未交付" },
+    { kind: "提案", name: "提案" },
+    { kind: "承認", name: "承認" },
+    { kind: "受領", name: "受領" },
+    { kind: "在庫切れ", name: "在庫切れ" },
+  ],
+  sep: "、",
+  lastReport: "最終報告",
+  lastReportNote: "在庫の確認か記録が本部に届いた、新しいほうの時刻。デモの時計から数える",
+  ago: (minutes: number) =>
+    minutes < 1 ? "いま" : minutes < 60 ? `${minutes} 分前` : minutes < 48 * 60 ? `${Math.floor(minutes / 60)} 時間前` : `${Math.floor(minutes / 1440)} 日前`,
+} as const;
+/** 本部の全体の左上に大きく出す数（Issue #107）。救護所ごとの不足の有無を数えるだけ */
+// [TODO-OWNER: 本部の全体で一番大きく出す数の題と説明（Claude Code の下書き。「不足が出ている救護所」）]
+export const BOARD_LEAD_TILE = {
+  label: "不足が出ている救護所",
+  sub: "在庫切れ・切れる見込み・薬剤師の不足のどれかがある救護所の数",
+} as const;
 export const BOARD_LEAD =
   "救護所4か所の情報を本部に集める、ホワイトボードの代わりになる1枚です。実際の災害で使う形ではなく、訓練と同じ記録の項目で何が見えるかを示す試作です。";
 export const BOARD_BACK_LABEL = "はじめにへ戻る";

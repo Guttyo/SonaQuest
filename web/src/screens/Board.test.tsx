@@ -5,9 +5,11 @@ import { demoReducer, initialDemo, type DemoAction } from "../board/demo";
 import { caseRows, criticalItems, pendingSummary, todaySummary } from "../board/summary";
 import {
   BOARD_CASES,
+  BOARD_CHANGES,
   BOARD_DEMO,
   BOARD_INTAKE_FORM,
   BOARD_LAYOUT,
+  BOARD_LEAD_TILE,
   BOARD_MOCK_BADGE,
   BOARD_ORDERS,
   BOARD_SUBTITLE,
@@ -258,5 +260,53 @@ describe("守ること", () => {
         expect(h).toContain(">はじめにへ戻る</button>");
       }
     }
+  });
+});
+
+describe("前回から変わったこと・最終報告・一番大きな数（Issue #107 の追加）", () => {
+  const changes = (h: string) => h.slice(h.indexOf('data-testid="board-changes"'), h.indexOf('id="board-panel"'));
+  const record: DemoAction = {
+    type: "add_record",
+    site: "救護所B",
+    name: "架空 太郎",
+    items: [{ label: "薬の名前・量（本人の言葉のまま）", value: "白い錠剤を朝に1錠" }],
+    prescription: { item: "抗凝固薬F", qty: 60, days: 7 },
+  };
+
+  it("記録が空のときは固定文。タブの下（パネルの外）にあり、本部でも救護所でも出る", () => {
+    expect(changes(html)).toContain(`${BOARD_CHANGES.label}</span><span>${BOARD_CHANGES.none("09:30")}</span>`);
+    expect(changes(render("救護所C"))).toContain(BOARD_CHANGES.none("09:30"));
+    expect(html.indexOf('data-testid="board-changes"')).toBeGreaterThan(html.indexOf('class="board-tabs"'));
+  });
+
+  it("登録 → 承認 → 受領で件数が増える。救護所を選ぶとその救護所の分だけ。氏名・品目名・数量は1行に出ない", () => {
+    const s1 = demoReducer(initialDemo(), record);
+    expect(changes(render(HQ, "overview", s1))).toContain("09:30 以降：登録 1 件、未交付 +1 件、提案 1 件");
+    expect(changes(render("救護所A", "overview", s1))).toContain(BOARD_CHANGES.none("09:30"));
+    const s2 = demoReducer(s1, { type: "approve_proposal", id: "P-03" });
+    expect(changes(render("救護所B", "overview", s2))).toContain("09:30 以降：登録 1 件、未交付 +1 件、提案 1 件、承認 1 件");
+    const s3 = demoReducer(s2, { type: "tick", hours: 3 });
+    const line = changes(render("救護所B", "overview", s3));
+    expect(line).toMatch(/承認 1 件、受領 \d+ 件/);
+    for (const h of [changes(render(HQ, "overview", s3)), line]) {
+      expect(h).not.toMatch(/架空 太郎|抗凝固薬F|白い錠剤|60|68/);
+    }
+  });
+
+  it("最終報告は、在庫の確認か記録が届いた新しいほうの時刻からの相対時間。デモの時計が進むと増える", () => {
+    const report = (h: string, s: string) => pane(h).slice(pane(h).indexOf(`data-report="${s}"`)).slice(0, 200);
+    expect(report(html, "救護所A")).toContain(`${BOARD_CHANGES.lastReport} 2 時間前`);
+    expect(report(html, "救護所B")).toContain(`${BOARD_CHANGES.lastReport} 15 時間前`);
+    const later = render(HQ, "overview", demoReducer(initialDemo(), { type: "tick", hours: 1 }));
+    expect(report(later, "救護所A")).toContain(`${BOARD_CHANGES.lastReport} 3 時間前`);
+    expect(panel(render("救護所A"))).toContain('data-testid="site-last-report">2 時間前<');
+  });
+
+  it("本部の全体の左上に、不足が出ている救護所の数を大きく出す。地区の見出しは折りたためる（既定は開く）", () => {
+    const p = panel(html);
+    expect(p.indexOf('data-testid="sites-short"')).toBeLessThan(p.indexOf('data-testid="today-patients"'));
+    expect(p).toMatch(/data-testid="sites-short">\d+<span class="board-tile-of"> \/ 4 か所<\/span>/);
+    expect(p).toContain(BOARD_LEAD_TILE.label);
+    expect(pane(html)).toContain('<details class="board-pane-district" open="">');
   });
 });

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { DISTRICTS, HQ, INBOUND, NEEDS, SHELTERS, STOCK, districtOf } from "./data";
 import {
   DISPATCH_DELAY_MINUTES,
+  changesSince,
   demoReducer,
   initialDemo,
   proposalStage,
@@ -201,5 +202,30 @@ describe("カルテに登録 → 提案 → 承認 → 搬送中 → 受領", ()
     run(initialDemo(), recordB, { type: "approve_proposal", id: "P-03" }, { type: "tick", hours: 24 });
     expect(STOCK.find((r) => r.site === HQ && r.item === "抗凝固薬F")?.onHand).toBe(500);
     expect(INBOUND).toHaveLength(10);
+  });
+});
+
+describe("前回から変わったこと（件数だけ。Issue #107 の追加）", () => {
+  it("最初の記録は空で、最初の提案は数えない", () => {
+    const s = initialDemo();
+    expect(s.log).toEqual([]);
+    expect(changesSince(s.log)).toEqual({ 登録: 0, 未交付: 0, 提案: 0, 承認: 0, 受領: 0, 在庫切れ: 0 });
+  });
+
+  it("登録・未交付・提案・承認を数え、救護所で絞れる。却下は承認に数えない", () => {
+    const s1 = run(initialDemo(), recordB);
+    expect(changesSince(s1.log)).toMatchObject({ 登録: 1, 未交付: 1, 提案: 1, 承認: 0 });
+    expect(changesSince(s1.log, "救護所A")).toMatchObject({ 登録: 0, 未交付: 0, 提案: 0 });
+    const approved = run(s1, { type: "approve_proposal", id: "P-03" });
+    expect(changesSince(approved.log, "救護所B").承認).toBe(1);
+    const rejected = run(s1, { type: "reject_proposal", id: "P-03" });
+    expect(changesSince(rejected.log).承認).toBe(0);
+  });
+
+  it("承認した搬送が届くと受領を数える。記録は上限で切らないので、件数はデモの開始からのまま", () => {
+    const s = run(initialDemo(), recordB, { type: "approve_proposal", id: "P-03" }, { type: "tick", hours: 3 });
+    expect(changesSince(s.log, "救護所B").受領).toBeGreaterThanOrEqual(1);
+    const long = run(s, ...Array.from({ length: 48 }, () => ({ type: "tick", hours: 1 }) as DemoAction));
+    expect(changesSince(long.log).登録).toBe(1);
   });
 });

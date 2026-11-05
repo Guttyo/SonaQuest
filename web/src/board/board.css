@@ -1061,18 +1061,74 @@
   padding: 2px 2px 6px;
   min-width: 0;
 }
+/* 地区は折りたためる（既定は開く。Issue #107） */
 .board-pane-district {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.board-pane-district-sites {
   display: flex;
   gap: 8px;
   align-items: stretch;
 }
 .board-pane-district-name {
-  margin: 0;
-  align-self: center;
+  margin: 0 0 4px;
   white-space: nowrap;
   font-size: var(--fs-caption);
   font-weight: var(--fw-bold);
   color: var(--ink-soft);
+  cursor: pointer;
+  list-style: none;
+}
+.board-pane-district-name::-webkit-details-marker {
+  display: none;
+}
+.board-pane-district-name::before {
+  content: "▾ ";
+}
+.board-pane-district:not([open]) > .board-pane-district-name::before {
+  content: "▸ ";
+}
+.board-pane-district-name:focus-visible {
+  outline: 3px solid var(--focus, var(--ink));
+  outline-offset: 2px;
+}
+.board-pane-report {
+  font-variant-numeric: tabular-nums;
+}
+/* 「前回から変わったこと」の1行（Issue #107）。件数だけ。色は使わない */
+.board-changes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin: 8px 0 0;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: var(--fs-sub);
+}
+.board-changes-label {
+  font-weight: var(--fw-bold);
+  color: var(--ink-soft);
+}
+/* 本部の全体で一番大きく出す数（Issue #107） */
+.board-tile-lead {
+  border-width: 2px;
+  border-color: var(--ink);
+}
+.board-tile-lead .board-tile-big {
+  font-size: 2.75rem;
+}
+.board-tile-of {
+  font-size: var(--fs-sub);
+  font-weight: var(--fw-regular);
+  color: var(--ink-soft);
+}
+@container board-panel (min-width: 900px) {
+  .board-tile-lead {
+    grid-column: span 2;
+  }
 }
 .board-pane-item {
   flex: 0 0 auto;
@@ -1139,7 +1195,7 @@
 /* メイン：上部タブと中身 */
 .board-main {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 12px;
   min-width: 0;
 }
@@ -1435,12 +1491,11 @@
     min-height: 0;
     padding-right: 6px;
   }
-  .board-pane-district {
+  .board-pane-district-sites {
     flex-direction: column;
     gap: 6px;
   }
   .board-pane-district-name {
-    align-self: start;
     margin-top: 10px;
     padding-left: 4px;
     font-size: var(--fs-sub);
@@ -1457,4 +1512,53 @@
     min-height: 0;
     padding: 0 10px 16px 2px;
   }
+}
+
+/* ===== 色の点検（Issue #107）：赤・黄・緑は状態（在庫切れ／見込み・注意／問題なし、通行止め／迂回／通行可）だけに使う。
+   ボタン・枠・見出し・図の飾りは無彩色。色の印には必ず文字を並べる。明るい配色のまま ===== */
+.board {
+  --board-bad: #b42318;
+  --board-bad-bg: #fdeceb;
+  --board-bad-text: #a31d14;
+  --board-warn: #c99a06;
+  --board-warn-bg: #fff5d6;
+  --board-warn-text: #6b5000;
+  --orange-strong: var(--board-bad);
+  --orange-strong-text: var(--board-bad-text);
+  --alert-bg: var(--board-bad-bg);
+  --orange: var(--board-warn);
+  --focus: var(--ink);
+}
+.board button.secondary {
+  border-color: var(--control-border);
+  color: var(--ink);
+}
+.board .board-approve {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #fff;
+}
+.board-chart-added > details {
+  border-color: var(--ink);
+}
+.board-bar-fill {
+  background: var(--ink-soft);
+}
+.board-pill.warn,
+.board-pane-mark.warn,
+.board-heat .cell.warn {
+  border-color: var(--board-warn);
+  background: var(--board-warn-bg);
+  color: var(--board-warn-text);
+}
+.board-site dl > div.warn dd,
+.board-group-cell.warn {
+  color: var(--board-warn-text);
+}
+.board-tab-count {
+  background: var(--board-warn-bg);
+  color: var(--board-warn-text);
+}
+.board-map-legend .dot.site {
+  background: #3d3a36;
 }

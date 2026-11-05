@@ -103,9 +103,9 @@ function FacilityShape({ f }: { f: Facility }) {
     case "park":
       return (
         <g>
-          <rect x={x} y={y} width={w} height={h} rx="4" fill="#cfe2c0" />
+          <rect x={x} y={y} width={w} height={h} rx="4" fill="#e7e3da" />
           {[0.25, 0.5, 0.75].map((p) => (
-            <circle key={p} cx={x + w * p} cy={y + h * (p === 0.5 ? 0.65 : 0.35)} r="7" fill="#9cc48a" />
+            <circle key={p} cx={x + w * p} cy={y + h * (p === 0.5 ? 0.65 : 0.35)} r="7" fill="#cfc8bb" />
           ))}
         </g>
       );
@@ -147,8 +147,8 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
               {/* 山林 */}
               {MAP_HILLS.map((d) => (
                 <g key={d}>
-                  <path d={d} fill="#cddfbc" />
-                  <path d={d} fill="none" stroke="#a7c290" strokeWidth="1.5" strokeDasharray="10 6" transform="translate(-6,0)" />
+                  <path d={d} fill="#e9e4da" />
+                  <path d={d} fill="none" stroke="#c9c1b2" strokeWidth="1.5" strokeDasharray="10 6" transform="translate(-6,0)" />
                 </g>
               ))}
               {/* 施設 */}
@@ -179,11 +179,11 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                 </g>
               ))}
               {/* 高速道路（架空） */}
-              <path d={`M${ex},0 V${MAP_NOTE_Y}`} stroke="#5f8f6f" strokeWidth="20" />
-              <path d={`M${ex},0 V${MAP_NOTE_Y}`} stroke="#9ccbac" strokeWidth="15" />
+              <path d={`M${ex},0 V${MAP_NOTE_Y}`} stroke="#8a8378" strokeWidth="20" />
+              <path d={`M${ex},0 V${MAP_NOTE_Y}`} stroke="#d6d0c4" strokeWidth="15" />
               <path d={`M${ex},0 V${MAP_NOTE_Y}`} stroke="#fff" strokeWidth="1.5" strokeDasharray="10 8" />
               <g transform={`translate(${ex},250)`}>
-                <rect x="-13" y="-46" width="26" height="80" rx="5" fill="#2f6e4a" />
+                <rect x="-13" y="-46" width="26" height="80" rx="5" fill="#5d5a55" />
                 <text fontSize="14" fill="#fff" fontWeight="700" textAnchor="middle">
                   {[...MAP_EXPRESSWAY.label].map((ch, i) => (
                     <tspan key={i} x="0" y={-28 + i * 17}>
@@ -279,7 +279,7 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                       rx="8"
                       fill="#fff"
                       fillOpacity="0.95"
-                      stroke={isHq ? "#1f4e8c" : "#c62828"}
+                      stroke={isHq ? "#1f4e8c" : "#5d5a55"}
                       strokeWidth={isSelected ? 4 : 1.5}
                     />
                     <text x={cx} y={top + 20} fontSize="18" fontWeight="700" fill="#111" textAnchor="middle">
@@ -296,7 +296,7 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                         </text>
                       </g>
                     ))}
-                    <circle r={isHq ? 20 : 17} fill={isHq ? "#1f4e8c" : "#c62828"} stroke="#fff" strokeWidth="4" />
+                    <circle r={isHq ? 20 : 17} fill={isHq ? "#1f4e8c" : "#3d3a36"} stroke="#fff" strokeWidth="4" />
                     {isHq ? (
                       <text x="0" y="8" fontSize="22" fill="#fff" textAnchor="middle" fontWeight="800">
                         H

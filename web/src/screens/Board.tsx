@@ -28,6 +28,8 @@ import {
   nextFictionalName,
   patientsWithExtra,
   proposalStage,
+  changesSince,
+  stampMinutes,
   type DemoAction,
   type DemoInbound,
   type DemoState,
@@ -63,6 +65,8 @@ import {
   BOARD_LEAD,
   BOARD_MOCK_BADGE,
   BOARD_ORDERS,
+  BOARD_CHANGES,
+  BOARD_LEAD_TILE,
   BOARD_OVERVIEW,
   BOARD_RECORDS,
   BOARD_SECTIONS,
@@ -664,6 +668,32 @@ function PaneMarks({ marks }: { marks: { text: string; level: "bad" | "warn" | "
 }
 
 /** 救護所の詳細（Issue #107）：今日の様子、不足薬、連絡先、経路、通信、提案、カルテ */
+/** 最終報告（Issue #107）：在庫の確認か、記録が本部に届いた、新しいほうの時刻（BOARD_AS_OF からの分）。無ければ null */
+export function lastReportMinutes(state: DemoState, site: SiteId): number | null {
+  const times: number[] = [];
+  const checked = siteInfo(site)?.stockCheckedAt;
+  if (checked) times.push(stampMinutes(checked));
+  const synced = state.sync.find((s) => s.site === site)?.lastSync;
+  if (synced) times.push(stampMinutes(synced));
+  return times.length > 0 ? Math.max(...times) : null;
+}
+
+/** 「最終報告 3 時間前」の時間の部分。デモの時計が進むと増える。古いかどうかの閾値は作らない */
+function lastReportText(state: DemoState, site: SiteId): string {
+  const at = lastReportMinutes(state, site);
+  return at === null ? "—" : BOARD_CHANGES.ago(Math.max(0, state.minutes - at));
+}
+
+/** 「前回から変わったこと」の1行（Issue #107）。デモの記録の件数をルールで並べるだけ（氏名・品目名・数量は入れない） */
+export function changeLineText(state: DemoState, site?: SiteId): string {
+  const counts = changesSince(state.log, site);
+  const since = clockText(0).slice(6);
+  const parts = BOARD_CHANGES.kinds
+    .filter((k) => counts[k.kind] > 0)
+    .map((k) => `${k.name} ${k.kind === "未交付" ? "+" : ""}${fmt.format(counts[k.kind])} 件`);
+  return parts.length === 0 ? BOARD_CHANGES.none(since) : `${BOARD_CHANGES.since(since)}${parts.join(BOARD_CHANGES.sep)}`;
+}
+
 function SiteDetail({
   site,
   state,
@@ -721,7 +751,12 @@ function SiteDetail({
             <dt>{BOARD_LAYOUT.detail.evacuees}</dt>
             <dd>{demand ? `${fmt.format(demand.evacuees)} 人` : "—"}</dd>
           </div>
+          <div>
+            <dt>{BOARD_CHANGES.lastReport}</dt>
+            <dd data-testid="site-last-report">{lastReportText(state, site)}</dd>
+          </div>
         </dl>
+        <p className="board-note">{BOARD_CHANGES.lastReportNote}</p>
       </section>
 
       <section aria-labelledby="board-detail-shortage">
@@ -893,6 +928,9 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
     return m;
   };
 
+  // 不足が出ている救護所の数（在庫切れ・切れる見込み・薬剤師の不足のどれかがある。siteOverview からの算数だけ）
+  const sitesShort = overview.filter((o) => o.outOfStock > 0 || o.forecast > 0 || o.pharmacistsShort > 0).length;
+
   const tabLabel = (t: BoardTab) => (t === "overview" && !isHq ? BOARD_LAYOUT.siteTabs.overview : BOARD_LAYOUT.tabs[t]);
 
   const siteStock = state.stock.filter((r) => r.site === selected);
@@ -953,30 +991,35 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
             />
           </button>
           {DISTRICTS.map((d) => (
-            <div key={d.id} className="board-pane-district" role="group" aria-labelledby={`board-district-${d.id}`}>
-              <p className="board-pane-district-name" id={`board-district-${d.id}`}>
+            <details key={d.id} className="board-pane-district" open>
+              <summary className="board-pane-district-name" id={`board-district-${d.id}`}>
                 {d.name}
-              </p>
-              {d.sites.map((s) => {
-                const o = overview.find((x) => x.site === s);
-                return (
-                  <button
-                    key={s}
-                    type="button"
-                    className={`board-pane-item${selected === s ? " current" : ""}`}
-                    aria-current={selected === s ? "true" : undefined}
-                    data-pane={s}
-                    onClick={() => select(s)}
-                  >
-                    <span className="board-pane-name">{s}</span>
-                    <span className="board-pane-sub">
-                      {BOARD_OVERVIEW.patients} {o?.patients === null || o === undefined ? "—" : fmt.format(o.patients)} 人
-                    </span>
-                    <PaneMarks marks={marksFor(s)} />
-                  </button>
-                );
-              })}
-            </div>
+              </summary>
+              <div className="board-pane-district-sites">
+                {d.sites.map((s) => {
+                  const o = overview.find((x) => x.site === s);
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      className={`board-pane-item${selected === s ? " current" : ""}`}
+                      aria-current={selected === s ? "true" : undefined}
+                      data-pane={s}
+                      onClick={() => select(s)}
+                    >
+                      <span className="board-pane-name">{s}</span>
+                      <span className="board-pane-sub">
+                        {BOARD_OVERVIEW.patients} {o?.patients === null || o === undefined ? "—" : fmt.format(o.patients)} 人
+                      </span>
+                      <span className="board-pane-sub board-pane-report" data-report={s}>
+                        {BOARD_CHANGES.lastReport} {lastReportText(state, s)}
+                      </span>
+                      <PaneMarks marks={marksFor(s)} />
+                    </button>
+                  );
+                })}
+              </div>
+            </details>
           ))}
         </nav>
 
@@ -998,6 +1041,10 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
               </button>
             ))}
           </div>
+          <p className="board-changes" data-testid="board-changes">
+            <span className="board-changes-label">{BOARD_CHANGES.label}</span>
+            <span>{changeLineText(state, isHq ? undefined : selected)}</span>
+          </p>
 
           <div className="board-panel" id="board-panel" role="tabpanel" aria-labelledby={`board-tab-${tab}`} ref={panelRef} tabIndex={-1}>
             <h2 className="board-panel-title" id="board-panel-title" data-panel={`${selected}|${tab}`}>
@@ -1010,6 +1057,14 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
             {isHq && tab === "overview" && (
               <>
                 <div className="board-tiles">
+                  <div className="board-tile board-tile-lead">
+                    <span className="board-tile-label">{BOARD_LEAD_TILE.label}</span>
+                    <span className="board-tile-big" data-testid="sites-short">
+                      {fmt.format(sitesShort)}
+                      <span className="board-tile-of"> / {fmt.format(SHELTERS.length)} か所</span>
+                    </span>
+                    <span className="board-tile-sub">{BOARD_LEAD_TILE.sub}</span>
+                  </div>
                   <div className="board-tile">
                     <span className="board-tile-label">今日の患者（延べ・4か所）</span>
                     <span className="board-tile-big" data-testid="today-patients">
@@ -1450,7 +1505,7 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
                     <p className="board-note">{BOARD_DEMO.logEmpty}</p>
                   ) : (
                     <ul className="board-log">
-                      {state.log.map((l, i) => (
+                      {state.log.slice(0, 30).map((l, i) => (
                         <li key={`${l.at}-${i}`}>
                           <span className="board-log-at">{clockText(l.at)}</span> {l.text}
                         </li>
