@@ -110,6 +110,29 @@ export const BOARD_RECORDS = {
   open: "この救護所の記録を見る",
 } as const;
 
+/** 架空の町の模式図（Issue #105）。外部の地図は使わない */
+// [TODO-OWNER: 模式図の文言（題・凡例・状況の欄・最新情報の固定文。Claude Code の下書き）]
+export const BOARD_MAP = {
+  title: "拠点と経路の図",
+  mock: "模式図・架空",
+  svgTitle: "架空の町の模式図。本部と救護所4か所、本部からの経路の状態（通行可・迂回・通行止め）、拠点の不足の印",
+  svgNote: "架空の町の模式図。実在の地名・道路・施設ではない。外部の地図は使っていない",
+  legendOk: "通行可",
+  legendDetour: "迂回（点線が迂回の道）",
+  legendBlocked: "通行止め",
+  legendHq: "本部",
+  legendSite: "救護所",
+  outOfStock: "在庫切れ",
+  pharmacistsShort: "薬剤師 不足",
+  statusTitle: "本部の周りの状況（架空）",
+  temp: "気温",
+  snow: "積雪",
+  rain: "天気",
+  evacuees: "避難者数（4か所）",
+  routesTitle: "本部からの経路",
+  notesTitle: "このエリアの最新情報（架空）",
+} as const;
+
 /** 救護所ごとの一覧（1タップ目：救護所、2タップ目：品目） */
 export const BOARD_GROUPS = {
   note: "救護所ごとにまとめた。救護所の行を開くと確認・手配が必要な品目、品目の行を開くと連絡先・入荷・経路。並びは、在庫切れと不足が多い順。",
