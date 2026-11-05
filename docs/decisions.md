@@ -809,6 +809,7 @@
 - 影響：`web/src/flow/training.ts`（`mode`、`start`）、`mode.ts`、`content.ts`（モード選択と C-01 の文）、`web/src/screens/Intro.tsx`・`Dialogue.tsx`、`App.tsx`、`styles.css`、試験（`training.test.ts`、`screens/Intro.test.tsx`）、README の `?mode=3d` の記述、docs/safety-test-plan.md の V10。
 - オーナーが判断する点（Issue #51 の PR の説明にも一覧）：
   - [TODO-OWNER: 3D を押せる選択肢にするか（Claude Code の判断：押せる選択肢。A-13 の完了3条件が未達のまま。別の案：A-13 の通し確認が済むまで 3D も Coming soon にする）]
+  - → オーナー決定（2026-11-05、チャット）：「PRD を今の main に合わせる」（3D は押せる選択肢、Coming soon は C-01 だけ）
   - [TODO-OWNER: モード選択の文言（Claude Code の下書き。`web/src/flow/content.ts` の `MODE_LEGEND`「答え方を選ぶ」、`MODE_OPTIONS` の「2D：文字で答える」「3D：声で答えて読み上げを聞く」と説明、`MODE_CHOSEN_LABEL`「選んでいる答え方：」）]
   - 必ず見せる説明（`PRIVACY_VOICE` を含む）の置き場所（下の追記のマーカー）。
 - 追記（2026-11-05、PR #70 の中。PM 役のセッションが伝えたオーナーの言葉）：オーナーの言葉は「今結構ファーストビューで文字がたくさんあってきっとみんな読まない。medkit+のようなUIで、本当に重要なことを提示するのがよいのではないか、と思う。全く持ってコピーをしたいわけじゃなく、もっとブラウザや携帯で楽しくタップで直感的に、コアとなる薬の避難訓練のユーザー体験をしてもらいたい」。Issue #46 の「medkitのような感じで」は、この medkit+（医療者向けの訓練アプリ）の見た目を指す（PM 役のセッションの説明：太い輪郭と丸みのあるカード、選択肢を扉のような大きなカードで並べる、鍵の印と「Coming soon」で押せない扉を示す、1画面に1つの判断、文字が少ない。コピーはしない。色は SonaQuest のクリーム・ミント・オレンジのまま）。これを受けて、同じ PR で次のように直した：
@@ -1080,3 +1081,30 @@
   - 却下案：提案の数量に安全在庫や患者ごとの量を足す（量の判断に近づく。在庫の算数だけにした）／救護所の画面でも承認できる（承認は本部の担当者が行う、というオーナーの流れに合わせた）／承認で本部の在庫を減らさない（引当の意味が画面から分からない）／時計で在庫が少し減るたびに提案を出す（1〜2錠の提案が次々に並び、動画で流れが追えなかった）。
   - 影響：`web/src/screens/Board.tsx`・`Board.test.tsx`、`BoardMap.tsx`、`web/src/board/demo.ts`・`orders.test.ts`、`data.ts`、`text.ts`、`board.css`、`docs/PRD.md`（B-04・B-06）、`docs/safety-test-plan.md`（H7）、`docs/STATUS.md`、README、`docs/KEEP-THINKING.md`。訓練の流れ、Claude への送信、Workers、ログ、保存、依存は変えない。
   - [TODO-OWNER: ボードの副題・ペイン・タブ・地区の名前・発注の提案と承認の文言（`text.ts` の `BOARD_SUBTITLE`・`BOARD_LAYOUT`・`BOARD_ORDERS`、`data.ts` の `DISTRICTS`。Claude Code の下書き）と、はじめにのボタンの文言を変えるか]
+
+## ADR-0044 振り返りの公的資料は、確認済みの印を付けた固定の一覧から出す
+- 状態：提案（Issue #99。2026-11-05、オーナーがチャットで A-06 に「今すぐ着手する」と答えた。採用はこの ADR を含む PR のマージで）　日付：2026-11-05
+- 番号：ADR-0042・ADR-0043 は PR #98（Issue #97・#102）が使ったので、0044 にした
+- 背景：
+  - PRD の A-06 は、準備行動ごとに関係する公的資料（発行元・題・リンク・確認日）を、`docs/references.md` で確認済みのものだけ出すとする。資料の説明は固定文で、Claude に作らせない。
+  - 「確認済み」にするのはオーナー（CLAUDE.md、`.claude/rules/safety.md`「Claude Code（開発時）」）。Claude Code は本文を確かめて候補を出すまで。
+- 決定：
+  1. 資料は `web/src/flow/content.ts` の `PUBLIC_SOURCES` に固定で持つ（発行元・題・見出し・URL・確認日・`verified`）。準備行動との対応は `PREP_SOURCES`。どちらも Claude Code の下書きで、オーナー確認待ちのマーカーを付ける。
+  2. 画面に出すのは `verified: true` のものだけ（`rules.ts` の `verifiedSourcesFor`）。`verified` を `true` にしてよいのは、オーナーが本文と該当箇所を確かめ、`docs/references.md` を確認済みにしたときだけ。
+  3. 見出し（`section`）は資料の見出しをそのまま写す。資料の内容の要約は画面に出さない（要約は `docs/references.md` にだけ書く）。
+  4. 置き場所は、振り返りの「今ここで確かめましょう」と「次の準備を1つ決める」の間。準備行動の名前を小見出しにして、その下にリンクを並べる。準備行動のカード（label）の中には入れない。
+  5. リンクは別のタブで開く（`target="_blank"`、`rel="noopener noreferrer"`）。確認済みの資料が1件も無いときは、見出しを含めて何も出さない。
+- 理由：
+  - 確認済みかどうかをコードの印で持てば、画面に出るかどうかを試験で確かめられる。`docs/references.md` だけを正にすると、画面とのずれを機械で見つけられない。
+  - カードの中にリンクを置くと、リンクを押したときにラジオも切り替わり、操作の中に別の操作が入れ子になる。
+  - 選ぶ前に読めるよう、準備行動のカードの前に置く。「これに決める」は2つの fieldset の直後のまま（PR #76 の並び）。
+- 却下案：
+  - 準備行動のカードの中にリンクを置く：上の理由。
+  - 選んだ準備行動の資料だけを、終わりの画面に出す：A-06 は振り返りで示すとする。選ぶ前に比べられない。
+  - 資料の説明文を付ける：固定文でも、資料の内容を言い換えることになる。見出しの写しにとどめた。
+  - `docs/references.md` を読み込んで画面に出す：ビルドに文書の解析を足すことになり、依存や仕組みが増える。
+- 影響：
+  - `web/src/flow/content.ts`、`web/src/flow/rules.ts`、`web/src/screens/Review.tsx`、`web/src/styles.css`、`web/src/screens/Review.test.tsx`、`docs/references.md`。
+  - 外部への送信・ログ・保存は増えない。リンクは利用者が押したときだけ、そのページを別のタブで開く（先読みしない）。
+  - オーナーが少なくとも1件を確認済みにするまで、A-06 は満たさない（PRD）。A-12 の振り返りの公的資料の経路も、それまで通せない。
+- 追記（2026-11-05、同じ Issue #99）：オーナーがチャットで、候補のうち 1（政府広報オンライン）・3（消防庁 eカレッジ）・4（マイナポータル FAQ No.4901）を確認済みにした。2（厚生労働省の報告書）・5（マイナポータルのお知らせ）は選ばなかった。3件を `verified: true` にし、振り返りに出す。決定の行は `content.ts` のマーカーの直後に足し、マーカーの解除は別の PR で行う。
