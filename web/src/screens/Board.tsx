@@ -1226,7 +1226,7 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
 
                     <div className="board-overview-cols">
                       <div className="board-overview-map">
-                        <BoardMap overview={overview} onSelect={select} selected={selected} />
+                        <BoardMap overview={overview} onSelect={select} selected={selected} live={state} reducedMotion={noAuto} />
                         <p className="board-note">{BOARD_LAYOUT.mapHint}</p>
                       </div>
                       <section aria-labelledby="board-cases" className="board-overview-sites">

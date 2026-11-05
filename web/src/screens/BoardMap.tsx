@@ -1,5 +1,8 @@
-import type { KeyboardEvent } from "react";
-import { HQ, ROUTES, type RouteRow, type SiteId } from "../board/data";
+import { useState, type KeyboardEvent } from "react";
+import { HQ, INBOUND, ROUTES, SYNC, type RouteRow, type SiteId, type SyncRow } from "../board/data";
+import { clockText, type DemoInbound } from "../board/demo";
+import { STALE_REPORT_HOURS, shipmentMarkers, siteGlows, toPathD, travelLine } from "../board/live";
+import { vehicleAt } from "../board/vehicles";
 import {
   MAP_BLOCKS,
   MAP_BRIDGES,
@@ -22,9 +25,22 @@ import {
   type MapMarkLabel,
 } from "../board/map";
 import type { SiteOverview } from "../board/summary";
-import { BOARD_MAP } from "../board/text";
+import { BOARD_MAP, BOARD_MAP_LIVE } from "../board/text";
+
+/** 動く地図（Issue #128）に使う、デモの状態の一部。渡さなければ始まりの架空データ（時計 0 分）で描く */
+export interface MapLive {
+  minutes: number;
+  inbound: readonly DemoInbound[];
+  sync: readonly SyncRow[];
+}
+
+const START_LIVE: MapLive = { minutes: 0, inbound: INBOUND, sync: SYNC };
 
 interface Props {
+  /** デモの時計・入荷と搬送・記録の届き方（Issue #128）。光・搬送便・車の位置をここから求める */
+  live?: MapLive;
+  /** 動きを減らす設定。光の脈打ち・道筋の流れ・印の移動の動きを止める（CSS の prefers-reduced-motion でも止める） */
+  reducedMotion?: boolean;
   overview: readonly SiteOverview[];
   routes?: readonly RouteRow[];
   /** 拠点を押したとき（Issue #107）。渡すと拠点が押せるもの（role="button"）になる */
@@ -117,12 +133,47 @@ function FacilityShape({ f }: { f: Facility }) {
  * 本部からの経路の状態（通行可・迂回・通行止め）、拠点の不足の印、方位とスケール。
  * 外部の地図タイルも画像も使わず、SVG と架空のデータだけで描く
  */
-export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side = true }: Props) {
+export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side = true, live = START_LIVE, reducedMotion = false }: Props) {
   const routeOf = (site: string) => routes.find((r) => r.to === site);
   const notes = areaNotes(routes);
   const ex = MAP_EXPRESSWAY.x;
+  // 道筋を浮かび上がらせる救護所：カーソル・焦点 → 経路の行で押したもの → 選んでいる救護所
+  const [focused, setFocused] = useState<SiteId | null>(null);
+  const [pinned, setPinned] = useState<SiteId | null>(null);
+  // 押した「便」「車」（行き先と到着見込みを出す）
+  const [mover, setMover] = useState<string | null>(null);
+  const emph = focused ?? pinned ?? (selected && selected !== HQ ? selected : null);
+  const emphRoute = emph ? routeOf(emph) : undefined;
+  const glows = siteGlows(overview, live.sync, live.minutes);
+  const shipments = shipmentMarkers(live.inbound, live.minutes, routes);
+  const car = vehicleAt(live.minutes, routes);
+  const placeName = (site: SiteId) => (site === HQ ? "本部" : site);
+  const carText =
+    car.state === "移動中"
+      ? BOARD_MAP_LIVE.vehicleMoving(placeName(car.to), clockText(car.arriveAt))
+      : BOARD_MAP_LIVE.vehicleStopped(placeName(car.at ?? HQ), placeName(car.to), clockText(car.arriveAt));
+  const shipmentText = (s: (typeof shipments)[number]) => BOARD_MAP_LIVE.shipment(s.mode, s.item, s.qty, s.to, clockText(s.arriveAt));
+  const moverText =
+    mover === "car" ? `${BOARD_MAP_LIVE.vehicleName}：${carText}` : (() => {
+      const s = shipments.find((x) => `s-${x.id}` === mover);
+      return s ? shipmentText(s) : null;
+    })();
+  const toggleMover = (id: string) => setMover((cur) => (cur === id ? null : id));
+  const moverPress = (id: string, label: string) => ({
+    role: "button",
+    tabIndex: 0,
+    "aria-label": label,
+    "aria-pressed": mover === id,
+    onClick: () => toggleMover(id),
+    onKeyDown: (e: KeyboardEvent<SVGGElement>) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        toggleMover(id);
+      }
+    },
+  });
   return (
-    <section className="board-map" aria-labelledby="board-map-title">
+    <section className={`board-map${reducedMotion ? " board-map-still" : ""}`} aria-labelledby="board-map-title">
       <h2 id="board-map-title">
         {BOARD_MAP.title} <span className="board-count">{TOWN_NAME}・{BOARD_MAP.mock}</span>
       </h2>
@@ -197,8 +248,9 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                 const r = routeOf(m.to);
                 const status = r?.status ?? "通行可";
                 const color = ROUTE_COLOR[status];
+                const on = emph === m.to;
                 return (
-                  <g key={m.to} className={`board-map-route ${status}`} data-status={status}>
+                  <g key={m.to} className={`board-map-route ${status}`} data-status={status} data-emph={emph === null ? undefined : on ? "on" : "dim"}>
                     <path
                       d={m.d}
                       fill="none"
@@ -211,6 +263,25 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                     />
                     {status === "迂回" && m.detour && (
                       <path d={m.detour} fill="none" stroke={color} strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="14 10" />
+                    )}
+                    {/* 浮かび上がった道筋：実際に通る線を太く縁取り、本部から救護所へ流れる破線で向きを示す（Issue #128） */}
+                    {on && (
+                      <g className="board-map-path">
+                        <path d={toPathD(travelLine(m.to, status))} fill="none" stroke={color} strokeOpacity="0.28" strokeWidth="20" strokeLinecap="round" strokeLinejoin="round" />
+                        {/* 通行止めは車が通れないので流さない（× と文で示す） */}
+                        {status !== "通行止め" && (
+                          <path
+                            className="board-map-flow"
+                            d={toPathD(travelLine(m.to, status))}
+                            fill="none"
+                            stroke="#fff"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeDasharray="6 14"
+                          />
+                        )}
+                      </g>
                     )}
                     {(status === "通行止め" || status === "迂回") && m.blocked && (
                       <g transform={`translate(${m.blocked.x},${m.blocked.y})`}>
@@ -231,6 +302,21 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                   </g>
                 );
               })}
+              {/* 光る救護所（Issue #128）。既存の状態（在庫切れ＝赤、切れる見込み・薬剤師の不足・最終報告が古い＝黄）だけで決める。
+                  ゆっくり脈打つ（1周 2.4 秒。1秒に3回を超えて点滅しない）。動きを減らす設定では動かない光 */}
+              <g className="board-map-glows" aria-hidden="true">
+                {glows.map((g) => {
+                  const s = MAP_SITES.find((x) => x.site === g.site);
+                  if (!s) return null;
+                  const color = g.level === "bad" ? ROUTE_COLOR.通行止め : ROUTE_COLOR.迂回;
+                  return (
+                    <g key={g.site} transform={`translate(${s.x},${s.y})`} data-glow-site={g.site} data-level={g.level}>
+                      <circle r="46" fill={color} opacity="0.16" />
+                      <circle className="board-map-glow" r="32" fill={color} opacity="0.4" />
+                    </g>
+                  );
+                })}
+              </g>
               {/* 拠点 */}
               {MAP_SITES.map((s) => {
                 const o = overview.find((x) => x.site === s.site);
@@ -261,6 +347,16 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                       },
                     }
                   : {};
+                // カーソル・焦点で、本部からの道筋を浮かび上がらせる（本部は道筋を持たない）
+                const hover =
+                  isHq
+                    ? {}
+                    : {
+                        onMouseEnter: () => setFocused(s.site),
+                        onMouseLeave: () => setFocused((cur) => (cur === s.site ? null : cur)),
+                        onFocus: () => setFocused(s.site),
+                        onBlur: () => setFocused((cur) => (cur === s.site ? null : cur)),
+                      };
                 return (
                   <g
                     key={s.site}
@@ -268,6 +364,7 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                     transform={`translate(${s.x},${s.y})`}
                     data-site={s.site}
                     {...press}
+                    {...hover}
                   >
                     {/* 押せる範囲（札と印を囲む透明の枠） */}
                     {onSelect && <rect x={Math.min(left, -22) - 6} y={Math.min(top, -22) - 6} width={Math.max(left + plateW, 22) - Math.min(left, -22) + 12} height={Math.max(top + blockH, 22) - Math.min(top, -22) + 12} fill="transparent" />}
@@ -307,6 +404,45 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                   </g>
                 );
               })}
+              {/* 動いているもの（Issue #128。架空・模擬）：搬送中の便と医療チームの車。位置はデモ時計から求め、時計が進むと滑らかに移る。
+                  印は点の上（便）と下（車）に置き、重なる便は横にずらす。押すと行き先と到着見込みを図の下に出す */}
+              <g className="board-map-movers">
+                {shipments.map((sh, i) => {
+                  const k = shipments.slice(0, i).filter((o) => Math.hypot(o.x - sh.x, o.y - sh.y) < 28).length;
+                  const id = `s-${sh.id}`;
+                  return (
+                    <g
+                      key={id}
+                      className={`board-map-mover shipment${mover === id ? " active" : ""}`}
+                      style={{ transform: `translate(${sh.x}px, ${sh.y}px)` }}
+                      data-mover={id}
+                      {...moverPress(id, shipmentText(sh))}
+                    >
+                      <g transform={`translate(${k * 32},0)`}>
+                        <path d="M0,0 V-16" stroke="#3d3a36" strokeWidth="2" />
+                        <circle r="4" fill="#3d3a36" />
+                        <rect x="-15" y="-38" width="30" height="22" rx="4" fill="#fff" stroke="#3d3a36" strokeWidth={mover === id ? 3.5 : 2} />
+                        <text y="-22" fontSize="13" fontWeight="800" fill="#3d3a36" textAnchor="middle">
+                          便
+                        </text>
+                      </g>
+                    </g>
+                  );
+                })}
+                <g
+                  className={`board-map-mover vehicle${mover === "car" ? " active" : ""}`}
+                  style={{ transform: `translate(${car.x}px, ${car.y}px)` }}
+                  data-mover="car"
+                  {...moverPress("car", `${BOARD_MAP_LIVE.vehicleName}：${carText}`)}
+                >
+                  <path d="M0,0 V16" stroke="#1f4e8c" strokeWidth="2" />
+                  <circle r="4" fill="#1f4e8c" />
+                  <rect x="-19" y="16" width="38" height="22" rx="6" fill="#1f4e8c" stroke="#fff" strokeWidth={mover === "car" ? 3.5 : 2} />
+                  <text y="32" fontSize="13" fontWeight="800" fill="#fff" textAnchor="middle">
+                    車
+                  </text>
+                </g>
+              </g>
               {/* 方位とスケール（架空） */}
               <g transform="translate(912,66)">
                 <circle r="24" fill="#fff" fillOpacity="0.92" stroke="#888" />
@@ -352,7 +488,54 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
             <span>
               <i className="dot site" /> {BOARD_MAP.legendSite}
             </span>
+            <span>
+              <i className="glow bad" /> {BOARD_MAP_LIVE.legendGlowBad}
+            </span>
+            <span>
+              <i className="glow warn" /> {BOARD_MAP_LIVE.legendGlowWarn}
+            </span>
+            <span>
+              <i className="mk shipment">便</i> {BOARD_MAP_LIVE.legendShipment}
+            </span>
+            <span>
+              <i className="mk vehicle">車</i> {BOARD_MAP_LIVE.legendVehicle}
+            </span>
           </figcaption>
+          {/* 図と同じことを文字でも示す（動きを減らす設定でも、静止した図とこの文で分かる） */}
+          <div className="board-map-live">
+            <p className="board-map-route-info" aria-live="polite">
+              {emph && emphRoute
+                ? BOARD_MAP_LIVE.routeLine(emph, emphRoute.status, emphRoute.via, emphRoute.minutes)
+                : BOARD_MAP_LIVE.routeHint}
+            </p>
+            <section aria-labelledby="board-map-glows">
+              <h3 id="board-map-glows">{BOARD_MAP_LIVE.glowTitle}</h3>
+              {glows.length === 0 ? (
+                <p>{BOARD_MAP_LIVE.glowNone}</p>
+              ) : (
+                <ul className="board-map-glow-list">
+                  {glows.map((g) => (
+                    <li key={g.site}>
+                      <span className={`board-pill ${g.level}`}>{g.level === "bad" ? "赤" : "黄"}</span>{" "}
+                      {`${g.site}：${g.reasons.map((r) => BOARD_MAP_LIVE.glowReason[r.kind](r.value)).join("・")}`}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="board-note">{BOARD_MAP_LIVE.staleNote(STALE_REPORT_HOURS)}</p>
+            </section>
+            <section aria-labelledby="board-map-movers">
+              <h3 id="board-map-movers">{BOARD_MAP_LIVE.moversTitle}</h3>
+              <p className="board-map-mover-info" aria-live="polite">
+                {moverText ?? BOARD_MAP_LIVE.pressHint}
+              </p>
+              <ul className="board-map-mover-list">
+                <li>{`${BOARD_MAP_LIVE.vehicleName}：${carText}`}</li>
+                {shipments.length === 0 ? <li>{BOARD_MAP_LIVE.noShipment}</li> : shipments.map((sh) => <li key={sh.id}>{shipmentText(sh)}</li>)}
+              </ul>
+              <p className="board-note">{BOARD_MAP_LIVE.moversNote}</p>
+            </section>
+          </div>
         </figure>
         {side && (
         <div className="board-map-side">
@@ -382,8 +565,16 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
             <ul className="board-map-routes">
               {routes.map((r) => (
                 <li key={r.to}>
-                  <span className={`board-pill ${r.status === "通行可" ? "ok" : r.status === "迂回" ? "warn" : "bad"}`}>{r.status}</span> {r.to}
-                  {r.minutes !== null && `（約${fmt.format(r.minutes)}分）`}
+                  {/* 押すと図の道筋を浮かび上がらせる（タッチでも使える。Issue #128）。もう一度押すと戻す */}
+                  <button
+                    type="button"
+                    className="board-map-route-btn"
+                    aria-pressed={pinned === r.to}
+                    onClick={() => setPinned((cur) => (cur === r.to ? null : r.to))}
+                  >
+                    <span className={`board-pill ${r.status === "通行可" ? "ok" : r.status === "迂回" ? "warn" : "bad"}`}>{r.status}</span> {r.to}
+                    {r.minutes !== null && `（約${fmt.format(r.minutes)}分）`}
+                  </button>
                 </li>
               ))}
             </ul>

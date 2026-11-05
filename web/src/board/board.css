@@ -1710,3 +1710,159 @@
     width: 100%;
   }
 }
+
+/* ===== 動く地図（Issue #128）：光る救護所、浮かび上がる道筋、搬送便と医療チームの車（架空・模擬） ===== */
+/* 色は状態だけに使う（ADR-0043 の 8）：光は赤（在庫切れ）か黄（見込み・不足・報告が古い）。車・便・ボタンは無彩色と本部の紺 */
+.board-map-route {
+  transition: opacity 0.3s;
+}
+.board-map-route[data-emph="dim"] {
+  opacity: 0.22;
+}
+/* 道筋の向き：本部から救護所へ破線が流れる（1.6 秒で 2 区切り分。点滅ではない） */
+.board-map-flow {
+  animation: board-map-flow 1.6s linear infinite;
+}
+@keyframes board-map-flow {
+  to {
+    stroke-dashoffset: -40;
+  }
+}
+/* 光：1周 2.4 秒でゆっくり脈打つ（1秒に3回を超えない） */
+.board-map-glow {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: board-map-pulse 2.4s ease-in-out infinite;
+}
+@keyframes board-map-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+}
+/* 便と車：デモ時計が進むと、次の位置へ滑らかに移る */
+.board-map-mover {
+  transition: transform 1.8s linear;
+  cursor: pointer;
+}
+.board-map-mover:focus {
+  outline: none;
+}
+.board-map-mover:focus-visible rect {
+  stroke: #111;
+  stroke-width: 4;
+}
+/* 動きを減らす設定：脈打ち・流れ・移動を止める（光は動かない光、印はその時刻の位置で止まる） */
+.board-map-still .board-map-glow,
+.board-map-still .board-map-flow {
+  animation: none;
+}
+.board-map-still .board-map-mover,
+.board-map-still .board-map-route {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .board-map-glow,
+  .board-map-flow {
+    animation: none !important;
+  }
+  .board-map-mover {
+    transition: none !important;
+  }
+}
+.board-map-legend .glow {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+.board-map-legend .glow.bad {
+  background: rgba(198, 40, 40, 0.45);
+  box-shadow: 0 0 0 3px rgba(198, 40, 40, 0.18);
+}
+.board-map-legend .glow.warn {
+  background: rgba(201, 154, 6, 0.5);
+  box-shadow: 0 0 0 3px rgba(201, 154, 6, 0.2);
+}
+.board-map-legend .mk {
+  display: inline-block;
+  min-width: 22px;
+  padding: 0 3px;
+  border-radius: 4px;
+  font-style: normal;
+  font-weight: 800;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+.board-map-legend .mk.shipment {
+  background: #fff;
+  border: 2px solid #3d3a36;
+  color: #3d3a36;
+}
+.board-map-legend .mk.vehicle {
+  background: #1f4e8c;
+  border: 2px solid #1f4e8c;
+  color: #fff;
+}
+.board-map-live {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--fs-sub);
+}
+.board-map-live section {
+  display: grid;
+  gap: 4px;
+}
+.board-map-live h3 {
+  margin: 0;
+  font-size: var(--fs-body);
+}
+.board-map-live p {
+  margin: 0;
+}
+.board-map-route-info,
+.board-map-mover-info {
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fafafa;
+  overflow-wrap: anywhere;
+}
+.board-map-glow-list,
+.board-map-mover-list {
+  margin: 0;
+  padding-left: 1.2em;
+}
+.board-map-route-btn {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 2px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.board-map-route-btn:hover {
+  border-color: var(--line);
+}
+.board-map-route-btn[aria-pressed="true"] {
+  border-color: #3d3a36;
+  background: #f1f0ee;
+}
