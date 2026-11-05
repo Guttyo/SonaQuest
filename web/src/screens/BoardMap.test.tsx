@@ -17,6 +17,16 @@ describe("架空の町の模式図（Issue #105）", () => {
     expect(html.match(/<g class="board-map-route /g)).toHaveLength(4);
   });
 
+  it("経路と迂回の道は碁盤目に沿って直角に曲がる（川沿いの道だけ斜め）", () => {
+    for (const r of MAP_ROUTES) {
+      const paths = [r.d, r.detour].filter((p): p is string => !!p);
+      for (const p of paths) {
+        const turns = p.match(/[A-Z]/g) ?? [];
+        expect(turns.every((c) => c === "M" || c === "H" || c === "V" || (r.to === "救護所B" && c === "L"))).toBe(true);
+      }
+    }
+  });
+
   it("経路の色と印は ROUTES の状態に合う（通行可＝緑、迂回＝黄の点線と迂回の道、通行止め＝赤の×）", () => {
     for (const r of ROUTES) {
       expect(html).toContain(`data-status="${r.status}"`);
