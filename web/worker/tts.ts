@@ -21,8 +21,19 @@ export interface TtsEnv {
   TURN_LIMITER?: RateLimiter;
 }
 
-/** 低遅延で日本語を読めるモデル（ADR-0005 の表の Flash v2.5。2026-11-04 に現行と確かめた） */
-export const TTS_MODEL = "eleven_flash_v2_5";
+/**
+ * 低遅延で日本語を読めるモデル。2026-11-05 にオーナーが聞き比べ（tts-lab.html）で選んだ（ADR-0045。旧：eleven_flash_v2_5）
+ */
+export const TTS_MODEL = "eleven_v4_turbo";
+/**
+ * 声の設定（ADR-0045）。stability はオーナーが聞き比べで選んだ値、similarity_boost は文書の初期値。
+ * style・use_speaker_boost・speed は送らない（v4 系で使えない・無視される場合があるとの指摘。PR #111 のレビュー）。
+ * 送らないものは初期値（style 0・speed 1.0）と同じなので、オーナーが聞いた声と変わらない
+ */
+export const TTS_VOICE_SETTINGS = {
+  stability: 0.65,
+  similarity_boost: 0.75,
+} as const;
 /** 声だけなので 64kbps で足りる（どのプランでも使える形式） */
 export const TTS_OUTPUT_FORMAT = "mp3_44100_64";
 /** 読み上げる文の長さの上限。聞き取り係の文（200字）に、受け止めと固定の確認の文を足しても収まる */
@@ -64,7 +75,7 @@ export function parseTtsText(json: unknown): string | null {
   return trimmed;
 }
 
-/** ElevenLabs に送る中身。読み上げる文と、モデル・言語だけ */
+/** ElevenLabs に送る中身。読み上げる文と、モデル・言語・声の設定だけ */
 export function elevenLabsRequest(
   text: string,
   apiKey: string,
@@ -75,7 +86,7 @@ export function elevenLabsRequest(
     init: {
       method: "POST",
       headers: { "xi-api-key": apiKey, "Content-Type": "application/json", Accept: "audio/mpeg" },
-      body: JSON.stringify({ text, model_id: TTS_MODEL, language_code: "ja" }),
+      body: JSON.stringify({ text, model_id: TTS_MODEL, language_code: "ja", voice_settings: TTS_VOICE_SETTINGS }),
     },
   };
 }

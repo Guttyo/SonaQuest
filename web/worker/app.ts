@@ -11,6 +11,7 @@ import { promptTextProblem } from "./checks";
 import { checkRateLimit, type RateLimiter } from "./ratelimit";
 import { ALLOWED_VOCABULARY, followsFixedOrder, runTurn } from "./turn";
 import { createTtsApp, type TtsEnv } from "./tts";
+import { createTtsLabApp } from "./ttsLab";
 
 /** 読み上げの中継の設定（TtsEnv）は tts.ts */
 export interface Env extends TtsEnv {
@@ -24,6 +25,8 @@ export interface Env extends TtsEnv {
   DEV_EFFORT?: string;
   /** "off" のとき、/api/turn で監査役を呼ばない（比較実験の「監査役なし」。ADR-0030） */
   DEV_AUDIT?: string;
+  /** 読み上げの聞き比べ（/api/dev/tts）で比べる声の ID。手元だけ。wrangler.jsonc には書かない */
+  DEV_TTS_VOICE_B?: string;
   /**
    * 公開する版で /api/turn を使えるようにする切り替え。"1" のときだけ、手元以外の宛先からも Claude を呼ぶ。
    * 回数の制限と支出の上限（ADR-0003、safety-test-plan P7・P9）を満たすまで設定しない。
@@ -193,6 +196,8 @@ export function createApp(
 
   // 読み上げの中継（ADR-0033）。/api/turn と同じく、手元からか PUBLIC_TURN=1 のときだけ通す
   app.route("/", createTtsApp({ readBody: readLimitedText }));
+  // 読み上げの聞き比べ（開発用）。比較実験の切り替え（DEV_EXPERIMENT=1）が入っていて、手元からのときだけ使える
+  app.route("/", createTtsLabApp({ readBody: readLimitedText }));
 
   app.all("/api/*", (c) => c.json({ error: "not_found" }, 404));
   return app;

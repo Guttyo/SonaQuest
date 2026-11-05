@@ -731,7 +731,7 @@
   6. **読み上げる文**（`speech.ts`）：聞き取り係の文（固定文か、Workers の検査と監査役を通った Claude の文）、③確認の文、出来事の文、思い出せないときのその場の固定文。利用者の回答は使わない。返事を待つ間は読み上げない。
   7. **読み上げの中継**（`/api/tts`、`web/worker/tts.ts`）：
      - 受け取るのは `{ "text": "…" }` だけ（500字まで）。ほかの値が付いていたら拒否する。
-     - ElevenLabs の `POST /v1/text-to-speech/{voice_id}` に、文とモデル `eleven_flash_v2_5`・`language_code: "ja"` だけを送る（出力は `mp3_44100_64`）。音声はためずにそのまま返し、事業者の見出し（履歴の ID など）は渡さない。`Cache-Control: no-store`。
+     - ElevenLabs の `POST /v1/text-to-speech/{voice_id}` に、文とモデル `eleven_v4_turbo`・`language_code: "ja"`・声の設定 `voice_settings`（`stability: 0.65`・`similarity_boost: 0.75`）だけを送る（2026-11-05 に ADR-0045 で変更。旧：モデル `eleven_flash_v2_5` と `language_code` だけ）（出力は `mp3_44100_64`）。音声はためずにそのまま返し、事業者の見出し（履歴の ID など）は渡さない。`Cache-Control: no-store`。
      - キーと声の ID は secrets（`ELEVENLABS_API_KEY`・`ELEVENLABS_VOICE_ID`）にだけ置く。声の ID は英数字だけを通す。
      - 通す条件は `/api/turn` と同じ：手元（localhost・127.0.0.1）からの呼び出しか、公開の切り替え（`PUBLIC_TURN=1`）のとき（上の4つめの決定の行）。旧：「手元からの呼び出しだけを通す。`PUBLIC_TURN` では開かない」（PR #63 の最初の版）。
      - 公開の切り替えのときは、ElevenLabs を呼ぶ直前に回数制限を1回数える（ADR-0035 の `checkRateLimit`、binding は `/api/turn` と同じ `TURN_LIMITER`、接頭辞は `tts`。接続元の IP ごとに 60 秒で 10 回で、`/api/turn` とは別に数える）。上限を超えたら 429（`Retry-After: 60`）、binding が無い・失敗したら 503 で閉じ、ElevenLabs を呼ばない。手元の開発では数えない。画面は、どれでもブラウザの読み上げに切り替える。読み上げは質問ごとに1回で、同じ文は画面のメモリで使い回すので、1人の訓練ではこの上限に届かない見込み（測っていない）。
@@ -1115,3 +1115,19 @@
   - 外部への送信・ログ・保存は増えない。リンクは利用者が押したときだけ、そのページを別のタブで開く（先読みしない）。
   - オーナーが少なくとも1件を確認済みにするまで、A-06 は満たさない（PRD）。A-12 の振り返りの公的資料の経路も、それまで通せない。
 - 追記（2026-11-05、同じ Issue #99）：オーナーがチャットで、候補のうち 1（政府広報オンライン）・3（消防庁 eカレッジ）・4（マイナポータル FAQ No.4901）を確認済みにした。2（厚生労働省の報告書）・5（マイナポータルのお知らせ）は選ばなかった。3件を `verified: true` にし、振り返りに出す。決定の行は `content.ts` のマーカーの直後に足し、マーカーの解除は別の PR で行う。
+
+## ADR-0045 読み上げのモデルを eleven_v4_turbo にし、stability を 0.65 にする（聞き比べの結果）
+- 状態：採用（2026-11-05 にオーナーがチャットで決定）　日付：2026-11-05（Issue #109）
+- 背景：
+  - オーナーの発言（2026-11-05、チャット）：3D の対話の読み上げを聞いて「イントネーションとか、読みとか微妙だね」。
+  - 開発用の聞き比べ（`web/tts-lab.html`、`/api/dev/tts`。`DEV_EXPERIMENT=1` と手元の宛先のときだけ）を作り、オーナーがモデル・速さ・stability・style・日本語の読みの補正を替えて聞いた。
+  - 手元で短い固定文を1回ずつ鳴らしたときの、事業者が応答するまでの時間（目安）：flash v2.5 約0.4秒、flash v2.5＋読みの補正 約1.5秒、multilingual v2 約0.7秒、v4 turbo 約0.7秒、v4 約1.0秒、v3 約9.5秒。
+- 決定：
+  - → オーナー決定（2026-11-05、チャット）：「v4_turboがめっちゃよい。stabilityは0.65くらいにした。」
+  - `/api/tts`（`web/worker/tts.ts`）のモデルを `eleven_v4_turbo` にし、`voice_settings` に `stability: 0.65` を送る。similarity_boost（0.75）は ElevenLabs の文書の初期値をそのまま書く。style・use_speaker_boost・速さ（speed）は送らない（初期値。v4 系で使えない場合があるとの PR #111 のレビューの指摘を受け、送るのは2つだけにした）。
+  - 受け取るもの（`{ "text": "…" }` だけ）、送るもの（読み上げる文だけ）、通す条件、回数制限、ブラウザの読み上げへの切り替え（5秒）は ADR-0033 のまま変えない。
+- 理由：オーナーが耳で聞いて選んだ。v4 turbo は文書で日本語に対応し、`language_code` を受け付け、文書の遅延は Flash v2.5 と同じ約100ミリ秒。手元の計測でも Flash との差は 0.3 秒ほどで、5秒の切り替えに届かない。
+- 却下案：
+  - eleven_v3：手元で約9.5秒かかり、会話の待ち時間に合わない。
+  - 日本語の読みの補正（`apply_language_text_normalization`）：文書に「待ち時間が大きく増えうる」とあり、手元でも約1.5秒になった。オーナーは v4 turbo の素の読みを選んだ。
+- 影響：`web/worker/tts.ts`（`TTS_MODEL`・`TTS_VOICE_SETTINGS`）、`web/worker/tts.test.ts`。ElevenLabs の料金は文字数とモデルで変わる（プランの確かめはオーナー）。声を日本語の録音で作り直したときは、secrets の `ELEVENLABS_VOICE_ID` を入れ替えるだけで、この決定は変わらない。
