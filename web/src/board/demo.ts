@@ -21,6 +21,16 @@ import {
   type StockRow,
   type SyncRow,
 } from "./data";
+import { DEFAULT_ARRIVAL_SEED, DISPENSE_DAYS, arrivalPlan, dispenseQty, hasCondition, simPatient, type PlannedArrival } from "./patients";
+
+/** 記録の処方の1品目（薬の仮名・数量・日数・単位と、在庫が足りず渡せなかった数） */
+export interface RecordRx {
+  item: string;
+  qty: number;
+  days: number;
+  unit: string;
+  undelivered: number;
+}
 
 /** 入力された架空の問診（救護所の記録＝カルテの1件）。名前は架空で、画面に「架空」と出す */
 export interface DemoRecord {
@@ -31,14 +41,42 @@ export interface DemoRecord {
   /** 記録した架空の時刻（分。BOARD_AS_OF からの経過） */
   at: number;
   items: readonly { label: string; value: string }[];
-  /** 医師が入力した処方（薬の仮名・数量・日数）。無ければ null。アプリは候補を出さない */
+  /** 医師が入力した処方（薬の仮名・数量・日数）の最初の1品目。無ければ null。アプリは候補を出さない */
   prescription: { item: string; qty: number; days: number; unit: string } | null;
-  /** 在庫が足りず渡せなかった数 */
+  /** 処方のすべての品目（架空の患者の到着では 1〜3 品目。Issue #122） */
+  prescriptions: readonly RecordRx[];
+  /** 在庫が足りず渡せなかった数（全品目の合計） */
   undelivered: number;
+  /** 架空の患者の到着で加わった記録なら、その患者の番号（Issue #122） */
+  patientNo?: number;
 }
 
-/** 「前回から変わったこと」の1行で数える出来事の種類（Issue #107）。件数を足すだけで、文は作らない */
-export type DemoEventKind = "登録" | "未交付" | "提案" | "承認" | "受領" | "在庫切れ";
+/** 「前回から変わったこと」の1行で数える出来事の種類（Issue #107、#122）。件数を足すだけで、文は作らない */
+export type DemoEventKind = "登録" | "到着" | "未交付" | "提案" | "承認" | "受領" | "在庫切れ";
+
+/** 到着した架空の患者の1件（Issue #122） */
+export interface ArrivedPatient {
+  no: number;
+  site: SiteId;
+  /** 到着した架空の時刻（分） */
+  at: number;
+  /** 加わった記録の番号 */
+  recordId: string;
+}
+
+/**
+ * 架空の患者の到着（Issue #122）。種から決めた予定（plan）を、到着を始めてから時計が進んだ時間（hours）で読み進める。
+ * 止めているあいだ（active が false）は読み進めない。最初は止めている
+ */
+export interface ArrivalState {
+  seed: number;
+  active: boolean;
+  plan: readonly PlannedArrival[];
+  /** 到着を始めてから、時計が進んだ時間 */
+  hours: number;
+  /** 到着した人（新しい順） */
+  arrived: ArrivedPatient[];
+}
 
 export interface DemoLog {
   at: number;
@@ -120,12 +158,18 @@ export interface DemoState {
   seq: number;
   /** 操作の番号（操作のたびに 1 増える） */
   rev: number;
+  /** 架空の患者の到着（Issue #122） */
+  arrivals: ArrivalState;
 }
 
 export type DemoAction =
   | { type: "tick"; hours: number }
   | { type: "run"; running: boolean }
   | { type: "reset" }
+  /** 架空の患者の到着を始める・止める（Issue #122） */
+  | { type: "arrivals"; active: boolean }
+  /** 到着の並びの種を替えて、最初からやり直す（Issue #122） */
+  | { type: "reseed"; seed: number }
   | { type: "approve_proposal"; id: string }
   | { type: "reject_proposal"; id: string }
   | {
@@ -181,9 +225,10 @@ function stampText(minutes: number): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")} ${String(Math.floor(mod / 60)).padStart(2, "0")}:${String(mod % 60).padStart(2, "0")}`;
 }
 
-export function initialDemo(): DemoState {
+export function initialDemo(seed: number = DEFAULT_ARRIVAL_SEED): DemoState {
   // 最初の提案は始まりの状態で、「変わったこと」ではないので記録に残さない
   const start = refreshProposals({
+    arrivals: { seed, active: false, plan: arrivalPlan(seed), hours: 0, arrived: [] },
     minutes: 0,
     running: false,
     stock: STOCK.map((r) => ({ ...r })),
@@ -472,26 +517,51 @@ function tick(state: DemoState, hours: number): DemoState {
   return { ...state, minutes: to, stock, inbound, sync, log: [...log.sort((a, b) => b.at - a.at), ...state.log] };
 }
 
-function addRecord(state: DemoState, a: Extract<DemoAction, { type: "add_record" }>): DemoState {
+/**
+ * 救護所の記録に1人を加える（架空の問診の入力と、架空の患者の到着が同じ経路を通る。Issue #102・#122）。
+ * 記録に架空の氏名と番号で加え、今日の患者を1人足し、処方の品目ごとに数量だけ現地の在庫から引き、
+ * 足りない分は未交付として需要に載せ、通信なし・断続的な救護所では記録の形になっていないものを1件足す。
+ * 在庫の足し引きだけで、薬の正誤・処方・服薬の判断はしない
+ */
+function admit(
+  state: DemoState,
+  a: {
+    site: SiteId;
+    name: string;
+    items: readonly { label: string; value: string }[];
+    prescriptions: readonly { item: string; qty: number; days: number }[];
+    at: number;
+    /** 登録（入力）か到着（架空の患者）か */
+    kind: "登録" | "到着";
+    patientNo?: number;
+  },
+): { state: DemoState; id: string } {
   const n = state.records.filter((r) => r.site === a.site).length + 1;
   const id = `${a.site.replace("救護所", "")}-D${String(n).padStart(2, "0")}`;
   const stock = state.stock.map((r) => ({ ...r }));
   const needs = [...state.needs];
-  const log: DemoLog[] = [{ at: state.minutes, text: `${a.site}：問診の記録 ${id} を追加（架空）`, kind: "登録", site: a.site }];
-  let prescription: DemoRecord["prescription"] = null;
-  let undelivered = 0;
-  if (a.prescription && a.prescription.qty > 0) {
-    const row = stock.find((s) => s.site === a.site && s.item === a.prescription?.item);
+  const log: DemoLog[] = [
+    {
+      at: a.at,
+      text: a.kind === "到着" ? `${a.site}：架空の患者 No.${a.patientNo} が到着（記録 ${id}）` : `${a.site}：問診の記録 ${id} を追加（架空）`,
+      kind: a.kind,
+      site: a.site,
+    },
+  ];
+  const rxs: RecordRx[] = [];
+  for (const p of a.prescriptions) {
+    if (p.qty <= 0) continue;
+    const row = stock.find((s) => s.site === a.site && s.item === p.item);
     const unit = row?.unit ?? "";
     const available = row?.onHand ?? 0;
-    const out = Math.min(available, a.prescription.qty);
+    const out = Math.min(available, p.qty);
     if (row) row.onHand = available - out;
-    undelivered = a.prescription.qty - out;
-    prescription = { ...a.prescription, unit };
-    log.push({ at: state.minutes, text: `${a.site}：${a.prescription.item} ${out}${unit} を出庫（処方 ${a.prescription.qty}${unit}・${a.prescription.days}日分）` });
+    const undelivered = p.qty - out;
+    rxs.push({ ...p, unit, undelivered });
+    log.push({ at: a.at, text: `${a.site}：${p.item} ${out}${unit} を出庫（処方 ${p.qty}${unit}・${p.days}日分）` });
     if (undelivered > 0) {
-      needs.push({ site: a.site, item: a.prescription.item, qty: undelivered, by: stampText(state.minutes + 6 * 60) });
-      log.push({ at: state.minutes, text: `${a.site}：${a.prescription.item} ${undelivered}${unit} が未交付（需要に載せた）`, kind: "未交付", site: a.site });
+      needs.push({ site: a.site, item: p.item, qty: undelivered, by: stampText(a.at + 6 * 60) });
+      log.push({ at: a.at, text: `${a.site}：${p.item} ${undelivered}${unit} が未交付（需要に載せた）`, kind: "未交付", site: a.site });
     }
   }
   const extra = state.extraPatients[a.site] ?? { patients: 0, chronic: 0 };
@@ -500,25 +570,104 @@ function addRecord(state: DemoState, a: Extract<DemoAction, { type: "add_record"
       ? { ...r, pending: r.pending + 1, pendingKind: r.mode === "紙で記録・通信なし" ? ("未着" as const) : ("転記待ち" as const) }
       : r,
   );
-  return {
-    ...state,
-    stock,
-    needs,
-    sync,
-    extraPatients: { ...state.extraPatients, [a.site]: { patients: extra.patients + 1, chronic: extra.chronic + (prescription ? 1 : 0) } },
-    records: [{ id, site: a.site, name: a.name, at: state.minutes, items: a.items, prescription, undelivered }, ...state.records],
-    log: [...log.reverse(), ...state.log],
+  const first = rxs[0];
+  const record: DemoRecord = {
+    id,
+    site: a.site,
+    name: a.name,
+    at: a.at,
+    items: a.items,
+    prescription: first ? { item: first.item, qty: first.qty, days: first.days, unit: first.unit } : null,
+    prescriptions: rxs,
+    undelivered: rxs.reduce((s, r) => s + r.undelivered, 0),
+    ...(a.patientNo !== undefined ? { patientNo: a.patientNo } : {}),
   };
+  return {
+    id,
+    state: {
+      ...state,
+      stock,
+      needs,
+      sync,
+      extraPatients: { ...state.extraPatients, [a.site]: { patients: extra.patients + 1, chronic: extra.chronic + (rxs.length > 0 ? 1 : 0) } },
+      records: [record, ...state.records],
+      log: [...log.reverse(), ...state.log],
+    },
+  };
+}
+
+function addRecord(state: DemoState, a: Extract<DemoAction, { type: "add_record" }>): DemoState {
+  return admit(state, {
+    site: a.site,
+    name: a.name,
+    items: a.items,
+    prescriptions: a.prescription ? [a.prescription] : [],
+    at: state.minutes,
+    kind: "登録",
+  }).state;
+}
+
+/** 到着した架空の患者の記録の項目（固定の見出しと、架空のデータの文。要約・判断をしない） */
+// [TODO-OWNER: 到着した架空の患者の記録の項目の見出し（Claude Code の下書き。性別・年齢・けが・体調・服薬）]
+export const ARRIVAL_ITEM_LABELS = {
+  sex: "性別（架空）",
+  age: "年齢（架空）",
+  condition: "けが・体調（架空。アプリは重さを判断しない）",
+  meds: "服薬（架空・品目と1日の量）",
+} as const;
+
+/**
+ * 時計が from から to まで進むあいだに、予定の時間が来た架空の患者を到着させる（Issue #122）。
+ * 到着を始めているときだけ、1時間ごとに予定を読み進める。各人の服薬の品目について 1日の量 × 3日分を、
+ * 問診の入力と同じ経路（admit）で現地の在庫から引く。100人全員が到着したら何もしない
+ */
+function arrive(state: DemoState, from: number, hours: number): DemoState {
+  if (!state.arrivals.active || state.arrivals.arrived.length >= state.arrivals.plan.length) return state;
+  let s = state;
+  let elapsed = state.arrivals.hours;
+  const arrived = [...state.arrivals.arrived];
+  for (let step = 1; step <= Math.floor(hours); step += 1) {
+    elapsed += 1;
+    const at = from + step * 60;
+    for (const p of state.arrivals.plan) {
+      if (p.hour !== elapsed) continue;
+      const patient = simPatient(p.no);
+      if (!patient) continue;
+      const r = admit(s, {
+        site: p.site,
+        name: patient.name,
+        items: [
+          { label: ARRIVAL_ITEM_LABELS.sex, value: patient.sex },
+          { label: ARRIVAL_ITEM_LABELS.age, value: `${patient.age}歳` },
+          { label: ARRIVAL_ITEM_LABELS.condition, value: patient.condition },
+          { label: ARRIVAL_ITEM_LABELS.meds, value: patient.meds.map((m) => `${m.item} 1日${m.perDay}${s.stock.find((r) => r.item === m.item)?.unit ?? ""}`).join("、") },
+        ],
+        prescriptions: patient.meds.map((m) => ({ item: m.item, qty: dispenseQty(m), days: DISPENSE_DAYS })),
+        at,
+        kind: "到着",
+        patientNo: patient.no,
+      });
+      s = r.state;
+      arrived.unshift({ no: patient.no, site: p.site, at, recordId: r.id });
+    }
+  }
+  const log = [...s.log.slice(0, s.log.length - state.log.length).sort((a, b) => b.at - a.at), ...state.log];
+  return { ...s, log, arrivals: { ...state.arrivals, hours: elapsed, arrived } };
 }
 
 export function demoReducer(state: DemoState, action: DemoAction): DemoState {
   switch (action.type) {
     case "tick":
-      return refreshProposals(tick({ ...state, rev: state.rev + 1 }, action.hours));
+      return refreshProposals(arrive(tick({ ...state, rev: state.rev + 1 }, action.hours), state.minutes, action.hours));
     case "run":
       return { ...state, running: action.running };
     case "reset":
-      return initialDemo();
+      // 同じ種のまま最初に戻す（同じ並びをもう一度見せられる）
+      return initialDemo(state.arrivals.seed);
+    case "arrivals":
+      return { ...state, arrivals: { ...state.arrivals, active: action.active } };
+    case "reseed":
+      return initialDemo(action.seed);
     case "add_record":
       return refreshProposals(addRecord({ ...state, rev: state.rev + 1 }, action));
     case "approve_proposal":
@@ -580,19 +729,16 @@ export function chartsFor(
     const visit: ChartVisit = {
       id: r.id,
       at: clockText(r.at),
-      source: "画面で入力（デモ）",
+      source: r.patientNo !== undefined ? `到着（架空の患者 No.${r.patientNo}）` : "画面で入力（デモ）",
       items: r.items,
-      prescription:
-        r.prescription === null
-          ? ""
-          : `${r.prescription.item} ${r.prescription.qty}${r.prescription.unit}・${r.prescription.days}日分`,
+      prescription: r.prescriptions.map((p) => `${p.item} ${p.qty}${p.unit}・${p.days}日分`).join("、"),
       undelivered: r.undelivered,
     };
     const found = charts.find((c) => c.key === key);
     if (found) {
       found.visits.push(visit);
       found.undelivered += r.undelivered;
-      found.hasPrescription = found.hasPrescription || r.prescription !== null;
+      found.hasPrescription = found.hasPrescription || r.prescriptions.length > 0;
     } else {
       charts.push({
         key,
@@ -601,7 +747,7 @@ export function chartsFor(
         id: r.id,
         visits: [visit],
         undelivered: r.undelivered,
-        hasPrescription: r.prescription !== null,
+        hasPrescription: r.prescriptions.length > 0,
         added: true,
       });
     }
@@ -642,7 +788,7 @@ export function nextFictionalName(used: number): string {
  * site を渡すとその救護所の分だけ。記録の文・氏名・品目名・数量は使わない（件数だけ）
  */
 export function changesSince(log: readonly DemoLog[], site?: SiteId): Record<DemoEventKind, number> {
-  const counts: Record<DemoEventKind, number> = { 登録: 0, 未交付: 0, 提案: 0, 承認: 0, 受領: 0, 在庫切れ: 0 };
+  const counts: Record<DemoEventKind, number> = { 登録: 0, 到着: 0, 未交付: 0, 提案: 0, 承認: 0, 受領: 0, 在庫切れ: 0 };
   for (const l of log) {
     if (!l.kind || l.at < 0) continue;
     if (site !== undefined && l.site !== site) continue;
@@ -678,14 +824,15 @@ export interface PrescriptionTotal {
 export function prescriptionTotals(records: readonly DemoRecord[], site: SiteId): PrescriptionTotal[] {
   const totals = new Map<string, PrescriptionTotal>();
   for (const r of records) {
-    if (r.site !== site || r.prescription === null) continue;
-    const p = r.prescription;
-    const t = totals.get(p.item) ?? { item: p.item, unit: p.unit, prescribed: 0, delivered: 0, undelivered: 0, count: 0 };
-    t.prescribed += p.qty;
-    t.undelivered += r.undelivered;
-    t.delivered += p.qty - r.undelivered;
-    t.count += 1;
-    totals.set(p.item, t);
+    if (r.site !== site) continue;
+    for (const p of r.prescriptions) {
+      const t = totals.get(p.item) ?? { item: p.item, unit: p.unit, prescribed: 0, delivered: 0, undelivered: 0, count: 0 };
+      t.prescribed += p.qty;
+      t.undelivered += p.undelivered;
+      t.delivered += p.qty - p.undelivered;
+      t.count += 1;
+      totals.set(p.item, t);
+    }
   }
   const order = (item: string) => {
     const i = ITEMS.indexOf(item);
@@ -697,6 +844,49 @@ export function prescriptionTotals(records: readonly DemoRecord[], site: SiteId)
 /** 発注の提案の内訳の「未交付・必要な数」のうち、カルテの処方の未交付から来た数（Issue #114） */
 export function chartUndelivered(records: readonly DemoRecord[], site: SiteId, item: string): number {
   return records
-    .filter((r) => r.site === site && r.prescription?.item === item)
-    .reduce((a, r) => a + r.undelivered, 0);
+    .filter((r) => r.site === site)
+    .flatMap((r) => r.prescriptions)
+    .filter((p) => p.item === item)
+    .reduce((a, p) => a + p.undelivered, 0);
+}
+
+/** 到着した架空の患者の一覧の1行（Issue #122）。患者のデータと、加わった記録の未交付 */
+export interface ArrivalRow {
+  no: number;
+  site: SiteId;
+  at: number;
+  recordId: string;
+  name: string;
+  sex: string;
+  age: number;
+  condition: string;
+  hasCondition: boolean;
+  meds: readonly { item: string; perDay: number; qty: number; unit: string; undelivered: number }[];
+}
+
+/** 到着した架空の患者（新しい順）。site を渡すとその救護所の分だけ */
+export function arrivalRows(state: DemoState, site?: SiteId): ArrivalRow[] {
+  const rows: ArrivalRow[] = [];
+  for (const a of state.arrivals.arrived) {
+    if (site !== undefined && a.site !== site) continue;
+    const p = simPatient(a.no);
+    if (!p) continue;
+    const rec = state.records.find((r) => r.id === a.recordId && r.site === a.site);
+    rows.push({
+      no: a.no,
+      site: a.site,
+      at: a.at,
+      recordId: a.recordId,
+      name: p.name,
+      sex: p.sex,
+      age: p.age,
+      condition: p.condition,
+      hasCondition: hasCondition(p),
+      meds: p.meds.map((m) => {
+        const rx = rec?.prescriptions.find((x) => x.item === m.item);
+        return { item: m.item, perDay: m.perDay, qty: dispenseQty(m), unit: rx?.unit ?? "", undelivered: rx?.undelivered ?? 0 };
+      }),
+    });
+  }
+  return rows;
 }

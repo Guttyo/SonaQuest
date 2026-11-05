@@ -209,7 +209,7 @@ describe("前回から変わったこと（件数だけ。Issue #107 の追加�
   it("最初の記録は空で、最初の提案は数えない", () => {
     const s = initialDemo();
     expect(s.log).toEqual([]);
-    expect(changesSince(s.log)).toEqual({ 登録: 0, 未交付: 0, 提案: 0, 承認: 0, 受領: 0, 在庫切れ: 0 });
+    expect(changesSince(s.log)).toEqual({ 登録: 0, 到着: 0, 未交付: 0, 提案: 0, 承認: 0, 受領: 0, 在庫切れ: 0 });
   });
 
   it("登録・未交付・提案・承認を数え、救護所で絞れる。却下は承認に数えない", () => {
