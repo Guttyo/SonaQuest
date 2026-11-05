@@ -1047,7 +1047,12 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
           </p>
 
           <div className="board-panel" id="board-panel" role="tabpanel" aria-labelledby={`board-tab-${tab}`} ref={panelRef} tabIndex={-1}>
-            <h2 className="board-panel-title" id="board-panel-title" data-panel={`${selected}|${tab}`}>
+            {/* 本部の全体では題の行を見せない（左のペインとタブで分かる。オーナー「本部に限っては要らない」）。読み上げ用には残す */}
+            <h2
+              className={`board-panel-title${isHq && tab === "overview" ? " visually-hidden" : ""}`}
+              id="board-panel-title"
+              data-panel={`${selected}|${tab}`}
+            >
               {siteName(selected)}
               {!isHq && districtOf(selected) && <span className="board-count">{districtOf(selected)?.name}</span>}
               <span className="board-panel-tab">{tabLabel(tab)}</span>
