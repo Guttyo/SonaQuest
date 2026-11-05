@@ -115,10 +115,7 @@ export const BOARD_CHANGES = {
   ],
   sep: "、",
   lastReport: "最終報告",
-  lastReportNote: "在庫の確認か記録が本部に届いた、新しいほうの時刻。デモの時計から数える",
-  /** 更新が無いときの小さな補助表示の頭（Issue #113） */
-  noneLabel: "更新",
-  ago: (minutes: number) =>
+  lastReportNote: "在庫の確認か記録が本部に届いた、新しいほうの時刻。デモの時計から数える",  ago: (minutes: number) =>
     minutes < 1 ? "いま" : minutes < 60 ? `${minutes} 分前` : minutes < 48 * 60 ? `${Math.floor(minutes / 60)} 時間前` : `${Math.floor(minutes / 1440)} 日前`,
 } as const;
 /** 本部の全体の左上に大きく出す数（Issue #107）。救護所ごとの不足の有無を数えるだけ */
