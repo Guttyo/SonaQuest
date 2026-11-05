@@ -22,7 +22,11 @@ export function Puppet2D({
 }) {
   return (
     <div
-      className={relief ? "puppet3d-stage puppet2d-stage puppet2d-stage-relief" : "puppet3d-stage puppet2d-stage"}
+      className={
+        relief
+          ? "puppet3d-stage puppet3d-stage-relief puppet2d-stage puppet2d-stage-relief"
+          : "puppet3d-stage puppet2d-stage"
+      }
       data-activity={activity}
       data-relief={relief ? "true" : "false"}
     >
@@ -33,12 +37,13 @@ export function Puppet2D({
 
 /**
  * 吹き出しの横に添える、小さな顔だけの姿（光の丸の代わり）。
- * 同じ絵を、頭のまわりだけ切り取って出す。動きは付けない（考え中だけ、止まった姿勢で示す）
+ * 同じ絵を、頭のまわりだけ切り取って出す。動きは付けない（考え中だけ、止まった姿勢で示す）。
+ * puppet2d-static で状態の動きを止め、枠の外（胴・腕）は .puppet2d-face の overflow: hidden で切る（ADR-0038、PR #78 のレビュー）
  */
 export function Puppet2DFace({ activity = "idle" }: { activity?: ListenerActivity }) {
   return (
     <span className="puppet2d-face" data-activity={activity}>
-      <PuppetSvg activity={activity} relief={false} nodKey={0} viewBox="30 10 60 58" className="puppet2d" />
+      <PuppetSvg activity={activity} relief={false} nodKey={0} viewBox="30 10 60 58" className="puppet2d puppet2d-static" />
     </span>
   );
 }

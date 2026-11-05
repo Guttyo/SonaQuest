@@ -1228,6 +1228,7 @@ body,
 .recall-icon {
   width: 44px;
   height: 44px;
+}
 
 /* 2D の聞き取り係（Issue #47、A-03、ADR-0038）。3D パペットの 2D 版の姿（screens/Puppet2D.tsx）。
    状態ごとの姿勢は止まった transform で決め（data-activity）、動きは別の要素に重ねる。
@@ -1408,6 +1409,17 @@ body,
   margin-top: 4px;
   border-radius: 50%;
   background: var(--mint);
+  /* 頭のまわりだけを切り取った絵なので、胴や腕が枠の外に出ないよう切る */
+  overflow: hidden;
+}
+
+.puppet2d-face .puppet2d {
+  overflow: hidden;
+}
+
+/* 小さな顔は止まった姿（ADR-0038）。状態の姿勢は残し、揺れ・うなずき・口の動きだけを止める */
+.puppet2d.puppet2d-static[data-activity] [class*="p2d-"] {
+  animation: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

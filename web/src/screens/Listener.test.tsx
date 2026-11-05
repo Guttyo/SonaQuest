@@ -66,6 +66,8 @@ describe("Listener の props（ADR-0032、2D の姿は ADR-0038）", () => {
   it("係の交代では、2D のパペットも別の色にする", () => {
     const html = renderToStaticMarkup(<Listener relief>x</Listener>);
     expect(html).toContain("puppet2d-stage-relief");
+    // 舞台の背景は 3D と同じ puppet3d-stage-relief で温かい色にする（PR #78 のレビュー）
+    expect(html).toContain("puppet3d-stage-relief");
     expect(html).toContain('data-relief="true"');
     expect(html).toContain(`fill="${RELIEF_PALETTE.body}"`);
   });
@@ -133,5 +135,12 @@ describe("Puppet2D の絵（ADR-0038）", () => {
     expect(html).toContain('data-activity="thinking"');
     expect(svgOf(html)).toMatch(/^<svg[^>]*aria-hidden="true"/);
     expect(textOf(html).trim()).toBe("");
+  });
+
+  it("吹き出しの横の小さな顔は、状態の動きを止める印（puppet2d-static）を持つ。舞台の大きな姿は持たない", () => {
+    const face = renderToStaticMarkup(<Puppet2DFace activity="thinking" />);
+    expect(svgOf(face)).toMatch(/class="puppet2d puppet2d-static"/);
+    const stage = renderToStaticMarkup(<Puppet2D activity="thinking" relief={false} />);
+    expect(stage).not.toContain("puppet2d-static");
   });
 });
