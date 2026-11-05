@@ -22,11 +22,11 @@ export interface TtsEnv {
 }
 
 /**
- * 低遅延で日本語を読めるモデル。2026-11-05 にオーナーが聞き比べ（tts-lab.html）で選んだ（ADR-0044。旧：eleven_flash_v2_5）
+ * 低遅延で日本語を読めるモデル。2026-11-05 にオーナーが聞き比べ（tts-lab.html）で選んだ（ADR-0045。旧：eleven_flash_v2_5）
  */
 export const TTS_MODEL = "eleven_v4_turbo";
 /**
- * 声の設定（ADR-0044）。stability はオーナーが聞き比べで選んだ値。ほかは ElevenLabs の文書の初期値のまま
+ * 声の設定（ADR-0045）。stability はオーナーが聞き比べで選んだ値。ほかは ElevenLabs の文書の初期値のまま
  */
 export const TTS_VOICE_SETTINGS = {
   stability: 0.65,
