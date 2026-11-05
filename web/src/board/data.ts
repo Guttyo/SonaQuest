@@ -8,6 +8,26 @@ export type SiteId = "救護所A" | "救護所B" | "救護所C" | "救護所D" |
 export const SHELTERS: readonly SiteId[] = ["救護所A", "救護所B", "救護所C", "救護所D"];
 export const HQ: SiteId = "本部備蓄";
 
+/**
+ * 地区（架空。Issue #107）。左のペインで、本部の下に地区ごとの見出しを置き、その地区の救護所を並べる。
+ * 模式図の位置（map.ts）に合わせ、東側に救護所A・D、西側に救護所B・C を置いた
+ */
+// [TODO-OWNER: 地区の名前と分け方（Claude Code の下書き。東地区＝救護所A・D、西地区＝救護所B・C）]
+export interface District {
+  id: string;
+  name: string;
+  sites: readonly SiteId[];
+}
+
+export const DISTRICTS: readonly District[] = [
+  { id: "east", name: "東地区（架空）", sites: ["救護所A", "救護所D"] },
+  { id: "west", name: "西地区（架空）", sites: ["救護所B", "救護所C"] },
+];
+
+export function districtOf(site: SiteId): District | undefined {
+  return DISTRICTS.find((d) => d.sites.includes(site));
+}
+
 /** ボードの「今日」。架空の発災（2026-10-31）の5日後 */
 export const BOARD_TODAY = "2026-11-05";
 

@@ -222,29 +222,35 @@
 }
 
 /* PC：一覧として横に並べ、行同士を見比べる */
-@media (min-width: 900px) {
+.board-cases-head {
+  display: none;
+}
+/* メインの枠（.board-panel）の幅で切り替える。左のペインがあるので画面の幅では決めない（Issue #107） */
+@container board-panel (min-width: 900px) {
   .board-case-row {
-    grid-template-columns: 11em minmax(12em, 1.2fr) 7em 7em minmax(12em, 1.4fr) minmax(12em, 1.4fr);
+    grid-template-columns: 11em minmax(9em, 1.2fr) 5.5em 5.5em minmax(9em, 1.4fr) minmax(9em, 1.4fr);
     align-items: start;
   }
   .board-case-row .k {
     display: block;
     margin: 0;
   }
+  /* 「在庫切れ見込み（あと2.5日）」のような長い札は、列の幅で折り返す（隣の品目の列に重ねない） */
+  .board-case-status .board-pill {
+    max-width: 100%;
+    white-space: normal;
+    border-radius: 10px;
+  }
   .board-cases-head {
     display: grid;
-    grid-template-columns: 11em minmax(12em, 1.2fr) 7em 7em minmax(12em, 1.4fr) minmax(12em, 1.4fr);
+    grid-template-columns: 11em minmax(9em, 1.2fr) 5.5em 5.5em minmax(9em, 1.4fr) minmax(9em, 1.4fr);
     gap: 4px 12px;
     padding: 0 12px 0 30px;
     font-size: var(--fs-caption);
     color: var(--ink-soft);
   }
 }
-@media (max-width: 899px) {
-  .board-cases-head {
-    display: none;
-  }
-}
+
 
 /* 救護所ごとの一枚（ホワイトボード風）。PC は横に並べ、スマホは縦に積む */
 .board-overview {
@@ -747,7 +753,7 @@
   font-size: var(--fs-sub);
   margin: 0;
 }
-@media (min-width: 900px) {
+@container board-panel (min-width: 820px) {
   .board-map-grid {
     grid-template-columns: minmax(0, 1.7fr) minmax(16rem, 1fr);
     align-items: start;
@@ -990,4 +996,646 @@
   .board * {
     transition: none !important;
   }
+}
+
+/* ===== レイアウト（Issue #107）：上に題と時計、左のペイン（本部 → 地区 → 救護所）、右のメイン（上部タブ） ===== */
+.board {
+  gap: 12px;
+}
+.board-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  min-width: 0;
+}
+.board-head-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+.board-head h1 {
+  margin: 0;
+  font-size: var(--fs-title);
+  line-height: 1.2;
+}
+.board-subtitle {
+  font-size: var(--fs-emphasis);
+  font-weight: var(--fw-bold);
+  color: var(--ink-soft);
+}
+.board-head .board-demo-controls {
+  margin-left: auto;
+}
+.board-head .board-demo-controls .board-back {
+  margin-left: 8px;
+}
+.board-head .board-demo-controls {
+  gap: 6px;
+}
+.board-head .board-demo-controls button {
+  min-height: 36px;
+  padding: 0 12px;
+}
+@media (max-width: 640px) {
+  .board-head .board-demo-controls button {
+    font-size: var(--fs-caption);
+    padding: 0 10px;
+  }
+  .board-head .board-demo-controls .board-back {
+    margin-left: 0;
+  }
+}
+.board-body {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* 左のペイン。スマホでは上に横並び（横に送る）、PC では左に縦に並べる */
+.board-pane {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 6px;
+  min-width: 0;
+}
+/* 地区は折りたためる（既定は開く。Issue #107） */
+.board-pane-district {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.board-pane-district-sites {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.board-pane-district-name {
+  margin: 0 0 4px;
+  white-space: nowrap;
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-bold);
+  color: var(--ink-soft);
+  cursor: pointer;
+  list-style: none;
+}
+.board-pane-district-name::-webkit-details-marker {
+  display: none;
+}
+.board-pane-district-name::before {
+  content: "▾ ";
+}
+.board-pane-district:not([open]) > .board-pane-district-name::before {
+  content: "▸ ";
+}
+.board-pane-district-name:focus-visible {
+  outline: 3px solid var(--focus, var(--ink));
+  outline-offset: 2px;
+}
+.board-pane-report {
+  font-variant-numeric: tabular-nums;
+}
+/* 「前回から変わったこと」の1行（Issue #107）。件数だけ。色は使わない */
+.board-changes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin: 8px 0 0;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: var(--fs-sub);
+}
+.board-changes-label {
+  font-weight: var(--fw-bold);
+  color: var(--ink-soft);
+}
+/* 本部の全体で一番大きく出す数（Issue #107） */
+.board-tile-lead {
+  border-width: 2px;
+  border-color: var(--ink);
+}
+.board-tile-lead .board-tile-big {
+  font-size: 2.75rem;
+}
+.board-tile-of {
+  font-size: var(--fs-sub);
+  font-weight: var(--fw-regular);
+  color: var(--ink-soft);
+}
+@container board-panel (min-width: 900px) {
+  .board-tile-lead {
+    grid-column: span 2;
+  }
+}
+.board-pane-item {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  min-width: 9.5rem;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.board-pane-item:hover {
+  border-color: var(--control-border);
+}
+.board-pane-item.current {
+  border-color: var(--ink);
+  border-left-color: var(--ink);
+  background: var(--cream);
+}
+.board-pane-item:focus-visible,
+.board-tab:focus-visible,
+.board-site-card-button:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+.board-pane-name {
+  font-weight: var(--fw-bold);
+}
+.board-pane-sub {
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+.board-pane-marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.board-pane-mark {
+  padding: 0 7px;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  font-size: var(--fs-caption);
+  line-height: var(--lh-tight);
+  color: var(--ink-soft);
+}
+.board-pane-mark.bad {
+  border-color: var(--orange-strong);
+  background: var(--alert-bg);
+  color: var(--orange-strong-text);
+  font-weight: var(--fw-bold);
+}
+.board-pane-mark.warn {
+  border-color: var(--orange);
+  color: var(--orange-strong-text);
+}
+
+/* メイン：上部タブと中身 */
+.board-main {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+}
+.board-tabs {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  box-shadow: inset 0 -2px 0 var(--line);
+  min-width: 0;
+}
+.board-tab {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.board-tab.current {
+  border-bottom-color: var(--ink);
+  color: var(--ink);
+  font-weight: var(--fw-bold);
+}
+.board-tab-count {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--alert-bg);
+  color: var(--orange-strong-text);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-bold);
+}
+.board-panel {
+  container: board-panel / inline-size;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  min-width: 0;
+  outline: none;
+}
+.board-panel > * {
+  min-width: 0;
+}
+.board-panel-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.board-panel-tab {
+  font-size: var(--fs-sub);
+  font-weight: var(--fw-regular);
+  color: var(--ink-soft);
+}
+.board-panel-tab::before {
+  content: "／ ";
+}
+.board-panel h3 {
+  margin: 0;
+  font-size: var(--fs-subheading);
+}
+
+/* 本部の全体：救護所ごとのカード（押すとその救護所の詳細） */
+.board-overview-cols {
+  display: grid;
+  gap: 16px;
+}
+.board-site-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: 8px;
+}
+.board .board-site-cards li {
+  margin: 0;
+}
+.board-site-card-button {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  width: 100%;
+  height: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.board-site-card-button:hover {
+  border-color: var(--control-border);
+}
+.board-site-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+.board-site-card-items {
+  font-size: var(--fs-sub);
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+/* 模式図の拠点（押せるとき） */
+.board-map-site.pressable {
+  cursor: pointer;
+}
+.board-map-site.pressable:focus {
+  outline: none;
+}
+.board-map-site.pressable:focus-visible > rect:nth-child(2) {
+  stroke: #111;
+  stroke-width: 4;
+}
+
+/* 救護所の詳細 */
+.board-detail {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.board-stats {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: 8px;
+}
+.board-stats > div {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.board-stats dt {
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+.board-stats dd {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+.board-stats > div.short {
+  border-color: var(--orange-strong);
+  background: var(--alert-bg);
+}
+.board-stats .board-pill {
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.board-detail-cols {
+  display: grid;
+  gap: 16px;
+}
+@container board-panel (min-width: 720px) {
+  .board-detail-cols {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+.board-dl {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+.board-dl dt {
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+.board-dl dd {
+  margin: 0;
+  font-size: var(--fs-sub);
+  overflow-wrap: anywhere;
+}
+.board-route {
+  margin: 0;
+  font-size: var(--fs-sub);
+}
+
+/* 発注の提案（Issue #107） */
+.board-orders {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.board .board-orders li {
+  margin: 0;
+}
+.board-order {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--orange);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.board-order.approved {
+  border-left-color: var(--mint-strong);
+}
+.board-order-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.board-order-qty {
+  font-size: var(--fs-emphasis);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+.board-order-split,
+.board-order-basis {
+  margin: 0;
+  font-size: var(--fs-sub);
+  overflow-wrap: anywhere;
+}
+.board-order-basis {
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.board-order-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.board-order-actions button {
+  min-height: 40px;
+  padding: 0 18px;
+  font-size: var(--fs-sub);
+}
+.board-approve {
+  border: 2px solid var(--mint-strong);
+  border-radius: 999px;
+  background: var(--mint-strong);
+  color: #fff;
+  font: inherit;
+  font-weight: var(--fw-bold);
+  cursor: pointer;
+}
+.board-new {
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-bold);
+}
+
+/* PC（1024px 以上）：ページ全体の縦スクロールを出さず、ペインとメインの中でスクロールする */
+@media (min-width: 1024px) {
+  .app:has(.board) {
+    height: 100dvh;
+    overflow: hidden;
+  }
+  .app-main:has(.board) {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding-top: 8px;
+    padding-bottom: 12px;
+  }
+  .board {
+    flex: 1 1 0;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .board-body {
+    grid-template-columns: 16.5rem minmax(0, 1fr);
+    min-height: 0;
+  }
+  .board-pane {
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
+    min-height: 0;
+    padding-right: 6px;
+  }
+  .board-pane-district-sites {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .board-pane-district-name {
+    margin-top: 10px;
+    padding-left: 4px;
+    font-size: var(--fs-sub);
+  }
+  .board-pane-item {
+    min-width: 0;
+    width: 100%;
+  }
+  .board-main {
+    min-height: 0;
+  }
+  .board-panel {
+    overflow-y: auto;
+    min-height: 0;
+    padding: 0 10px 16px 2px;
+  }
+}
+
+/* ===== 色の点検（Issue #107）：赤・黄・緑は状態（在庫切れ／見込み・注意／問題なし、通行止め／迂回／通行可）だけに使う。
+   ボタン・枠・見出し・図の飾りは無彩色。色の印には必ず文字を並べる。明るい配色のまま ===== */
+.board {
+  --board-bad: #b42318;
+  --board-bad-bg: #fdeceb;
+  --board-bad-text: #a31d14;
+  --board-warn: #c99a06;
+  --board-warn-bg: #fff5d6;
+  --board-warn-text: #6b5000;
+  --orange-strong: var(--board-bad);
+  --orange-strong-text: var(--board-bad-text);
+  --alert-bg: var(--board-bad-bg);
+  --orange: var(--board-warn);
+  --focus: var(--ink);
+}
+.board button.secondary {
+  border-color: var(--control-border);
+  color: var(--ink);
+}
+.board .board-approve {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #fff;
+}
+.board-chart-added > details {
+  border-color: var(--ink);
+}
+.board-bar-fill {
+  background: var(--ink-soft);
+}
+.board-pill.warn,
+.board-pane-mark.warn,
+.board-heat .cell.warn {
+  border-color: var(--board-warn);
+  background: var(--board-warn-bg);
+  color: var(--board-warn-text);
+}
+.board-site dl > div.warn dd,
+.board-group-cell.warn {
+  color: var(--board-warn-text);
+}
+.board-tab-count {
+  background: var(--board-warn-bg);
+  color: var(--board-warn-text);
+}
+.board-map-legend .dot.site {
+  background: #3d3a36;
+}
+
+/* ===== 本部の全体：指標の札を右の細い列に（Issue #107。オーナー「タイルが大きすぎてスペースがもったいない。サイドカラムでよい」） ===== */
+.board-hq-layout {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.board-hq-main {
+  /* 図・一覧の切り替えは、この列の幅で決める（右の列のぶん狭くなるため） */
+  container: board-panel / inline-size;
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.board-hq-side .board-tiles {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr));
+  gap: 6px;
+}
+.board-hq-side .board-tile {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+.board-hq-side .board-tile .board-tile-label {
+  grid-column: 1;
+  grid-row: 1;
+}
+.board-hq-side .board-tile .board-tile-big {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: 1.375rem;
+  line-height: 1.2;
+}
+.board-hq-side .board-tile .board-tile-sub {
+  grid-column: 1 / -1;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+.board-hq-side .board-tile-lead {
+  grid-column: auto;
+  border-width: 2px;
+}
+.board-hq-side .board-tile-lead .board-tile-big {
+  font-size: 1.75rem;
+}
+@container board-panel (min-width: 900px) {
+  .board-hq-layout {
+    grid-template-columns: minmax(0, 1fr) 15rem;
+    align-items: start;
+  }
+  .board-hq-side {
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky;
+    top: 0;
+  }
+  .board-hq-side .board-tiles {
+    grid-template-columns: 1fr;
+  }
+  .board-hq-side .board-tile-lead {
+    grid-column: auto;
+  }
+  .board-hq-main {
+    grid-column: 1;
+    grid-row: 1;
+  }
+}
+/* 一番大きな数は、題の下に数を置く（題が細く折り返さないように） */
+.board-hq-side .board-tile-lead {
+  grid-template-columns: minmax(0, 1fr);
+}
+.board-hq-side .board-tile-lead .board-tile-big {
+  grid-column: 1;
+  grid-row: 2;
 }

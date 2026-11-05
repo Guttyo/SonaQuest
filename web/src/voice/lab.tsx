@@ -25,10 +25,11 @@ interface Variant {
 const MODELS: Model[] = ["eleven_flash_v2_5", "eleven_multilingual_v2", "eleven_v3", "eleven_v4", "eleven_v4_turbo"];
 
 const INITIAL: Variant[] = [
-  { name: "A：今の設定", model: "eleven_flash_v2_5", speed: 1, stability: 0.5, style: 0, normalize: false, voice: "main" },
-  { name: "B：読みの補正", model: "eleven_flash_v2_5", speed: 1, stability: 0.5, style: 0, normalize: true, voice: "main" },
-  { name: "C：Multilingual v2", model: "eleven_multilingual_v2", speed: 0.95, stability: 0.5, style: 0, normalize: false, voice: "main" },
-  { name: "D：v4 turbo", model: "eleven_v4_turbo", speed: 0.95, stability: 0.5, style: 0, normalize: false, voice: "main" },
+  // A は本番の /api/tts と同じ（worker/tts.ts。ADR-0045）
+  { name: "A：今の設定（v4 turbo）", model: "eleven_v4_turbo", speed: 1, stability: 0.65, style: 0, normalize: false, voice: "main" },
+  { name: "B：以前の設定（Flash v2.5）", model: "eleven_flash_v2_5", speed: 1, stability: 0.5, style: 0, normalize: false, voice: "main" },
+  { name: "C：Flash＋読みの補正", model: "eleven_flash_v2_5", speed: 1, stability: 0.5, style: 0, normalize: true, voice: "main" },
+  { name: "D：Multilingual v2", model: "eleven_multilingual_v2", speed: 0.95, stability: 0.5, style: 0, normalize: false, voice: "main" },
 ];
 
 /** 聞き比べる文。アプリで実際に読み上げる固定文と、Claude が作る文の形に近い見本 */
@@ -73,13 +74,21 @@ function Lab() {
       .catch(() => setStatus("off"));
   }, []);
 
+  // 最後に押したセル。前に押したセルの音声が後から届いても、自動では鳴らさない（重ならないように。PR #111 のレビュー）
+  const latest = useRef<string | null>(null);
+  const start = (url: string) => {
+    audio.current?.pause();
+    audio.current = new Audio(url);
+    void audio.current.play();
+  };
+
   const play = async (v: Variant, text: string) => {
     const key = `${variantKey(v)}|${text}`;
+    latest.current = key;
     audio.current?.pause();
     const cached = cells[key];
     if (cached?.state === "ready" && cached.url !== undefined) {
-      audio.current = new Audio(cached.url);
-      void audio.current.play();
+      start(cached.url);
       return;
     }
     if (cached?.state === "loading") return;
@@ -108,8 +117,7 @@ function Lab() {
       const upstreamMs = Number(r.headers.get("x-dev-upstream-ms") ?? NaN);
       const url = URL.createObjectURL(blob);
       setCells((c) => ({ ...c, [key]: { state: "ready", url, ms, upstreamMs } }));
-      audio.current = new Audio(url);
-      void audio.current.play();
+      if (latest.current === key) start(url);
     } catch (e) {
       setCells((c) => ({ ...c, [key]: { state: "error", error: e instanceof Error ? e.message : "error" } }));
     }

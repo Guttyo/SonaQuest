@@ -26,13 +26,13 @@ export interface TtsEnv {
  */
 export const TTS_MODEL = "eleven_v4_turbo";
 /**
- * 声の設定（ADR-0045）。stability はオーナーが聞き比べで選んだ値。ほかは ElevenLabs の文書の初期値のまま
+ * 声の設定（ADR-0045）。stability はオーナーが聞き比べで選んだ値、similarity_boost は文書の初期値。
+ * style・use_speaker_boost・speed は送らない（v4 系で使えない・無視される場合があるとの指摘。PR #111 のレビュー）。
+ * 送らないものは初期値（style 0・speed 1.0）と同じなので、オーナーが聞いた声と変わらない
  */
 export const TTS_VOICE_SETTINGS = {
   stability: 0.65,
   similarity_boost: 0.75,
-  style: 0,
-  use_speaker_boost: true,
 } as const;
 /** 声だけなので 64kbps で足りる（どのプランでも使える形式） */
 export const TTS_OUTPUT_FORMAT = "mp3_44100_64";

@@ -53,7 +53,8 @@ describe("時計を進める", () => {
     expect(s.inbound.find((r) => r.id === "5")?.status).toBe("卸に照会中・到着未定");
     expect(s.inbound.find((r) => r.id === "4")?.status).toBe("融通の調整中");
     expect(s.inbound.find((r) => r.id === "6")?.status).toBe("確定"); // 11/08
-    expect(s.log[0].text).toContain("受領");
+    // 時計で新しく出た発注の提案も記録に載る（Issue #107）ので、先頭とは限らない
+    expect(s.log.find((l) => l.kind === "受領")?.text).toContain("受領");
   });
 
   it("搬送便・連絡員の時刻に紙の記録が本部に届き、届いていない数が 0 になる", () => {

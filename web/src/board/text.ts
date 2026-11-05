@@ -3,8 +3,114 @@
 
 // [TODO-OWNER: ボードの画面の文言（Claude Code の下書き。題・説明・各欄の見出し・注意書き）]
 // → オーナー決定（2026-11-05、チャット）：はじめにのボタンは「地域本部の医薬品ボードを見る（試作）」。在庫の状態は「在庫切れ」「未確認」「見込み算出不可」と文字で示し、色は補助に使う。見出しの直下は「架空データ」と集計時点を短く表示する（ほかの文言は下書きのまま、判断待ち）。
-export const BOARD_TITLE = "地域本部 医薬品ボード（試作）";
+/** 画面の題（Issue #107。オーナー「題名は SonaQuest を使い、医薬品ボードはやめる。（試作）は表示しない」） */
+export const BOARD_TITLE = "SonaQuest";
 export const BOARD_MOCK_BADGE = "架空データ";
+
+/** 画面の副題と、左のペイン・上部タブ（Issue #107） */
+// [TODO-OWNER: ボードの副題・左のペイン・上部タブ・救護所の詳細の文言（Claude Code の下書き。副題「各救護所の状況」）]
+export const BOARD_SUBTITLE = "各救護所の状況";
+export const BOARD_LAYOUT = {
+  paneLabel: "拠点",
+  hq: "本部（HQ）",
+  hqSub: "本部備蓄・全体",
+  tabsLabel: "表示の切り替え",
+  hqSideLabel: "本部の数字",
+  tabs: {
+    overview: "全体",
+    stock: "在庫",
+    supply: "発注・搬送",
+    records: "記録（カルテ）",
+    demo: "デモ",
+  },
+  siteTabs: {
+    overview: "詳細",
+  },
+  marks: {
+    outOfStock: "在庫切れ",
+    pharmacistsShort: "薬剤師 不足",
+    undelivered: "未交付あり",
+    pending: "記録の形になっていない",
+    proposals: "提案",
+  },
+  detail: {
+    title: "の詳細",
+    shortage: "不足・確認が必要な薬",
+    shortageNote: "在庫切れ → 未確認 → 在庫切れの見込みが近い順 → 見込み算出不可。行を開くと入荷・融通と必要な数。",
+    stats: "今日の様子",
+    patients: "今日の患者（延べ）",
+    chronic: "うち普段の薬の継続",
+    evacuees: "避難者数（見込み）",
+    contact: "連絡先・受け取り",
+    route: "本部からの経路",
+    comms: "記録と通信",
+    charts: "この救護所のカルテ（架空）",
+    district: "地区",
+  },
+  mapHint: "図の拠点を押すと、その拠点の詳細に切り替わる。",
+  hqRecords: "救護所ごとのカルテの件数",
+  openSite: "を開く",
+  siteStockNote: "この救護所の在庫。本部の在庫は右の列に並べた。",
+} as const;
+
+/**
+ * 発注の提案と承認（Issue #107）。数量は在庫と未交付の算数だけで出す。薬の中身・代わりの薬・量の妥当性は判断しない。
+ * 承認・却下は人（本部の担当者）が押す。保存も送信もしない
+ */
+// [TODO-OWNER: 発注の提案と承認の文言（Claude Code の下書き。題・算数の説明・状態の名前・ボタン）]
+export const BOARD_ORDERS = {
+  title: "発注の提案",
+  note: "未交付や、目安の日数より早く切れる見込みの品目について、在庫の算数で必要な数量を出した提案。数量は「未交付・必要な数 ＋ 目安の日数分の出庫 − 現地の在庫 − 向かっている搬送・入荷」。未交付・必要な数が無いときは、1日の出庫分以上足りないときだけ出す。本部備蓄から出せる分と卸へ頼む分に分ける。アプリは薬の中身・代わりの薬・量の妥当性を判断しない。承認・却下は本部の担当者が押す。",
+  empty: "提案はない",
+  pending: "提案中",
+  approved: "承認済み",
+  approve: "承認",
+  reject: "却下",
+  approveOnlyHq: "承認・却下は本部（HQ）の画面で行う。",
+  fromHq: "本部備蓄から",
+  fromVendor: "卸へ頼む",
+  basisNeed: "未交付・必要な数",
+  basisCover: "目安の日数分の出庫",
+  basisCoverUnknown: "出庫のペース不明（0 として計算）",
+  basisOnHand: "現地の在庫",
+  basisIncoming: "向かっている搬送・入荷",
+  newMark: "新",
+  updatedMark: "更新（未交付が増えた）",
+  stageNote: "承認すると本部の在庫を引き当て（引当済み）、出発で搬送中、到着で受領になり、現地の在庫に足される。卸へ頼む分は「卸に照会中・到着未定」で、人の手配が要るので時計では動かない。",
+  goSupply: "本部の発注の提案を見る",
+  count: "件",
+} as const;
+
+/**
+ * 「前回から変わったこと」の1行と、記録の新しさ（Issue #107）。
+ * デモの記録の件数を足してルールで組み立てる固定文。Claude も文の生成も使わない。氏名・品目名・数量は入れない
+ */
+// [TODO-OWNER: 「前回から変わったこと」の1行と、最終報告の相対時間の文言（Claude Code の下書き。ひな形・空のときの文・出来事の名前・「最終報告 N 時間前」）]
+export const BOARD_CHANGES = {
+  label: "前回から変わったこと",
+  since: (time: string) => `${time} 以降：`,
+  none: (time: string) => `${time} 以降、変わったことはありません`,
+  /** 並べる順と名前。未交付は「+N 件」、ほかは「N 件」 */
+  kinds: [
+    { kind: "登録", name: "登録" },
+    { kind: "未交付", name: "未交付" },
+    { kind: "提案", name: "提案" },
+    { kind: "承認", name: "承認" },
+    { kind: "受領", name: "受領" },
+    { kind: "在庫切れ", name: "在庫切れ" },
+  ],
+  sep: "、",
+  lastReport: "最終報告",
+  lastReportNote: "在庫の確認か記録が本部に届いた、新しいほうの時刻。デモの時計から数える",
+  ago: (minutes: number) =>
+    minutes < 1 ? "いま" : minutes < 60 ? `${minutes} 分前` : minutes < 48 * 60 ? `${Math.floor(minutes / 60)} 時間前` : `${Math.floor(minutes / 1440)} 日前`,
+} as const;
+/** 本部の全体の左上に大きく出す数（Issue #107）。救護所ごとの不足の有無を数えるだけ */
+// [TODO-OWNER: 本部の全体で一番大きく出す数の題と説明（Claude Code の下書き。「不足が出ている救護所」）]
+export const BOARD_LEAD_TILE = {
+  label: "不足が出ている救護所",
+  sub: "在庫切れ・切れる見込み・薬剤師の不足のどれかがある救護所の数",
+} as const;
 export const BOARD_LEAD =
   "救護所4か所の情報を本部に集める、ホワイトボードの代わりになる1枚です。実際の災害で使う形ではなく、訓練と同じ記録の項目で何が見えるかを示す試作です。";
 export const BOARD_BACK_LABEL = "はじめにへ戻る";
