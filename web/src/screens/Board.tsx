@@ -1406,7 +1406,7 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
                 <PatientArrivals state={state} dispatch={dispatch} />
 
                 <div className="board-overview-map">
-                  <BoardMap overview={overview} onSelect={select} selected={selected} />
+                  <BoardMap overview={overview} onSelect={select} selected={selected} live={state} reducedMotion={noAuto} />
                   <p className="board-note">{BOARD_LAYOUT.mapHint}</p>
                 </div>
 
