@@ -235,6 +235,12 @@
     display: block;
     margin: 0;
   }
+  /* 「在庫切れ見込み（あと2.5日）」のような長い札は、列の幅で折り返す（隣の品目の列に重ねない） */
+  .board-case-status .board-pill {
+    max-width: 100%;
+    white-space: normal;
+    border-radius: 10px;
+  }
   .board-cases-head {
     display: grid;
     grid-template-columns: 11em minmax(9em, 1.2fr) 5.5em 5.5em minmax(9em, 1.4fr) minmax(9em, 1.4fr);
