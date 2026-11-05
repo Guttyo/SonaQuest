@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>読み上げの聞き比べ（開発用）</title>
+  </head>
+  <body>
+    <!-- 開発用サーバーでだけ開く聞き比べのページ。本番のビルドの入口は index.html だけで、このページは入らない。
+         Workers は `npm run dev:worker:lab`（DEV_EXPERIMENT=1）で動かす -->
+    <div id="root"></div>
+    <script type="module" src="/src/voice/lab.tsx"></script>
+  </body>
+</html>
