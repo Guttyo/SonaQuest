@@ -1639,3 +1639,74 @@
   grid-column: 1;
   grid-row: 2;
 }
+
+/* カルテ入力の専用画面（Issue #114）。在庫管理の画面から切り分け、入力だけを全画面で出す */
+.board-intake-screen {
+  display: grid;
+  gap: 14px;
+  max-width: 46rem;
+  margin: 0 auto;
+}
+.board-intake-head {
+  display: grid;
+  gap: 6px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--control-border);
+}
+.board-intake-head h1 {
+  margin: 0;
+  font-size: var(--fs-title);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+.board-intake-title-sub {
+  font-size: var(--fs-sub);
+  color: var(--ink-soft);
+}
+.board-intake-head .board-asof {
+  margin: 0;
+}
+.board-intake-body {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.board-intake-back {
+  justify-self: start;
+  min-height: 44px;
+}
+.board-intake-open {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+.board-intake-launch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.board-intake-button {
+  min-height: 48px;
+  padding: 8px 20px;
+}
+.board-rx-totals table td.num,
+.board-rx-totals table th.num {
+  text-align: right;
+}
+@media (max-width: 640px) {
+  .board-intake-screen .board-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .board-intake-screen .board-form button[type="submit"] {
+    min-height: 48px;
+    width: 100%;
+  }
+  .board-intake-button {
+    width: 100%;
+  }
+  .board-intake-back {
+    width: 100%;
+  }
+}

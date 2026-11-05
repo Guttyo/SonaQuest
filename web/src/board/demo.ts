@@ -6,6 +6,7 @@ import {
   BOARD_AS_OF,
   COVER_GUIDE_DAYS,
   HQ,
+  ITEMS,
   INBOUND,
   NEEDS,
   PATIENTS,
@@ -653,4 +654,49 @@ export function changesSince(log: readonly DemoLog[], site?: SiteId): Record<Dem
 /** 架空の時刻の文字（「2026-11-05 07:30」）→ BOARD_AS_OF からの経過（分） */
 export function stampMinutes(stamp: string): number {
   return minutesAt(stamp.slice(0, 10), Number(stamp.slice(11, 13)) * 60 + Number(stamp.slice(14, 16)));
+}
+
+/** 救護所×品目の、カルテの処方の累計（Issue #114）。画面で入力した記録の数量を足すだけ */
+export interface PrescriptionTotal {
+  item: string;
+  unit: string;
+  /** 処方の数量の合計 */
+  prescribed: number;
+  /** うち在庫から渡せた数 */
+  delivered: number;
+  /** うち在庫が足りず渡せなかった数（未交付） */
+  undelivered: number;
+  /** 処方の記録の件数 */
+  count: number;
+}
+
+/**
+ * カルテの処方の累計（Issue #114）。その救護所の、画面で入力した記録のうち処方のあるものを、品目ごとに足す。
+ * 最初からある記録は処方が文だけで数量を持たないので数えない。量の妥当性・代わりの薬・薬効は判断しない。
+ * 並びは品目の一覧（ITEMS）の順
+ */
+export function prescriptionTotals(records: readonly DemoRecord[], site: SiteId): PrescriptionTotal[] {
+  const totals = new Map<string, PrescriptionTotal>();
+  for (const r of records) {
+    if (r.site !== site || r.prescription === null) continue;
+    const p = r.prescription;
+    const t = totals.get(p.item) ?? { item: p.item, unit: p.unit, prescribed: 0, delivered: 0, undelivered: 0, count: 0 };
+    t.prescribed += p.qty;
+    t.undelivered += r.undelivered;
+    t.delivered += p.qty - r.undelivered;
+    t.count += 1;
+    totals.set(p.item, t);
+  }
+  const order = (item: string) => {
+    const i = ITEMS.indexOf(item);
+    return i < 0 ? ITEMS.length : i;
+  };
+  return [...totals.values()].sort((a, b) => order(a.item) - order(b.item));
+}
+
+/** 発注の提案の内訳の「未交付・必要な数」のうち、カルテの処方の未交付から来た数（Issue #114） */
+export function chartUndelivered(records: readonly DemoRecord[], site: SiteId, item: string): number {
+  return records
+    .filter((r) => r.site === site && r.prescription?.item === item)
+    .reduce((a, r) => a + r.undelivered, 0);
 }

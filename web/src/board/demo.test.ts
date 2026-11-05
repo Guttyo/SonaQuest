@@ -1,7 +1,7 @@
 // ボードのデモの reducer（Issue #102）。メモリの中の在庫の足し引きと時刻だけを確かめる
 import { describe, expect, it } from "vitest";
 import { HQ, INBOUND, STOCK, SYNC } from "./data";
-import { chartsFor, clockText, demoReducer, initialDemo, minutesAt, patientsWithExtra, type DemoAction } from "./demo";
+import { chartUndelivered, chartsFor, clockText, demoReducer, initialDemo, minutesAt, patientsWithExtra, prescriptionTotals, type DemoAction } from "./demo";
 import { caseRows, stockStatus } from "./summary";
 import { SITES } from "./data";
 
@@ -140,5 +140,47 @@ describe("架空の問診を加える", () => {
     expect(STOCK.find((r) => r.site === "救護所B" && r.item === "抗てんかん薬C")?.onHand).toBe(8);
     expect(INBOUND.find((r) => r.id === "2")?.status).toBe("搬送中");
     expect(SYNC.find((r) => r.site === "救護所B")?.pending).toBe(42);
+  });
+});
+
+describe("カルテの処方の累計（Issue #114）", () => {
+  const rx = (site: "救護所A" | "救護所B", item: string, qty: number): DemoAction => ({
+    type: "add_record",
+    site,
+    name: "架空 太郎",
+    items: [],
+    prescription: { item, qty, days: 7 },
+  });
+
+  it("最初は空。最初からある記録（処方が文だけ）は数えない", () => {
+    expect(prescriptionTotals(initialDemo().records, "救護所A")).toEqual([]);
+  });
+
+  it("入力した数量を救護所×品目で足すだけ。渡せた数と未交付に分け、ほかの救護所の分は混ぜない", () => {
+    let s = initialDemo();
+    s = demoReducer(s, rx("救護所B", "抗てんかん薬C", 5));
+    s = demoReducer(s, rx("救護所B", "抗てんかん薬C", 6));
+    s = demoReducer(s, rx("救護所B", "降圧薬A", 10));
+    s = demoReducer(s, rx("救護所A", "抗てんかん薬C", 4));
+    s = demoReducer(s, { type: "add_record", site: "救護所B", name: "架空 花子", items: [], prescription: null });
+    const b = prescriptionTotals(s.records, "救護所B");
+    const c = b.find((t) => t.item === "抗てんかん薬C")!;
+    // 在庫 8 錠：5 錠は渡せ、次の 6 錠は 3 錠だけ渡せて 3 錠が未交付
+    expect(c).toEqual({ item: "抗てんかん薬C", unit: "錠", prescribed: 11, delivered: 8, undelivered: 3, count: 2 });
+    expect(b.map((t) => t.item)).toEqual(["降圧薬A", "抗てんかん薬C"]);
+    expect(prescriptionTotals(s.records, "救護所A")).toEqual([
+      { item: "抗てんかん薬C", unit: "錠", prescribed: 4, delivered: 4, undelivered: 0, count: 1 },
+    ]);
+    expect(chartUndelivered(s.records, "救護所B", "抗てんかん薬C")).toBe(3);
+    expect(chartUndelivered(s.records, "救護所A", "抗てんかん薬C")).toBe(0);
+  });
+
+  it("カルテの未交付は、発注の提案の「未交付・必要な数」に入っている（算数は変えない）", () => {
+    const before = initialDemo();
+    const needBefore = before.needs.filter((n) => n.site === "救護所B" && n.item === "抗てんかん薬C").reduce((a, n) => a + n.qty, 0);
+    const s = demoReducer(before, rx("救護所B", "抗てんかん薬C", 20));
+    const p = s.proposals.find((x) => x.site === "救護所B" && x.item === "抗てんかん薬C")!;
+    expect(chartUndelivered(s.records, "救護所B", "抗てんかん薬C")).toBe(12);
+    expect(p.basis.need).toBe(needBefore + 12);
   });
 });
