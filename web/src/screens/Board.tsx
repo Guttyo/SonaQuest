@@ -78,6 +78,7 @@ import {
   INTAKE_IMAGE,
 } from "../board/text";
 import { BoardMap } from "./BoardMap";
+import { PatientArrivals } from "../board/PatientArrivals";
 
 /** 上部タブ（Issue #107） */
 export type BoardTab = "overview" | "stock" | "supply" | "records" | "demo";
@@ -901,6 +902,8 @@ function SiteDetail({
         {proposals.some((p) => p.status === "提案") && <p className="board-note">{BOARD_ORDERS.approveOnlyHq}</p>}
       </section>
 
+      <PatientArrivals state={state} site={site} />
+
       <section aria-labelledby="board-detail-charts" id="board-intake">
         <h3 id="board-detail-charts">
           {BOARD_LAYOUT.detail.charts} <span className="board-count">{fmt.format(charts.length)} {BOARD_RECORDS.count}</span>
@@ -1265,6 +1268,8 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
                       <ProposalList state={state} proposals={pendingProposals} canDecide dispatch={dispatch} />
                     </section>
 
+                    <PatientArrivals state={state} dispatch={dispatch} />
+
                     <More id="board-shelters" title={BOARD_SECTIONS.shelters} note={BOARD_SECTIONS.sheltersNote}>
                       <div className="board-tablebox">
                         <table>
@@ -1584,6 +1589,7 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
                     {BOARD_INTAKE_MODE.open}
                   </button>
                 </section>
+                <PatientArrivals state={state} site={selected} />
                 <section aria-labelledby="board-site-charts">
                   <h3 id="board-site-charts">
                     {BOARD_LAYOUT.detail.charts}{" "}
@@ -1620,6 +1626,7 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
                     ))}
                   </div>
                 </section>
+                <PatientArrivals state={state} dispatch={dispatch} />
                 <section aria-labelledby="board-log">
                   <h3 id="board-log">
                     {BOARD_DEMO.logTitle} <span className="board-count">{fmt.format(state.log.length)} 件</span>
