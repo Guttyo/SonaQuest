@@ -227,7 +227,7 @@ a:focus-visible {
   color: var(--ink-soft);
 }
 
-/* 聞き取り係（光の存在。ADR-0020）。動くのは返事を待つ間の「考え中」だけ（下の .listener-light-thinking、ADR-0030） */
+/* 聞き取り係の吹き出しの並び。.listener-light（光の存在。ADR-0020）は、3D を読み込む間の仮の姿（puppet3d/PuppetView.tsx）にだけ残す。2D の係はパペットの 2D 版（.p2d-*、ADR-0038） */
 .listener {
   display: flex;
   gap: 12px;
@@ -293,34 +293,10 @@ a:focus-visible {
   justify-content: flex-end;
 }
 
-.listener-light-small {
-  width: 28px;
-  height: 28px;
-  margin-top: 4px;
-  box-shadow: 0 0 10px 3px rgba(244, 162, 89, 0.35);
-}
-
-/* 考え中（ADR-0030）：光がゆっくり明滅し、文の後ろに点が流れる。
-   動きを減らす設定では、下の prefers-reduced-motion で動きが止まり、光と点は止まったまま見える */
+/* 考え中（ADR-0030）：文の後ろに点が流れる（係の姿の動きは .p2d-* と 3D の側）。
+   動きを減らす設定では、下の prefers-reduced-motion で動きが止まり、点は止まったまま見える */
 .thinking {
   margin-top: 8px;
-}
-
-.listener-light-thinking {
-  animation: listener-thinking 1.6s ease-in-out infinite alternate;
-}
-
-@keyframes listener-thinking {
-  from {
-    opacity: 0.7;
-    transform: scale(0.92);
-    box-shadow: 0 0 6px 2px rgba(244, 162, 89, 0.25);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1.05);
-    box-shadow: 0 0 14px 5px rgba(244, 162, 89, 0.45);
-  }
 }
 
 .thinking-dots {
@@ -866,12 +842,6 @@ h1:focus-visible {
   margin: 0;
 }
 
-.listener-light.listener-light-stage {
-  width: 64px;
-  height: 64px;
-  margin: 8px 20px;
-}
-
 .dialogue-log {
   display: flex;
   flex-direction: column;
@@ -1047,34 +1017,6 @@ h1:focus-visible {
   from {
     opacity: 0;
     transform: translateY(10px);
-  }
-}
-
-/* 回答を受け取ったときのうなずき（2D の光）。小さく2回沈む */
-.listener-light-nod {
-  animation: light-nod 700ms ease-in-out both;
-}
-
-/* 考え中と重なるときは、うなずいてから明滅を始める */
-.listener-light-nod.listener-light-thinking {
-  animation:
-    light-nod 700ms ease-in-out,
-    listener-thinking 1.6s ease-in-out 700ms infinite alternate;
-}
-
-@keyframes light-nod {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  30% {
-    transform: translateY(7px);
-  }
-  55% {
-    transform: translateY(0);
-  }
-  75% {
-    transform: translateY(3px);
   }
 }
 

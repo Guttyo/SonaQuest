@@ -27,5 +27,6 @@
 | ファイル | 要約 |
 |---|---|
 | [2026-11-03-fable-docs-advice.md](2026-11-03-fable-docs-advice.md) | Fable の4観点のレビューとまとめ。コンセプト「思い出すための振り返りのきっかけ」と文書のずれ、未実装を実装済みのように書いた箇所の訂正、提出前に見直す文書の優先順位 |
+| [2026-11-05-judge-audit-a12.md](2026-11-05-judge-audit-a12.md) | A-12 の通し確認の後の judge-audit（Claude Code、Issue #50）。前の記録から変わった主張・証拠・判定・対処、公式ルールとの照合、項目ごとのいちばん大きな弱点 |
 | [2026-11-05-judge-audit-pr70-81.md](2026-11-05-judge-audit-pr70-81.md) | PR #70〜#81 の後の judge-audit（Claude Code、Issue #84）。審査4項目ごとの主張・証拠・判定・対処、公式ルールとの照合、オーナー確認待ち、項目ごとのいちばん大きな弱点 |
 | [2026-11-04-chatgpt-ux-insight-redesign.md](2026-11-04-chatgpt-ux-insight-redesign.md) | ChatGPT の UX 再設計の助言（「自分の備えが足りないことに気づいた」を目標にする）を、main に照らして評価した Claude Code の提案。助言の項目ごとの評価、凍結の前の3つの PR の案（はじめに → ③確認 → 振り返り）、気づきの自己選択の ADR 案の下書き。採用と対応は PR #70・#72・#73・#74 |
