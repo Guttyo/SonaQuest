@@ -1,7 +1,7 @@
 // Claude を使う進行の試験（Issue #15、docs/phase2-decisions.md、ADR-0025）。Claude の返事は作った値で渡す。
 
 import { describe, expect, it } from "vitest";
-import { ACK_TEXT, CLARIFY_TEXTS, REDIRECT_TEXTS } from "./content";
+import { ACK_TEXT, ACK_TEXTS, CLARIFY_TEXTS, REDIRECT_TEXTS, ackFor } from "./content";
 import {
   buildTurnRequest,
   countedAnswers,
@@ -75,12 +75,12 @@ describe("Claude を使う進行", () => {
     const waiting = run([{ type: "start" }, answer("A薬を朝に1錠")]);
     const noText = trainingReducer(waiting, result(waiting, reply(ask("first_location"))));
     // Claude の文が使えないときは、固定の受け止めの一言と固定の質問文（ADR-0029 の3）
-    expect(noText.prompt?.text).toBe(ACK_TEXT + currentQuestion(noText)?.text);
+    expect(noText.prompt?.text).toBe(ackFor(1) + currentQuestion(noText)?.text);
     const wrongId = trainingReducer(
       waiting,
       result(waiting, reply(ask("second_proxy", "別の質問"))),
     );
-    expect(wrongId.prompt?.text).toBe(ACK_TEXT + currentQuestion(wrongId)?.text);
+    expect(wrongId.prompt?.text).toBe(ackFor(1) + currentQuestion(wrongId)?.text);
   });
 
   it("半分の最後は、Claude の受け止めを③確認の冒頭に出し、無ければ固定の一言を出す（ADR-0029 の2）", () => {
@@ -111,7 +111,7 @@ describe("Claude を使う進行", () => {
     let state = run([{ type: "start" }, answer("A薬を朝に1錠")]);
     state = trainingReducer(state, result(state, null));
     expect(state.failedAfter).toBe(1);
-    expect(state.prompt?.text).toBe(ACK_TEXT + currentQuestion(state)?.text);
+    expect(state.prompt?.text).toBe(ackFor(1) + currentQuestion(state)?.text);
     state = trainingReducer(state, answer("手帳です"));
     expect(state.failedAfter).toBe(1);
   });
@@ -361,5 +361,15 @@ describe("Claude を使う進行", () => {
       allow_clarify: true,
       allow_redirect: true,
     });
+  });
+});
+
+describe("固定の受け止めの一言（2026-11-05 オーナー「同じ言い方ばかり」）", () => {
+  it("回答の数で替わり、続けて同じ言い方にならない。どれも短く、内容に触れない", () => {
+    for (let n = 0; n < 10; n++) expect(ackFor(n + 1)).not.toBe(ackFor(n));
+    for (const ack of ACK_TEXTS) {
+      expect(ack.length).toBeLessThanOrEqual(15);
+      expect(ack).not.toBe(ACK_TEXT);
+    }
   });
 });

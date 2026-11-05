@@ -5,7 +5,11 @@ import { FIRST_HALF_QUESTIONS, PROXY_QUESTION } from "../src/flow/content";
 import { isAcceptablePromptText, repeatsUserWords } from "./checks";
 
 const location = FIRST_HALF_QUESTIONS[1].text;
-const context = (userTexts: string[] = []) => ({ userTexts, allowed: [location] });
+// 聞き返しで添えてよい例も、turn.ts と同じく許す言葉に入れる（Issue #110）
+const context = (userTexts: string[] = []) => ({
+  userTexts,
+  allowed: [location, FIRST_HALF_QUESTIONS[1].examples ?? ""],
+});
 
 describe("通してよい文", () => {
   it.each([
