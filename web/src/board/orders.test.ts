@@ -1,6 +1,6 @@
 // 発注の提案と承認（Issue #107）。在庫と未交付の算数、承認の状態、却下を確かめる。薬の中身は判断しない
 import { describe, expect, it } from "vitest";
-import { DISTRICTS, HQ, INBOUND, NEEDS, SHELTERS, STOCK, districtOf } from "./data";
+import { DISTRICTS, HQ, INBOUND, NEEDS, SHELTERS, STOCK, districtOf, type SiteId } from "./data";
 import {
   DISPATCH_DELAY_MINUTES,
   changesSince,
@@ -227,5 +227,63 @@ describe("前回から変わったこと（件数だけ。Issue #107 の追加�
     expect(changesSince(s.log, "救護所B").受領).toBeGreaterThanOrEqual(1);
     const long = run(s, ...Array.from({ length: 48 }, () => ({ type: "tick", hours: 1 }) as DemoAction));
     expect(changesSince(long.log).登録).toBe(1);
+  });
+});
+
+describe("PR #108 のレビューで直したこと", () => {
+  const rec = (site: SiteId, qty: number): DemoAction => ({
+    type: "add_record",
+    site,
+    name: "架空 花子",
+    items: [{ label: "薬の名前・量（本人の言葉のまま）", value: "（未記入）" }],
+    prescription: { item: "抗凝固薬F", qty, days: 7 },
+  });
+  const hqF = (s: DemoState) => onHand(s, HQ, "抗凝固薬F")!;
+
+  it("承認は画面に出した内訳のとおり。ほかの救護所に割り当てた本部の在庫は使わない", () => {
+    const s = run(initialDemo(), rec("救護所B", 450), rec("救護所D", 350));
+    const b = prop(s, "救護所B", "抗凝固薬F")!;
+    const d = prop(s, "救護所D", "抗凝固薬F")!;
+    expect(b.fromHq + d.fromHq).toBeLessThanOrEqual(hqF(initialDemo()));
+    const afterD = run(s, { type: "approve_proposal", id: d.id });
+    expect(hqF(s) - hqF(afterD)).toBe(d.fromHq);
+    const ship = afterD.inbound.find((r) => r.proposalId === d.id && r.from === HQ);
+    expect(ship?.qty ?? 0).toBe(d.fromHq);
+    expect(afterD.inbound.find((r) => r.proposalId === d.id && r.status === "卸に照会中・到着未定")?.qty ?? 0).toBe(d.fromVendor);
+  });
+
+  it("却下した提案に本部の在庫を割り当てない（残りの提案が本部の在庫を使える）", () => {
+    const s = run(initialDemo(), rec("救護所B", 450), rec("救護所D", 350));
+    const b = prop(s, "救護所B", "抗凝固薬F")!;
+    const after = run(s, { type: "reject_proposal", id: b.id });
+    const d = prop(after, "救護所D", "抗凝固薬F")!;
+    expect(d.fromHq).toBe(Math.min(d.qty, hqF(after)));
+  });
+
+  it("本部の分が届いても、卸の分が残っていれば「一部受領・卸に照会中」で、「受領」にしない", () => {
+    const s = run(initialDemo(), rec("救護所B", 450), rec("救護所D", 350));
+    const b = prop(s, "救護所B", "抗凝固薬F")!;
+    const s1 = run(s, { type: "approve_proposal", id: b.id });
+    const d = prop(s1, "救護所D", "抗凝固薬F")!;
+    expect(d.fromHq).toBeGreaterThan(0);
+    expect(d.fromVendor).toBeGreaterThan(0);
+    const s2 = run(s1, { type: "approve_proposal", id: d.id }, { type: "tick", hours: 24 });
+    const dp = s2.proposals.find((x) => x.id === d.id)!;
+    expect(s2.inbound.find((r) => r.id === dp.shipmentId)?.status).toBe("受領");
+    expect(proposalStage(dp, s2.inbound)).toBe("一部受領・卸に照会中");
+  });
+
+  it("最初からある本部 → 救護所の搬送（引当済みなど）は、提案に割り当てられる本部の在庫から除く", () => {
+    const reserved = INBOUND.filter((r) => r.from === HQ && (r.status === "確定" || r.status === "引当済み" || r.status === "搬送中"));
+    expect(reserved.length).toBeGreaterThan(0);
+    const r = reserved[0];
+    const hq = STOCK.find((x) => x.site === HQ && x.item === r.item)!.onHand ?? 0;
+    const big = suggestOrders(
+      STOCK,
+      [...NEEDS, { site: r.to, item: r.item, qty: 100000, by: "2026-11-05 12:00" }],
+      INBOUND,
+    ).find((x) => x.site === r.to && x.item === r.item)!;
+    const reservedQty = reserved.filter((x) => x.item === r.item).reduce((a, x) => a + x.qty, 0);
+    expect(big.fromHq).toBeLessThanOrEqual(Math.max(0, hq - reservedQty));
   });
 });

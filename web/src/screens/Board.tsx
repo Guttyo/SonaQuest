@@ -533,7 +533,7 @@ const siteName = (site: SiteId) => (site === HQ ? BOARD_LAYOUT.hq : site);
 /** 発注の提案の状態の色 */
 function stageLevel(stage: string): "bad" | "warn" | "ok" | "none" {
   if (stage === "提案") return "warn";
-  if (stage === "卸に照会中") return "bad";
+  if (stage === "卸に照会中" || stage === "一部受領・卸に照会中") return "bad";
   if (stage === "受領") return "none";
   return "ok";
 }

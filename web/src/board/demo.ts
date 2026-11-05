@@ -230,7 +230,13 @@ export interface OrderSuggestion {
  * 本部備蓄から出せる分は、並びの順に本部の在庫を割り当てる。残りは卸へ頼む分。
  * 並びは、残り日数が短い順（在庫 0 が先）。薬の中身・代わりの薬・量の妥当性は判断しない
  */
-export function suggestOrders(stock: readonly StockRow[], needs: readonly NeedRow[], inbound: readonly DemoInbound[]): OrderSuggestion[] {
+export function suggestOrders(
+  stock: readonly StockRow[],
+  needs: readonly NeedRow[],
+  inbound: readonly DemoInbound[],
+  /** 出さない行（却下したもの）。本部の在庫を割り当てる前に外す（PR #108 のレビュー） */
+  skip: (key: string, need: number) => boolean = () => false,
+): OrderSuggestion[] {
   const rows = stock
     .filter((r) => r.site !== HQ && r.onHand !== null)
     .map((r) => {
@@ -246,9 +252,16 @@ export function suggestOrders(stock: readonly StockRow[], needs: readonly NeedRo
     })
     // 未交付・必要な数があるか、目安の日数分より1日分以上足りないときだけ出す（時計で少し減るたびに小さな提案が並ばないように）
     .filter((x) => x.qty > 0 && (x.need > 0 || (x.r.dailyUse !== null && x.qty >= x.r.dailyUse)))
+    .filter((x) => !skip(`${x.r.site}|${x.r.item}`, x.need))
     .sort((a, b) => a.days - b.days || SHELTERS.indexOf(a.r.site) - SHELTERS.indexOf(b.r.site));
   const hqLeft = new Map<string, number>();
   for (const r of stock) if (r.site === HQ) hqLeft.set(r.item, Math.max(0, Math.floor(r.onHand ?? 0)));
+  // 最初からある本部 → 救護所の搬送（確定・引当済み・搬送中）は、本部の在庫からまだ引いていないので、割り当てられる数から除く。
+  // 承認で足した搬送は、承認のときに本部の在庫を減らしているので除かない（二重に引かない。PR #108 のレビュー）
+  for (const x of inbound) {
+    if (x.from !== HQ || x.proposalId || !(x.status === "確定" || x.status === "引当済み" || x.status === "搬送中")) continue;
+    hqLeft.set(x.item, Math.max(0, (hqLeft.get(x.item) ?? 0) - x.qty));
+  }
   return rows.map((x) => {
     const left = hqLeft.get(x.r.item) ?? 0;
     const fromHq = Math.min(x.qty, left);
@@ -277,9 +290,8 @@ export function refreshProposals(state: DemoState): DemoState {
   let seq = state.seq;
   const next: OrderProposal[] = [];
   const log: DemoLog[] = [];
-  for (const s of suggestOrders(state.stock, state.needs, state.inbound)) {
-    const dismissedNeed = state.dismissed[s.key];
-    if (dismissedNeed !== undefined && s.basis.need <= dismissedNeed) continue;
+  const isDismissed = (key: string, need: number) => state.dismissed[key] !== undefined && need <= state.dismissed[key];
+  for (const s of suggestOrders(state.stock, state.needs, state.inbound, isDismissed)) {
     const before = pending.find((p) => p.key === s.key);
     if (!before) {
       seq += 1;
@@ -301,13 +313,16 @@ export function refreshProposals(state: DemoState): DemoState {
 }
 
 /** 提案の画面の状態。承認済みは、搬送の行の状態（引当済み → 搬送中 → 受領）から決める */
-export type ProposalStage = "提案" | "承認済み（引当済み）" | "搬送中" | "受領" | "卸に照会中";
+export type ProposalStage = "提案" | "承認済み（引当済み）" | "搬送中" | "受領" | "卸に照会中" | "一部受領・卸に照会中";
 
+/** 本部の分と卸の分の両方を見て決める。卸の分が残っているあいだは「受領」にしない（PR #108 のレビュー） */
 export function proposalStage(p: OrderProposal, inbound: readonly DemoInbound[]): ProposalStage {
   if (p.status === "提案") return "提案";
   const ship = p.shipmentId ? inbound.find((r) => r.id === p.shipmentId) : undefined;
-  if (!ship) return "卸に照会中";
-  if (ship.status === "受領") return "受領";
+  const vendor = p.vendorId ? inbound.find((r) => r.id === p.vendorId) : undefined;
+  const vendorOpen = vendor !== undefined && vendor.status !== "受領";
+  if (!ship) return vendorOpen || !vendor ? "卸に照会中" : "受領";
+  if (ship.status === "受領") return vendorOpen ? "一部受領・卸に照会中" : "受領";
   if (ship.status === "搬送中") return "搬送中";
   return "承認済み（引当済み）";
 }
@@ -318,7 +333,8 @@ function approve(state: DemoState, id: string): DemoState {
   if (!p) return state;
   const stock = state.stock.map((r) => ({ ...r }));
   const hq = stock.find((r) => r.site === HQ && r.item === p.item);
-  const fromHq = Math.min(p.qty, Math.max(0, Math.floor(hq?.onHand ?? 0)));
+  // 画面に出した内訳（本部備蓄から・卸へ）のとおりに承認する。ほかの提案に割り当てた本部の在庫は使わない（PR #108 のレビュー）
+  const fromHq = Math.min(p.fromHq, Math.max(0, Math.floor(hq?.onHand ?? 0)));
   const fromVendor = p.qty - fromHq;
   if (hq && fromHq > 0) hq.onHand = (hq.onHand ?? 0) - fromHq;
   let seq = state.seq;
