@@ -10,12 +10,20 @@ import {
   RECOVERY_QUESTION,
   REVIEW_EVENT_HEADING,
   REVIEW_RECOVERY_LABEL,
+  REVIEW_SOURCES_HEADING,
+  REVIEW_SOURCES_NOTE,
   TIMINGS,
   UNDETERMINED_NOTE,
   VIEWPOINT_LABELS,
   VIEWPOINT_ORDER,
 } from "../flow/content";
-import { isWeak, orderPrepActions, undeterminedJudgments } from "../flow/rules";
+import {
+  isWeak,
+  orderPrepActions,
+  undeterminedJudgments,
+  verifiedSourcesFor,
+  type PublicSource,
+} from "../flow/rules";
 import type { TrainingState } from "../flow/training";
 import type { EventId, PrepActionId, TimingId } from "../flow/types";
 import { SceneBar } from "./ListenerStage";
@@ -25,6 +33,8 @@ import { Exchange, ListenerLine } from "./Transcript";
 interface Props {
   state: TrainingState;
   onChoose: (action: PrepActionId, timing: TimingId) => void;
+  /** 準備行動ごとの確認済みの公的資料（A-06）。試験で差し替えるときだけ渡す */
+  sourcesFor?: (action: PrepActionId) => PublicSource[];
 }
 
 /** 出来事の立て直しの問い（係の交代のときは説明し直しの問い）。振り返りの「出来事と立て直し」で原文を出す */
@@ -35,7 +45,7 @@ const RECOVERY_IDS: readonly string[] = [RECOVERY_QUESTION.id, HANDOVER_QUESTION
  * 5つの観点の判定 → 回答の原文 → 今ここで確かめましょう → 次の準備。
  * 絵はすべて飾り（aria-hidden）で、意味は必ず隣の文字で示す。色だけで区別しない（✓・「（使えない）」・判定の文字）
  */
-export function Review({ state, onChoose }: Props) {
+export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Props) {
   // Claude を使わない版と、途中で失敗した回は、判定をすべて「判定できませんでした」にする（ADR-0012）
   const judgments =
     state.ai === "on" && state.judgments !== null ? state.judgments : undeterminedJudgments();
@@ -145,6 +155,8 @@ export function Review({ state, onChoose }: Props) {
         ))}
       </div>
 
+      <PublicSources actions={orderedActions} sourcesFor={sourcesFor} />
+
       {/* 準備行動といつやるかは、はじめに・③確認と同じ大きなカード（.mode-card。中は見えないラジオ） */}
       <h2>次の準備を1つ決める</h2>
       <fieldset className="mode-cards prep-cards">
@@ -216,6 +228,47 @@ function EventSummary({ event }: { event: EventId }) {
           {EVENTS[event].unavailable}
         </p>
       )}
+    </>
+  );
+}
+
+/**
+ * 準備行動ごとの、確認済みの公的資料（A-06、ADR-0043）。準備行動の名前の下に、発行元・題・見出し・確認日を出す。
+ * リンクは準備行動のカード（label）の外に置く（カードの中だと、押したときにラジオも切り替わるため）。
+ * 確認済みの資料が1件も無いときは、見出しも含めて何も出さない。資料の説明は固定文だけで、Claude に作らせない
+ */
+function PublicSources({
+  actions,
+  sourcesFor,
+}: {
+  actions: readonly { id: PrepActionId; label: string }[];
+  sourcesFor: (action: PrepActionId) => PublicSource[];
+}) {
+  const groups = actions
+    .map((a) => ({ action: a, sources: sourcesFor(a.id) }))
+    .filter((g) => g.sources.length > 0);
+  if (groups.length === 0) return null;
+  return (
+    <>
+      <h2>{REVIEW_SOURCES_HEADING}</h2>
+      <p className="small">{REVIEW_SOURCES_NOTE}</p>
+      {groups.map(({ action, sources }) => (
+        <div key={action.id} className="public-sources">
+          <h3>{action.label}</h3>
+          <ul className="public-source-list">
+            {sources.map((s) => (
+              <li key={s.url}>
+                <a href={s.url} target="_blank" rel="noopener noreferrer">
+                  {s.publisher}「{s.title}」
+                </a>
+                <span className="small public-source-meta">
+                  （{s.section}。確認日 {s.checkedOn}）
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </>
   );
 }

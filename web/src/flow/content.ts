@@ -503,6 +503,93 @@ export const SELF_HARM_SOURCE = {
 export const REVIEW_EVENT_HEADING = "出来事と立て直しの回答";
 export const REVIEW_RECOVERY_LABEL = "出来事の後の、あなたの回答（入力したまま）";
 
+// --- ⑥振り返りの公的資料（A-06、ADR-0043） -----------------------------------
+
+export type PublicSourceId =
+  | "gov_online_prep"
+  | "mhlw_after_service_10"
+  | "fdma_ecollege_pack"
+  | "myna_faq_medicine"
+  | "myna_news_medicine";
+
+/**
+ * 準備行動に関係する公的資料（docs/references.md「振り返りの公的資料」）。
+ * 画面に出すのは verified が true のものだけ（rules.ts の verifiedSourcesFor）。
+ * verified を true にしてよいのは、オーナーが本文と該当箇所を確かめ、docs/references.md を「確認済み」にしたときだけ。
+ * section は資料の見出しをそのまま写したもので、説明文ではない。資料の説明を Claude に作らせない。
+ */
+// [TODO-OWNER: 振り返りの公的資料を確認済みにするか（Claude Code が本文を確かめた候補。docs/references.md）。確かめたものは verified を true に、checkedOn をオーナーの確認日にする]
+export const PUBLIC_SOURCES: Readonly<
+  Record<
+    PublicSourceId,
+    {
+      publisher: string;
+      title: string;
+      section: string;
+      url: string;
+      checkedOn: string;
+      verified: boolean;
+    }
+  >
+> = {
+  gov_online_prep: {
+    publisher: "政府広報オンライン",
+    title: "【防災特集】ACTION01 災害に事前に備える",
+    section: "常用薬・お薬手帳の備え",
+    url: "https://www.gov-online.go.jp/tokusyu/bousai/preparation.html",
+    checkedOn: "2026-11-05",
+    verified: false,
+  },
+  mhlw_after_service_10: {
+    publisher: "厚生労働省",
+    title: "アフターサービス推進室活動報告書（Vol.10:2012年12月）",
+    section: "６．各種お薬手帳の活用事例紹介",
+    url: "https://www.mhlw.go.jp/iken/after-service-vol10.html",
+    checkedOn: "2026-11-05",
+    verified: false,
+  },
+  fdma_ecollege_pack: {
+    publisher: "総務省消防庁 防災・危機管理eカレッジ",
+    title: "4.非常持出品の準備",
+    section: "4.非常持出品の準備",
+    url: "https://www.fdma.go.jp/relocation/e-college/cat65/cat63/cat31/4-7.html",
+    checkedOn: "2026-11-05",
+    verified: false,
+  },
+  myna_faq_medicine: {
+    publisher: "デジタル庁（マイナポータル よくあるご質問）",
+    title: "過去の薬（薬剤情報）ではどのような情報が閲覧できますか。",
+    section: "No : 4901",
+    url: "https://faq.myna.go.jp/faq/show/4901?category_id=18&site_domain=default",
+    checkedOn: "2026-11-05",
+    verified: false,
+  },
+  myna_news_medicine: {
+    publisher: "デジタル庁（マイナポータル お知らせ）",
+    title: "薬の画面で最近の薬や処方せんの情報を確認できるようになりました",
+    section: "2026年5月26日のお知らせ",
+    url: "https://services.digital.go.jp/mynaportal/news/4894d0efa80e90b66c58e/",
+    checkedOn: "2026-11-05",
+    verified: false,
+  },
+};
+
+/** 準備行動と公的資料の対応（Claude Code の下書き。資料が見つからなかった準備行動は空で、リンクなしで出す） */
+// [TODO-OWNER: 準備行動と公的資料の対応（Claude Code の下書き。docs/references.md）]
+export const PREP_SOURCES: Readonly<Record<PrepActionId, readonly PublicSourceId[]>> = {
+  notebook_bag: ["gov_online_prep", "mhlw_after_service_10"],
+  photo_and_paper: ["mhlw_after_service_10", "fdma_ecollege_pack"],
+  wallet_memo: [],
+  tell_family: [],
+  pharmacy_contact: [],
+  check_portal: ["myna_faq_medicine", "myna_news_medicine"],
+};
+
+// [TODO-OWNER: 振り返りの公的資料の見出しと注記（Claude Code の下書き）]
+export const REVIEW_SOURCES_HEADING = "準備に役立つ公的資料";
+export const REVIEW_SOURCES_NOTE =
+  "リンクは別のタブで開きます。内容は、それぞれの発行元のページでご確認ください。";
+
 // --- BGM（B-03、ADR-0039） ---------------------------------------------------
 
 // [TODO-OWNER: BGM の操作の文字と説明（Claude Code の下書き）]

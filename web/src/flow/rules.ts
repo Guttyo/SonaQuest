@@ -4,7 +4,10 @@ import {
   FIRST_HALF_QUESTIONS,
   HANDOVER_QUESTION,
   PREP_ACTIONS,
+  PREP_SOURCES,
   PROXY_QUESTION,
+  PUBLIC_SOURCES,
+  type PublicSourceId,
   PROXY_QUESTION_AFTER_FAMILY,
   RECENT_QUESTION,
   RECHECK_QUESTION,
@@ -89,4 +92,21 @@ export function orderPrepActions(judgments: Judgments): PrepActionId[] {
   );
   const rest = PREP_ACTIONS.filter((a) => !weak.includes(a));
   return [...weak, ...rest].map((a) => a.id);
+}
+
+/** 振り返りに出す公的資料1件（A-06） */
+export type PublicSource = (typeof PUBLIC_SOURCES)[PublicSourceId];
+
+/**
+ * 準備行動に関係する公的資料のうち、確認済み（verified）のものだけを返す（A-06、ADR-0043）。
+ * 未確認のものは、対応に書いてあっても返さない。試験のために、対応と資料の一覧を差し替えられる
+ */
+export function verifiedSourcesFor(
+  action: PrepActionId,
+  sources: Readonly<Record<string, PublicSource>> = PUBLIC_SOURCES,
+  links: Readonly<Record<PrepActionId, readonly string[]>> = PREP_SOURCES,
+): PublicSource[] {
+  return links[action]
+    .map((id) => sources[id])
+    .filter((s): s is PublicSource => s !== undefined && s.verified);
 }
