@@ -4,6 +4,17 @@
 
 Claude Code はこの手順を実行しない。API キーと手元の秘密のファイルには触れない（CLAUDE.md 絶対ルール6）。
 
+**2026-11-06 に実施済み**（Issue #139）。オーナーが `--apply` で Environment 1つと Agent 5つを作り、ID は `web/wrangler.jsonc` の `vars` に入っている。同じ ID で手元の `wrangler dev` から本物の Managed Agents で動くことを確かめた（docs/safety-test-plan.md H12）。**作り直すのは、モデル・system prompt・カタカナの一覧（`web/worker/boardChatAgents.ts`）を変えたときだけ**。Agent の定義は作成時のもので固定されるので、定義を変えても `vars` の ID の Agent には反映されない。作り直したら新しい ID で `vars` を書き換え、古い Agent は Claude Console で片付ける。
+
+## PowerShell でキーを環境変数に入れるとき
+`.dev.vars` に書いたキーをその場の環境変数に入れる例（値は画面に出ない。1件目の行だけを使う）：
+
+```powershell
+$env:ANTHROPIC_API_KEY = ((Get-Content web\.dev.vars | Select-String '^ANTHROPIC_API_KEY=' | Select-Object -First 1).Line -replace '^ANTHROPIC_API_KEY=','').Trim()
+```
+
+`$env:ANTHROPIC_API_KEY.Length` が 0 でなければ入っている。
+
 ## 作るもの
 `web/worker/boardChatAgents.ts` の定義から、次のものを作る。
 
@@ -30,7 +41,7 @@ npm --prefix web run setup:board-chat -- --apply
 ```
 
 4. 出た6行の ID を `web/wrangler.jsonc` の `vars`（`BOARD_CHAT_ENVIRONMENT_ID`、`BOARD_CHAT_AGENT_HQ`〜`BOARD_CHAT_AGENT_D`）に入れる。ID は秘密ではないので、Issue と PR で入れてよい。
-5. 手元で確かめるときは `npm --prefix web run dev:worker` と `npm --prefix web run dev` を動かし、ボードの「連絡」タブで「エージェントの連絡を始める」を押す。
+5. 手元で確かめるときは `npm --prefix web run dev:worker` と `npm --prefix web run dev` を動かし、ボードの「連絡」タブで「エージェントの連絡を始める」を押す。`vars` を変えずに別の ID を試すときは、`wrangler dev` に `--var BOARD_CHAT_ENVIRONMENT_ID:env_…` の形で6つを渡せる（コマンドラインの値が `wrangler.jsonc` の `vars` より優先される）。
 6. 公開する版で使うときは、`vars` を入れた変更をマージしてからデプロイする（デプロイはオーナーの承認の後。CLAUDE.md 絶対ルール7）。公開する版で動くのは、`/api/turn` と同じ公開の切り替え（`PUBLIC_TURN=1`）があるときだけ。
 
 ## 気をつけること

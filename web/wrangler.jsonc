@@ -28,11 +28,11 @@
   // オーナーが setup スクリプト（npm --prefix web run setup:board-chat）で作り、出た値をここに入れる（手順は docs/board-chat-setup.md）。
   // 空のままなら、チャットはルールで組んだ固定の掲示だけになる。API キーはここに書かない（secrets）
   "vars": {
-    "BOARD_CHAT_ENVIRONMENT_ID": "",
-    "BOARD_CHAT_AGENT_HQ": "",
-    "BOARD_CHAT_AGENT_A": "",
-    "BOARD_CHAT_AGENT_B": "",
-    "BOARD_CHAT_AGENT_C": "",
-    "BOARD_CHAT_AGENT_D": ""
+    "BOARD_CHAT_ENVIRONMENT_ID": "env_0196dKYCHE3iBj5cc6Yt58M8",
+    "BOARD_CHAT_AGENT_HQ": "agent_01YFjq19JrePAN1fmSeQ5ytD",
+    "BOARD_CHAT_AGENT_A": "agent_01GCfgzvnPLemZt3dgUD7uPG",
+    "BOARD_CHAT_AGENT_B": "agent_01W9z1ZEp3T5oULzQS2xMx1j",
+    "BOARD_CHAT_AGENT_C": "agent_01V3XQChcCB4ZUjFB6ve1MNo",
+    "BOARD_CHAT_AGENT_D": "agent_01RazAsv5c4YUTDtxuQFWp57"
   }
 }
