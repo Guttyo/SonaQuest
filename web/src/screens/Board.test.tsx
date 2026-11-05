@@ -1,145 +1,312 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { INBOUND, INTAKE_RECORDS, NEEDS, PATIENTS, SITES, STOCK, SYNC } from "../board/data";
+import { HQ, INBOUND, INTAKE_RECORDS, NEEDS, PATIENTS, SITES, STOCK, SYNC, type SiteId } from "../board/data";
+import { demoReducer, initialDemo, type DemoAction } from "../board/demo";
 import { caseRows, criticalItems, pendingSummary, todaySummary } from "../board/summary";
-import { BOARD_CASES, BOARD_DEMO, BOARD_INTAKE_FORM, BOARD_MOCK_BADGE, BOARD_TITLE, INTAKE_IMAGE } from "../board/text";
-import { Board } from "./Board";
+import {
+  BOARD_CASES,
+  BOARD_CHANGES,
+  BOARD_DEMO,
+  BOARD_INTAKE_FORM,
+  BOARD_LAYOUT,
+  BOARD_LEAD_TILE,
+  BOARD_MOCK_BADGE,
+  BOARD_ORDERS,
+  BOARD_SUBTITLE,
+  BOARD_TITLE,
+  INTAKE_IMAGE,
+} from "../board/text";
+import { Board, type BoardTab } from "./Board";
 
-/** 試験は DOM の無い環境で動くので、文字列に描いて確かめる（最初の状態。デモの操作は demo.test.ts） */
-const html = renderToStaticMarkup(<Board onBack={() => {}} reducedMotion={false} />);
+/** 試験は DOM の無い環境で動くので、拠点とタブを最初の値で渡して文字列に描き、画面の切り替えを確かめる */
+const render = (site: SiteId = HQ, tab: BoardTab = "overview", state = initialDemo()) =>
+  renderToStaticMarkup(<Board onBack={() => {}} reducedMotion={false} initialSite={site} initialTab={tab} initialState={state} />);
+const html = render();
 const cases = caseRows(STOCK, INBOUND, NEEDS, SITES, SYNC);
+const panel = (h: string) => h.slice(h.indexOf('id="board-panel"'));
+const pane = (h: string) => h.slice(h.indexOf('class="board-pane"'), h.indexOf('class="board-main"'));
 
-describe("地域本部のボード（試作。Issue #97、#101、#102）", () => {
-  it("題は App の画面遷移の焦点の目印（[data-scroll-target]）で、直下に架空データの印と集計時点", () => {
-    expect(html).toContain(`<h1 id="board-title" data-scroll-target="true" tabindex="-1">${BOARD_TITLE}</h1>`);
-    const asof = html.slice(html.indexOf('class="board-asof"'), html.indexOf('id="board-cases"'));
-    expect(asof).toContain(BOARD_MOCK_BADGE);
-    expect(asof).toContain("集計 11/05 09:30 時点");
+describe("ボードの題とレイアウト（Issue #107）", () => {
+  it("題は SonaQuest と副題。App の画面遷移の焦点の目印（[data-scroll-target]）で、架空データの印と集計時点と架空の時刻が並ぶ", () => {
+    expect(BOARD_TITLE).toBe("SonaQuest");
+    expect(html).toContain(`<h1 id="board-title" data-scroll-target="true" tabindex="-1">SonaQuest</h1>`);
+    expect(html).toContain(`<span class="board-subtitle">${BOARD_SUBTITLE}</span>`);
+    const head = html.slice(html.indexOf('class="board-head"'), html.indexOf('class="board-body"'));
+    expect(head).toContain(BOARD_MOCK_BADGE);
+    expect(head).toContain("集計 11/05 09:30 時点");
+    expect(head).toContain('data-testid="demo-clock">11/05 09:30<');
+    expect(head).not.toMatch(/医薬品ボード|（試作）/);
   });
 
-  it("先頭は救護所ごとの一覧（1タップ目）で、救護所の行に人員と薬の不足、開くと品目の行（2タップ目）。集計のカードはその後", () => {
-    const i = (needle: string) => html.indexOf(needle);
-    expect(i('id="board-cases"')).toBeGreaterThan(0);
-    expect(i('id="board-cases"')).toBeLessThan(i('id="board-demo"'));
-    expect(i('id="board-demo"')).toBeLessThan(i('class="board-tiles"'));
-    expect(html).toContain(`${BOARD_CASES.title} <span class="board-count">${cases.length} 件</span>`);
-    expect(html.match(/<li class="board-group">/g)).toHaveLength(4);
-    // 救護所の行：薬剤師の不足は「不足 N 人」と文字で（救護所A は 2/3 人）、経路は文字で
-    const a = html.slice(i("<b>救護所A</b>"), i("<b>救護所A</b>") + 1500);
-    expect(a).toContain("2 人");
-    expect(a).toContain(">不足 1 人</span>");
-    expect(a).toContain(">通行可</span>");
-    // 品目の行は救護所の行の中（details の中の details）
-    expect(html.match(/<li class="board-case">/g)).toHaveLength(cases.length);
-    expect(html).not.toMatch(/<details class="board-more" open/);
+  it("左のペインは、上から本部（HQ）→ 地区の見出し → その地区の救護所。最初は本部が選ばれている", () => {
+    const p = pane(html);
+    const order = [BOARD_LAYOUT.hq, "東地区（架空）", "救護所A", "救護所D", "西地区（架空）", "救護所B", "救護所C"].map((s) => p.indexOf(s));
+    expect(order.every((x) => x >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(p.match(/<button type="button" class="board-pane-item/g)).toHaveLength(5);
+    expect(p).toContain('class="board-pane-item hq current" aria-current="true" data-pane="本部備蓄"');
+    // 印：救護所B は薬剤師の不足と、記録の形になっていない数。救護所C は在庫切れ
+    const b = p.slice(p.indexOf('data-pane="救護所B"'), p.indexOf('data-pane="救護所C"'));
+    expect(b).toContain(">薬剤師 不足 1<");
+    expect(b).toContain(">記録の形になっていない 42<");
+    expect(p.slice(p.indexOf('data-pane="救護所C"'))).toContain(">在庫切れ 1<");
+    expect(p).toContain(`>${BOARD_LAYOUT.marks.proposals} 2<`);
   });
 
-  it("救護所C の例：在庫切れ・現地0錠・本部0錠・卸に照会中・到着未定・次の確認が同じ行にあり、詳細に連絡に要るものがそろう", () => {
-    const c = html.slice(html.indexOf("<b>救護所C</b>"));
-    const first = c.slice(c.indexOf('<li class="board-case">'), c.indexOf("</li>"));
+  it("上部タブは5つ（全体・在庫・発注・搬送・記録（カルテ）・デモ）で、選んだタブだけが aria-selected", () => {
+    expect(html.match(/role="tab"/g)).toHaveLength(5);
+    for (const label of Object.values(BOARD_LAYOUT.tabs)) expect(html).toContain(label);
+    expect(html.match(/aria-selected="true"/g)).toHaveLength(1);
+    expect(html).toContain('id="board-tab-overview" aria-selected="true"');
+    const stock = render(HQ, "stock");
+    expect(stock).toContain('id="board-tab-stock" aria-selected="true"');
+    // 救護所を選ぶと、全体のタブは「詳細」になる
+    expect(render("救護所A")).toContain(`>${BOARD_LAYOUT.siteTabs.overview}</button>`);
+  });
+});
+
+describe("本部（HQ）の全体", () => {
+  it("数字は架空データから計算したもの", () => {
+    const today = todaySummary(PATIENTS);
+    expect(html).toContain(`data-testid="today-patients">${today.patients}</span>`);
+    expect(html).toContain(`data-testid="critical-count">${criticalItems(STOCK).length}</span>`);
+    expect(html).toContain(`data-testid="pending-count">${pendingSummary(SYNC).pending}</span>`);
+    expect(html).toContain(`data-testid="proposal-count">2</span>`);
+    expect(html).toContain("未着 97・転記待ち 6");
+  });
+
+  it("模式図の拠点は押せるもの（role=button）で、救護所ごとのカードから詳細に入れる", () => {
+    const p = panel(html);
+    expect(p.match(/<g class="board-map-site pressable[^"]*"/g)).toHaveLength(5);
+    expect(p).toContain('role="button" tabindex="0" aria-label="救護所A（小学校の体育館）を選ぶ"');
+    expect(p).toContain('class="board-map-site pressable selected"');
+    expect(p.match(/<li class="board-site-card">/g)).toHaveLength(4);
+    expect(p).toContain(`${BOARD_CASES.title} <span class="board-count">${cases.length} 件</span>`);
+    expect(p).toContain("骨粗鬆症薬G（週1）（在庫切れ）");
+  });
+
+  it("発注の提案（提案中）が承認・却下のボタン付きで並ぶ", () => {
+    const p = panel(html);
+    expect(p.match(/<li class="board-order pending"/g)).toHaveLength(2);
+    expect(p.match(new RegExp(`>${BOARD_ORDERS.approve}</button>`, "g"))).toHaveLength(2);
+    expect(p.match(new RegExp(`>${BOARD_ORDERS.reject}</button>`, "g"))).toHaveLength(2);
+    // 算数の内訳：救護所B の抗てんかん薬C は 24 ＋ 24 − 8 − 0 ＝ 40、本部 0・卸 40
+    const b = p.slice(p.indexOf('data-proposal="P-02"'));
+    expect(b).toContain("救護所B");
+    expect(b).toContain("未交付・必要な数 24 ＋ 目安の日数分の出庫 24 − 現地の在庫 8 − 向かっている搬送・入荷 0 ＝ 40");
+    expect(b).toContain("本部備蓄から 0錠・卸へ頼む 40錠");
+  });
+});
+
+describe("救護所の詳細（左のペインか図で選ぶ）", () => {
+  const c = render("救護所C");
+
+  it("選んだ救護所が aria-current になり、メインの題が救護所と地区に変わる", () => {
+    expect(pane(c)).toContain('class="board-pane-item current" aria-current="true" data-pane="救護所C"');
+    expect(pane(c)).not.toContain('class="board-pane-item hq current"');
+    expect(c).toContain('data-panel="救護所C|overview"');
+    expect(c).toContain("西地区（架空）");
+    // 本部の数字のカードは出ない
+    expect(c).not.toContain('data-testid="today-patients"');
+  });
+
+  it("今日の患者人数、不足薬（救護所C の行だけ）、連絡先、経路、通信が出る", () => {
+    const p = panel(c);
+    expect(p).toContain('data-testid="site-patients">30 人<');
+    const mine = cases.filter((x) => x.site === "救護所C");
+    expect(p.match(/<li class="board-case">/g)).toHaveLength(mine.length);
+    const first = p.slice(p.indexOf('<li class="board-case">'), p.indexOf("</li>", p.indexOf('<li class="board-case">')));
     expect(first).toContain(">在庫切れ</span>");
     expect(first).toContain("骨粗鬆症薬G（週1）");
     expect(first).toContain("現地</span> 0錠");
     expect(first).toContain("本部</span> 0錠");
     expect(first).toContain("卸に照会中・到着未定");
     expect(first).toContain("次の確認</span> 卸の回答を確認する");
-    expect(first).toContain("000-0000-0003（架空。携帯が断続的）");
-    expect(first).toContain("対応できる薬剤師</dt><dd>2 人</dd>");
-    expect(first).toContain("紙で記録・携帯が断続的");
-    expect(first).toContain("最後に記録が届いた時刻</dt><dd>11/05 08:10</dd>");
-    expect(first).toContain("在庫を確認した時刻</dt><dd>11/05 08:10</dd>");
     expect(first).toContain("3錠（11/08 09:00 まで）");
-    expect(first).toContain("本部からの経路</dt>");
+    expect(p).toContain("000-0000-0003（架空。携帯が断続的）");
+    expect(p).toContain("校舎1階の保健室");
+    expect(p).toContain(">通行可</span> 幹線道路（西回り）");
+    expect(p).toContain("紙で記録・携帯が断続的");
+    // 救護所の画面では承認・却下を押せない
+    expect(p).not.toContain(`>${BOARD_ORDERS.approve}</button>`);
+    expect(p).toContain(BOARD_ORDERS.approveOnlyHq);
   });
 
-  it("未確認・見込み算出不可は在庫切れと別の文字で出る。通信なしの拠点は代わりの手段を先に出す。地図は出さない", () => {
-    expect(html).toContain(">未確認</span>");
-    expect(html).toContain(">見込み算出不可</span>");
-    const d = html.slice(html.indexOf("<b>救護所D</b>"));
-    const row = d.slice(d.indexOf("吸入薬D"));
-    const detail = row.slice(row.indexOf('class="board-case-detail"'), row.indexOf("</details>"));
-    expect(detail.indexOf("代わりの手段")).toBeLessThan(detail.indexOf("連絡先（架空）"));
-    expect(detail).toContain("連絡員が本部へ持ち帰る（午後）");
-    expect(detail).toContain(">通行止め</span>");
+  it("カルテは救護所の詳細の中にある（救護所A：最初からある記録は番号だけ、医師の処方は人が入力する欄）", () => {
+    const a = panel(render("救護所A"));
+    const charts = a.slice(a.indexOf('id="board-intake"'));
+    const rec = INTAKE_RECORDS.find((r) => r.site === "救護所A")!;
+    expect(charts).toContain(`<b>番号 ${rec.id}</b>`);
+    for (const it of rec.items) expect(charts).toContain(it.value);
+    expect(charts).toContain("最新の記録（11/05 09:40・文字起こし（別のアプリ））");
+    expect(charts).toContain(">処方あり</span>");
+    expect(charts).toContain("医師の処方（医師が入力する欄。アプリは決めない）");
+    expect(charts).not.toMatch(/患者名|さん<|様</);
+    // 記録の無い救護所
+    expect(panel(c)).toContain("記録はまだない");
+  });
+
+  it("通信なしの救護所D：代わりの手段と通行止めが出る。外部の地図は使わない", () => {
+    const d = panel(render("救護所D"));
+    expect(d).toContain("連絡員が本部へ持ち帰る（午後）");
+    expect(d).toContain(">通行止め</span>");
+    expect(d).toContain(">未確認</span>");
     expect(html).not.toMatch(/<iframe|tile\.|openstreetmap|google\.com\/maps/i);
   });
+});
 
-  it("デモ：時計の操作のボタンと、架空の問診の入力（送信先なし）。最初は記録に入力したものが無い", () => {
+describe("在庫・発注・搬送・記録・デモのタブ", () => {
+  it("在庫：本部は救護所×薬の表、救護所はその救護所の行だけ", () => {
+    const heat = panel(render(HQ, "stock"));
+    expect(heat.match(/<th class="site">/g)).toHaveLength(5);
+    expect(heat.match(/<td class="item">/g)).toHaveLength(9);
+    expect(heat).toContain(">切れ<");
+    expect(heat).toContain(">算出不可<");
+    const b = panel(render("救護所B", "stock"));
+    expect(b.match(/<tr>/g)?.length).toBe(1 + 9);
+    expect(b).toContain(">在庫切れ見込み</span>");
+  });
+
+  it("発注・搬送：本部は全部の提案と入荷・搬送の表。救護所はその救護所向けだけ", () => {
+    const s = panel(render(HQ, "supply"));
+    expect(s).toContain(BOARD_ORDERS.note);
+    expect(s.match(/data-inbound="/g)).toHaveLength(INBOUND.length);
+    const b = panel(render("救護所B", "supply"));
+    expect(b.match(/data-inbound="/g)).toHaveLength(INBOUND.filter((r) => r.to === "救護所B" || r.from === "救護所B").length);
+    expect(b).not.toContain('data-proposal="P-01"'); // 救護所C の提案は出ない
+    expect(b).toContain('data-proposal="P-02"');
+  });
+
+  it("記録：本部は記録の届き方の表と救護所ごとのカルテの件数。救護所はカルテに登録するフォーム（救護所は固定）とカルテ", () => {
+    const r = panel(render(HQ, "records"));
+    expect(r).toContain("記録の届き方（通信の状態）");
+    expect(r).toContain("カルテ 1 件");
+    const a = panel(render("救護所A", "records"));
+    expect(a).toContain('<form class="board-form">');
+    expect(a).not.toMatch(/<form[^>]*(action|method)=/);
+    expect(a).not.toContain(`<span>${BOARD_INTAKE_FORM.site}</span>`);
+    expect(a).toContain('value="架空 太郎"');
+    expect(a).toContain("<b>番号 A-012</b>");
+  });
+
+  it("デモ：時計の操作は上に常にあり、デモのタブに入力（救護所を選べる）と起きたこと。動きを減らす設定では自動進行を出さない", () => {
     expect(html).toContain(`>${BOARD_DEMO.start}</button>`);
     expect(html).toContain(`>${BOARD_DEMO.hour}</button>`);
     expect(html).toContain(`>${BOARD_DEMO.reset}</button>`);
-    expect(html).toContain('<form class="board-form">');
-    expect(html).not.toMatch(/<form[^>]*(action|method)=/);
-    expect(html).toContain(BOARD_INTAKE_FORM.nameNote);
-    expect(html).toContain('value="架空 太郎"');
-    expect(html).toContain(`>${BOARD_INTAKE_FORM.prescriptionNone}</option>`);
-    expect(html).toContain(`>${BOARD_INTAKE_FORM.submit}</button>`);
-    expect(html).not.toContain("board-chart-added");
-    // 動きを減らす設定では自動進行のボタンを出さない
+    const d = panel(render(HQ, "demo"));
+    expect(d).toContain(`<span>${BOARD_INTAKE_FORM.site}</span>`);
+    expect(d).toContain(`>${BOARD_INTAKE_FORM.prescriptionNone}</option>`);
+    expect(d).toContain(BOARD_DEMO.logEmpty);
     const reduced = renderToStaticMarkup(<Board onBack={() => {}} reducedMotion />);
     expect(reduced).not.toContain(`>${BOARD_DEMO.start}</button>`);
     expect(reduced).toContain(BOARD_DEMO.reducedMotion);
   });
+});
 
-  it("数字は架空データから計算したものが出る", () => {
-    const today = todaySummary(PATIENTS);
-    expect(html).toContain(`<span class="board-tile-big" data-testid="today-patients">${today.patients}</span>`);
-    expect(html).toContain(`<span class="board-tile-big" data-testid="critical-count">${criticalItems(STOCK).length}</span>`);
-    expect(html).toContain(`<span class="board-tile-big" data-testid="pending-count">${pendingSummary(SYNC).pending}</span>`);
-    expect(html).toContain("未着 97・転記待ち 6");
+describe("デモの状態を渡すと、登録 → 提案 → 承認が画面に出る", () => {
+  const record: DemoAction = {
+    type: "add_record",
+    site: "救護所B",
+    name: "架空 太郎",
+    items: [{ label: "薬の名前・量（本人の言葉のまま）", value: "白い錠剤を朝に1錠" }],
+    prescription: { item: "抗凝固薬F", qty: 60, days: 7 },
+  };
+  const s1 = demoReducer(initialDemo(), record);
+
+  it("登録すると、救護所の印に未交付あり、提案に「新」の印。同じ品目でもう一度登録すると「更新」の印", () => {
+    const h = render(HQ, "overview", s1);
+    expect(pane(h).slice(pane(h).indexOf('data-pane="救護所B"'))).toContain(`>${BOARD_LAYOUT.marks.undelivered}<`);
+    const p = panel(h).slice(panel(h).indexOf('data-proposal="P-03"'));
+    expect(p).toContain(`>${BOARD_ORDERS.newMark}<`);
+    expect(p).toContain("未交付・必要な数 20 ＋ 目安の日数分の出庫 48 − 現地の在庫 0 − 向かっている搬送・入荷 0 ＝ 68");
+    const again = panel(render(HQ, "overview", demoReducer(s1, record)));
+    expect(again.slice(again.indexOf('data-proposal="P-03"'))).toContain(`>${BOARD_ORDERS.updatedMark}<`);
+    // 救護所B の詳細に、登録したカルテ（架空の氏名）が開いて出る
+    const b = panel(render("救護所B", "overview", s1));
+    expect(b).toContain("<b>架空 太郎（架空）</b>");
+    expect(b).toContain("board-chart-added");
   });
 
-  it("在庫の全表・推移・問診の例は閉じた詳細（details）の中。推移の図には同じ数字の表が添う", () => {
-    expect(html.match(/<details class="board-more">/g)?.length).toBeGreaterThanOrEqual(8);
-    const heat = html.slice(html.indexOf('class="board-tablebox board-heat"'), html.indexOf('id="board-inbound"'));
-    expect(heat.match(/<th class="site">/g)).toHaveLength(5);
-    expect(heat.match(/<td class="item">/g)).toHaveLength(9);
-    expect(heat).toContain(">切れ<");
-    expect(heat).toContain(">未確認<");
-    expect(heat).toContain(">算出不可<");
-    expect(html).toContain('<svg viewBox="0 0 560 220" aria-hidden="true">');
-    expect(html).toContain("救護所ごとの、日ごとの延べ患者数</caption>");
+  it("承認すると、提案は承認済み（引当済み）になり、救護所向けの搬送が載る。承認・却下のボタンは消える", () => {
+    const s2 = demoReducer(s1, { type: "approve_proposal", id: "P-03" });
+    const h = panel(render(HQ, "supply", s2));
+    const p = h.slice(h.indexOf('data-proposal="P-03"'), h.indexOf("</li>", h.indexOf('data-proposal="P-03"')));
+    expect(p).toContain(">承認済み（引当済み）</span>");
+    expect(p).not.toContain(`>${BOARD_ORDERS.approve}</button>`);
+    expect(h).toContain('data-inbound="S-04"');
+    const b = panel(render("救護所B", "supply", s2));
+    expect(b).toContain('data-inbound="S-04"');
+    expect(b).toContain(">引当済み</span>");
   });
+});
 
-  it("救護所の記録はカルテ形式（救護所ごと・患者1人につき1枚）。最初からあるものは架空の番号だけで名前が無く、医師の処方は人が入力する欄として出る", () => {
-    const charts = html.slice(html.indexOf('id="board-intake"'), html.indexOf('id="board-sites"'));
-    expect(charts.match(/<section class="board-charts-site"/g)).toHaveLength(4);
-    expect(charts.match(/<li class="board-chart-card ">/g)).toHaveLength(INTAKE_RECORDS.length);
-    for (const rec of INTAKE_RECORDS) {
-      expect(charts).toContain(`<b>番号 ${rec.id}</b>`);
-      for (const it of rec.items) expect(charts).toContain(it.value);
-    }
-    expect(charts).toContain("記録の履歴");
-    expect(charts).toContain("最新の記録（11/05 09:40・文字起こし（別のアプリ））");
-    expect(charts).toContain(">処方あり</span>");
-    expect(charts).toContain(">処方なし</span>");
-    expect(charts).not.toContain(">未交付あり</span>");
-    expect(charts).toMatch(/救護所C(<!-- -->)?の記録/);
-    expect(charts).toContain("記録はまだない");
-    expect(html).toContain("医師の処方（医師が入力する欄。アプリは決めない）");
-    expect(html).toContain("未入力");
-    // 救護所の行にカルテの件数と、記録を見るボタン
-    expect(html).toContain("カルテ</span> 1 件");
-    expect(html).toContain(">この救護所の記録を見る（1 件）</button>");
-    // 名前の欄は入力のフォームにだけあり（架空の氏名）、最初からある記録には無い
-    const records = html.slice(html.indexOf('id="board-intake"'), html.indexOf('id="board-sites"'));
-    expect(records).not.toMatch(/患者名|さん<|様</);
-    expect(records).not.toContain("（架空）<span");
-  });
-
+describe("守ること", () => {
   it("文字起こしのイメージは、画像が無いうちは枠ごと出さない", () => {
     expect(INTAKE_IMAGE.src).toBe("");
-    expect(html).not.toContain("board-image");
-    expect(html).not.toContain("<img");
-    expect(html).not.toContain("画像は準備中");
+    for (const t of ["overview", "demo"] as const) {
+      const h = render(HQ, t);
+      expect(h).not.toContain("board-image");
+      expect(h).not.toContain("<img");
+    }
   });
 
-  it("点数・合否の言葉を使わず、電話リンク・外部リンクが無い", () => {
-    expect(html).not.toMatch(/点数|合格|不合格|正解/);
-    expect(html).not.toContain('href="tel:');
-    expect(html).not.toContain("<a ");
-    expect(html).toContain(">はじめにへ戻る</button>");
-    // 画面のボタンは、デモの操作4つ・救護所ごとの「記録を見る」4つ・入力の送信・戻る
-    expect(html.match(/<button/g)).toHaveLength(4 + 4 + 1 + 1);
+  it("点数・合否の言葉を使わず、電話リンク・外部リンクが無い。はじめにへ戻れる", () => {
+    for (const site of [HQ, "救護所A", "救護所D"] as SiteId[]) {
+      for (const tab of ["overview", "stock", "supply", "records", "demo"] as BoardTab[]) {
+        const h = render(site, tab);
+        expect(h).not.toMatch(/点数|合格|不合格|正解/);
+        expect(h).not.toContain('href="tel:');
+        expect(h).not.toContain("<a ");
+        expect(h).toContain(">はじめにへ戻る</button>");
+      }
+    }
+  });
+});
+
+describe("前回から変わったこと・最終報告・一番大きな数（Issue #107 の追加）", () => {
+  const changes = (h: string) => h.slice(h.indexOf('data-testid="board-changes"'), h.indexOf('id="board-panel"'));
+  const record: DemoAction = {
+    type: "add_record",
+    site: "救護所B",
+    name: "架空 太郎",
+    items: [{ label: "薬の名前・量（本人の言葉のまま）", value: "白い錠剤を朝に1錠" }],
+    prescription: { item: "抗凝固薬F", qty: 60, days: 7 },
+  };
+
+  it("記録が空のときは固定文。タブの下（パネルの外）にあり、本部でも救護所でも出る", () => {
+    expect(changes(html)).toContain(`${BOARD_CHANGES.label}</span><span>${BOARD_CHANGES.none("09:30")}</span>`);
+    expect(changes(render("救護所C"))).toContain(BOARD_CHANGES.none("09:30"));
+    expect(html.indexOf('data-testid="board-changes"')).toBeGreaterThan(html.indexOf('class="board-tabs"'));
+  });
+
+  it("登録 → 承認 → 受領で件数が増える。救護所を選ぶとその救護所の分だけ。氏名・品目名・数量は1行に出ない", () => {
+    const s1 = demoReducer(initialDemo(), record);
+    expect(changes(render(HQ, "overview", s1))).toContain("09:30 以降：登録 1 件、未交付 +1 件、提案 1 件");
+    expect(changes(render("救護所A", "overview", s1))).toContain(BOARD_CHANGES.none("09:30"));
+    const s2 = demoReducer(s1, { type: "approve_proposal", id: "P-03" });
+    expect(changes(render("救護所B", "overview", s2))).toContain("09:30 以降：登録 1 件、未交付 +1 件、提案 1 件、承認 1 件");
+    const s3 = demoReducer(s2, { type: "tick", hours: 3 });
+    const line = changes(render("救護所B", "overview", s3));
+    expect(line).toMatch(/承認 1 件、受領 \d+ 件/);
+    for (const h of [changes(render(HQ, "overview", s3)), line]) {
+      expect(h).not.toMatch(/架空 太郎|抗凝固薬F|白い錠剤|60|68/);
+    }
+  });
+
+  it("最終報告は、在庫の確認か記録が届いた新しいほうの時刻からの相対時間。デモの時計が進むと増える", () => {
+    const report = (h: string, s: string) => pane(h).slice(pane(h).indexOf(`data-report="${s}"`)).slice(0, 200);
+    expect(report(html, "救護所A")).toContain(`${BOARD_CHANGES.lastReport} 2 時間前`);
+    expect(report(html, "救護所B")).toContain(`${BOARD_CHANGES.lastReport} 15 時間前`);
+    const later = render(HQ, "overview", demoReducer(initialDemo(), { type: "tick", hours: 1 }));
+    expect(report(later, "救護所A")).toContain(`${BOARD_CHANGES.lastReport} 3 時間前`);
+    expect(panel(render("救護所A"))).toContain('data-testid="site-last-report">2 時間前<');
+  });
+
+  it("本部の全体の左上に、不足が出ている救護所の数を大きく出す。地区の見出しは折りたためる（既定は開く）", () => {
+    const p = panel(html);
+    expect(p.indexOf('data-testid="sites-short"')).toBeLessThan(p.indexOf('data-testid="today-patients"'));
+    expect(p).toMatch(/data-testid="sites-short">\d+<span class="board-tile-of"> \/ 4 か所<\/span>/);
+    expect(p).toContain(BOARD_LEAD_TILE.label);
+    expect(pane(html)).toContain('<details class="board-pane-district" open="">');
   });
 });

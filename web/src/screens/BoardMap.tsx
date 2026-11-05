@@ -1,4 +1,5 @@
-import { HQ, ROUTES, type RouteRow } from "../board/data";
+import type { KeyboardEvent } from "react";
+import { HQ, ROUTES, type RouteRow, type SiteId } from "../board/data";
 import {
   MAP_BLOCKS,
   MAP_BRIDGES,
@@ -26,6 +27,12 @@ import { BOARD_MAP } from "../board/text";
 interface Props {
   overview: readonly SiteOverview[];
   routes?: readonly RouteRow[];
+  /** 拠点を押したとき（Issue #107）。渡すと拠点が押せるもの（role="button"）になる */
+  onSelect?: (site: SiteId) => void;
+  /** 選んでいる拠点（札の枠を太くする） */
+  selected?: SiteId;
+  /** 図の横の欄（状況・経路・最新情報）を出すか。救護所の詳細では図だけにする */
+  side?: boolean;
 }
 
 const fmt = new Intl.NumberFormat("ja-JP");
@@ -96,9 +103,9 @@ function FacilityShape({ f }: { f: Facility }) {
     case "park":
       return (
         <g>
-          <rect x={x} y={y} width={w} height={h} rx="4" fill="#cfe2c0" />
+          <rect x={x} y={y} width={w} height={h} rx="4" fill="#e7e3da" />
           {[0.25, 0.5, 0.75].map((p) => (
-            <circle key={p} cx={x + w * p} cy={y + h * (p === 0.5 ? 0.65 : 0.35)} r="7" fill="#9cc48a" />
+            <circle key={p} cx={x + w * p} cy={y + h * (p === 0.5 ? 0.65 : 0.35)} r="7" fill="#cfc8bb" />
           ))}
         </g>
       );
@@ -110,7 +117,7 @@ function FacilityShape({ f }: { f: Facility }) {
  * 本部からの経路の状態（通行可・迂回・通行止め）、拠点の不足の印、方位とスケール。
  * 外部の地図タイルも画像も使わず、SVG と架空のデータだけで描く
  */
-export function BoardMap({ overview, routes = ROUTES }: Props) {
+export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side = true }: Props) {
   const routeOf = (site: string) => routes.find((r) => r.to === site);
   const notes = areaNotes(routes);
   const ex = MAP_EXPRESSWAY.x;
@@ -140,8 +147,8 @@ export function BoardMap({ overview, routes = ROUTES }: Props) {
               {/* 山林 */}
               {MAP_HILLS.map((d) => (
                 <g key={d}>
-                  <path d={d} fill="#cddfbc" />
-                  <path d={d} fill="none" stroke="#a7c290" strokeWidth="1.5" strokeDasharray="10 6" transform="translate(-6,0)" />
+                  <path d={d} fill="#e9e4da" />
+                  <path d={d} fill="none" stroke="#c9c1b2" strokeWidth="1.5" strokeDasharray="10 6" transform="translate(-6,0)" />
                 </g>
               ))}
               {/* 施設 */}
@@ -172,11 +179,11 @@ export function BoardMap({ overview, routes = ROUTES }: Props) {
                 </g>
               ))}
               {/* 高速道路（架空） */}
-              <path d={`M${ex},0 V${MAP_NOTE_Y}`} stroke="#5f8f6f" strokeWidth="20" />
-              <path d={`M${ex},0 V${MAP_NOTE_Y}`} stroke="#9ccbac" strokeWidth="15" />
+              <path d={`M${ex},0 V${MAP_NOTE_Y}`} stroke="#8a8378" strokeWidth="20" />
+              <path d={`M${ex},0 V${MAP_NOTE_Y}`} stroke="#d6d0c4" strokeWidth="15" />
               <path d={`M${ex},0 V${MAP_NOTE_Y}`} stroke="#fff" strokeWidth="1.5" strokeDasharray="10 8" />
               <g transform={`translate(${ex},250)`}>
-                <rect x="-13" y="-46" width="26" height="80" rx="5" fill="#2f6e4a" />
+                <rect x="-13" y="-46" width="26" height="80" rx="5" fill="#5d5a55" />
                 <text fontSize="14" fill="#fff" fontWeight="700" textAnchor="middle">
                   {[...MAP_EXPRESSWAY.label].map((ch, i) => (
                     <tspan key={i} x="0" y={-28 + i * 17}>
@@ -238,8 +245,32 @@ export function BoardMap({ overview, routes = ROUTES }: Props) {
                 const top = s.labelSide === "top" ? -26 - blockH : s.labelSide === "bottom" ? 26 : -blockH / 2;
                 const left = s.labelSide === "left" ? -28 - plateW : s.labelSide === "right" ? 28 : -plateW / 2;
                 const cx = left + plateW / 2;
+                const isSelected = selected === s.site;
+                const press = onSelect
+                  ? {
+                      role: "button",
+                      tabIndex: 0,
+                      "aria-label": `${name}（${s.place}）を選ぶ`,
+                      "aria-pressed": isSelected,
+                      onClick: () => onSelect(s.site),
+                      onKeyDown: (e: KeyboardEvent<SVGGElement>) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onSelect(s.site);
+                        }
+                      },
+                    }
+                  : {};
                 return (
-                  <g key={s.site} className="board-map-site" transform={`translate(${s.x},${s.y})`} data-site={s.site}>
+                  <g
+                    key={s.site}
+                    className={`board-map-site${onSelect ? " pressable" : ""}${isSelected ? " selected" : ""}`}
+                    transform={`translate(${s.x},${s.y})`}
+                    data-site={s.site}
+                    {...press}
+                  >
+                    {/* 押せる範囲（札と印を囲む透明の枠） */}
+                    {onSelect && <rect x={Math.min(left, -22) - 6} y={Math.min(top, -22) - 6} width={Math.max(left + plateW, 22) - Math.min(left, -22) + 12} height={Math.max(top + blockH, 22) - Math.min(top, -22) + 12} fill="transparent" />}
                     <rect
                       x={left}
                       y={top}
@@ -248,8 +279,8 @@ export function BoardMap({ overview, routes = ROUTES }: Props) {
                       rx="8"
                       fill="#fff"
                       fillOpacity="0.95"
-                      stroke={isHq ? "#1f4e8c" : "#c62828"}
-                      strokeWidth="1.5"
+                      stroke={isHq ? "#1f4e8c" : "#5d5a55"}
+                      strokeWidth={isSelected ? 4 : 1.5}
                     />
                     <text x={cx} y={top + 20} fontSize="18" fontWeight="700" fill="#111" textAnchor="middle">
                       {name}
@@ -265,7 +296,7 @@ export function BoardMap({ overview, routes = ROUTES }: Props) {
                         </text>
                       </g>
                     ))}
-                    <circle r={isHq ? 20 : 17} fill={isHq ? "#1f4e8c" : "#c62828"} stroke="#fff" strokeWidth="4" />
+                    <circle r={isHq ? 20 : 17} fill={isHq ? "#1f4e8c" : "#3d3a36"} stroke="#fff" strokeWidth="4" />
                     {isHq ? (
                       <text x="0" y="8" fontSize="22" fill="#fff" textAnchor="middle" fontWeight="800">
                         H
@@ -323,6 +354,7 @@ export function BoardMap({ overview, routes = ROUTES }: Props) {
             </span>
           </figcaption>
         </figure>
+        {side && (
         <div className="board-map-side">
           <section aria-labelledby="board-map-status">
             <h3 id="board-map-status">{BOARD_MAP.statusTitle}</h3>
@@ -365,6 +397,7 @@ export function BoardMap({ overview, routes = ROUTES }: Props) {
             </ul>
           </section>
         </div>
+        )}
       </div>
     </section>
   );
