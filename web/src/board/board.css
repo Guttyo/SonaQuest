@@ -1710,3 +1710,351 @@
     width: 100%;
   }
 }
+
+/* ===== Issue #113（レビュー対応）：数字 → 対応事項 → 地図の順、ごく薄いグレーの背景＋白い面、基本色は青緑の1色 ===== */
+.app:has(.board),
+.app:has(.board) .app-main {
+  background: #f3f5f7;
+}
+.board {
+  --surface: #ffffff;
+  --cream: #eef4f6;
+  --line: #dde2e7;
+  --ink: #23272b;
+  --ink-soft: #4d555d;
+  --board-accent: #1d6f86;
+  --board-accent-bg: #e6f2f5;
+}
+.board-tablebox,
+.board-tile,
+.board-pane-item,
+.board-order,
+.board-stats > div,
+.board-changes {
+  border-radius: 6px;
+}
+.board-pill,
+.board-pane-mark {
+  border-radius: 4px;
+}
+
+/* 上部：題・集計時点（架空の時刻）・はじめにへ戻る・デモ操作（ふだん閉じる） */
+.board-head .board-back {
+  margin-left: auto;
+  min-height: 40px;
+  padding: 0 14px;
+}
+.board-demo-box {
+  flex: 0 0 auto;
+}
+.board-demo-box > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: var(--fs-sub);
+  cursor: pointer;
+}
+.board-demo-box > summary:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+.board-demo-box[open] {
+  flex-basis: 100%;
+}
+.board-demo-box .board-demo-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.board-demo-box .board-demo-controls button {
+  min-height: 36px;
+  padding: 0 12px;
+}
+.board-demo-running {
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--board-accent-bg);
+  color: var(--board-accent);
+  font-size: var(--fs-caption);
+}
+
+/* 指標の札：上段に横一列。重要な2つ（不足が出ている救護所、在庫切れ・不足見込み）を大きく */
+.board-kpi-row {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10.5rem), 1fr));
+  gap: 8px;
+}
+.board-kpi-row .board-tile {
+  align-content: start;
+  padding: 10px 12px;
+}
+.board-kpi-row .board-tile .board-tile-big {
+  font-size: 1.5rem;
+}
+.board-kpi-row .board-tile-lead,
+.board-kpi-row .board-tile-major {
+  border: 2px solid var(--board-accent);
+}
+.board-kpi-row .board-tile-lead .board-tile-big,
+.board-kpi-row .board-tile-major .board-tile-big {
+  font-size: 2.25rem;
+}
+.board-kpi-row .board-tile-sub {
+  font-size: var(--fs-caption);
+  line-height: 1.45;
+}
+.board-kpi-row .board-tile.stale {
+  border-color: var(--board-warn);
+  background: var(--board-warn-bg);
+}
+@container board-panel (min-width: 900px) {
+  .board-kpi-row {
+    grid-template-columns: 1.35fr 1.6fr 1fr 1fr 1fr;
+  }
+  .board-tile-lead {
+    grid-column: auto;
+  }
+}
+
+/* 最終報告が古い：注意の色と文字（色だけに頼らない） */
+.board-stale {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid var(--board-warn);
+  border-radius: 4px;
+  background: var(--board-warn-bg);
+  color: var(--board-warn-text);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
+}
+.board-pane-item.stale {
+  border-left-color: var(--board-warn);
+}
+.board-stats > div.stale {
+  border-color: var(--board-warn);
+  background: var(--board-warn-bg);
+}
+.board-stats .board-stale {
+  vertical-align: middle;
+}
+
+/* 左のペイン：選択中は細い色付きの左線と薄い背景 */
+.board-pane-item {
+  border-left-width: 4px;
+}
+.board-pane-item.current {
+  border-color: var(--line);
+  border-left-color: var(--board-accent);
+  background: var(--board-accent-bg);
+}
+.board-pane-item.current.stale {
+  border-left-color: var(--board-accent);
+}
+.board-pane-mark.none {
+  background: var(--surface);
+  color: var(--ink);
+}
+.board-tab.current {
+  border-bottom-color: var(--board-accent);
+}
+
+/* 狭い幅：ペインの横スクロールをやめ、選択式で拠点を選ぶ。タブは折り返す */
+.board-pane-select {
+  display: none;
+}
+@media (max-width: 640px) {
+  .board-pane-select {
+    display: grid;
+    gap: 4px;
+    font-size: var(--fs-sub);
+    font-weight: var(--fw-bold);
+  }
+  .board-pane-select select {
+    min-height: 44px;
+    padding: 0 10px;
+    border: 1px solid var(--control-border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-weight: var(--fw-regular);
+  }
+  .board-pane {
+    display: none;
+  }
+  .board-tabs {
+    flex-wrap: wrap;
+    overflow: visible;
+    box-shadow: none;
+    gap: 4px;
+  }
+  .board-tab {
+    flex: 1 1 auto;
+    min-height: 40px;
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--surface);
+  }
+  .board-tab.current {
+    border-color: var(--board-accent);
+    background: var(--board-accent-bg);
+  }
+  .board-head .board-back {
+    margin-left: 0;
+  }
+}
+
+/* 確認・手配が必要な事項の表 */
+.board-action-table td {
+  font-size: var(--fs-sub);
+}
+.board-action-site {
+  white-space: nowrap;
+}
+.board-action-site .board-stale {
+  display: block;
+  width: max-content;
+  margin: 4px 0 0;
+}
+.board-action-now span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.board-action-item {
+  font-weight: var(--fw-bold);
+}
+.board-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--board-accent);
+  font: inherit;
+  font-weight: var(--fw-bold);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  min-height: 32px;
+}
+.board-link:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+/* セルごとの列名：狭い幅で見出し行の代わりに見せる（読み上げは見出し行で関連付けるので aria-hidden） */
+.board-action-k {
+  display: none;
+}
+@media (max-width: 640px) {
+  /* 見出し行は画面からは隠すが、読み上げのための列の関連付けは残す（display: none にしない） */
+  .board-action-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .board-action-k {
+    display: block;
+    font-size: var(--fs-caption);
+    font-weight: var(--fw-bold);
+    color: var(--ink-soft);
+  }
+  .board-action-now .board-action-k {
+    display: block;
+  }
+  .board-action-table tr {
+    display: grid;
+    gap: 4px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .board-action-table td {
+    padding: 0;
+    border: 0;
+  }
+}
+
+/* ヘルプ（画面の見方）：ふだん閉じる */
+.board-help > summary {
+  width: max-content;
+  min-height: 32px;
+  color: var(--board-accent);
+  font-size: var(--fs-sub);
+  cursor: pointer;
+}
+.board-help > summary:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+.board-help-body {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+/* 「前回から変わったこと」が空のときは小さな補助表示 */
+.board-changes.empty {
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+
+/* 報告の時刻（在庫確認・記録到着・経路確認） */
+.board-times {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  font-size: var(--fs-sub);
+}
+.board-times > div {
+  display: flex;
+  gap: 6px;
+}
+.board-times dt {
+  color: var(--ink-soft);
+}
+.board-times dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 発注の提案の根拠（算数）は開いて読む */
+.board-order-basis-box > summary {
+  width: max-content;
+  font-size: var(--fs-sub);
+  color: var(--board-accent);
+  cursor: pointer;
+}
+.board-order-basis-box[open] > summary {
+  margin-bottom: 4px;
+}
+.board-activity-line {
+  margin: 0;
+  font-size: var(--fs-sub);
+}
+@media (max-width: 640px) {
+  /* 狭い幅：重要な2つは横幅いっぱい、ほかの札は2列 */
+  .board-kpi-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .board-kpi-row .board-tile-lead,
+  .board-kpi-row .board-tile-major {
+    grid-column: 1 / -1;
+  }
+}
+/* 読み上げ用に隠した文字（絶対配置）がスクロールの枠の外でページを伸ばさないよう、枠を配置の基準にする */
+.board-panel,
+.board-pane {
+  position: relative;
+}
