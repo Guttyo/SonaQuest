@@ -305,6 +305,204 @@
   color: var(--orange-strong-text);
 }
 
+/* 救護所ごとの一覧（1タップ目）。開くと品目の行（Issue #102） */
+.board-groups {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.board-group > details {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.board-group > details > summary {
+  cursor: pointer;
+  padding: 10px 12px 10px 30px;
+  position: relative;
+  list-style: none;
+  border-radius: 12px;
+}
+.board-group > details > summary::-webkit-details-marker {
+  display: none;
+}
+.board-group > details > summary::before {
+  content: "▸";
+  position: absolute;
+  left: 12px;
+  top: 10px;
+  color: var(--ink-soft);
+}
+.board-group > details[open] > summary::before {
+  content: "▾";
+}
+.board-group > details > summary:focus-visible {
+  outline: 3px solid var(--focus, var(--mint-strong));
+  outline-offset: 2px;
+}
+.board-group-row {
+  display: grid;
+  gap: 4px 12px;
+  font-size: var(--fs-sub);
+  min-width: 0;
+}
+.board-group-row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.board-group-row .k {
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
+  margin-right: 2px;
+}
+.board-group-site {
+  font-size: var(--fs-body);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+}
+.board-group-sub {
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+.board-group-cell.short {
+  color: var(--orange-strong-text);
+  font-weight: var(--fw-bold);
+}
+.board-group-cell.warn {
+  color: var(--orange-strong-text);
+}
+.board-group-body {
+  padding: 4px 12px 12px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+@media (min-width: 900px) {
+  .board-group-row {
+    grid-template-columns: minmax(12em, 1.2fr) 9em 6em 7em 8em 7em minmax(10em, 1fr);
+    align-items: start;
+  }
+  .board-group-row .k {
+    display: block;
+    margin: 0;
+  }
+  .board-group-body .board-cases-head {
+    padding-left: 30px;
+  }
+}
+
+/* デモの時計と入力（Issue #102） */
+.board-demo-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.board-demo-controls button {
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: var(--fs-sub);
+}
+.board-demo-clock {
+  font-size: var(--fs-sub);
+  margin-right: 6px;
+}
+.board-demo-clock b {
+  font-variant-numeric: tabular-nums;
+}
+.board-delta {
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+.board-log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.board-log li {
+  font-size: var(--fs-sub);
+  margin: 0;
+}
+.board-log-at {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+  margin-right: 6px;
+}
+.board-form {
+  display: grid;
+  gap: 10px;
+}
+.board-form-grid {
+  display: grid;
+  gap: 8px 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+}
+.board-form label {
+  display: grid;
+  gap: 4px;
+  font-size: var(--fs-sub);
+  min-width: 0;
+}
+.board-form label.wide {
+  grid-column: 1 / -1;
+}
+.board-form label > span {
+  display: grid;
+  gap: 2px;
+}
+.board-form label small {
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
+}
+.board-form input,
+.board-form select {
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 16px;
+  background: var(--surface);
+}
+.board-form-rx {
+  margin: 0;
+  padding: 8px 12px 12px;
+  border: 1px dashed var(--control-border);
+  border-radius: 10px;
+}
+.board-form-rx legend {
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+  padding: 0 4px;
+}
+.board-form-message {
+  margin: 0;
+  font-size: var(--fs-sub);
+  min-height: 1.4em;
+}
+.board-record-added {
+  border-color: var(--mint-strong);
+}
+.board-record-id {
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+  margin-left: 6px;
+  font-weight: normal;
+}
+.board-more > summary h3 {
+  display: inline;
+  margin: 0;
+  font-size: var(--fs-body);
+}
+
 /* 下部の詳細。閉じた状態で置く */
 .board-more {
   border: 1px solid var(--line);
