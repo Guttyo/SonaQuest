@@ -4,6 +4,7 @@ import { BgmControls } from "./bgm/BgmControls";
 import { getBgm, lockBgm, stopBgm, useBgmSnapshot } from "./bgm/browser";
 import { requestTurn } from "./flow/api";
 import { STOP_LABEL } from "./flow/content";
+import { currentIntroMode } from "./flow/mode";
 import { buildTurnRequest, initialState, trainingReducer } from "./flow/training";
 import { Dialogue } from "./screens/Dialogue";
 import { Done } from "./screens/Done";
@@ -96,6 +97,7 @@ export function App() {
       <main ref={mainRef} tabIndex={-1} className="app-main">
         {stage.name === "intro" && (
           <Intro
+            initialMode={currentIntroMode(state.session)}
             onStart={(mode) => {
               // 初期状態がオンのときだけ、始めるボタンを押したところで鳴らす（下書きはオフ）
               getBgm().startIfDefaultOn();
