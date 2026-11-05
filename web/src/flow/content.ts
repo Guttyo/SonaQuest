@@ -510,6 +510,7 @@ export const REVIEW_RECOVERY_LABEL = "出来事の後の、あなたの回答（
  * 何が使えなくなったかは PRD「出来事で使えなくなるもの」の表だけで決め、利用者の回答も Claude の判断も使わない
  */
 // [TODO-OWNER: 出来事のあとの情報源の並びの文面（B-02 の下書き。点数や正解に見えないか、後半の答えの手がかりになりすぎないか）]
+// → オーナー決定（2026-11-05、チャット）：「このまま採用」（出来事のあとの情報源の並びの文面）
 export const SHIFT_CAPTION = "出来事のあとの情報源";
 export const SHIFT_LOST_PREFIX = "使えない：";
 export const SHIFT_NONE_LOST = "使えなくなった情報源はありません";
