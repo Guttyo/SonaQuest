@@ -84,16 +84,16 @@ test("設定：足りないときは変数の名前だけを返し、値を入�
   const good = readConfig({ ELEVENLABS_API_KEY: FAKE_KEY, ELEVENLABS_VOICE_ID: FAKE_VOICE });
   assert.equal(good.ok, true);
   assert.equal(good.config.modelId, DEFAULT_MODEL_ID);
-  assert.equal(DEFAULT_MODEL_ID, "eleven_v4_turbo");
+  assert.equal(DEFAULT_MODEL_ID, "eleven_v4");
 
-  const custom = readConfig({ ELEVENLABS_API_KEY: FAKE_KEY, ELEVENLABS_VOICE_ID: FAKE_VOICE, ELEVENLABS_MODEL_ID: "eleven_multilingual_v2" });
-  assert.equal(custom.config.modelId, "eleven_multilingual_v2");
+  const custom = readConfig({ ELEVENLABS_API_KEY: FAKE_KEY, ELEVENLABS_VOICE_ID: FAKE_VOICE, ELEVENLABS_MODEL_ID: "eleven_v4_turbo" });
+  assert.equal(custom.config.modelId, "eleven_v4_turbo");
 });
 
 test("原稿：空・長すぎ・判断待ちの印はエラーで、エラーの文に本文を入れない", () => {
   assert.equal(normalizeText(`  ${FAKE_TEXT}\r\n`, 2), FAKE_TEXT);
   assert.throws(() => normalizeText("  \n", 2));
-  assert.throws(() => normalizeText("あ".repeat(1001), 2), (e) => !e.message.includes("あああ"));
+  assert.throws(() => normalizeText("あ".repeat(10_001), 2), (e) => !e.message.includes("あああ"));
   assert.throws(() => normalizeText(`${FAKE_TEXT}[${OWNER_MARK}: 試験]`, 2), (e) => !e.message.includes(FAKE_TEXT));
 });
 
@@ -141,4 +141,17 @@ test("video/.env が無いときの案内に、置くものの名前が入る", 
   assert.match(guide, /\.env\.example/);
   assert.match(guide, /ELEVENLABS_API_KEY/);
   assert.match(guide, /ELEVENLABS_VOICE_ID/);
+});
+
+test("v4 のオーディオタグ（[pause] など）は原稿のまま API に渡す", () => {
+  const tagged = `${FAKE_TEXT}[pause]つづきの文です。[long pause]`;
+  const text = normalizeText(tagged, 3);
+  assert.equal(text, tagged);
+  const { init } = buildTtsRequest({ apiKey: FAKE_KEY, voiceId: FAKE_VOICE, modelId: DEFAULT_MODEL_ID, text });
+  assert.equal(JSON.parse(init.body).text, tagged);
+});
+
+test("上限（10,000 文字）ちょうどは通り、超えると送らずに止める", () => {
+  assert.equal(normalizeText("あ".repeat(10_000), 2).length, 10_000);
+  assert.throws(() => normalizeText("あ".repeat(10_001), 2));
 });

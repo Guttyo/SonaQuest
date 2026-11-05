@@ -9,17 +9,23 @@ import path from "node:path";
 export const NARRATION_BEATS = [2, 3, 4, 5, 6, 7, 8, 9];
 
 /**
- * 既定のモデル。アプリの /api/tts（web/worker/tts.ts）と同じ（ADR-0045）。
- * 別パッケージなので import はせず、値を写している。
+ * 既定のモデル：eleven_v4。ElevenLabs の文書（elevenlabs.io/docs/models）が、ナレーション・動画の収録には
+ * 品質重視の v4、低遅延が要るときだけ v4 turbo を勧めているため（2026-11-06、ADR-0050）。
+ * アプリの /api/tts は会話の待ち時間を優先して eleven_v4_turbo（ADR-0045）。ELEVENLABS_MODEL_ID で上書きできる。
+ * 呼ぶ口はアプリと同じ POST /v1/text-to-speech/{voice_id}（Text to Dialogue の口は使わない）。
  */
-export const DEFAULT_MODEL_ID = "eleven_v4_turbo";
-/** 声の設定。アプリと同じ（ADR-0045）。ナレーション用に変えるかはオーナーが聞いて決める */
+export const DEFAULT_MODEL_ID = "eleven_v4";
+// [TODO-OWNER: ナレーションの voice_settings（今はアプリの TTS_VOICE_SETTINGS を写した stability 0.65・similarity_boost 0.75。文書に v4 の推奨値が見当たらなかったので下書き。合成して聞いて決める）]
+/** 声の設定。アプリの web/worker/tts.ts と同じ値を写した（別パッケージなので import しない。ADR-0045） */
 export const VOICE_SETTINGS = Object.freeze({ stability: 0.65, similarity_boost: 0.75 });
 /** 出力の形式。どのプランでも使える形（アプリと同じ）。音質を上げるならオーナーが変える */
 export const OUTPUT_FORMAT = "mp3_44100_64";
 export const TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/";
-/** 1ビートの原稿の長さの上限（20秒に約100字が目安。余裕を見て上限は広く取る） */
-export const MAX_TEXT_LENGTH = 1000;
+/**
+ * 1リクエストの文字数の上限（ElevenLabs の text-to-speech の上限 10,000 文字）。
+ * 各ビートは約100字なので分けずに送る。上限を超える原稿は送らずにエラーで止める。
+ */
+export const MAX_TEXT_LENGTH = 10_000;
 /** ElevenLabs を待つ上限 */
 export const REQUEST_TIMEOUT_MS = 60_000;
 
@@ -144,6 +150,6 @@ export const missingEnvGuide = () =>
     "[narration] video フォルダに .env がありません。合成の前に、オーナーが用意してください：",
     "  1. video/.env.example を同じ video フォルダに .env という名前で写す",
     "  2. ELEVENLABS_API_KEY（ElevenLabs のキー）と ELEVENLABS_VOICE_ID（ナレーターの声の ID）を書く",
-    "  3. モデルを変えるときだけ ELEVENLABS_MODEL_ID を書く（無ければ eleven_v4_turbo）",
+    "  3. モデルを変えるときだけ ELEVENLABS_MODEL_ID を書く（無ければ eleven_v4）",
     "  合成は ElevenLabs の課金の対象です。",
   ].join("\n");

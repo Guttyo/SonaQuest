@@ -30,7 +30,7 @@ npm --prefix video install
 |---|---|
 | `ELEVENLABS_API_KEY` | ElevenLabs のキー |
 | `ELEVENLABS_VOICE_ID` | ナレーターの声の ID（本人のクローン音声）。アプリの聞き取り係の声とは別 |
-| `ELEVENLABS_MODEL_ID` | 省略可。無ければ `eleven_v4_turbo`（アプリと同じ。ADR-0045） |
+| `ELEVENLABS_MODEL_ID` | 省略可。無ければ `eleven_v4`（ナレーション向けの品質重視のモデル）。アプリの `/api/tts` は低遅延の `eleven_v4_turbo`（ADR-0045）で、ここだけ違う |
 
 - `video/.env` は Git の対象外です。Claude Code は読みも書きもしません。
 - `process.loadEnvFile()` は、同じ名前の環境変数がシェルに既にあると上書きしません。アプリ用の声の ID をシェルに入れている場合は外してから実行します。
@@ -48,7 +48,17 @@ npm --prefix video run narration -- --force --only 2,5
 ```
 
 - ログに出るのは番号・件数・所要時間・HTTP の状態だけです。キー・声の ID・本文は出しません。
-- 形式は `mp3_44100_64`（どのプランでも使える形。アプリと同じ）、声の設定は stability 0.65・similarity_boost 0.75（アプリと同じ）。変えるときは `video/scripts/narration-lib.mjs` の定数を直します。
+- 形式は `mp3_44100_64`（どのプランでも使える形。アプリと同じ）、声の設定は stability 0.65・similarity_boost 0.75（アプリと同じ値を写した下書き。v4 の推奨値は文書に見当たらなかった）。変えるときは `video/scripts/narration-lib.mjs` の定数を直します。
+
+#### モデルと原稿の書き方（eleven_v4）
+- 呼ぶのはアプリと同じ `POST /v1/text-to-speech/{voice_id}` です（`model_id`・`language_code: "ja"`・`voice_settings`）。Text to Dialogue の口は使いません。
+- ElevenLabs の文書（elevenlabs.io/docs/models）は、ナレーション・動画の収録には `eleven_v4`、低遅延が要るときだけ `eleven_v4_turbo` を勧めています。
+- v4 では SSML の `<break>` が効きません。間を置きたいところには、原稿の本文に `[pause]`・`[long pause]` のようなオーディオタグを書きます。タグはそのまま API に渡します。
+- 1回に送れるのは 10,000 文字までです。各ビートは約100字なので分けません。上限を超える原稿は送らずにエラーで止めます。
+- 読みが気になるときの選択肢として、ElevenLabs の発音辞書（pronunciation dictionary）があります。今回は使いません。
+- **クローン音声の注意**：文書には、既存のクローン音声（IVC・PVC）は v4 で作り直さないと十分に使えないことがある、とあります。ナレーターの声が v4 で期待どおりに鳴らなければ、オーナーが ElevenLabs 側で v4 用に作り直します（Claude Code の作業ではありません）。急ぐときは `ELEVENLABS_MODEL_ID=eleven_v4_turbo` で合成できます。
+
+[TODO-OWNER: 原稿のどこに間（[pause]・[long pause]）を置くか。今の video/narration/NN.txt はタグ無しで、台本の文をそのまま写したもの]
 
 ### 4. 素材を置く
 `video/public/` に次の名前で置きます（名前は `video/src/sections.ts` の表）。無いものは仮の画面のままです。
