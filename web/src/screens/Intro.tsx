@@ -9,6 +9,7 @@ import {
   NOTES_TITLE,
 } from "../flow/content";
 import type { TrainingMode } from "../flow/mode";
+import { BOARD_ENTRY_LABEL, COMING_SOON_INTAKE } from "../board/text";
 import { IntroNotes } from "./IntroNotes";
 import { ModeIcon } from "./ModeIcon";
 
@@ -17,6 +18,8 @@ export type IntroView = "choose" | "notes";
 
 interface Props {
   onStart: (mode: TrainingMode) => void;
+  /** 地域本部のボード（試作。Issue #97）を開く。訓練の流れの外の画面。省くと押しても何もしない（試験・見本） */
+  onOpenBoard?: () => void;
   /** 試験・見本のため。省くと1画面目（choose） */
   initialView?: IntroView;
   /**
@@ -32,7 +35,7 @@ interface Props {
  * 2画面目「はじめる前に」：選んだ答え方 → 必ず見せる説明の全文（文は変えない。3D なら声の送信先を先頭に）→ 訓練をはじめる／選び直す。
  * 「訓練をはじめる」は2画面目にだけあり、1画面目から訓練は始められない。色はクリーム・ミント・オレンジのまま（ADR-0020）
  */
-export function Intro({ onStart, initialView = "choose", initialMode }: Props) {
+export function Intro({ onStart, onOpenBoard, initialView = "choose", initialMode }: Props) {
   // 選んだ値と画面はメモリにだけ持ち、保存しない（ADR-0007）。やり直すと部品ごと作り直され、1画面目の既定の 2D に戻る。
   // 「答え方を選び直す」は画面だけを戻すので、選んだ値はそのまま
   const [mode, setMode] = useState<TrainingMode>(initialMode ?? "2d");
@@ -121,6 +124,13 @@ export function Intro({ onStart, initialView = "choose", initialMode }: Props) {
       <button type="button" className="primary" onClick={() => setView("notes")}>
         {NEXT_LABEL}
       </button>
+
+      {/* 医療者側（Issue #97、#101、ADR-0042）。「次へ」の直下にボードへのボタン（架空データの試作で、訓練の外の画面）。
+          問診モードは将来構想で、その下の説明にまとめる（押せるものにしない。PRD「Coming soon の表示の決まり」） */}
+      <button type="button" className="secondary" onClick={() => onOpenBoard?.()}>
+        {BOARD_ENTRY_LABEL}
+      </button>
+      <p className="intro-aside">{COMING_SOON_INTAKE}</p>
     </section>
   );
 }

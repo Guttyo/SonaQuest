@@ -1,0 +1,862 @@
+/* 地域本部の医薬品ボード（試作）。styles.css の変数（色・文字の段階）を使う。Issue #97 */
+
+.board {
+  display: grid;
+  gap: 20px;
+}
+.board .board-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+.board .board-lead {
+  margin: 0;
+  color: var(--ink-soft);
+}
+.board .board-note {
+  margin: 0;
+  font-size: var(--fs-sub);
+  color: var(--ink-soft);
+}
+.board h2 {
+  margin: 0;
+}
+.board section {
+  display: grid;
+  gap: 10px;
+}
+
+/* 今日の数字 */
+.board-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+  gap: 10px;
+}
+.board-tile {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  min-width: 0;
+}
+.board-tile .board-tile-label {
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+.board-tile .board-tile-big {
+  font-size: 2rem;
+  line-height: 1.2;
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+.board-tile .board-tile-sub {
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+
+/* 表 */
+.board-tablebox {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.board table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sub);
+  font-variant-numeric: tabular-nums;
+}
+.board th,
+.board td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.board tr:last-child td {
+  border-bottom: 0;
+}
+.board th {
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-bold);
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.board td.num,
+.board th.num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* 段階の札。色だけに頼らず、文字でも示す */
+.board-pill {
+  display: inline-block;
+  padding: 1px 8px;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+}
+.board-pill.bad {
+  color: var(--orange-strong-text);
+  border-color: var(--orange-strong);
+  background: var(--alert-bg);
+}
+.board-pill.warn {
+  color: var(--orange-strong-text);
+  border-color: var(--orange);
+}
+.board-pill.ok {
+  color: var(--mint-strong);
+  border-color: var(--mint-strong);
+}
+.board-pill.none {
+  color: var(--ink);
+  border-color: var(--control-border);
+  background: var(--cream);
+}
+
+/* 見出しの直下：架空データの印と集計時点 */
+.board .board-asof {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+  font-size: var(--fs-sub);
+  color: var(--ink-soft);
+}
+.board .board-count {
+  font-size: var(--fs-sub);
+  font-weight: var(--fw-regular, 400);
+  color: var(--ink-soft);
+  margin-left: 6px;
+}
+
+/* 確認・手配が必要な品目（Issue #101）。スマホは縦に読むカード、PC は行を見比べる一覧 */
+.board-cases {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.board-case details {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.board-case summary {
+  cursor: pointer;
+  padding: 10px 12px 10px 30px;
+  position: relative;
+  list-style: none;
+  border-radius: 12px;
+}
+.board-case summary::-webkit-details-marker {
+  display: none;
+}
+.board-case summary::before {
+  content: "▸";
+  position: absolute;
+  left: 12px;
+  top: 10px;
+  color: var(--ink-soft);
+}
+.board-case details[open] summary::before {
+  content: "▾";
+}
+.board-case summary:focus-visible {
+  outline: 3px solid var(--focus, var(--mint-strong));
+  outline-offset: 2px;
+}
+.board-case-row {
+  display: grid;
+  gap: 4px 12px;
+  font-size: var(--fs-sub);
+  min-width: 0;
+}
+.board-case-row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.board-case-row .k {
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
+  margin-right: 2px;
+}
+.board-case-where {
+  font-size: var(--fs-body);
+}
+.board-case-form {
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
+}
+.board-case-next {
+  font-weight: var(--fw-bold);
+}
+.board-case-detail {
+  padding: 4px 12px 12px 30px;
+  border-top: 1px solid var(--line);
+}
+.board-case-detail dl {
+  margin: 8px 0 0;
+  display: grid;
+  gap: 8px 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+}
+.board-case-detail dt {
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+.board-case-detail dd {
+  margin: 0;
+  font-size: var(--fs-sub);
+  overflow-wrap: anywhere;
+}
+
+/* PC：一覧として横に並べ、行同士を見比べる */
+@media (min-width: 900px) {
+  .board-case-row {
+    grid-template-columns: 11em minmax(12em, 1.2fr) 7em 7em minmax(12em, 1.4fr) minmax(12em, 1.4fr);
+    align-items: start;
+  }
+  .board-case-row .k {
+    display: block;
+    margin: 0;
+  }
+  .board-cases-head {
+    display: grid;
+    grid-template-columns: 11em minmax(12em, 1.2fr) 7em 7em minmax(12em, 1.4fr) minmax(12em, 1.4fr);
+    gap: 4px 12px;
+    padding: 0 12px 0 30px;
+    font-size: var(--fs-caption);
+    color: var(--ink-soft);
+  }
+}
+@media (max-width: 899px) {
+  .board-cases-head {
+    display: none;
+  }
+}
+
+/* 救護所ごとの一枚（ホワイトボード風）。PC は横に並べ、スマホは縦に積む */
+.board-overview {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 10px;
+}
+.board-site {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  min-width: 0;
+}
+.board-site h3 {
+  margin: 0 0 8px;
+  font-size: var(--fs-body);
+}
+.board-site dl {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+.board-site dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+  font-size: var(--fs-sub);
+  padding: 2px 0;
+  border-bottom: 1px dashed var(--line);
+}
+.board-site dl > div:last-child {
+  border-bottom: 0;
+}
+.board-site dt {
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
+}
+.board-site dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.board-site dl > div.short dd {
+  color: var(--orange-strong-text);
+  font-weight: var(--fw-bold);
+}
+.board-site dl > div.warn dd {
+  color: var(--orange-strong-text);
+}
+
+/* 救護所ごとの一覧（1タップ目）。開くと品目の行（Issue #102） */
+.board-groups {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.board-group > details {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.board-group > details > summary {
+  cursor: pointer;
+  padding: 10px 12px 10px 30px;
+  position: relative;
+  list-style: none;
+  border-radius: 12px;
+}
+.board-group > details > summary::-webkit-details-marker {
+  display: none;
+}
+.board-group > details > summary::before {
+  content: "▸";
+  position: absolute;
+  left: 12px;
+  top: 10px;
+  color: var(--ink-soft);
+}
+.board-group > details[open] > summary::before {
+  content: "▾";
+}
+.board-group > details > summary:focus-visible {
+  outline: 3px solid var(--focus, var(--mint-strong));
+  outline-offset: 2px;
+}
+.board-group-row {
+  display: grid;
+  gap: 4px 12px;
+  font-size: var(--fs-sub);
+  min-width: 0;
+}
+.board-group-row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.board-group-row .k {
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
+  margin-right: 2px;
+}
+.board-group-site {
+  font-size: var(--fs-body);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+}
+.board-group-sub {
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+.board-group-cell.short {
+  color: var(--orange-strong-text);
+  font-weight: var(--fw-bold);
+}
+.board-group-cell.warn {
+  color: var(--orange-strong-text);
+}
+.board-group-body {
+  padding: 4px 12px 12px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+@media (min-width: 900px) {
+  .board-group-row {
+    grid-template-columns: minmax(11em, 1.2fr) 9em 5.5em 6.5em 8em 6.5em minmax(9em, 1fr) 8em;
+    align-items: start;
+  }
+  .board-group-row .k {
+    display: block;
+    margin: 0;
+  }
+  .board-group-body .board-cases-head {
+    padding-left: 30px;
+  }
+}
+
+/* デモの時計と入力（Issue #102） */
+.board-demo-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.board-demo-controls button {
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: var(--fs-sub);
+}
+.board-demo-clock {
+  font-size: var(--fs-sub);
+  margin-right: 6px;
+}
+.board-demo-clock b {
+  font-variant-numeric: tabular-nums;
+}
+.board-delta {
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+.board-log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.board-log li {
+  font-size: var(--fs-sub);
+  margin: 0;
+}
+.board-log-at {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+  margin-right: 6px;
+}
+.board-form {
+  display: grid;
+  gap: 10px;
+}
+.board-form-grid {
+  display: grid;
+  gap: 8px 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+}
+.board-form label {
+  display: grid;
+  gap: 4px;
+  font-size: var(--fs-sub);
+  min-width: 0;
+}
+.board-form label.wide {
+  grid-column: 1 / -1;
+}
+.board-form label > span {
+  display: grid;
+  gap: 2px;
+}
+.board-form label small {
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
+}
+.board-form input,
+.board-form select {
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 16px;
+  background: var(--surface);
+}
+.board-form-rx {
+  margin: 0;
+  padding: 8px 12px 12px;
+  border: 1px dashed var(--control-border);
+  border-radius: 10px;
+}
+.board-form-rx legend {
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+  padding: 0 4px;
+}
+.board-form-message {
+  margin: 0;
+  font-size: var(--fs-sub);
+  min-height: 1.4em;
+}
+/* カルテ（患者1人につき1枚）。救護所ごとにまとめる */
+.board-charts {
+  display: grid;
+  gap: 14px;
+}
+.board-charts-site h3 {
+  margin: 0 0 6px;
+  font-size: var(--fs-body);
+}
+.board-chart-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+}
+.board-chart-card > details {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  min-width: 0;
+}
+.board-chart-added > details {
+  border-color: var(--mint-strong);
+}
+.board-chart-card > details > summary {
+  cursor: pointer;
+  padding: 10px 12px 10px 30px;
+  position: relative;
+  list-style: none;
+}
+.board-chart-card > details > summary::-webkit-details-marker {
+  display: none;
+}
+.board-chart-card > details > summary::before {
+  content: "▸";
+  position: absolute;
+  left: 12px;
+  top: 10px;
+  color: var(--ink-soft);
+}
+.board-chart-card > details[open] > summary::before {
+  content: "▾";
+}
+.board-chart-card > details > summary:focus-visible {
+  outline: 3px solid var(--focus, var(--mint-strong));
+  outline-offset: 2px;
+}
+.board-chart-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+  font-size: var(--fs-sub);
+}
+.board-chart-head b {
+  font-size: var(--fs-body);
+}
+.board-chart-flags {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.board-chart-sub {
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
+  flex-basis: 100%;
+}
+.board-chart-body {
+  padding: 4px 12px 12px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+}
+.board-chart-body h4 {
+  margin: 6px 0 4px;
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+  font-weight: var(--fw-bold);
+}
+.board-chart-visits {
+  margin: 0;
+  padding-left: 1.2em;
+  display: grid;
+  gap: 2px;
+}
+.board-chart-visits li {
+  font-size: var(--fs-sub);
+  margin: 0;
+}
+.board-chart-body dl {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+.board-chart-body dt {
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+.board-chart-body dd {
+  margin: 0 0 4px;
+  font-size: var(--fs-sub);
+  overflow-wrap: anywhere;
+}
+.board-chart-body .board-prescription {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--cream);
+  font-size: var(--fs-sub);
+}
+.board-chart-body .board-prescription .label {
+  display: block;
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+.board-group-open {
+  justify-self: start;
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: var(--fs-sub);
+}
+.board-record-id {
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+  margin-left: 6px;
+  font-weight: normal;
+}
+.board-more > summary h3 {
+  display: inline;
+  margin: 0;
+  font-size: var(--fs-body);
+}
+
+/* 下部の詳細。閉じた状態で置く */
+.board-more {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.board-more > summary {
+  cursor: pointer;
+  padding: 10px 12px 10px 30px;
+  position: relative;
+  list-style: none;
+}
+.board-more > summary::-webkit-details-marker {
+  display: none;
+}
+.board-more > summary::before {
+  content: "▸";
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  color: var(--ink-soft);
+}
+.board-more[open] > summary::before {
+  content: "▾";
+}
+.board-more > summary:focus-visible {
+  outline: 3px solid var(--focus, var(--mint-strong));
+  outline-offset: 2px;
+}
+.board-more > summary h2 {
+  display: inline;
+  font-size: var(--fs-body);
+}
+.board-more-body {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 12px;
+  min-width: 0;
+}
+/* grid の子は min-width が auto で、中の表や図の幅まで広がってしまう。枠の中で横に送る */
+.board > *,
+.board-more-body > *,
+.board-chart {
+  min-width: 0;
+}
+.board-trend-table {
+  margin-top: 8px;
+}
+.board-heat .cell.none {
+  color: var(--ink-soft);
+  border-style: dashed;
+}
+
+/* 在庫の見込み日数の表（救護所×薬） */
+.board-heat td {
+  text-align: center;
+  padding: 6px 4px;
+}
+.board-heat td.item {
+  text-align: left;
+  white-space: nowrap;
+}
+.board-heat th.site {
+  text-align: center;
+}
+.board-heat .cell {
+  display: inline-block;
+  min-width: 2.6em;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+}
+.board-heat .cell.bad {
+  background: var(--alert-bg);
+  border-color: var(--orange-strong);
+  color: var(--orange-strong-text);
+  font-weight: var(--fw-bold);
+}
+.board-heat .cell.warn {
+  border-color: var(--orange);
+  color: var(--orange-strong-text);
+}
+.board-heat .cell.ok,
+.board-heat .cell.hq {
+  color: var(--ink-soft);
+}
+.board-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+
+/* 図 */
+.board-chart {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 8px;
+}
+.board-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* 需要の見込みの横棒 */
+.board-bars {
+  display: grid;
+  gap: 8px;
+}
+.board-bar-row {
+  display: grid;
+  grid-template-columns: 5.5em minmax(0, 1fr) 4em;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sub);
+}
+.board-bar-track {
+  position: relative;
+  height: 18px;
+  background: var(--cream);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  min-width: 0;
+}
+.board-bar-fill {
+  display: block; /* 空の span は inline のままだと幅が効かない（PR #98 のレビュー指摘） */
+  height: 100%;
+  border-radius: 5px;
+  background: var(--mint-strong);
+  opacity: 0.55;
+}
+.board-bar-fill.bad {
+  background: var(--orange-strong);
+}
+.board-bar-guide {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  border-left: 2px dashed var(--ink-soft);
+}
+.board-bar-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 問診の記録（架空） */
+.board-intake {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: 10px;
+}
+.board-record {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  min-width: 0;
+}
+.board-record-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: baseline;
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+.board-record-head b {
+  font-size: var(--fs-body);
+  color: var(--ink);
+}
+.board-record dl {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+.board-record dt {
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+.board-record dd {
+  margin: 0 0 4px;
+  font-size: var(--fs-sub);
+  overflow-wrap: anywhere;
+}
+.board-record .board-prescription {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--cream);
+  font-size: var(--fs-sub);
+}
+.board-record .board-prescription .label {
+  display: block;
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+
+/* 文字起こしのイメージと QR の説明（画像があるときだけ出す） */
+.board-image {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px dashed var(--control-border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.board-image img {
+  max-width: 100%;
+  max-height: 320px;
+  margin: 0 auto;
+  border-radius: 10px;
+}
+.board-image-caption {
+  margin: 0;
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+
+.board ul {
+  margin: 0;
+  padding-left: 1.2em;
+}
+.board li {
+  margin: 4px 0;
+  font-size: var(--fs-sub);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board * {
+    transition: none !important;
+  }
+}

@@ -3,6 +3,7 @@ import {
   AI_FAILED_NOTE,
   EVENTS,
   HANDOVER_QUESTION,
+  INTERRUPTION_NOTE,
   JUDGMENT_LABELS,
   JUDGMENT_NOTE,
   PREP_ACTIONS,
@@ -19,6 +20,7 @@ import { isWeak, orderPrepActions, undeterminedJudgments } from "../flow/rules";
 import type { TrainingState } from "../flow/training";
 import type { EventId, PrepActionId, TimingId } from "../flow/types";
 import { SceneBar } from "./ListenerStage";
+import { RecordCard } from "./RecordCard";
 import { LostSources, PREP_ICON, SourceIcon, VIEWPOINT_ICON } from "./SourceIcon";
 import { Exchange, ListenerLine } from "./Transcript";
 
@@ -132,6 +134,9 @@ export function Review({ state, onChoose }: Props) {
         ))}
       </ol>
 
+      {/* 救護所に渡す記録の形（Issue #97）。回答を原文のまま項目に並べるだけで、要約しない */}
+      <RecordCard answers={state.answers} />
+
       {/* 思い出せなかったことは、候補を出さず、実物の確認と訓練の繰り返しに向ける（ADR-0022） */}
       <h2>今ここで確かめましょう</h2>
       <div className="notice recall">
@@ -143,6 +148,8 @@ export function Review({ state, onChoose }: Props) {
         {RECALL_FEEDBACK.map((line) => (
           <p key={line}>{line}</p>
         ))}
+        {/* 中断すると体調を崩しやすい薬の名前も言えるように（Issue #94）。薬の種類は挙げず、飲む・やめるの助言はしない */}
+        <p className="interruption-note">{INTERRUPTION_NOTE}</p>
       </div>
 
       {/* 準備行動といつやるかは、はじめに・③確認と同じ大きなカード（.mode-card。中は見えないラジオ） */}

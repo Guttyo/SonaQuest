@@ -10,6 +10,7 @@ import {
   PRIVACY_VOICE,
   PROTOTYPE_LEAD,
 } from "../flow/content";
+import { BOARD_ENTRY_LABEL, COMING_SOON_INTAKE } from "../board/text";
 import { Intro } from "./Intro";
 
 /** React が文字列に描くときの変換に合わせる（& < > " '） */
@@ -45,6 +46,7 @@ describe("はじめにの1画面目：答え方をカードで選ぶ（A-14、Is
 
   it("カードの絵は飾りで、意味は文字で示す（aria-hidden）", () => {
     const svgs = choose.match(/<svg[^>]*>/g) ?? [];
+    // 2D・3D・C-01 の鍵（問診モードは文だけで、絵は無い。Issue #101）
     expect(svgs).toHaveLength(3);
     for (const svg of svgs) expect(svg).toContain('aria-hidden="true"');
   });
@@ -59,9 +61,27 @@ describe("はじめにの1画面目：答え方をカードで選ぶ（A-14、Is
 
   it("1画面目から訓練は始められず、長い文も置かない（2026-11-05 オーナー決定「2画面目に全文」）", () => {
     expect(choose).not.toContain("訓練をはじめる");
-    expect(choose.match(/<button/g)).toHaveLength(1);
+    // ボタンは「次へ」と、訓練の外の画面（地域本部のボード）へ入るものの2つ（Issue #97）
+    expect(choose.match(/<button/g)).toHaveLength(2);
     expect(choose).toContain(">次へ</button>");
+    expect(choose).toContain(`>${escapeHtml(BOARD_ENTRY_LABEL)}</button>`);
     for (const text of REQUIRED) expect(choose).not.toContain(escapeHtml(text));
+  });
+
+  it("「次へ」が主ボタンで、その直下にボードへのボタン、その下に問診モード（将来構想）の説明の文（Issue #101）", () => {
+    const text = escapeHtml(COMING_SOON_INTAKE);
+    expect(choose).toContain('<button type="button" class="primary">次へ</button>');
+    expect(choose).toContain(`<button type="button" class="secondary">${escapeHtml(BOARD_ENTRY_LABEL)}</button>`);
+    expect(choose).toContain(`<p class="intro-aside">${text}</p>`);
+    // 問診モードはボタン・リンク・カードにしない（押せるものに見せない）
+    expect(choose).not.toMatch(new RegExp(`<(button|a|input|label)[^>]*>[^<]*${text.slice(0, 10)}`));
+    expect(choose.match(/<p class="mode-card locked"/g)).toHaveLength(1);
+    const next = choose.indexOf(">次へ</button>");
+    const board = choose.indexOf(escapeHtml(BOARD_ENTRY_LABEL));
+    expect(next).toBeLessThan(board);
+    expect(board).toBeLessThan(choose.indexOf(text));
+    // 「次へ」とボードのボタンの間に、ほかの部品を置かない
+    expect(choose.slice(next, board)).toBe('>次へ</button><button type="button" class="secondary">');
   });
 
   it("並び：問いかけ → 題 → カード → Coming soon → 次へ", () => {

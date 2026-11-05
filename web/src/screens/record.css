@@ -1,0 +1,37 @@
+/* 振り返りの「救護所に渡す記録の形」（Issue #97）。styles.css の変数を使う */
+
+.record-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.record-card h2 {
+  margin: 0;
+}
+.record-note {
+  margin: 0;
+  font-size: var(--fs-sub);
+  color: var(--ink-soft);
+}
+.record-items {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+.record-item dt {
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+.record-item dd {
+  margin: 0 0 4px;
+  font-size: var(--fs-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.record-item dd.record-empty {
+  color: var(--ink-soft);
+  font-size: var(--fs-sub);
+}
