@@ -16,6 +16,19 @@ describe("通してよい文", () => {
     expect(isAcceptablePromptText(text, context(["A薬を朝に1錠飲んでいます"]))).toBe(true);
   });
 
+  it("1問目（剤形と決まった日だけ使う薬の例を含む。Issue #94）を、受け止めを付けてそのまま言い直した文は通る", () => {
+    const first = FIRST_HALF_QUESTIONS[0].text;
+    const text = `教えてくださってありがとうございます。${first}`;
+    expect(isAcceptablePromptText(text, { userTexts: [], allowed: [first] })).toBe(true);
+    // 固定の質問文に出てくるカタカナ以外の言い回しでも、剤形の言葉は通る
+    expect(
+      isAcceptablePromptText(
+        "ありがとうございます。飲み薬のほかに、注射や貼り薬、塗り薬で使っているものはありますか？",
+        { userTexts: ["A薬を朝に1錠飲んでいます"], allowed: [first] },
+      ),
+    ).toBe(true);
+  });
+
   it("固定の質問文にある言葉は、利用者が同じ言葉を使っていても繰り返しとみなさない", () => {
     const text = "その薬のことは、お薬手帳などで確かめられますか？";
     expect(isAcceptablePromptText(text, context(["お薬手帳を見ます"]))).toBe(true);

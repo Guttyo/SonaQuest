@@ -122,10 +122,13 @@ export const SCENE_INTRO =
  */
 export const FIRST_HALF_QUESTIONS: readonly Question[] = [
   {
+    // Issue #94：飲み薬だけでなく注射・貼り薬・塗り薬と、毎日でなく決まった日だけ使う薬も聞く
+    // （2026-11-05 オーナー決定、ADR-0040 の決定7）。数字を入れない（Claude の言い直しが用量の形の検査に当たらないように）
+    // [TODO-OWNER: 1問目の文面（Claude Code の下書き。剤形と、決まった日だけ使う薬の例の言い方）]
     id: "first_medicines",
     viewpoint: "current",
     answerAs: "fictional",
-    text: "こんにちは。ここでは、普段飲んでいる薬を確認しています。毎日、または決まって飲んでいる薬はありますか？分かる範囲で、薬の名前や何の薬か、飲む量を教えてください。",
+    text: "こんにちは。ここでは、普段使っている薬を確認しています。毎日使う薬や、週や月の決まった日だけ使う薬はありますか？飲み薬のほか、注射・貼り薬・塗り薬も含めて、分かる範囲で、薬の名前や何の薬か、量を教えてください。",
   },
   {
     id: "first_location",
@@ -415,6 +418,14 @@ export const RECALL_FEEDBACK: readonly string[] = [
   "今回のように、定期的にお薬の避難訓練をやって復習しておくとよいですね。",
 ];
 
+/**
+ * 中断すると体調を崩しやすい薬についての、振り返りの固定文（Issue #94、ADR-0040 の決定7）。
+ * 薬の種類は挙げない（2026-11-05 オーナー決定）。飲む・やめるの助言にしない。名前を言えるようにしておくことだけを勧める
+ */
+// [TODO-OWNER: 中断で体調を崩しやすい薬についての振り返りの固定文（Claude Code の下書き。出典があれば添える）]
+export const INTERRUPTION_NOTE =
+  "中断すると体調を崩しやすい薬もあります。そうした薬も含めて、自分の薬の名前と量を言えるようにしておきましょう。";
+
 /** 準備行動（docs/PRD.md「体験の流れ」6。オーナー決定 2026-11-02） */
 // [TODO-OWNER: 準備行動と観点の対応（並び順に使う。Claude Codeの下書き）]
 export const PREP_ACTIONS: readonly {
@@ -503,7 +514,7 @@ export const SELF_HARM_SOURCE = {
 export const REVIEW_EVENT_HEADING = "出来事と立て直しの回答";
 export const REVIEW_RECOVERY_LABEL = "出来事の後の、あなたの回答（入力したまま）";
 
-// --- ⑥振り返りの公的資料（A-06、ADR-0043） -----------------------------------
+// --- ⑥振り返りの公的資料（A-06、ADR-0044） -----------------------------------
 
 export type PublicSourceId =
   | "gov_online_prep"

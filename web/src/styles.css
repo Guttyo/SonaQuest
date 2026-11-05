@@ -155,6 +155,13 @@ p {
   line-height: var(--lh-heading);
 }
 
+/* はじめにの、ボードのボタンの下の短い説明（将来構想の問診モード。押せるものにしない。Issue #101） */
+.intro-aside {
+  margin: 0;
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+
 .notice {
   padding: 10px 12px;
   border-radius: 8px;
@@ -802,6 +809,17 @@ h1:focus-visible {
 .app-main:has(.dialogue) {
   padding-top: 0;
   padding-bottom: 0;
+}
+
+/* 地域本部のボード（試作。Issue #101）だけ、PC で行同士を見比べられるように画面いっぱいに広げる（2026-11-05 オーナー「画面いっぱい使えたらいいのに」） */
+.app-main:has(.board) {
+  max-width: none;
+}
+@media (min-width: 900px) {
+  .app-main:has(.board) {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
 }
 
 .dialogue-stage {

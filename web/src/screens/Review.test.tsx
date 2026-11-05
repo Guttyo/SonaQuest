@@ -5,9 +5,11 @@ import {
   EVENTS,
   FIRST_HALF_QUESTIONS,
   HANDOVER_QUESTION,
+  INTERRUPTION_NOTE,
   JUDGMENT_LABELS,
   JUDGMENT_NOTE,
   PREP_ACTIONS,
+  RECALL_FEEDBACK,
   RECOVERY_QUESTION,
   REVIEW_EVENT_HEADING,
   REVIEW_RECOVERY_LABEL,
@@ -193,6 +195,19 @@ describe("⑥振り返りの並びと絵（A-05 の⑥、Issue #49）", () => {
     expectOrder(html, [H.event, H.viewpoints, H.raw, H.recall, H.prep]);
     expect(html).toContain(AI_FAILED_NOTE);
     expect(html.split(`<dd>${JUDGMENT_LABELS.undetermined}</dd>`)).toHaveLength(VIEWPOINT_ORDER.length + 1);
+  });
+
+  it("「今ここで確かめましょう」に、中断すると体調を崩しやすい薬の固定文が、思い出せないときの案内の後に、どの回でも1回出る（Issue #94）", () => {
+    for (const s of [battery, confirmedAll, failed, handover]) {
+      const html = render(s);
+      const recall = between(html, H.recall, H.prep);
+      expect(recall.split(INTERRUPTION_NOTE)).toHaveLength(2);
+      expect(recall.indexOf(INTERRUPTION_NOTE)).toBeGreaterThan(
+        recall.indexOf(RECALL_FEEDBACK[RECALL_FEEDBACK.length - 1]),
+      );
+      // 振り返りの固定文は、ほかの場所には出ない
+      expect(html.split(INTERRUPTION_NOTE)).toHaveLength(2);
+    }
   });
 
   it("source が null（係の交代）：出来事の文と説明し直しの回答は出し、使えなくなったものの絵・斜線・「（使えない）」は出さない", () => {

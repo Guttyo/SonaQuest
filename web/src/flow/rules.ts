@@ -98,7 +98,7 @@ export function orderPrepActions(judgments: Judgments): PrepActionId[] {
 export type PublicSource = (typeof PUBLIC_SOURCES)[PublicSourceId];
 
 /**
- * 準備行動に関係する公的資料のうち、確認済み（verified）のものだけを返す（A-06、ADR-0043）。
+ * 準備行動に関係する公的資料のうち、確認済み（verified）のものだけを返す（A-06、ADR-0044）。
  * 未確認のものは、対応に書いてあっても返さない。試験のために、対応と資料の一覧を差し替えられる
  */
 export function verifiedSourcesFor(

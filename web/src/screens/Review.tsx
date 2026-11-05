@@ -3,6 +3,7 @@ import {
   AI_FAILED_NOTE,
   EVENTS,
   HANDOVER_QUESTION,
+  INTERRUPTION_NOTE,
   JUDGMENT_LABELS,
   JUDGMENT_NOTE,
   PREP_ACTIONS,
@@ -27,6 +28,7 @@ import {
 import type { TrainingState } from "../flow/training";
 import type { EventId, PrepActionId, TimingId } from "../flow/types";
 import { SceneBar } from "./ListenerStage";
+import { RecordCard } from "./RecordCard";
 import { LostSources, PREP_ICON, SourceIcon, VIEWPOINT_ICON } from "./SourceIcon";
 import { Exchange, ListenerLine } from "./Transcript";
 
@@ -142,6 +144,9 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
         ))}
       </ol>
 
+      {/* 救護所に渡す記録の形（Issue #97）。回答を原文のまま項目に並べるだけで、要約しない */}
+      <RecordCard answers={state.answers} />
+
       {/* 思い出せなかったことは、候補を出さず、実物の確認と訓練の繰り返しに向ける（ADR-0022） */}
       <h2>今ここで確かめましょう</h2>
       <div className="notice recall">
@@ -153,6 +158,8 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
         {RECALL_FEEDBACK.map((line) => (
           <p key={line}>{line}</p>
         ))}
+        {/* 中断すると体調を崩しやすい薬の名前も言えるように（Issue #94）。薬の種類は挙げず、飲む・やめるの助言はしない */}
+        <p className="interruption-note">{INTERRUPTION_NOTE}</p>
       </div>
 
       <PublicSources actions={orderedActions} sourcesFor={sourcesFor} />
@@ -233,7 +240,7 @@ function EventSummary({ event }: { event: EventId }) {
 }
 
 /**
- * 準備行動ごとの、確認済みの公的資料（A-06、ADR-0043）。準備行動の名前の下に、発行元・題・見出し・確認日を出す。
+ * 準備行動ごとの、確認済みの公的資料（A-06、ADR-0044）。準備行動の名前の下に、発行元・題・見出し・確認日を出す。
  * リンクは準備行動のカード（label）の外に置く（カードの中だと、押したときにラジオも切り替わるため）。
  * 確認済みの資料が1件も無いときは、見出しも含めて何も出さない。資料の説明は固定文だけで、Claude に作らせない
  */
