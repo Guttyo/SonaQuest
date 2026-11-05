@@ -1,0 +1,314 @@
+/* 地域本部の医薬品ボード（試作）。styles.css の変数（色・文字の段階）を使う。Issue #97 */
+
+.board {
+  display: grid;
+  gap: 20px;
+}
+.board .board-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+.board .board-lead {
+  margin: 0;
+  color: var(--ink-soft);
+}
+.board .board-note {
+  margin: 0;
+  font-size: var(--fs-sub);
+  color: var(--ink-soft);
+}
+.board h2 {
+  margin: 0;
+}
+.board section {
+  display: grid;
+  gap: 10px;
+}
+
+/* 今日の数字 */
+.board-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+  gap: 10px;
+}
+.board-tile {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  min-width: 0;
+}
+.board-tile .board-tile-label {
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+.board-tile .board-tile-big {
+  font-size: 2rem;
+  line-height: 1.2;
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+.board-tile .board-tile-sub {
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+
+/* 表 */
+.board-tablebox {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.board table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sub);
+  font-variant-numeric: tabular-nums;
+}
+.board th,
+.board td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.board tr:last-child td {
+  border-bottom: 0;
+}
+.board th {
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-bold);
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.board td.num,
+.board th.num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* 段階の札。色だけに頼らず、文字でも示す */
+.board-pill {
+  display: inline-block;
+  padding: 1px 8px;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+}
+.board-pill.bad {
+  color: var(--orange-strong-text);
+  border-color: var(--orange-strong);
+  background: var(--alert-bg);
+}
+.board-pill.warn {
+  color: var(--orange-strong-text);
+  border-color: var(--orange);
+}
+.board-pill.ok {
+  color: var(--mint-strong);
+  border-color: var(--mint-strong);
+}
+
+/* 在庫の見込み日数の表（救護所×薬） */
+.board-heat td {
+  text-align: center;
+  padding: 6px 4px;
+}
+.board-heat td.item {
+  text-align: left;
+  white-space: nowrap;
+}
+.board-heat th.site {
+  text-align: center;
+}
+.board-heat .cell {
+  display: inline-block;
+  min-width: 2.6em;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+}
+.board-heat .cell.bad {
+  background: var(--alert-bg);
+  border-color: var(--orange-strong);
+  color: var(--orange-strong-text);
+  font-weight: var(--fw-bold);
+}
+.board-heat .cell.warn {
+  border-color: var(--orange);
+  color: var(--orange-strong-text);
+}
+.board-heat .cell.ok,
+.board-heat .cell.hq {
+  color: var(--ink-soft);
+}
+.board-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+
+/* 図 */
+.board-chart {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 8px;
+}
+.board-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* 需要の見込みの横棒 */
+.board-bars {
+  display: grid;
+  gap: 8px;
+}
+.board-bar-row {
+  display: grid;
+  grid-template-columns: 5.5em minmax(0, 1fr) 4em;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sub);
+}
+.board-bar-track {
+  position: relative;
+  height: 18px;
+  background: var(--cream);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  min-width: 0;
+}
+.board-bar-fill {
+  height: 100%;
+  border-radius: 5px;
+  background: var(--mint-strong);
+  opacity: 0.55;
+}
+.board-bar-fill.bad {
+  background: var(--orange-strong);
+}
+.board-bar-guide {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  border-left: 2px dashed var(--ink-soft);
+}
+.board-bar-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 問診の記録（架空） */
+.board-intake {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: 10px;
+}
+.board-record {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  min-width: 0;
+}
+.board-record-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: baseline;
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+.board-record-head b {
+  font-size: var(--fs-body);
+  color: var(--ink);
+}
+.board-record dl {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+.board-record dt {
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+.board-record dd {
+  margin: 0 0 4px;
+  font-size: var(--fs-sub);
+  overflow-wrap: anywhere;
+}
+.board-record .board-prescription {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--cream);
+  font-size: var(--fs-sub);
+}
+.board-record .board-prescription .label {
+  display: block;
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+
+/* 文字起こしのイメージの枠と QR の説明 */
+.board-image {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px dashed var(--control-border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.board-image-frame {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 9 / 16;
+  max-height: 240px;
+  width: auto;
+  margin: 0 auto;
+  min-width: 120px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--cream);
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
+}
+.board-image-frame img {
+  max-width: 100%;
+  max-height: 240px;
+  border-radius: 10px;
+}
+.board-image-caption {
+  margin: 0;
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+
+.board ul {
+  margin: 0;
+  padding-left: 1.2em;
+}
+.board li {
+  margin: 4px 0;
+  font-size: var(--fs-sub);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board * {
+    transition: none !important;
+  }
+}

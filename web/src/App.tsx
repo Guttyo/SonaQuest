@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { bgmLocksOn, bgmStopsOn } from "./bgm/bgm";
 import { BgmControls } from "./bgm/BgmControls";
 import { getBgm, lockBgm, stopBgm, useBgmSnapshot } from "./bgm/browser";
@@ -6,6 +6,7 @@ import { requestTurn } from "./flow/api";
 import { STOP_LABEL } from "./flow/content";
 import { currentIntroMode } from "./flow/mode";
 import { buildTurnRequest, initialState, trainingReducer } from "./flow/training";
+import { Board } from "./screens/Board";
 import { Dialogue } from "./screens/Dialogue";
 import { Done } from "./screens/Done";
 import { Intro } from "./screens/Intro";
@@ -18,6 +19,10 @@ export function App() {
   const { stage } = state;
   const mainRef = useRef<HTMLElement>(null);
   const bgm = useBgmSnapshot();
+  // 地域本部のボード（試作。Issue #97）は訓練の流れの外の画面。はじめにの画面からだけ入り、戻る。
+  // 訓練の状態（reducer）には持たせず、はじめに以外の段階では出さない。メモリにだけ持つ
+  const [view, setView] = useState<"training" | "board">("training");
+  const onBoard = stage.name === "intro" && view === "board";
 
   // 中断の画面（訓練をやめた・体調の訴え・自傷の案内）では BGM を止める（ADR-0011、ADR-0039）。
   // 振り返りでは鳴らし続け、終わりの画面ではゆっくり止めて、その画面では鳴らし直せないようにする
@@ -53,7 +58,7 @@ export function App() {
   // 聞き返し・質問し直しでは段階が同じまま発言が変わるので、回答の件数と待ち状態も見る
   const stageKey = stage.name === "first" || stage.name === "second"
     ? `${stage.name}-${stage.index}-${state.answers.length}-${state.waiting}`
-    : stage.name;
+    : `${stage.name}-${view}`;
   useEffect(() => {
     const main = mainRef.current;
     if (main === null) return;
@@ -84,7 +89,8 @@ export function App() {
             onVolume={(volume) => getBgm().setVolume(volume)}
           />
         )}
-        {stage.name !== "stopped" && (
+        {/* ボードは訓練ではないので「訓練をやめる」は出さない（戻るボタンはボードの中） */}
+        {stage.name !== "stopped" && !onBoard && (
           <button
             type="button"
             className="stop-button"
@@ -95,7 +101,8 @@ export function App() {
         )}
       </header>
       <main ref={mainRef} tabIndex={-1} className="app-main">
-        {stage.name === "intro" && (
+        {onBoard && <Board onBack={() => setView("training")} />}
+        {stage.name === "intro" && !onBoard && (
           <Intro
             initialMode={currentIntroMode(state.session)}
             onStart={(mode) => {
@@ -103,6 +110,7 @@ export function App() {
               getBgm().startIfDefaultOn();
               dispatch({ type: "start", mode });
             }}
+            onOpenBoard={() => setView("board")}
           />
         )}
         {(stage.name === "first" ||

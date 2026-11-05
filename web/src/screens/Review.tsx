@@ -19,6 +19,7 @@ import { isWeak, orderPrepActions, undeterminedJudgments } from "../flow/rules";
 import type { TrainingState } from "../flow/training";
 import type { EventId, PrepActionId, TimingId } from "../flow/types";
 import { SceneBar } from "./ListenerStage";
+import { RecordCard } from "./RecordCard";
 import { LostSources, PREP_ICON, SourceIcon, VIEWPOINT_ICON } from "./SourceIcon";
 import { Exchange, ListenerLine } from "./Transcript";
 
@@ -131,6 +132,9 @@ export function Review({ state, onChoose }: Props) {
           <Exchange key={`second-${i}`} answer={a} />
         ))}
       </ol>
+
+      {/* 救護所に渡す記録の形（Issue #97）。回答を原文のまま項目に並べるだけで、要約しない */}
+      <RecordCard answers={state.answers} />
 
       {/* 思い出せなかったことは、候補を出さず、実物の確認と訓練の繰り返しに向ける（ADR-0022） */}
       <h2>今ここで確かめましょう</h2>

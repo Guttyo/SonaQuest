@@ -10,6 +10,7 @@ import {
   PRIVACY_VOICE,
   PROTOTYPE_LEAD,
 } from "../flow/content";
+import { BOARD_ENTRY_LABEL, COMING_SOON_INTAKE } from "../board/text";
 import { Intro } from "./Intro";
 
 /** React が文字列に描くときの変換に合わせる（& < > " '） */
@@ -45,7 +46,8 @@ describe("はじめにの1画面目：答え方をカードで選ぶ（A-14、Is
 
   it("カードの絵は飾りで、意味は文字で示す（aria-hidden）", () => {
     const svgs = choose.match(/<svg[^>]*>/g) ?? [];
-    expect(svgs).toHaveLength(3);
+    // 2D・3D・C-01 の鍵・問診モードの鍵（Issue #97）
+    expect(svgs).toHaveLength(4);
     for (const svg of svgs) expect(svg).toContain('aria-hidden="true"');
   });
 
@@ -59,9 +61,19 @@ describe("はじめにの1画面目：答え方をカードで選ぶ（A-14、Is
 
   it("1画面目から訓練は始められず、長い文も置かない（2026-11-05 オーナー決定「2画面目に全文」）", () => {
     expect(choose).not.toContain("訓練をはじめる");
-    expect(choose.match(/<button/g)).toHaveLength(1);
+    // ボタンは「次へ」と、訓練の外の画面（地域本部のボード）へ入るものの2つ（Issue #97）
+    expect(choose.match(/<button/g)).toHaveLength(2);
     expect(choose).toContain(">次へ</button>");
+    expect(choose).toContain(`>${escapeHtml(BOARD_ENTRY_LABEL)}</button>`);
     for (const text of REQUIRED) expect(choose).not.toContain(escapeHtml(text));
+  });
+
+  it("問診モードは将来構想で、C-01 と同じ押せないカード。ボードへのボタンは「次へ」の後（Issue #97）", () => {
+    const text = escapeHtml(COMING_SOON_INTAKE);
+    expect(choose).toContain(text);
+    expect(choose).not.toMatch(new RegExp(`<(button|a|input|label)[^>]*>[^<]*${text.slice(0, 10)}`));
+    expect(choose.indexOf(">次へ</button>")).toBeLessThan(choose.indexOf(text));
+    expect(choose.indexOf(text)).toBeLessThan(choose.indexOf(escapeHtml(BOARD_ENTRY_LABEL)));
   });
 
   it("並び：問いかけ → 題 → カード → Coming soon → 次へ", () => {
