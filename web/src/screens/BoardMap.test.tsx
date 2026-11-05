@@ -100,10 +100,15 @@ describe("動く地図（Issue #128）", () => {
     expect(html.match(/class="board-map-route-btn" aria-pressed="false"/g)).toHaveLength(4);
   });
 
-  it("搬送中の便と医療チームの車が、押せる印として図に出る。「架空・模擬」と書く", () => {
+  it("搬送中の便と医療チームの車が図に出て、図の外の一覧のボタンで選べる。「架空・模擬」と書く", () => {
     expect(html.match(/data-mover="s-/g)).toHaveLength(2);
     expect(html).toContain('data-mover="car"');
-    expect(html).toContain('role="button"');
+    // 図（role="img"）の中の印は操作要素にしない（読み上げに出ないため。PR #130 のレビュー）。図の外に本物のボタンを置く
+    const svg = html.slice(html.indexOf("<svg"), html.indexOf("</svg>"));
+    const movers = svg.slice(svg.indexOf('class="board-map-movers"'));
+    expect(movers).not.toContain('role="button"');
+    expect(movers).not.toContain("tabindex");
+    expect(html.match(/<button type="button" class="board-map-mover-btn" aria-pressed="false">/g)).toHaveLength(3);
     expect(html).toContain(BOARD_MAP_LIVE.legendVehicle);
     expect(html).toContain(BOARD_MAP_LIVE.moversTitle);
     expect(html).toContain("医療チームの車（架空・模擬）：本部で停車中。次の行き先 救護所A（到着見込み 11/05 10:15）");

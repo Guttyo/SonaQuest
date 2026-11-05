@@ -413,5 +413,5 @@ export const BOARD_MAP_LIVE = {
   vehicleStopped: (at: string, to: string, eta: string) => `${at}で停車中。次の行き先 ${to}（到着見込み ${eta}）`,
   shipment: (mode: string, item: string, qty: number, to: string, eta: string) => `${mode}：${item} ${qty} → ${to}（到着見込み ${eta}）`,
   noShipment: "搬送中の便はない",
-  pressHint: "図の「便」「車」を押すと、行き先と到着見込みをここに出す。",
+  pressHint: "下の一覧の行か、図の「便」「車」を押すと、図の印を太くし、行き先と到着見込みをここに出す。",
 } as const;

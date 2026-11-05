@@ -1750,13 +1750,6 @@
   transition: transform 1.8s linear;
   cursor: pointer;
 }
-.board-map-mover:focus {
-  outline: none;
-}
-.board-map-mover:focus-visible rect {
-  stroke: #111;
-  stroke-width: 4;
-}
 /* 動きを減らす設定：脈打ち・流れ・移動を止める（光は動かない光、印はその時刻の位置で止まる） */
 .board-map-still .board-map-glow,
 .board-map-still .board-map-flow {
@@ -1844,7 +1837,8 @@
   margin: 0;
   padding-left: 1.2em;
 }
-.board-map-route-btn {
+.board-map-route-btn,
+.board-map-mover-btn {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1859,10 +1853,12 @@
   text-align: left;
   cursor: pointer;
 }
-.board-map-route-btn:hover {
+.board-map-route-btn:hover,
+.board-map-mover-btn:hover {
   border-color: var(--line);
 }
-.board-map-route-btn[aria-pressed="true"] {
+.board-map-route-btn[aria-pressed="true"],
+.board-map-mover-btn[aria-pressed="true"] {
   border-color: #3d3a36;
   background: #f1f0ee;
 }

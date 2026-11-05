@@ -159,19 +159,13 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
       return s ? shipmentText(s) : null;
     })();
   const toggleMover = (id: string) => setMover((cur) => (cur === id ? null : id));
-  const moverPress = (id: string, label: string) => ({
-    role: "button",
-    tabIndex: 0,
-    "aria-label": label,
-    "aria-pressed": mover === id,
-    onClick: () => toggleMover(id),
-    onKeyDown: (e: KeyboardEvent<SVGGElement>) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        toggleMover(id);
-      }
-    },
-  });
+  // 図（role="img"）の中の印は、マウス・タッチで押せるだけにする。キーボード・読み上げでは、図の下の一覧のボタンで同じ操作をする
+  // （画像として扱われる SVG の中の操作要素は読み上げに出ないため。PR #130 のレビュー）
+  const moverPress = (id: string) => ({ onClick: () => toggleMover(id) });
+  const moverRows = [
+    { id: "car", text: `${BOARD_MAP_LIVE.vehicleName}：${carText}` },
+    ...shipments.map((sh) => ({ id: `s-${sh.id}`, text: shipmentText(sh) })),
+  ];
   return (
     <section className={`board-map${reducedMotion ? " board-map-still" : ""}`} aria-labelledby="board-map-title">
       <h2 id="board-map-title">
@@ -417,7 +411,7 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                       className={`board-map-mover shipment${mover === id ? " active" : ""}`}
                       style={{ transform: `translate(${sh.x}px, ${sh.y}px)` }}
                       data-mover={id}
-                      {...moverPress(id, shipmentText(sh))}
+                      {...moverPress(id)}
                     >
                       <g transform={`translate(${k * 32},0)`}>
                         <path d="M0,0 V-16" stroke="#3d3a36" strokeWidth="2" />
@@ -434,7 +428,7 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                   className={`board-map-mover vehicle${mover === "car" ? " active" : ""}`}
                   style={{ transform: `translate(${car.x}px, ${car.y}px)` }}
                   data-mover="car"
-                  {...moverPress("car", `${BOARD_MAP_LIVE.vehicleName}：${carText}`)}
+                  {...moverPress("car")}
                 >
                   <path d="M0,0 V16" stroke="#1f4e8c" strokeWidth="2" />
                   <circle r="4" fill="#1f4e8c" />
@@ -530,9 +524,16 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
               <p className="board-map-mover-info" aria-live="polite">
                 {moverText ?? BOARD_MAP_LIVE.pressHint}
               </p>
+              {/* 一覧の行は SVG の外の本物のボタン。押すと図の印を太くし、上の欄に行き先と到着見込みを出す（もう一度押すと戻す） */}
               <ul className="board-map-mover-list">
-                <li>{`${BOARD_MAP_LIVE.vehicleName}：${carText}`}</li>
-                {shipments.length === 0 ? <li>{BOARD_MAP_LIVE.noShipment}</li> : shipments.map((sh) => <li key={sh.id}>{shipmentText(sh)}</li>)}
+                {moverRows.map((r) => (
+                  <li key={r.id}>
+                    <button type="button" className="board-map-mover-btn" aria-pressed={mover === r.id} onClick={() => toggleMover(r.id)}>
+                      {r.text}
+                    </button>
+                  </li>
+                ))}
+                {shipments.length === 0 && <li>{BOARD_MAP_LIVE.noShipment}</li>}
               </ul>
               <p className="board-note">{BOARD_MAP_LIVE.moversNote}</p>
             </section>
