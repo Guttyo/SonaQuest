@@ -110,7 +110,9 @@ describe("本部（HQ）の全体", () => {
     expect(first).toContain("骨粗鬆症薬G（週1）");
     expect(first).toContain("現地 0錠・本部 0錠");
     expect(first).toContain(`${BOARD_CASES.proposal}：${BOARD_CASES.awaiting}`);
-    expect(first).toContain("<td>卸の回答を確認する</td>");
+    expect(first).toContain(`${BOARD_CASES.table.next}</span>卸の回答を確認する</td>`);
+    // 狭い幅で見出し行の代わりに見せる列名が、各セルにある（Issue #113 の PR レビュー）
+    for (const h of Object.values(BOARD_CASES.table)) expect(first).toContain(`<span class="board-action-k" aria-hidden="true">${h}</span>`);
     // 在庫切れ見込みの札は「あと N 日」だけ（読み上げには状態の名前を添える）
     expect(t).toMatch(/<span class="board-pill warn"><span class="visually-hidden">在庫切れ見込み、<\/span>あと[\d.]+日<\/span>/);
     // 説明はヘルプの開閉の中

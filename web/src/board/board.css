@@ -1947,9 +1947,28 @@
   outline: 3px solid var(--ink);
   outline-offset: 2px;
 }
+/* セルごとの列名：狭い幅で見出し行の代わりに見せる（読み上げは見出し行で関連付けるので aria-hidden） */
+.board-action-k {
+  display: none;
+}
 @media (max-width: 640px) {
+  /* 見出し行は画面からは隠すが、読み上げのための列の関連付けは残す（display: none にしない） */
   .board-action-table thead {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .board-action-k {
+    display: block;
+    font-size: var(--fs-caption);
+    font-weight: var(--fw-bold);
+    color: var(--ink-soft);
+  }
+  .board-action-now .board-action-k {
+    display: block;
   }
   .board-action-table tr {
     display: grid;

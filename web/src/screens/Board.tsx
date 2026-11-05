@@ -145,12 +145,14 @@ function ActionRow({ c, state, onSelect }: { c: CaseRow; state: DemoState; onSel
   return (
     <tr data-case={`${c.site}|${c.item}`}>
       <td className="board-action-site">
+        <span className="board-action-k" aria-hidden="true">{BOARD_CASES.table.site}</span>
         <button type="button" className="board-link" onClick={() => onSelect(c.site)} aria-label={`${c.site}${BOARD_LAYOUT.openSite}`}>
           {c.site}
         </button>
         <StaleMark state={state} site={c.site} />
       </td>
       <td>
+        <span className="board-action-k" aria-hidden="true">{BOARD_CASES.table.what}</span>
         <Pill level={statusLevel(c.status)}>
           <StatusText c={c} />
         </Pill>{" "}
@@ -160,6 +162,7 @@ function ActionRow({ c, state, onSelect }: { c: CaseRow; state: DemoState; onSel
         </span>
       </td>
       <td className="board-action-now">
+        <span className="board-action-k" aria-hidden="true">{BOARD_CASES.table.now}</span>
         <span>
           {BOARD_CASES.cols.onHand} {qty(c.onHand, c.unit)}・{BOARD_CASES.cols.hq} {c.hqOnHand === null ? "—" : qty(c.hqOnHand, c.unit)}
         </span>
@@ -177,7 +180,10 @@ function ActionRow({ c, state, onSelect }: { c: CaseRow; state: DemoState; onSel
           </span>
         )}
       </td>
-      <td>{c.next}</td>
+      <td>
+        <span className="board-action-k" aria-hidden="true">{BOARD_CASES.table.next}</span>
+        {c.next}
+      </td>
     </tr>
   );
 }
