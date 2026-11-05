@@ -811,7 +811,8 @@
   - 画面はメモリにだけ持つ（`localStorage` 等に保存しない）。やり直し（`restart`）では Intro が作り直され、1画面目の既定（2D）に戻る。画面が変わったら題へ焦点を移して上から見せる。1画面目のラジオから `PRIVACY_VOICE` への `aria-describedby` は、文が2画面目にあるので外した。
   - [TODO-OWNER: 2画面の文言（Claude Code の下書き。`web/src/flow/content.ts` の `NEXT_LABEL`「次へ」、`NOTES_TITLE`「はじめる前に」、`BACK_LABEL`「答え方を選び直す」）]
   - 試験（`Intro.test.tsx`）：1画面目に「訓練をはじめる」と必ず見せる説明の文が無いこと、2画面目に全文があり `<details>` が無いこと、3D のときの `PRIVACY_VOICE` の位置、並び。
-- 追記3（2026-11-05、Issue #83。Claude Code の下書き、オーナーの確認待ち）：PR #70 の自動レビューの指摘で、URL に `?mode=3d` を付けて開いたあと「訓練をやめる」→「はじめに戻る」で戻ると、`Intro` が作り直されるときに URL を読み直し、1画面目で 3D が選ばれていた（決定2・追記2の「初期状態（2D）に戻る」と、PR #70 の動作確認の記録「はじめに戻ると既定の 2D」と食い違っていた）。次の規則にそろえた。
+- 追記3（2026-11-05、Issue #83。Claude Code の下書き。オーナーが決定した。下の決定の行）：PR #70 の自動レビューの指摘で、URL に `?mode=3d` を付けて開いたあと「訓練をやめる」→「はじめに戻る」で戻ると、`Intro` が作り直されるときに URL を読み直し、1画面目で 3D が選ばれていた（決定2・追記2の「初期状態（2D）に戻る」と、PR #70 の動作確認の記録「はじめに戻ると既定の 2D」と食い違っていた）。次の規則にそろえた。
+  - → オーナー決定（2026-11-05、チャット）：「既定の 2D」（はじめに戻ったときの1画面目の初期選択）
   - 1画面目の初期選択は、ページを開いて最初の表示（`TrainingState.session` が 0）だけ `?mode=3d` を読む。はじめに戻った後（`restart` で `session` が 1 以上）は、URL にかかわらず既定の 2D。利用者はカードで選び直す。「答え方を選び直す」は画面だけを戻すので、選んだ値はそのまま。
   - 決め方は `web/src/flow/mode.ts` の `introInitialMode(search, session)`（純粋な関数）と `currentIntroMode(session)`。`App.tsx` が `Intro` の `initialMode` に渡し、`Intro.tsx` は URL を読まない（省くと 2D）。試験は `mode.test.ts`（`?mode=3d` 付き・無し × 最初の表示・戻った後、`start`→`stop`→`restart` の後）と `Intro.test.tsx`（`initialMode` に 3D を渡すと 3D が選ばれている）。
   - アドレス欄には `?mode=3d` が残るので、ページを読み込み直すと最初の表示として 3D が選ばれる。`history.replaceState` で URL から消すことはしない。
