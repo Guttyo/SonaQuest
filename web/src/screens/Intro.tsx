@@ -8,7 +8,7 @@ import {
   NEXT_LABEL,
   NOTES_TITLE,
 } from "../flow/content";
-import { currentMode, type TrainingMode } from "../flow/mode";
+import type { TrainingMode } from "../flow/mode";
 import { IntroNotes } from "./IntroNotes";
 import { ModeIcon } from "./ModeIcon";
 
@@ -19,7 +19,10 @@ interface Props {
   onStart: (mode: TrainingMode) => void;
   /** 試験・見本のため。省くと1画面目（choose） */
   initialView?: IntroView;
-  /** 試験・見本のため。省くと URL の ?mode=3d を予備として読む（既定は 2D） */
+  /**
+   * 1画面目の初期選択。省くと 2D。App が currentIntroMode で決めて渡す
+   * （最初の表示だけ URL の ?mode=3d を読み、はじめに戻った後は 2D。Issue #83、ADR-0036 の追記3）
+   */
   initialMode?: TrainingMode;
 }
 
@@ -30,8 +33,9 @@ interface Props {
  * 「訓練をはじめる」は2画面目にだけあり、1画面目から訓練は始められない。色はクリーム・ミント・オレンジのまま（ADR-0020）
  */
 export function Intro({ onStart, initialView = "choose", initialMode }: Props) {
-  // 選んだ値と画面はメモリにだけ持ち、保存しない（ADR-0007）。やり直すと部品ごと作り直され、1画面目に戻る
-  const [mode, setMode] = useState<TrainingMode>(initialMode ?? currentMode);
+  // 選んだ値と画面はメモリにだけ持ち、保存しない（ADR-0007）。やり直すと部品ごと作り直され、1画面目の既定の 2D に戻る。
+  // 「答え方を選び直す」は画面だけを戻すので、選んだ値はそのまま
+  const [mode, setMode] = useState<TrainingMode>(initialMode ?? "2d");
   const [view, setView] = useState<IntroView>(initialView);
   const chosen = MODE_OPTIONS.find((option) => option.id === mode) ?? MODE_OPTIONS[0];
 

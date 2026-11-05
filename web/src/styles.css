@@ -11,6 +11,7 @@
   --control-border: #8a8378; /* 入力欄の枠。背景・白地に対して3:1以上 */
   --surface: #ffffff;
   --alert-bg: #fff1e3;
+  --orange-strong-text: #a94e17; /* --alert-bg の上の文字用。--orange-strong（4.46）を少し濃くして 4.5 以上にする（Issue #46） */
 
   /* 書体はゴシックで統一する（Issue #71、ADR-0037。2026-11-05 オーナー決定「ゴシックで統一」）。
      端末に入っているゴシックだけを使い、外部のフォント配信もフォントファイルも使わない（送信先を増やさない。privacy.md）。
@@ -1230,6 +1231,206 @@ body,
   height: 44px;
 }
 
+/* 2D の聞き取り係（Issue #47、A-03、ADR-0038）。3D パペットの 2D 版の姿（screens/Puppet2D.tsx）。
+   状態ごとの姿勢は止まった transform で決め（data-activity）、動きは別の要素に重ねる。
+   動きを減らす設定では、上の prefers-reduced-motion で動きだけが止まり、状態ごとの姿勢が残る。
+   舞台は 3D と同じ .puppet3d-stage（ミントの地）なので、出来事の暗い場面でも係が地に沈まない */
+.listener.listener-2d {
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.listener-2d .listener-speech {
+  align-self: stretch;
+}
+
+.puppet2d-stage {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.puppet2d {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.puppet2d .p2d-sway,
+.puppet2d .p2d-head,
+.puppet2d .p2d-nod,
+.puppet2d .p2d-bob,
+.puppet2d .p2d-jaw,
+.puppet2d .p2d-mouth,
+.puppet2d .p2d-eyes,
+.puppet2d .p2d-arm {
+  transform-box: fill-box;
+}
+
+.puppet2d .p2d-sway {
+  transform-origin: 50% 100%;
+}
+
+.puppet2d .p2d-head,
+.puppet2d .p2d-nod,
+.puppet2d .p2d-bob {
+  transform-origin: 50% 90%;
+  transition: transform 300ms ease;
+}
+
+.puppet2d .p2d-jaw {
+  transform-origin: 50% 0%;
+}
+
+.puppet2d .p2d-mouth {
+  transform-origin: 50% 0%;
+}
+
+.puppet2d .p2d-arm-left {
+  transform-origin: 50% 0%;
+}
+
+.puppet2d .p2d-arm-right {
+  transform-origin: 50% 0%;
+}
+
+/* 待機：まっすぐ。ゆっくり左右に揺れる */
+.puppet2d[data-activity="idle"] .p2d-sway {
+  animation: p2d-sway 4.2s ease-in-out infinite alternate;
+}
+
+@keyframes p2d-sway {
+  from {
+    transform: rotate(-2.5deg);
+  }
+  to {
+    transform: rotate(2.5deg);
+  }
+}
+
+/* 聞いている：利用者のほうへ首をかしげ、片腕を少し上げる。ときどき小さくうなずく */
+.puppet2d[data-activity="listening"] .p2d-head {
+  transform: rotate(-9deg) translateY(2px);
+}
+
+.puppet2d[data-activity="listening"] .p2d-arm-right {
+  transform: rotate(-28deg);
+}
+
+.puppet2d[data-activity="listening"] .p2d-bob {
+  animation: p2d-listen 2.6s ease-in-out infinite;
+}
+
+@keyframes p2d-listen {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+  75% {
+    transform: translateY(2.5px);
+  }
+}
+
+/* 話している：下あごが下がって口が開く。開け閉めをくり返す */
+.puppet2d[data-activity="speaking"] .p2d-jaw {
+  transform: translateY(6px);
+  animation: p2d-jaw 0.36s ease-in-out infinite alternate;
+}
+
+.puppet2d[data-activity="speaking"] .p2d-mouth {
+  transform: scaleY(1.9);
+  animation: p2d-mouth 0.36s ease-in-out infinite alternate;
+}
+
+@keyframes p2d-jaw {
+  from {
+    transform: translateY(1px);
+  }
+  to {
+    transform: translateY(6px);
+  }
+}
+
+@keyframes p2d-mouth {
+  from {
+    transform: scaleY(1.1);
+  }
+  to {
+    transform: scaleY(1.9);
+  }
+}
+
+/* 考え中：反対へ首をかしげて少し上を見る。ゆっくり揺れる（返事を待つ間。ADR-0030） */
+.puppet2d[data-activity="thinking"] .p2d-head {
+  transform: rotate(8deg) translateY(-1px);
+}
+
+.puppet2d[data-activity="thinking"] .p2d-eyes {
+  transform: translate(2px, -2.5px);
+}
+
+.puppet2d[data-activity="thinking"] .p2d-arm-left {
+  transform: rotate(32deg);
+}
+
+.puppet2d[data-activity="thinking"] .p2d-sway {
+  animation: p2d-sway 6s ease-in-out infinite alternate;
+}
+
+/* 回答を受け取ったときのうなずき（PR #69 の光の沈みの代わり）。頭を大きく1回、小さく1回下げる */
+.puppet2d .p2d-nod-on {
+  animation: p2d-nod 700ms ease-in-out both;
+}
+
+@keyframes p2d-nod {
+  0%,
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+  30% {
+    transform: translateY(5px) scaleY(0.96);
+  }
+  55% {
+    transform: translateY(0) scaleY(1);
+  }
+  75% {
+    transform: translateY(2px) scaleY(0.98);
+  }
+}
+
+/* 吹き出しの横の小さな顔（光の丸の代わり） */
+.puppet2d-face {
+  flex: none;
+  display: block;
+  width: 30px;
+  height: 29px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--mint);
+  /* 頭のまわりだけを切り取った絵なので、胴や腕が枠の外に出ないよう切る */
+  overflow: hidden;
+}
+
+.puppet2d-face .puppet2d {
+  overflow: hidden;
+}
+
+/* 小さな顔は止まった姿（ADR-0038）。状態の姿勢は残し、揺れ・うなずき・口の動きだけを止める */
+.puppet2d.puppet2d-static[data-activity] [class*="p2d-"] {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .puppet2d .p2d-head,
+  .puppet2d .p2d-nod,
+  .puppet2d .p2d-bob {
+    transition: none;
+  }
+}
+
 /* 振り返りの「手薄なところ」（A-05 の⑥）。観点の絵と、観点の名前・判定の文字を並べる。色だけに頼らず、判定は文字で示す */
 .weak-list {
   list-style: none;
@@ -1299,4 +1500,36 @@ body,
 
 .timing-cards .mode-card {
   min-height: 56px;
+}
+
+/* PC の広い画面とコントラストの点検（Issue #46、A-02） */
+
+/* 出来事の暗い場面では、焦点の枠を明るいオレンジにする。
+   濃いオレンジ（--orange-strong）は暗い枠 #263034 の上で 2.73 しかなく、3:1 に届かない（明るいオレンジは 6.53） */
+.scene-event :focus-visible,
+.scene-event .mode-card:has(input:focus-visible) {
+  outline-color: var(--orange);
+}
+
+/* 出来事の暗い場面で、係の横の読み上げの知らせ（「ブラウザの読み上げに切り替えました。」など）は、
+   薄い墨のままだと暗い地 #1d2427 の上で 2.29 しかないので、くすんだクリームにする（9.97）。読み上げの操作のボタンは白地のまま */
+.scene-event .dialogue-stage .speaker-note {
+  color: #d4cdc1;
+}
+
+@media (min-width: 768px) {
+  /* ヘッダーの題と「訓練をやめる」を、本文の列（640px）の両端にそろえる。
+     広い画面で「訓練をやめる」が本文から離れすぎないように。線と背景は画面の幅いっぱいのまま */
+  .app-header {
+    padding-left: max(16px, env(safe-area-inset-left), calc((100% - 640px) / 2));
+    padding-right: max(16px, env(safe-area-inset-right), calc((100% - 640px) / 2));
+  }
+
+  /* ③確認の情報源のカードと準備行動のカードは1列のままにする（2列にすると、幅640pxの列では題が1〜2文字だけ次の行に残る） */
+
+  /* いつやるか（3枚、2〜5文字）は、1枚が横に長くなりすぎないように3列に並べる */
+  .timing-cards {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }

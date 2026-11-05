@@ -466,20 +466,26 @@ def dynamic_name(tokens):
 
 
 def git_invocation(tokens):
-    """git コマンドなら {'configs': [-c の値...], 'sub': サブコマンド, 'args': [...]}。違えば None。"""
+    """git コマンドなら {'configs': [-c の値...], 'chdirs': [-C の値...], 'repo_opts': --git-dir・--work-tree の有無,
+    'sub': サブコマンド, 'args': [...]}。違えば None。"""
     if not tokens or os.path.basename(tokens[0]).lower() not in ("git", "git.exe"):
         return None
-    configs, i = [], 1
+    configs, chdirs, repo_opts, i = [], [], False, 1
     while i < len(tokens) and tokens[i].startswith("-"):
         opt = tokens[i]
+        if opt.split("=", 1)[0] in ("--git-dir", "--work-tree"):
+            repo_opts = True
         if opt in GIT_VALUE_OPTS:
-            if opt in ("-c", "--config-env") and i + 1 < len(tokens):
-                configs.append(tokens[i + 1])
+            value = tokens[i + 1] if i + 1 < len(tokens) else None
+            if opt in ("-c", "--config-env") and value is not None:
+                configs.append(value)
+            if opt == "-C":
+                chdirs.append(value)
             i += 2
             continue
         if opt.startswith("--config-env="):
             configs.append(opt.split("=", 1)[1])
         i += 1
-    return {"configs": configs,
+    return {"configs": configs, "chdirs": chdirs, "repo_opts": repo_opts,
             "sub": tokens[i] if i < len(tokens) else None,
             "args": tokens[i + 1:]}

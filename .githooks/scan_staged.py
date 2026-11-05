@@ -2,7 +2,9 @@
 
   scan_staged.py              ステージした内容を検査（pre-commit）
   scan_staged.py --msg FILE   コミットメッセージを検査（commit-msg）
-  scan_staged.py --branch     main へのマージコミットを止める（pre-merge-commit）
+  scan_staged.py --merge      マージコミットを検査（pre-merge-commit。main へのマージを止め、
+                              ステージした内容と同じ検査をする。Issue #30）
+  scan_staged.py --branch     main へのコミットだけを止める（前の pre-merge-commit との互換）
 
 止める条件：
   - main（master）へのコミット・マージコミット。main はGitHubのPR経由でだけ変える
@@ -105,14 +107,66 @@ def staged_changes():
     return changes
 
 
+MAIN_REFS = ("refs/heads/main", "refs/remotes/origin/main")
+
+
+def merge_heads():
+    """進行中のマージで取り込むコミット。
+    pre-commit（衝突を直した後の git commit、merge --continue）では MERGE_HEAD を読む。
+    pre-merge-commit の時点では MERGE_HEAD がまだ無いので（git 2.56 で確認）、GIT_REFLOG_ACTION
+    （「merge origin/main」「pull …」）から読む。pull は FETCH_HEAD のうち、マージするものを使う。"""
+    def path(name):
+        p = subprocess.run(["git", "rev-parse", "--git-path", name], capture_output=True)
+        return Path(p.stdout.decode("utf-8", "replace").strip()) if p.returncode == 0 else None
+
+    def lines(name):
+        p = path(name)
+        try:
+            return p.read_text(encoding="utf-8", errors="replace").splitlines() if p else []
+        except OSError:
+            return []
+
+    heads = [x.strip() for x in lines("MERGE_HEAD") if x.strip()]
+    if heads:
+        return heads
+    action = os.environ.get("GIT_REFLOG_ACTION", "").split()
+    if action[:1] == ["merge"]:
+        names = [a for a in action[1:] if not a.startswith("-")]
+        out = []
+        for n in names:
+            p = subprocess.run(["git", "rev-parse", "-q", "--verify", f"{n}^{{commit}}"], capture_output=True)
+            if p.returncode != 0:
+                return []
+            out.append(p.stdout.decode().strip())
+        return out
+    if action[:1] == ["pull"]:
+        return [x.split("\t", 1)[0] for x in lines("FETCH_HEAD") if x and "\tnot-for-merge\t" not in x]
+    return []
+
+
+def main_being_merged():
+    """main の取り込み（取り込むコミットが1つで、ローカルの main か origin/main に含まれる）なら、そのコミット。
+    origin/main は GitHub の main を fetch したもの（guard_github.py が手元からの書き換えを止める）。"""
+    heads = merge_heads()
+    if len(heads) != 1:
+        return None
+    for ref in MAIN_REFS:
+        p = subprocess.run(["git", "merge-base", "--is-ancestor", heads[0], ref], capture_output=True)
+        if p.returncode == 0:
+            return heads[0]
+    return None
+
+
 def marker_problems(removed_in, moved_in, decisions_in):
     """マーカーと決定の行が減るファイルを、ファイル全体で確かめる（ADR-0024）。
     マーカーが減ってよいのは、ローカルの main（refs/heads/main）で直後に決定の行が付いたものだけ。
+    main の取り込み（マージ）では、取り込む main 側に無いマーカー・決定の行も減ってよい（Issue #30）。
     main にあるオーナーの決定の行は、マーカーが減らなくても消させない。
     同じ文のマーカー・決定の行が別のファイルで増えた分は、移したものとして差し引く（1つの追加で差し引けるのは1つだけ）。
     ファイル全体を読むのは、差分でマーカー・決定の行が消えたファイルと、削除・名前の変更だけ（速さのため）。"""
     short, lost_decisions = {}, []
     available = Counter(decisions_in)
+    taken = main_being_merged()
     changes = staged_changes()
     # 見出しから取ったパスが変更の一覧と合わなければ、取り違えを疑ってすべてのファイルを確かめる
     check_all = bool(set(removed_in) - {p for change in changes for p in change})
@@ -122,15 +176,24 @@ def marker_problems(removed_in, moved_in, decisions_in):
         head = show(f"HEAD:{old}")
         staged = show(f":{new}") if new else ""
         main = show(f"refs/heads/main:{old}")
+        theirs = show(f"{taken}:{old}") if taken else None
         gone = removed_decisions(main, head, staged)
+        if theirs:  # main の取り込みで、main 側が消した決定の行は消えてよい
+            gone -= Counter(decision_lines(head)) - Counter(decision_lines(theirs))
         moved = gone & available
         available -= moved
         if gone - moved:
             lost_decisions.append(old)
         res_n = marker_counts(staged)
-        if all(res_n.get(m, 0) >= n for m, n in marker_counts(head).items()):
+        head_n = marker_counts(head)
+        if all(res_n.get(m, 0) >= n for m, n in head_n.items()):
             continue
+        theirs_n = marker_counts(theirs) if theirs else None
         for m, n in marker_shortfall(main, head, staged).items():
+            # main の取り込みで、main 側に無いマーカー（オーナーが解除したもの）は消えてよい。
+            # 両方にあるものは残す。取り込む側にファイルが無いときは、この扱いをしない
+            if theirs_n is not None and res_n.get(m, 0) >= min(head_n.get(m, 0), theirs_n.get(m, 0)):
+                continue
             short.setdefault(m, []).append((old, n))
     lost = [f"{path}: {m}" for m, items in short.items()
             if sum(n for _, n in items) > moved_in.get(m, 0) for path, _ in items]
@@ -199,6 +262,8 @@ def main():
     use_utf8_stdio()
     if len(sys.argv) == 3 and sys.argv[1] == "--msg":
         problems = scan_message(sys.argv[2])
+    elif len(sys.argv) == 2 and sys.argv[1] == "--merge":
+        problems = scan_staged()
     elif len(sys.argv) == 2 and sys.argv[1] == "--branch":
         problems = scan_branch()
     else:
