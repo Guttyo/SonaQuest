@@ -6,6 +6,7 @@ import {
   MAX_TTS_BODY_BYTES,
   MAX_TTS_TEXT_LENGTH,
   TTS_MODEL,
+  TTS_VOICE_SETTINGS,
   TTS_OUTPUT_FORMAT,
   createTtsApp,
   crossSiteRequest,
@@ -166,7 +167,14 @@ describe("ElevenLabs に送るのは読み上げる文だけ（ADR-0005）", () 
     expect(url).toBe(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE}?output_format=${TTS_OUTPUT_FORMAT}`);
     expect(url).not.toContain(KEY);
     expect(init.method).toBe("POST");
-    expect(JSON.parse(String(init.body))).toEqual({ text: TEXT, model_id: TTS_MODEL, language_code: "ja" });
+    expect(JSON.parse(String(init.body))).toEqual({
+      text: TEXT,
+      model_id: TTS_MODEL,
+      language_code: "ja",
+      voice_settings: TTS_VOICE_SETTINGS,
+    });
+    expect(TTS_MODEL).toBe("eleven_v4_turbo");
+    expect(TTS_VOICE_SETTINGS.stability).toBe(0.65);
     expect((init.headers as Record<string, string>)["xi-api-key"]).toBe(KEY);
     expect(init.signal).toBeInstanceOf(AbortSignal);
   });
