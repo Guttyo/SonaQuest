@@ -116,6 +116,247 @@
   color: var(--mint-strong);
   border-color: var(--mint-strong);
 }
+.board-pill.none {
+  color: var(--ink);
+  border-color: var(--control-border);
+  background: var(--cream);
+}
+
+/* 見出しの直下：架空データの印と集計時点 */
+.board .board-asof {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+  font-size: var(--fs-sub);
+  color: var(--ink-soft);
+}
+.board .board-count {
+  font-size: var(--fs-sub);
+  font-weight: var(--fw-regular, 400);
+  color: var(--ink-soft);
+  margin-left: 6px;
+}
+
+/* 確認・手配が必要な品目（Issue #101）。スマホは縦に読むカード、PC は行を見比べる一覧 */
+.board-cases {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.board-case details {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.board-case summary {
+  cursor: pointer;
+  padding: 10px 12px 10px 30px;
+  position: relative;
+  list-style: none;
+  border-radius: 12px;
+}
+.board-case summary::-webkit-details-marker {
+  display: none;
+}
+.board-case summary::before {
+  content: "▸";
+  position: absolute;
+  left: 12px;
+  top: 10px;
+  color: var(--ink-soft);
+}
+.board-case details[open] summary::before {
+  content: "▾";
+}
+.board-case summary:focus-visible {
+  outline: 3px solid var(--focus, var(--mint-strong));
+  outline-offset: 2px;
+}
+.board-case-row {
+  display: grid;
+  gap: 4px 12px;
+  font-size: var(--fs-sub);
+  min-width: 0;
+}
+.board-case-row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.board-case-row .k {
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
+  margin-right: 2px;
+}
+.board-case-where {
+  font-size: var(--fs-body);
+}
+.board-case-form {
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
+}
+.board-case-next {
+  font-weight: var(--fw-bold);
+}
+.board-case-detail {
+  padding: 4px 12px 12px 30px;
+  border-top: 1px solid var(--line);
+}
+.board-case-detail dl {
+  margin: 8px 0 0;
+  display: grid;
+  gap: 8px 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+}
+.board-case-detail dt {
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+.board-case-detail dd {
+  margin: 0;
+  font-size: var(--fs-sub);
+  overflow-wrap: anywhere;
+}
+
+/* PC：一覧として横に並べ、行同士を見比べる */
+@media (min-width: 900px) {
+  .board-case-row {
+    grid-template-columns: 11em minmax(12em, 1.2fr) 7em 7em minmax(12em, 1.4fr) minmax(12em, 1.4fr);
+    align-items: start;
+  }
+  .board-case-row .k {
+    display: block;
+    margin: 0;
+  }
+  .board-cases-head {
+    display: grid;
+    grid-template-columns: 11em minmax(12em, 1.2fr) 7em 7em minmax(12em, 1.4fr) minmax(12em, 1.4fr);
+    gap: 4px 12px;
+    padding: 0 12px 0 30px;
+    font-size: var(--fs-caption);
+    color: var(--ink-soft);
+  }
+}
+@media (max-width: 899px) {
+  .board-cases-head {
+    display: none;
+  }
+}
+
+/* 救護所ごとの一枚（ホワイトボード風）。PC は横に並べ、スマホは縦に積む */
+.board-overview {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 10px;
+}
+.board-site {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  min-width: 0;
+}
+.board-site h3 {
+  margin: 0 0 8px;
+  font-size: var(--fs-body);
+}
+.board-site dl {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+.board-site dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+  font-size: var(--fs-sub);
+  padding: 2px 0;
+  border-bottom: 1px dashed var(--line);
+}
+.board-site dl > div:last-child {
+  border-bottom: 0;
+}
+.board-site dt {
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
+}
+.board-site dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.board-site dl > div.short dd {
+  color: var(--orange-strong-text);
+  font-weight: var(--fw-bold);
+}
+.board-site dl > div.warn dd {
+  color: var(--orange-strong-text);
+}
+
+/* 下部の詳細。閉じた状態で置く */
+.board-more {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.board-more > summary {
+  cursor: pointer;
+  padding: 10px 12px 10px 30px;
+  position: relative;
+  list-style: none;
+}
+.board-more > summary::-webkit-details-marker {
+  display: none;
+}
+.board-more > summary::before {
+  content: "▸";
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  color: var(--ink-soft);
+}
+.board-more[open] > summary::before {
+  content: "▾";
+}
+.board-more > summary:focus-visible {
+  outline: 3px solid var(--focus, var(--mint-strong));
+  outline-offset: 2px;
+}
+.board-more > summary h2 {
+  display: inline;
+  font-size: var(--fs-body);
+}
+.board-more-body {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 12px;
+  min-width: 0;
+}
+/* grid の子は min-width が auto で、中の表や図の幅まで広がってしまう。枠の中で横に送る */
+.board > *,
+.board-more-body > *,
+.board-chart {
+  min-width: 0;
+}
+.board-trend-table {
+  margin-top: 8px;
+}
+.board-heat .cell.none {
+  color: var(--ink-soft);
+  border-style: dashed;
+}
 
 /* 在庫の見込み日数の表（救護所×薬） */
 .board-heat td {
@@ -192,6 +433,7 @@
   min-width: 0;
 }
 .board-bar-fill {
+  display: block; /* 空の span は inline のままだと幅が効かない（PR #98 のレビュー指摘） */
   height: 100%;
   border-radius: 5px;
   background: var(--mint-strong);
@@ -264,32 +506,20 @@
   color: var(--ink-soft);
 }
 
-/* 文字起こしのイメージの枠と QR の説明 */
+/* 文字起こしのイメージと QR の説明（画像があるときだけ出す） */
 .board-image {
   display: grid;
   gap: 8px;
+  margin: 0;
   padding: 12px 14px;
   border: 1px dashed var(--control-border);
   border-radius: 12px;
   background: var(--surface);
 }
-.board-image-frame {
-  display: grid;
-  place-items: center;
-  aspect-ratio: 9 / 16;
-  max-height: 240px;
-  width: auto;
-  margin: 0 auto;
-  min-width: 120px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--cream);
-  color: var(--ink-soft);
-  font-size: var(--fs-caption);
-}
-.board-image-frame img {
+.board-image img {
   max-width: 100%;
-  max-height: 240px;
+  max-height: 320px;
+  margin: 0 auto;
   border-radius: 10px;
 }
 .board-image-caption {

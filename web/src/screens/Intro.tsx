@@ -125,16 +125,12 @@ export function Intro({ onStart, onOpenBoard, initialView = "choose", initialMod
         {NEXT_LABEL}
       </button>
 
-      {/* 医療者側（Issue #97、ADR-0042）。問診モードは将来構想で、C-01 と同じ押せないカード。ボードは架空データの試作で、訓練の外の画面 */}
-      <p className="mode-card locked" aria-disabled="true">
-        <ModeIcon id="locked" />
-        <span className="mode-card-text">
-          <span className="mode-card-label">{COMING_SOON_INTAKE}</span>
-        </span>
-      </p>
+      {/* 医療者側（Issue #97、#101、ADR-0042）。「次へ」の直下にボードへのボタン（架空データの試作で、訓練の外の画面）。
+          問診モードは将来構想で、その下の説明にまとめる（押せるものにしない。PRD「Coming soon の表示の決まり」） */}
       <button type="button" className="secondary" onClick={() => onOpenBoard?.()}>
         {BOARD_ENTRY_LABEL}
       </button>
+      <p className="intro-aside">{COMING_SOON_INTAKE}</p>
     </section>
   );
 }

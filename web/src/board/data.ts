@@ -16,18 +16,39 @@ export const BOARD_TODAY = "2026-11-05";
  * この試作で仮に置いた値で、医学的な基準ではない
  */
 // [TODO-OWNER: 在庫の見込み日数の目安（Claude Code の下書き。3日）]
+// → オーナー決定（2026-11-05、チャット）：「3日」は試作用の目安として表示し、判定は丸める前の値で行う。
 export const COVER_GUIDE_DAYS = 3;
+
+/** 集計の時点（架空）。見出しの直下に出す */
+export const BOARD_AS_OF = "2026-11-05 09:30";
 
 export interface StockRow {
   site: SiteId;
   item: string;
-  /** 分類（慢性疾患・継続必須・外用・定期投与・急性・衛生）。画面の説明に使うだけで、判定はしない */
+  /** 分類（慢性疾患・継続必須・外用・定期投与・急性・衛生）。画面の説明に使うだけで、判定や並び順には使わない */
   category: string;
   unit: string;
-  onHand: number;
-  /** 1日の出庫（本部備蓄は出庫のペースを持たないので 0） */
-  dailyUse: number;
+  /** 現地の在庫。null は「在庫のデータが届いていない（未確認）」で、0 とは区別する（Issue #101） */
+  onHand: number | null;
+  /**
+   * 1日の出庫。null は「出庫のペースが分からない（見込み算出不可）」。
+   * 本部備蓄は出庫のペースを持たないので 0（判定は site === HQ で分け、0 を理由にしない）
+   */
+  dailyUse: number | null;
 }
+
+/** 剤形（薬の名前の仮名と対で出す。規格・量は書かない） */
+export const ITEM_FORMS: Readonly<Record<string, string>> = {
+  降圧薬A: "錠剤",
+  血糖降下薬B: "錠剤",
+  抗てんかん薬C: "錠剤",
+  吸入薬D: "吸入",
+  貼付鎮痛薬E: "貼付",
+  抗凝固薬F: "錠剤",
+  "骨粗鬆症薬G（週1）": "錠剤・週1回",
+  解熱鎮痛薬H: "錠剤",
+  消毒薬: "外用液",
+};
 
 export const ITEMS: readonly string[] = [
   "降圧薬A",
@@ -46,8 +67,8 @@ const row = (
   item: string,
   category: string,
   unit: string,
-  onHand: number,
-  dailyUse: number,
+  onHand: number | null,
+  dailyUse: number | null,
 ): StockRow => ({ site, item, category, unit, onHand, dailyUse });
 
 export const STOCK: readonly StockRow[] = [
@@ -57,7 +78,8 @@ export const STOCK: readonly StockRow[] = [
   row("救護所A", "吸入薬D", "慢性疾患", "本", 9, 2),
   row("救護所A", "貼付鎮痛薬E", "外用", "枚", 70, 14),
   row("救護所A", "抗凝固薬F", "継続必須", "錠", 150, 20),
-  row("救護所A", "骨粗鬆症薬G（週1）", "定期投与", "錠", 12, 1),
+  // 出庫のペースが届いていない例（在庫はあるが見込みを出せない）
+  row("救護所A", "骨粗鬆症薬G（週1）", "定期投与", "錠", 12, null),
   row("救護所A", "解熱鎮痛薬H", "急性", "錠", 800, 120),
   row("救護所A", "消毒薬", "衛生", "本", 25, 6),
   row("救護所B", "降圧薬A", "慢性疾患", "錠", 180, 45),
@@ -81,7 +103,8 @@ export const STOCK: readonly StockRow[] = [
   row("救護所D", "降圧薬A", "慢性疾患", "錠", 90, 30),
   row("救護所D", "血糖降下薬B", "慢性疾患", "錠", 60, 20),
   row("救護所D", "抗てんかん薬C", "継続必須", "錠", 20, 5),
-  row("救護所D", "吸入薬D", "慢性疾患", "本", 4, 1),
+  // 在庫のデータが届いていない例（0 ではなく未確認）
+  row("救護所D", "吸入薬D", "慢性疾患", "本", null, 1),
   row("救護所D", "貼付鎮痛薬E", "外用", "枚", 80, 8),
   row("救護所D", "抗凝固薬F", "継続必須", "錠", 30, 12),
   row("救護所D", "骨粗鬆症薬G（週1）", "定期投与", "錠", 6, 1),
@@ -145,7 +168,21 @@ export interface InboundRow {
   qty: number;
   /** 到着の見込み。日付が決まっていなければ「未定」 */
   eta: string;
-  status: "確定" | "搬送中" | "予定" | "融通の調整中" | "供給元に照会中";
+  /**
+   * 状態（表示だけ。画面から変えられない）。
+   * 本部向けの入荷：卸に照会中・到着未定 → 確定。現地向けの搬送：引当済み → 搬送中 → 受領。救護所どうしの融通：融通の調整中。
+   * 照会中・到着未定の数量は、どの在庫にも足さない
+   */
+  status: "卸に照会中・到着未定" | "確定" | "引当済み" | "搬送中" | "受領" | "融通の調整中";
+}
+
+/** 入荷・融通の種類。本部向けの入荷と、現地向けの搬送・融通を区別する（Issue #101） */
+export type InboundKind = "本部向けの入荷" | "現地向けの搬送" | "救護所どうしの融通";
+
+export function inboundKind(r: InboundRow): InboundKind {
+  if (r.to === HQ) return "本部向けの入荷";
+  if (r.from === HQ) return "現地向けの搬送";
+  return "救護所どうしの融通";
 }
 
 export const INBOUND: readonly InboundRow[] = [
@@ -153,12 +190,135 @@ export const INBOUND: readonly InboundRow[] = [
   { id: "2", item: "吸入薬D", from: "本部備蓄", to: "救護所B", qty: 12, eta: "2026-11-06", status: "搬送中" },
   { id: "3", item: "血糖降下薬B", from: "本部備蓄", to: "救護所A", qty: 300, eta: "2026-11-06", status: "搬送中" },
   { id: "4", item: "抗凝固薬F", from: "救護所A", to: "救護所B", qty: 60, eta: "2026-11-06", status: "融通の調整中" },
-  { id: "5", item: "骨粗鬆症薬G（週1）", from: "供給元（卸）", to: "本部備蓄", qty: 30, eta: "未定", status: "供給元に照会中" },
+  { id: "5", item: "骨粗鬆症薬G（週1）", from: "供給元（卸）", to: "本部備蓄", qty: 30, eta: "未定", status: "卸に照会中・到着未定" },
   { id: "6", item: "降圧薬A", from: "供給元（卸）", to: "本部備蓄", qty: 2000, eta: "2026-11-08", status: "確定" },
-  { id: "7", item: "解熱鎮痛薬H", from: "本部備蓄", to: "救護所D", qty: 600, eta: "2026-11-07", status: "予定" },
-  { id: "8", item: "消毒薬", from: "本部備蓄", to: "救護所C", qty: 40, eta: "2026-11-06", status: "予定" },
+  { id: "7", item: "解熱鎮痛薬H", from: "本部備蓄", to: "救護所D", qty: 600, eta: "2026-11-07", status: "引当済み" },
+  { id: "8", item: "消毒薬", from: "本部備蓄", to: "救護所C", qty: 40, eta: "2026-11-06", status: "引当済み" },
   { id: "9", item: "貼付鎮痛薬E", from: "救護所B", to: "救護所C", qty: 40, eta: "2026-11-06", status: "融通の調整中" },
+  { id: "10", item: "降圧薬A", from: "本部備蓄", to: "救護所D", qty: 150, eta: "2026-11-05", status: "受領" },
 ];
+
+/**
+ * 必要な数と時刻（架空）。救護所から届いた「いつまでに、いくつ要るか」。
+ * 在庫切れ・切れる見込みの行に添えて出すだけで、量の妥当性は判断しない
+ */
+export interface NeedRow {
+  site: SiteId;
+  item: string;
+  qty: number;
+  /** いつまでに（架空の日時） */
+  by: string;
+}
+
+export const NEEDS: readonly NeedRow[] = [
+  { site: "救護所C", item: "骨粗鬆症薬G（週1）", qty: 3, by: "2026-11-08 09:00" },
+  { site: "救護所B", item: "抗てんかん薬C", qty: 24, by: "2026-11-06 08:00" },
+  { site: "救護所B", item: "吸入薬D", qty: 6, by: "2026-11-06 12:00" },
+];
+
+/**
+ * 拠点・連絡先（架空）。行を開いたときに、連絡に要るものをそろえて出す（Issue #101）。
+ * 番号はすべて架空で、表示だけ（リンクにしない）。人の名前は持たない
+ */
+export interface SiteInfo {
+  site: SiteId;
+  /** 稼働の状態（文字で示す） */
+  status: "稼働中" | "縮小して稼働" | "本部";
+  /** 今対応できる薬剤師の人数 */
+  pharmacists: number;
+  /** 救護所が求めている薬剤師の人数（架空）。足りない分は人員の支援の目安 */
+  pharmacistsNeeded: number;
+  /** 業務用の連絡先（架空の番号。表示だけ） */
+  phone: string;
+  /** 受け取りの窓口 */
+  pickup: string;
+  /** 通信が使えないときの代わりの手段（搬送便・連絡員など） */
+  altMeans: string;
+  /** 在庫を確認した時刻（記録が届いた時刻とは別） */
+  stockCheckedAt: string;
+}
+
+export const SITES: readonly SiteInfo[] = [
+  {
+    site: "救護所A",
+    status: "稼働中",
+    pharmacists: 2,
+    pharmacistsNeeded: 3,
+    phone: "000-0000-0001（架空）",
+    pickup: "体育館入口の受付",
+    altMeans: "朝夕の搬送便（本部発 07:00・16:00）",
+    stockCheckedAt: "2026-11-05 07:30",
+  },
+  {
+    site: "救護所B",
+    status: "稼働中",
+    pharmacists: 1,
+    pharmacistsNeeded: 2,
+    phone: "000-0000-0002（架空。通信なしのため不通）",
+    pickup: "公民館の事務室",
+    altMeans: "夕方の搬送便（本部発 16:00）で紙を回収・物を届ける",
+    stockCheckedAt: "2026-11-04 18:00",
+  },
+  {
+    site: "救護所C",
+    status: "稼働中",
+    pharmacists: 2,
+    pharmacistsNeeded: 2,
+    phone: "000-0000-0003（架空。携帯が断続的）",
+    pickup: "校舎1階の保健室",
+    altMeans: "連絡員が午前と午後に本部へ往復",
+    stockCheckedAt: "2026-11-05 08:10",
+  },
+  {
+    site: "救護所D",
+    status: "縮小して稼働",
+    pharmacists: 1,
+    pharmacistsNeeded: 2,
+    phone: "000-0000-0004（架空。通信なしのため不通）",
+    pickup: "集会所の玄関",
+    altMeans: "連絡員が本部へ持ち帰る（午後）",
+    stockCheckedAt: "2026-11-04 12:00",
+  },
+  {
+    site: "本部備蓄",
+    status: "本部",
+    pharmacists: 3,
+    pharmacistsNeeded: 3,
+    phone: "000-0000-0000（架空）",
+    pickup: "本部の集積所",
+    altMeans: "—",
+    stockCheckedAt: "2026-11-05 09:30",
+  },
+];
+
+export function siteInfo(site: SiteId): SiteInfo | undefined {
+  return SITES.find((s) => s.site === site);
+}
+
+/**
+ * 本部から各救護所への経路（架空）。災害時は通れる道路が限られるので、どの経路が使えるかを届け方と一緒に見る。
+ * 地図は出さない（文字だけ。地図の表示は将来構想。docs/roadmap.md）
+ */
+export interface RouteRow {
+  to: SiteId;
+  status: "通行可" | "迂回" | "通行止め";
+  /** 使う経路と、通れないときの代わり（架空の呼び名。実在の道路名は使わない） */
+  via: string;
+  /** 本部からの所要時間の目安（分） */
+  minutes: number | null;
+  checkedAt: string;
+}
+
+export const ROUTES: readonly RouteRow[] = [
+  { to: "救護所A", status: "通行可", via: "幹線道路（東回り）", minutes: 25, checkedAt: "2026-11-05 07:00" },
+  { to: "救護所B", status: "迂回", via: "川沿いの道が通行止め。山側の道で迂回（搬送便は往復2時間）", minutes: 70, checkedAt: "2026-11-05 06:30" },
+  { to: "救護所C", status: "通行可", via: "幹線道路（西回り）。橋は片側交互通行", minutes: 40, checkedAt: "2026-11-05 08:00" },
+  { to: "救護所D", status: "通行止め", via: "土砂で車が通れない。連絡員が徒歩で往復（片道1時間）", minutes: null, checkedAt: "2026-11-04 15:00" },
+];
+
+export function routeTo(site: SiteId): RouteRow | undefined {
+  return ROUTES.find((r) => r.to === site);
+}
 
 export interface DemandRow {
   site: SiteId;
@@ -183,18 +343,21 @@ export type SyncMode = "オンライン" | "紙で記録・衛星回線で日報
 export interface SyncRow {
   site: SiteId;
   mode: SyncMode;
+  /** 最後に記録が本部に届いた時刻（在庫を確認した時刻は SITES.stockCheckedAt） */
   lastSync: string;
-  /** 本部に届いていない記録の数 */
+  /** 本部で記録の形になっていない数 */
   pending: number;
+  /** その内訳。未着（紙が届いていない）か、転記待ち（届いたが記録の形にしていない） */
+  pendingKind: "未着" | "転記待ち" | "なし";
   note: string;
 }
 
 export const SYNC: readonly SyncRow[] = [
-  { site: "救護所A", mode: "紙で記録・衛星回線で日報", lastSync: "2026-11-05 06:00", pending: 0, note: "朝の定時報告で届いた" },
-  { site: "救護所B", mode: "紙で記録・通信なし", lastSync: "2026-11-04 18:00", pending: 42, note: "夕方の搬送便で紙を回収する予定" },
-  { site: "救護所C", mode: "紙で記録・携帯が断続的", lastSync: "2026-11-05 08:10", pending: 6, note: "写真で届いた記録の転記待ち" },
-  { site: "救護所D", mode: "紙で記録・通信なし", lastSync: "2026-11-04 12:00", pending: 55, note: "連絡員が本部へ持ち帰る予定" },
-  { site: "本部備蓄", mode: "オンライン", lastSync: "2026-11-05 09:30", pending: 0, note: "本部で入力" },
+  { site: "救護所A", mode: "紙で記録・衛星回線で日報", lastSync: "2026-11-05 06:00", pending: 0, pendingKind: "なし", note: "朝の定時報告で届いた" },
+  { site: "救護所B", mode: "紙で記録・通信なし", lastSync: "2026-11-04 18:00", pending: 42, pendingKind: "未着", note: "夕方の搬送便で紙を回収する予定" },
+  { site: "救護所C", mode: "紙で記録・携帯が断続的", lastSync: "2026-11-05 08:10", pending: 6, pendingKind: "転記待ち", note: "写真で届いた記録の転記待ち" },
+  { site: "救護所D", mode: "紙で記録・通信なし", lastSync: "2026-11-04 12:00", pending: 55, pendingKind: "未着", note: "連絡員が本部へ持ち帰る予定" },
+  { site: "本部備蓄", mode: "オンライン", lastSync: "2026-11-05 09:30", pending: 0, pendingKind: "なし", note: "本部で入力" },
 ];
 
 /**
