@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useRef } from "react";
-import { bgmStopsOn } from "./bgm/bgm";
+import { bgmLocksOn, bgmStopsOn } from "./bgm/bgm";
 import { BgmControls } from "./bgm/BgmControls";
-import { getBgm, stopBgm, useBgmSnapshot } from "./bgm/browser";
+import { getBgm, lockBgm, stopBgm, useBgmSnapshot } from "./bgm/browser";
 import { requestTurn } from "./flow/api";
 import { STOP_LABEL } from "./flow/content";
 import { buildTurnRequest, initialState, trainingReducer } from "./flow/training";
@@ -19,8 +19,14 @@ export function App() {
   const bgm = useBgmSnapshot();
 
   // 中断の画面（訓練をやめた・体調の訴え・自傷の案内）では BGM を止める（ADR-0011、ADR-0039）。
-  // 終わりの画面でも止める（下書き。bgm.ts のマーカー）。振り返りでは鳴らし続ける
+  // 振り返りでは鳴らし続け、終わりの画面ではゆっくり止めて、その画面では鳴らし直せないようにする
+  // （2026-11-05 オーナー決定「振り返りで鳴らし終わりで止める」）。終わりの画面を離れたら、また押せば鳴らせる
   useEffect(() => {
+    if (bgmLocksOn(stage.name)) {
+      lockBgm(true);
+      return;
+    }
+    lockBgm(false);
     if (bgmStopsOn(stage.name)) stopBgm();
   }, [stage.name]);
 

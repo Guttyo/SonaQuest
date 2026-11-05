@@ -50,6 +50,10 @@ export interface BgmSnapshot {
   volume: number;
   /** 読み上げの間で、小さくしている */
   ducked: boolean;
+  /** 動きを減らす設定。このときは BGM を鳴らさない（2026-11-05 オーナー決定） */
+  reducedMotion: boolean;
+  /** 終わりの画面。止めた後は、この画面では鳴らし直せない（2026-11-05 オーナー決定） */
+  locked: boolean;
 }
 
 export interface BgmDeps {
@@ -57,9 +61,12 @@ export interface BgmDeps {
   createContext: (() => AudioContextLike | null) | null;
   setTimer?: (fn: () => void, ms: number) => unknown;
   clearTimer?: (id: unknown) => void;
+  /** 動きを減らす設定か（作るときの値。後の変化は setReducedMotion で知らせる） */
+  reducedMotion?: boolean;
 }
 
 // [TODO-OWNER: BGM の初期状態（Claude Code の下書きはオフ。オンにしても、利用者が最初に押すまでは鳴らない）]
+// → オーナー決定（2026-11-05、チャット）：「オフ」（BGM の初期状態）
 export const BGM_DEFAULT_ON = false;
 
 /**
@@ -67,11 +74,23 @@ export const BGM_DEFAULT_ON = false;
  * 振り返り（review）では鳴らし続け、終わりの画面（done）では止める
  */
 // [TODO-OWNER: 振り返りと終わりの画面での BGM の扱い（Claude Code の下書き：振り返りでは鳴らし続け、終わりの画面で止める）]
+// → オーナー決定（2026-11-05、チャット）：「振り返りで鳴らし終わりで止める」（振り返りと終わりの画面での BGM の扱い）
 export function bgmStopsOn(stage: string): boolean {
   return stage === "stopped" || stage === "done";
 }
 
 // [TODO-OWNER: 動きを減らす設定のときの BGM の扱い（Claude Code の下書き：BGM は動きではないので変えない。初期状態のオフと、いつでも止められることで足りるとした）]
+// → オーナー決定（2026-11-05、チャット）：「BGM も鳴らさない」（動きを減らす設定のときの BGM の扱い）
+
+/** 終わりの画面では、小さくし終えてから止め、その画面では鳴らし直せないようにする */
+export function bgmLocksOn(stage: string): boolean {
+  return stage === "done";
+}
+
+/** 消音のときに小さくし終えるまでの秒数 */
+export const BGM_MUTE_FADE_SECONDS = 0.3;
+/** 終わりの画面で小さくし終えるまでの秒数（ゆっくり消える） */
+export const BGM_END_FADE_SECONDS = 2;
 
 /** 音量の初期値（0〜100。下書き） */
 export const BGM_DEFAULT_VOLUME = 40;
@@ -117,7 +136,14 @@ export class Bgm {
     this.deps = deps;
     this.setTimer = deps.setTimer ?? ((fn, ms) => setTimeout(fn, ms));
     this.clearTimer = deps.clearTimer ?? ((id) => clearTimeout(id as ReturnType<typeof setTimeout>));
-    this.state = { available: deps.createContext !== null, on: false, volume: BGM_DEFAULT_VOLUME, ducked: false };
+    this.state = {
+      available: deps.createContext !== null,
+      on: false,
+      volume: BGM_DEFAULT_VOLUME,
+      ducked: false,
+      reducedMotion: deps.reducedMotion === true,
+      locked: false,
+    };
   }
 
   get snapshot(): BgmSnapshot {
@@ -138,6 +164,28 @@ export class Bgm {
     else this.start();
   }
 
+  /** 鳴らせない状態か（動きを減らす設定、終わりの画面） */
+  get blocked(): boolean {
+    return this.state.reducedMotion || this.state.locked;
+  }
+
+  /** 動きを減らす設定が変わったとき。設定になったら止め、その間は鳴らさない */
+  setReducedMotion(reduced: boolean): void {
+    if (reduced === this.state.reducedMotion) return;
+    if (reduced) this.stop();
+    this.set({ reducedMotion: reduced });
+  }
+
+  /**
+   * 終わりの画面に入ったら locked=true（ゆっくり小さくして止め、鳴らし直せない）。
+   * はじめにに戻るなど、終わりの画面を離れたら locked=false（また押せば鳴らせる。自動では鳴らさない）
+   */
+  setLocked(locked: boolean): void {
+    if (locked === this.state.locked) return;
+    if (locked) this.stop(BGM_END_FADE_SECONDS);
+    this.set({ locked });
+  }
+
   /**
    * 訓練を始めるボタンを押したとき（利用者の操作の中）。初期状態がオンで、利用者がまだ BGM を
    * 押していなければ鳴らし始める。初期状態がオフ（下書き）なら何もしない
@@ -148,7 +196,7 @@ export class Bgm {
 
   /** 鳴らし始める。AudioContext はここで初めて作る */
   start(): void {
-    if (!this.state.available || this.state.on) return;
+    if (!this.state.available || this.state.on || this.blocked) return;
     try {
       if (this.ctx === null) {
         const ctx = this.deps.createContext?.() ?? null;
@@ -173,8 +221,9 @@ export class Bgm {
     }
   }
 
-  /** 止める（消音、中断の画面、終わりの画面）。何度呼んでもよい */
-  stop(): void {
+  /** 止める（消音、中断の画面、終わりの画面）。何度呼んでもよい。fadeSeconds で小さくし終えてから止める */
+  stop(fadeSeconds: number = BGM_MUTE_FADE_SECONDS): void {
+    const fade = Number.isFinite(fadeSeconds) && fadeSeconds > 0 ? fadeSeconds : BGM_MUTE_FADE_SECONDS;
     this.clearChordTimer();
     if (!this.state.on) return;
     this.set({ on: false });
@@ -185,10 +234,10 @@ export class Bgm {
       const now = ctx.currentTime;
       master.gain.cancelScheduledValues(now);
       master.gain.setValueAtTime(master.gain.value, now);
-      master.gain.linearRampToValueAtTime(0, now + 0.3);
+      master.gain.linearRampToValueAtTime(0, now + fade);
       for (const osc of this.voices) {
         try {
-          osc.stop(now + 0.35);
+          osc.stop(now + fade + 0.05);
         } catch {
           // もう止まっている音は無視する
         }
@@ -197,7 +246,7 @@ export class Bgm {
       // 小さくし終えてから止める（すぐ止めると、ぷつっと切れる）
       this.setTimer(() => {
         if (!this.state.on && this.ctx === ctx) void ctx.suspend().catch(() => {});
-      }, 400);
+      }, Math.round(fade * 1000) + 100);
     } catch {
       this.fail();
     }

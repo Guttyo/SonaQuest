@@ -1329,9 +1329,48 @@ body,
   cursor: pointer;
 }
 
+/* 鳴っているときは淡いミントの地に濃い文字（--ink は --mint に対して約12:1） */
 .bgm-opener-on {
   border-color: var(--mint-strong);
-  color: var(--mint-strong);
+  background: var(--mint);
+  color: var(--ink);
+}
+
+/* 動きを減らす設定・終わりの画面・使えないときは押せない。文字は --ink-soft（白地に約6.9:1） */
+.bgm-opener:disabled {
+  border-style: dashed;
+  color: var(--ink-soft);
+  cursor: not-allowed;
+}
+
+/* 「BGM」と「音量」は1つの枠に並べ、間を空けない（幅320pxでもヘッダーを1行に収める） */
+.bgm {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.bgm .bgm-opener {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.bgm-volume-opener {
+  min-height: 44px;
+  padding: 0 8px;
+  border: 2px solid var(--control-border);
+  border-left: 0;
+  border-radius: 0 999px 999px 0;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sub);
+  line-height: var(--lh-tight);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.bgm-volume-opener[aria-expanded="true"] {
+  background: var(--mint);
 }
 
 .bgm-state {
@@ -1398,6 +1437,7 @@ body,
 }
 
 .bgm-opener:focus-visible,
+.bgm-volume-opener:focus-visible,
 .bgm-toggle:focus-visible,
 .bgm-close:focus-visible,
 .bgm-volume input:focus-visible {
@@ -1434,8 +1474,34 @@ body,
     gap: 6px;
   }
 
+  /* 「BGM」の下に状態の文字を置き、「BGM」と「音量」を幅320pxでも1行に収める */
   .bgm-opener {
-    gap: 2px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0;
     padding: 0 8px;
+  }
+
+  .bgm-opener .bgm-state {
+    font-size: var(--fs-caption);
+  }
+
+  .bgm-volume-opener {
+    padding: 0 7px;
+  }
+}
+
+/* 幅320〜360pxでは、題を補足の大きさにし（2行で約36px）、ボタンの左右の余白を詰めて1行に収める */
+@media (max-width: 360px) {
+  .app-header .app-title {
+    font-size: var(--fs-sub);
+  }
+
+  .app-header .stop-button {
+    padding: 0 8px;
+  }
+
+  .bgm-volume-opener {
+    padding: 0 6px;
   }
 }

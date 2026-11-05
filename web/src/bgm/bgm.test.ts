@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { BGM_DEFAULT_ON, BGM_DUCK_RATIO, Bgm, bgmStopsOn, type AudioContextLike, type GainLike, type OscillatorLike, type ParamLike } from "./bgm";
+import { BGM_DEFAULT_ON, BGM_DUCK_RATIO, BGM_END_FADE_SECONDS, Bgm, bgmLocksOn, bgmStopsOn, type AudioContextLike, type GainLike, type OscillatorLike, type ParamLike } from "./bgm";
 
 function fakeParam(): ParamLike & { target: number | null } {
   const p = {
@@ -65,12 +65,13 @@ function fakeContext() {
   return { ctx: ctx as AudioContextLike & typeof ctx, oscillators, gains };
 }
 
-function setup() {
+function setup(reducedMotion = false) {
   const fake = fakeContext();
   const createContext = vi.fn(() => fake.ctx);
   const timers: (() => void)[] = [];
   const bgm = new Bgm({
     createContext,
+    reducedMotion,
     setTimer: (fn) => {
       timers.push(fn);
       return timers.length;
@@ -90,8 +91,15 @@ describe("BGM を止める画面（B-03）", () => {
     }
   });
 
-  it("初期状態の下書きはオフ", () => {
+  it("初期状態はオフ（2026-11-05 オーナー決定）", () => {
     expect(BGM_DEFAULT_ON).toBe(false);
+  });
+
+  it("終わりの画面だけで鳴らし直せないようにし、振り返りでは鳴らし続ける", () => {
+    expect(bgmLocksOn("done")).toBe(true);
+    for (const stage of ["intro", "first", "confirm", "event", "second", "review", "stopped"]) {
+      expect(bgmLocksOn(stage)).toBe(false);
+    }
   });
 });
 
@@ -237,5 +245,56 @@ describe("BGM（B-03）", () => {
     listener.mockClear();
     bgm.toggle();
     expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("動きを減らす設定のときは、押しても AudioContext を作らず鳴らさない（始めるボタンでも）", () => {
+    const { bgm, createContext, fake } = setup(true);
+    expect(bgm.snapshot.reducedMotion).toBe(true);
+    bgm.toggle();
+    bgm.startIfDefaultOn(true);
+    bgm.start();
+    expect(createContext).not.toHaveBeenCalled();
+    expect(fake.oscillators).toHaveLength(0);
+    expect(bgm.snapshot.on).toBe(false);
+  });
+
+  it("鳴っている途中で動きを減らす設定になったら止め、設定が戻れば、また押して鳴らせる", () => {
+    const { bgm, master } = setup();
+    bgm.toggle();
+    expect(bgm.snapshot.on).toBe(true);
+    bgm.setReducedMotion(true);
+    expect(bgm.snapshot.on).toBe(false);
+    expect(master().gain.target).toBe(0);
+    bgm.toggle();
+    expect(bgm.snapshot.on).toBe(false);
+    bgm.setReducedMotion(false);
+    bgm.toggle();
+    expect(bgm.snapshot.on).toBe(true);
+  });
+
+  it("終わりの画面では、ゆっくり小さくして止め、その画面では押しても鳴らし直せない", () => {
+    const { bgm, fake, master } = setup();
+    bgm.toggle();
+    const ramp = vi.spyOn(master().gain, "linearRampToValueAtTime");
+    bgm.setLocked(true);
+    expect(bgm.snapshot.on).toBe(false);
+    expect(bgm.snapshot.locked).toBe(true);
+    expect(ramp).toHaveBeenCalledWith(0, fake.ctx.currentTime + BGM_END_FADE_SECONDS);
+    bgm.toggle();
+    bgm.startIfDefaultOn(true);
+    expect(bgm.snapshot.on).toBe(false);
+    // はじめにに戻ったら、また押せば鳴らせる（自動では鳴らさない）
+    bgm.setLocked(false);
+    expect(bgm.snapshot.on).toBe(false);
+    bgm.toggle();
+    expect(bgm.snapshot.on).toBe(true);
+  });
+
+  it("消音は1回の toggle で止まる（ヘッダーのボタン1回）", () => {
+    const { bgm, master } = setup();
+    bgm.toggle();
+    bgm.toggle();
+    expect(bgm.snapshot.on).toBe(false);
+    expect(master().gain.target).toBe(0);
   });
 });

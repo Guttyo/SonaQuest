@@ -1,12 +1,14 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { BGM_LABELS } from "../flow/content";
+import { BGM_EXTRA_LABELS, BGM_LABELS } from "../flow/content";
 import type { BgmSnapshot } from "./bgm";
 
 /**
  * BGM の操作（B-03、ADR-0039）。ヘッダーの決まった1か所に置く。
- * ヘッダーのボタンに今の状態（オン・オフ）を文字で出し、押すと、鳴らす・止めるボタンと音量の欄が開く。
- * 鳴らす・止めるは aria-pressed で、音量は range（キーボードの矢印で変えられる）。
- * Web Audio が使えないときは、使えないことを文字で示し、訓練はそのまま進む
+ * ヘッダーの「BGM」ボタンは1回押すだけで鳴らす・止める（aria-pressed、今の状態を文字で出す。
+ * 2026-11-05 オーナー決定「1回で消音できる形にする」）。隣の「音量」で、音量の欄が開く。
+ * 音量は range（キーボードの矢印で変えられる）。
+ * Web Audio が使えない・動きを減らす設定・終わりの画面では「BGM」を押せなくし、欄に理由を文字で出す。
+ * どれでも訓練はそのまま進む
  */
 export function BgmControls({
   snapshot,
@@ -25,6 +27,14 @@ export function BgmControls({
   const rootRef = useRef<HTMLDivElement>(null);
   const openerRef = useRef<HTMLButtonElement>(null);
   const state = snapshot.on ? BGM_LABELS.on : BGM_LABELS.off;
+  // 鳴らせないときの理由（使えない → 動きを減らす設定 → 終わりの画面の順に見る）
+  const blockedNote = !snapshot.available
+    ? BGM_LABELS.unavailable
+    : snapshot.reducedMotion
+      ? BGM_EXTRA_LABELS.reducedMotion
+      : snapshot.locked
+        ? BGM_EXTRA_LABELS.ended
+        : null;
 
   // Esc と、欄の外を押したときに閉じる
   useEffect(() => {
@@ -49,19 +59,30 @@ export function BgmControls({
   return (
     <div className="bgm" ref={rootRef}>
       <button
-        ref={openerRef}
         type="button"
         className={snapshot.on ? "bgm-opener bgm-opener-on" : "bgm-opener"}
+        aria-pressed={snapshot.on}
+        disabled={blockedNote !== null}
+        onClick={onToggle}
+      >
+        <span>{BGM_LABELS.name}</span>
+        <span className="bgm-state" aria-hidden="true">
+          {snapshot.available ? state : "－"}
+        </span>
+      </button>
+      <button
+        ref={openerRef}
+        type="button"
+        className="bgm-volume-opener"
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((v) => !v)}
       >
-        <span>{BGM_LABELS.name}</span>
-        <span className="bgm-state">{snapshot.available ? state : "－"}</span>
+        {BGM_EXTRA_LABELS.volumeOpener}
       </button>
       {open && (
         <div id={panelId} className="bgm-panel" role="group" aria-label={BGM_LABELS.name}>
-          {snapshot.available ? (
+          {blockedNote === null ? (
             <>
               <button
                 type="button"
@@ -89,7 +110,7 @@ export function BgmControls({
               <p className="small bgm-note">{BGM_LABELS.note}</p>
             </>
           ) : (
-            <p className="small bgm-note">{BGM_LABELS.unavailable}</p>
+            <p className="small bgm-note">{blockedNote}</p>
           )}
           <button
             type="button"
