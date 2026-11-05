@@ -19,13 +19,14 @@ import {
 } from "../board/data";
 import {
   DEMO_SITES,
+  chartsFor,
   clockText,
   demoReducer,
   initialDemo,
   nextFictionalName,
   patientsWithExtra,
-  type DemoRecord,
   type DemoState,
+  type PatientChart,
 } from "../board/demo";
 import {
   caseRows,
@@ -203,8 +204,21 @@ function CaseItem({ c, state }: { c: CaseRow; state: DemoState }) {
   );
 }
 
-/** 救護所の1行（1タップ目）。人員と薬の不足を先に出し、開くと品目の行 */
-function SiteGroup({ o, cases, state }: { o: SiteOverview; cases: CaseRow[]; state: DemoState }) {
+/** 救護所の1行（1タップ目）。人員と薬の不足を先に出し、開くと品目の行とカルテへの入口 */
+function SiteGroup({
+  o,
+  cases,
+  state,
+  charts,
+  onOpenRecords,
+}: {
+  o: SiteOverview;
+  cases: CaseRow[];
+  state: DemoState;
+  charts: PatientChart[];
+  onOpenRecords: () => void;
+}) {
+  const undelivered = charts.reduce((a, c) => a + c.undelivered, 0);
   return (
     <li className="board-group">
       <details>
@@ -239,9 +253,16 @@ function SiteGroup({ o, cases, state }: { o: SiteOverview; cases: CaseRow[]; sta
               <span className="k">{BOARD_OVERVIEW.comms}</span> {o.mode}
               {o.pending !== null && o.pending > 0 && `（${BOARD_OVERVIEW.pending} ${fmt.format(o.pending)}）`}
             </span>
+            <span className={`board-group-cell ${undelivered > 0 ? "short" : ""}`}>
+              <span className="k">{BOARD_RECORDS.chartLabel}</span> {fmt.format(charts.length)} {BOARD_RECORDS.count}
+              {undelivered > 0 && <Pill level="bad">{`${BOARD_RECORDS.flagUndelivered}`}</Pill>}
+            </span>
           </span>
         </summary>
         <div className="board-group-body">
+          <button type="button" className="secondary board-group-open" onClick={onOpenRecords}>
+            {BOARD_RECORDS.open}（{fmt.format(charts.length)} {BOARD_RECORDS.count}）
+          </button>
           {cases.length === 0 ? (
             <p className="board-note">{BOARD_GROUPS.empty}</p>
           ) : (
@@ -372,35 +393,70 @@ function IntakeForm({ state, onAdd }: { state: DemoState; onAdd: (a: Parameters<
   );
 }
 
-/** 救護所の記録（カルテ・架空）。入力で加えたものと、最初からあるもの */
-function RecordCardDemo({ rec }: { rec: DemoRecord }) {
+/**
+ * カルテ（患者1人につき1枚・架空）。見出しに架空の氏名か番号と印（処方あり・未交付あり）、
+ * 開くと記録の履歴、最新の記録の6項目（本人の言葉のまま）、医師の処方の履歴
+ */
+function ChartCard({ chart, open }: { chart: PatientChart; open: boolean }) {
+  const latest = chart.visits[0];
+  const title = chart.name === null ? `番号 ${chart.id}` : `${chart.name}（架空）`;
   return (
-    <article className="board-record board-record-added" aria-label={`問診の記録 ${rec.id}（架空）`}>
-      <div className="board-record-head">
-        <b>
-          {rec.name}（架空）<span className="board-record-id">{rec.id}</span>
-        </b>
-        <span>{rec.site}</span>
-        <span>{clockText(rec.at)}</span>
-        <span>元：{BOARD_RECORDS.added}</span>
-      </div>
-      <dl>
-        {rec.items.map((it) => (
-          <div key={it.label}>
-            <dt>{it.label}</dt>
-            <dd>{it.value}</dd>
-          </div>
-        ))}
-      </dl>
-      <p className="board-prescription">
-        <span className="label">医師の処方（医師が入力する欄。アプリは決めない）</span>
-        {rec.prescription === null
-          ? BOARD_RECORDS.prescriptionNone
-          : `${rec.prescription.item} ${fmt.format(rec.prescription.qty)}${rec.prescription.unit}・${fmt.format(rec.prescription.days)}日分${
-              rec.undelivered > 0 ? `（${BOARD_RECORDS.undelivered} ${fmt.format(rec.undelivered)}${rec.prescription.unit}）` : ""
-            }`}
-      </p>
-    </article>
+    <li className={`board-chart-card ${chart.added ? "board-chart-added" : ""}`}>
+      <details open={open}>
+        <summary>
+          <span className="board-chart-head">
+            <b>{title}</b>
+            {chart.name !== null && <span className="board-record-id">{chart.id}</span>}
+            <span className="board-chart-flags">
+              <Pill level={chart.hasPrescription ? "ok" : "none"}>{chart.hasPrescription ? BOARD_RECORDS.flagPrescribed : BOARD_RECORDS.flagNone}</Pill>
+              {chart.undelivered > 0 && <Pill level="bad">{BOARD_RECORDS.flagUndelivered}</Pill>}
+            </span>
+            <span className="board-chart-sub">
+              {BOARD_RECORDS.visits} {fmt.format(chart.visits.length)} {BOARD_RECORDS.count}・{latest.at}
+            </span>
+          </span>
+        </summary>
+        <div className="board-chart-body">
+          <section aria-label={BOARD_RECORDS.visits}>
+            <h4>{BOARD_RECORDS.visits}</h4>
+            <ol className="board-chart-visits">
+              {chart.visits.map((v) => (
+                <li key={v.id}>
+                  <span className="board-log-at">{v.at}</span> {v.id}・{v.source}
+                  {v.prescription !== "" && `・${v.prescription}`}
+                  {v.undelivered > 0 && `（${BOARD_RECORDS.undelivered} ${fmt.format(v.undelivered)}）`}
+                </li>
+              ))}
+            </ol>
+          </section>
+          <section aria-label={BOARD_RECORDS.latest}>
+            <h4>
+              {BOARD_RECORDS.latest}（{latest.at}・{latest.source}）
+            </h4>
+            <dl>
+              {latest.items.map((it) => (
+                <div key={it.label}>
+                  <dt>{it.label}</dt>
+                  <dd>{it.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+          <section aria-label={BOARD_RECORDS.prescriptions}>
+            <h4>{BOARD_RECORDS.prescriptions}</h4>
+            <p className="board-prescription">
+              <span className="label">医師の処方（医師が入力する欄。アプリは決めない）</span>
+              {chart.visits.some((v) => v.prescription !== "")
+                ? chart.visits
+                    .filter((v) => v.prescription !== "")
+                    .map((v) => `${v.at}：${v.prescription}${v.undelivered > 0 ? `（${BOARD_RECORDS.undelivered} ${fmt.format(v.undelivered)}）` : ""}`)
+                    .join(" ／ ")
+                : BOARD_RECORDS.prescriptionNone}
+            </p>
+          </section>
+        </div>
+      </details>
+    </li>
   );
 }
 
@@ -539,6 +595,12 @@ export function Board({ onBack, reducedMotion }: Props) {
   const sites: SiteId[] = [...SHELTERS, HQ];
   const maxDays = Math.max(COVER_GUIDE_DAYS, ...DEMAND.map((d) => d.daysCovered)) * 1.15;
   const openInbound = state.inbound.filter((r) => r.status !== "受領");
+  const charts = chartsFor(state, INTAKE_RECORDS);
+  const latestAddedKey = state.records.length > 0 ? `${state.records[0].site}|${state.records[0].name}` : null;
+  function openRecords() {
+    setRecordsOpen(true);
+    document.getElementById("board-intake")?.scrollIntoView({ block: "start" });
+  }
 
   return (
     <section className="screen board" aria-labelledby="board-title">
@@ -561,7 +623,14 @@ export function Board({ onBack, reducedMotion }: Props) {
         </h2>
         <ol className="board-groups" aria-label={BOARD_CASES.title}>
           {overview.map((o) => (
-            <SiteGroup key={o.site} o={o} cases={cases.filter((c) => c.site === o.site)} state={state} />
+            <SiteGroup
+              key={o.site}
+              o={o}
+              cases={cases.filter((c) => c.site === o.site)}
+              state={state}
+              charts={charts.filter((c) => c.site === o.site)}
+              onOpenRecords={openRecords}
+            />
           ))}
         </ol>
         <p className="board-note">{BOARD_GROUPS.note}</p>
@@ -665,32 +734,27 @@ export function Board({ onBack, reducedMotion }: Props) {
       </section>
 
       <More id="board-intake" title={BOARD_RECORDS.title} note={BOARD_RECORDS.note} open={recordsOpen}>
-        <div className="board-intake">
-          {state.records.map((rec) => (
-            <RecordCardDemo key={rec.id} rec={rec} />
-          ))}
-          {INTAKE_RECORDS.map((rec) => (
-            <article key={rec.id} className="board-record" aria-label={`問診の記録 ${rec.id}（架空）`}>
-              <div className="board-record-head">
-                <b>番号 {rec.id}</b>
-                <span>{rec.site}</span>
-                <span>{mdhm(rec.recordedAt)}</span>
-                <span>元：{rec.source}</span>
-              </div>
-              <dl>
-                {rec.items.map((it) => (
-                  <div key={it.label}>
-                    <dt>{it.label}</dt>
-                    <dd>{it.value}</dd>
-                  </div>
-                ))}
-              </dl>
-              <p className="board-prescription">
-                <span className="label">医師の処方（医師が入力する欄。アプリは決めない）</span>
-                {rec.prescription === "" ? "未入力" : rec.prescription}
-              </p>
-            </article>
-          ))}
+        <div className="board-charts">
+          {SHELTERS.map((site) => {
+            const list = charts.filter((c) => c.site === site);
+            return (
+              <section key={site} className="board-charts-site" aria-labelledby={`board-charts-${site}`}>
+                <h3 id={`board-charts-${site}`}>
+                  {site}
+                  {BOARD_RECORDS.perSite} <span className="board-count">{fmt.format(list.length)} {BOARD_RECORDS.count}</span>
+                </h3>
+                {list.length === 0 ? (
+                  <p className="board-note">{BOARD_RECORDS.empty}</p>
+                ) : (
+                  <ul className="board-chart-list">
+                    {list.map((c) => (
+                      <ChartCard key={c.key} chart={c} open={c.key === latestAddedKey} />
+                    ))}
+                  </ul>
+                )}
+              </section>
+            );
+          })}
           {/* 画像は制作者が用意する（SoapVox の録音中の画面）。届くまでは枠ごと出さない（Issue #101） */}
           {INTAKE_IMAGE.src !== "" && (
             <figure className="board-image">

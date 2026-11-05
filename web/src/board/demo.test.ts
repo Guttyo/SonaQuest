@@ -1,7 +1,7 @@
 // ボードのデモの reducer（Issue #102）。メモリの中の在庫の足し引きと時刻だけを確かめる
 import { describe, expect, it } from "vitest";
 import { HQ, INBOUND, STOCK, SYNC } from "./data";
-import { clockText, demoReducer, initialDemo, minutesAt, patientsWithExtra, type DemoAction } from "./demo";
+import { chartsFor, clockText, demoReducer, initialDemo, minutesAt, patientsWithExtra, type DemoAction } from "./demo";
 import { caseRows, stockStatus } from "./summary";
 import { SITES } from "./data";
 
@@ -108,6 +108,30 @@ describe("架空の問診を加える", () => {
     const t = demoReducer(initialDemo(), { ...add, prescription: null });
     expect(find(t, "救護所B", "抗てんかん薬C").onHand).toBe(8);
     expect(t.records[0].prescription).toBeNull();
+  });
+
+  it("カルテ：同じ救護所・同じ架空の氏名の記録は1枚にまとまり履歴が増える。最初からある記録は番号だけで1枚ずつ", () => {
+    const initial = [
+      { id: "A-012", site: "救護所A" as const, recordedAt: "2026-11-05 09:40", source: "紙の問診票", items: [{ label: "x", value: "y" }], prescription: "医師が入力：…" },
+      { id: "B-007", site: "救護所B" as const, recordedAt: "2026-11-05 08:15", source: "紙の問診票", items: [], prescription: "" },
+    ];
+    let s = demoReducer(initialDemo(), add);
+    s = demoReducer(s, { type: "tick", hours: 2 });
+    s = demoReducer(s, { ...add, items: [{ label: "飲めていない日数・残薬", value: "まだ無い" }], prescription: { item: "抗てんかん薬C", qty: 4, days: 2 } });
+    s = demoReducer(s, { ...add, name: "仮名 花子", prescription: null });
+    const charts = chartsFor(s, initial);
+    // 加えたものが新しい順（花子 → 太郎）、その後に最初からあるもの
+    expect(charts.map((c) => c.key)).toEqual(["救護所B|仮名 花子", "救護所B|架空 太郎", "救護所A|#A-012", "救護所B|#B-007"]);
+    const taro = charts[1];
+    expect(taro).toMatchObject({ name: "架空 太郎", id: "B-D02", added: true, hasPrescription: true, undelivered: 6 + 4 });
+    // 履歴も新しい順。最新の記録が先頭
+    expect(taro.visits.map((v) => v.id)).toEqual(["B-D02", "B-D01"]);
+    expect(taro.visits[0]).toMatchObject({ at: "11/05 11:30", prescription: "抗てんかん薬C 4錠・2日分", undelivered: 4 });
+    expect(taro.visits[1]).toMatchObject({ at: "11/05 09:30", prescription: "抗てんかん薬C 14錠・7日分", undelivered: 6 });
+    expect(charts[0]).toMatchObject({ name: "仮名 花子", id: "B-D03", hasPrescription: false, undelivered: 0 });
+    expect(charts[2]).toMatchObject({ name: null, id: "A-012", added: false, hasPrescription: true });
+    expect(charts[2].visits[0].at).toBe("11/05 09:40");
+    expect(charts[3].hasPrescription).toBe(false);
   });
 
   it("入荷の元データ・在庫の元データを書き換えない", () => {

@@ -74,7 +74,7 @@ describe("地域本部のボード（試作。Issue #97、#101、#102）", () =>
     expect(html).toContain('value="架空 太郎"');
     expect(html).toContain(`>${BOARD_INTAKE_FORM.prescriptionNone}</option>`);
     expect(html).toContain(`>${BOARD_INTAKE_FORM.submit}</button>`);
-    expect(html).not.toContain("board-record-added");
+    expect(html).not.toContain("board-chart-added");
     // 動きを減らす設定では自動進行のボタンを出さない
     const reduced = renderToStaticMarkup(<Board onBack={() => {}} reducedMotion />);
     expect(reduced).not.toContain(`>${BOARD_DEMO.start}</button>`);
@@ -101,13 +101,26 @@ describe("地域本部のボード（試作。Issue #97、#101、#102）", () =>
     expect(html).toContain("救護所ごとの、日ごとの延べ患者数</caption>");
   });
 
-  it("問診の記録は架空の番号で、最初からあるものに患者の名前が無く、医師の処方は人が入力する欄として出る", () => {
+  it("救護所の記録はカルテ形式（救護所ごと・患者1人につき1枚）。最初からあるものは架空の番号だけで名前が無く、医師の処方は人が入力する欄として出る", () => {
+    const charts = html.slice(html.indexOf('id="board-intake"'), html.indexOf('id="board-sites"'));
+    expect(charts.match(/<section class="board-charts-site"/g)).toHaveLength(4);
+    expect(charts.match(/<li class="board-chart-card ">/g)).toHaveLength(INTAKE_RECORDS.length);
     for (const rec of INTAKE_RECORDS) {
-      expect(html).toContain(`番号 ${rec.id}`);
-      for (const it of rec.items) expect(html).toContain(it.value);
+      expect(charts).toContain(`<b>番号 ${rec.id}</b>`);
+      for (const it of rec.items) expect(charts).toContain(it.value);
     }
+    expect(charts).toContain("記録の履歴");
+    expect(charts).toContain("最新の記録（11/05 09:40・文字起こし（別のアプリ））");
+    expect(charts).toContain(">処方あり</span>");
+    expect(charts).toContain(">処方なし</span>");
+    expect(charts).not.toContain(">未交付あり</span>");
+    expect(charts).toMatch(/救護所C(<!-- -->)?の記録/);
+    expect(charts).toContain("記録はまだない");
     expect(html).toContain("医師の処方（医師が入力する欄。アプリは決めない）");
     expect(html).toContain("未入力");
+    // 救護所の行にカルテの件数と、記録を見るボタン
+    expect(html).toContain("カルテ</span> 1 件");
+    expect(html).toContain(">この救護所の記録を見る（1 件）</button>");
     // 名前の欄は入力のフォームにだけあり（架空の氏名）、最初からある記録には無い
     const records = html.slice(html.indexOf('id="board-intake"'), html.indexOf('id="board-sites"'));
     expect(records).not.toMatch(/患者名|さん<|様</);
@@ -126,5 +139,7 @@ describe("地域本部のボード（試作。Issue #97、#101、#102）", () =>
     expect(html).not.toContain('href="tel:');
     expect(html).not.toContain("<a ");
     expect(html).toContain(">はじめにへ戻る</button>");
+    // 画面のボタンは、デモの操作4つ・救護所ごとの「記録を見る」4つ・入力の送信・戻る
+    expect(html.match(/<button/g)).toHaveLength(4 + 4 + 1 + 1);
   });
 });

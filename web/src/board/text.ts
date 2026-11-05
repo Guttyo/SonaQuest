@@ -93,10 +93,21 @@ export const BOARD_INTAKE_FORM = {
 
 export const BOARD_RECORDS = {
   title: "救護所の記録（カルテ・架空）",
-  note: "救護所ごとの問診の記録。入力で加えたものは架空の氏名付き、最初からあるものは架空の番号だけ。「医師の処方」は人が入力した値で、アプリは決めない。",
+  note: "救護所ごとに、患者1人につき1枚。入力で加えたものは架空の氏名付きで、同じ名前で入力すると記録の履歴が増える。最初からあるものは架空の番号だけ。「医師の処方」は人が入力した値で、アプリは決めない。文はすべて本人の言葉のままで、要約はしない。",
   added: "画面で入力（デモ）",
   prescriptionNone: "未入力",
   undelivered: "未交付",
+  visits: "記録の履歴",
+  latest: "最新の記録",
+  prescriptions: "医師の処方の履歴",
+  flagPrescribed: "処方あり",
+  flagNone: "処方なし",
+  flagUndelivered: "未交付あり",
+  count: "件",
+  perSite: "の記録",
+  empty: "記録はまだない",
+  chartLabel: "カルテ",
+  open: "この救護所の記録を見る",
 } as const;
 
 /** 救護所ごとの一覧（1タップ目：救護所、2タップ目：品目） */

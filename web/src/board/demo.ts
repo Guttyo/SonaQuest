@@ -242,6 +242,105 @@ export function demoReducer(state: DemoState, action: DemoAction): DemoState {
 /** 救護所の並び（本部備蓄は除く） */
 export const DEMO_SITES: readonly SiteId[] = SHELTERS;
 
+/** カルテ（患者ごとの一枚）の1回分の記録 */
+export interface ChartVisit {
+  id: string;
+  /** 画面に出す時刻 */
+  at: string;
+  source: string;
+  items: readonly { label: string; value: string }[];
+  /** 医師が入力した処方の文（無ければ空） */
+  prescription: string;
+  undelivered: number;
+}
+
+/** カルテ（患者ごとの一枚）。架空の氏名か番号で1人を表し、記録の履歴を新しい順に持つ */
+export interface PatientChart {
+  key: string;
+  site: SiteId;
+  /** 架空の氏名。最初からある記録は名前を持たず null（番号だけ） */
+  name: string | null;
+  /** 見出しに出す番号（最新の記録の番号） */
+  id: string;
+  visits: ChartVisit[];
+  /** 未交付の合計 */
+  undelivered: number;
+  hasPrescription: boolean;
+  /** 画面で入力して加えたもの */
+  added: boolean;
+}
+
+/**
+ * 救護所ごとのカルテ。入力で加えた記録は「救護所＋架空の氏名」で1人にまとめ（同じ名前で2回入力すると履歴が2つ）、
+ * 最初からある記録は番号ごとに1人。並びは、加えたもの（新しい順）→ 最初からあるもの
+ */
+export function chartsFor(
+  state: DemoState,
+  initial: readonly {
+    id: string;
+    site: SiteId;
+    recordedAt: string;
+    source: string;
+    items: readonly { label: string; value: string }[];
+    prescription: string;
+  }[],
+): PatientChart[] {
+  const charts: PatientChart[] = [];
+  for (const r of state.records) {
+    const key = `${r.site}|${r.name}`;
+    const visit: ChartVisit = {
+      id: r.id,
+      at: clockText(r.at),
+      source: "画面で入力（デモ）",
+      items: r.items,
+      prescription:
+        r.prescription === null
+          ? ""
+          : `${r.prescription.item} ${r.prescription.qty}${r.prescription.unit}・${r.prescription.days}日分`,
+      undelivered: r.undelivered,
+    };
+    const found = charts.find((c) => c.key === key);
+    if (found) {
+      found.visits.push(visit);
+      found.undelivered += r.undelivered;
+      found.hasPrescription = found.hasPrescription || r.prescription !== null;
+    } else {
+      charts.push({
+        key,
+        site: r.site,
+        name: r.name,
+        id: r.id,
+        visits: [visit],
+        undelivered: r.undelivered,
+        hasPrescription: r.prescription !== null,
+        added: true,
+      });
+    }
+  }
+  for (const r of initial) {
+    charts.push({
+      key: `${r.site}|#${r.id}`,
+      site: r.site,
+      name: null,
+      id: r.id,
+      visits: [
+        {
+          id: r.id,
+          at: `${r.recordedAt.slice(5, 10).replace("-", "/")} ${r.recordedAt.slice(11)}`,
+          source: r.source,
+          items: r.items,
+          prescription: r.prescription,
+          undelivered: 0,
+        },
+      ],
+      undelivered: 0,
+      hasPrescription: r.prescription !== "",
+      added: false,
+    });
+  }
+  return charts;
+}
+
 /** 入力の下書きに使う架空の氏名（実在の人ではない。「架空」を添えて出す） */
 export const FICTIONAL_NAMES: readonly string[] = ["架空 太郎", "架空 花子", "仮名 一郎", "仮名 美咲", "例示 健", "例示 さくら"];
 
