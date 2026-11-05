@@ -809,6 +809,7 @@
 - 影響：`web/src/flow/training.ts`（`mode`、`start`）、`mode.ts`、`content.ts`（モード選択と C-01 の文）、`web/src/screens/Intro.tsx`・`Dialogue.tsx`、`App.tsx`、`styles.css`、試験（`training.test.ts`、`screens/Intro.test.tsx`）、README の `?mode=3d` の記述、docs/safety-test-plan.md の V10。
 - オーナーが判断する点（Issue #51 の PR の説明にも一覧）：
   - [TODO-OWNER: 3D を押せる選択肢にするか（Claude Code の判断：押せる選択肢。A-13 の完了3条件が未達のまま。別の案：A-13 の通し確認が済むまで 3D も Coming soon にする）]
+  - → オーナー決定（2026-11-05、チャット）：「PRD を今の main に合わせる」（3D は押せる選択肢、Coming soon は C-01 だけ）
   - [TODO-OWNER: モード選択の文言（Claude Code の下書き。`web/src/flow/content.ts` の `MODE_LEGEND`「答え方を選ぶ」、`MODE_OPTIONS` の「2D：文字で答える」「3D：声で答えて読み上げを聞く」と説明、`MODE_CHOSEN_LABEL`「選んでいる答え方：」）]
   - 必ず見せる説明（`PRIVACY_VOICE` を含む）の置き場所（下の追記のマーカー）。
 - 追記（2026-11-05、PR #70 の中。PM 役のセッションが伝えたオーナーの言葉）：オーナーの言葉は「今結構ファーストビューで文字がたくさんあってきっとみんな読まない。medkit+のようなUIで、本当に重要なことを提示するのがよいのではないか、と思う。全く持ってコピーをしたいわけじゃなく、もっとブラウザや携帯で楽しくタップで直感的に、コアとなる薬の避難訓練のユーザー体験をしてもらいたい」。Issue #46 の「medkitのような感じで」は、この medkit+（医療者向けの訓練アプリ）の見た目を指す（PM 役のセッションの説明：太い輪郭と丸みのあるカード、選択肢を扉のような大きなカードで並べる、鍵の印と「Coming soon」で押せない扉を示す、1画面に1つの判断、文字が少ない。コピーはしない。色は SonaQuest のクリーム・ミント・オレンジのまま）。これを受けて、同じ PR で次のように直した：
