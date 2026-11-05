@@ -507,7 +507,8 @@ export const REVIEW_RECOVERY_LABEL = "出来事の後の、あなたの回答（
 
 export type PublicSourceId =
   | "gov_online_prep"
-  | "mhlw_after_service_10"
+  | "mhlw_after_service_10_disaster"
+  | "mhlw_after_service_10_photo"
   | "fdma_ecollege_pack"
   | "myna_faq_medicine"
   | "myna_news_medicine";
@@ -540,10 +541,19 @@ export const PUBLIC_SOURCES: Readonly<
     checkedOn: "2026-11-05",
     verified: false,
   },
-  mhlw_after_service_10: {
+  // 同じ報告書の、準備行動ごとに根拠になる子見出しを分けて持つ
+  mhlw_after_service_10_disaster: {
     publisher: "厚生労働省",
     title: "アフターサービス推進室活動報告書（Vol.10:2012年12月）",
-    section: "６．各種お薬手帳の活用事例紹介",
+    section: "６-１-１．東日本大震災時における活用例",
+    url: "https://www.mhlw.go.jp/iken/after-service-vol10.html",
+    checkedOn: "2026-11-05",
+    verified: false,
+  },
+  mhlw_after_service_10_photo: {
+    publisher: "厚生労働省",
+    title: "アフターサービス推進室活動報告書（Vol.10:2012年12月）",
+    section: "６-２．紙のお薬手帳を携帯電話で撮影して保存する活用事例",
     url: "https://www.mhlw.go.jp/iken/after-service-vol10.html",
     checkedOn: "2026-11-05",
     verified: false,
@@ -577,8 +587,8 @@ export const PUBLIC_SOURCES: Readonly<
 /** 準備行動と公的資料の対応（Claude Code の下書き。資料が見つからなかった準備行動は空で、リンクなしで出す） */
 // [TODO-OWNER: 準備行動と公的資料の対応（Claude Code の下書き。docs/references.md）]
 export const PREP_SOURCES: Readonly<Record<PrepActionId, readonly PublicSourceId[]>> = {
-  notebook_bag: ["gov_online_prep", "mhlw_after_service_10"],
-  photo_and_paper: ["mhlw_after_service_10", "fdma_ecollege_pack"],
+  notebook_bag: ["gov_online_prep", "mhlw_after_service_10_disaster"],
+  photo_and_paper: ["mhlw_after_service_10_photo", "fdma_ecollege_pack"],
   wallet_memo: [],
   tell_family: [],
   pharmacy_contact: [],
