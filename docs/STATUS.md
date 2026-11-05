@@ -265,7 +265,7 @@
 
 ## 文書のみ（設計・枠）
 - CLAUDE.md、`.claude/rules/`（scope、safety、privacy、github）、`.claude/skills/`
-- docs/：PRD、architecture、decisions（ADR-0001〜0033、ADR-0035〜0041。0034 はまだ無い。0040 は案）、safety-test-plan、evidence、demo-script（枠）、references、roadmap（提出後の課題 1〜13）、KEEP-THINKING
+- docs/：PRD、architecture、decisions（ADR-0001〜0033、ADR-0035〜0046。0034 はまだ無い。0040 は案。0047・0048 は Issue #121・#122 の PR が足す）、safety-test-plan、evidence、demo-script（枠）、references、roadmap（提出後の課題 1〜13）、KEEP-THINKING
 - 絶対ルールと関連ルールの見直し（Issue #19）：絶対ルール3（公開する版では本文をログに出さない。開発中だけ既定でオフの切り替えで出してよい）、5（main で決定の行が付いたマーカーの解除）、7（Issue ごとの着手の承認）を書き直し、11 を番号を変えずに10の後へ移した。scope（架空で答える範囲、音声、Claude が質問する）、safety（Claude が作る文とその検査）、privacy（保持・送信・保存・ログ出力の違い）、github（着手の承認）を合わせた。safety-test-plan に S16〜S19 を足した（未実施）
 - 提出後の課題 `docs/roadmap.md`（Issue #16）：ADR-0009 の「今後の課題」の候補（ADR-0009 からは roadmap を参照する形にした）、ADR-0025 の B、外部の助言の「持ち帰り」の案を、出所を付けて集めた。どれも作ると決めたものではない
 - テーマごとの開発記録 `docs/dev-logs/` と、それを書く `dev-log` Skill（`.claude/skills/dev-log/`）。Issue #9、PR #11
