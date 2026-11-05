@@ -41,6 +41,12 @@ export function App() {
     if (bgmStopsOn(stage.name)) stopBgm();
   }, [stage.name]);
 
+  // BGM はお薬の避難訓練の画面だけ（2026-11-05 オーナー決定、Issue #113）。はじめにで鳴らしてからボードへ移ったら止める。
+  // 訓練の画面の BGM の動き（上の effect）は変えない。はじめにへ戻ったら、また押せば鳴らせる
+  useEffect(() => {
+    if (onBoard) stopBgm();
+  }, [onBoard]);
+
   // 回答を受け取ったら Claude に1回だけ聞く（開発中の StrictMode で effect が2回動いても送り直さない）。
   // やめた・やり直した後に届いた返事は、reducer が回と件数を見て捨てる
   const { session, waiting } = state;
@@ -84,27 +90,30 @@ export function App() {
 
   return (
     <div className="app">
-      <header className="app-header">
-        <span className="app-title">お薬の避難訓練</span>
-        {/* BGM の操作はヘッダーの決まった1か所。中断の画面では出さない（B-03） */}
-        {stage.name !== "stopped" && (
-          <BgmControls
-            snapshot={bgm}
-            onToggle={() => getBgm().toggle()}
-            onVolume={(volume) => getBgm().setVolume(volume)}
-          />
-        )}
-        {/* ボードは訓練ではないので「訓練をやめる」は出さない（戻るボタンはボードの中） */}
-        {stage.name !== "stopped" && !onBoard && (
-          <button
-            type="button"
-            className="stop-button"
-            onClick={() => dispatch({ type: "stop" })}
-          >
-            {STOP_LABEL}
-          </button>
-        )}
-      </header>
+      {/* ボード（とカルテ入力の画面）は訓練ではないので、訓練の題の帯・BGM の操作・「訓練をやめる」を出さない
+          （戻るボタンはボードの中。Issue #113、2026-11-05 オーナー決定） */}
+      {!onBoard && (
+        <header className="app-header">
+          <span className="app-title">お薬の避難訓練</span>
+          {/* BGM の操作はヘッダーの決まった1か所。中断の画面では出さない（B-03） */}
+          {stage.name !== "stopped" && (
+            <BgmControls
+              snapshot={bgm}
+              onToggle={() => getBgm().toggle()}
+              onVolume={(volume) => getBgm().setVolume(volume)}
+            />
+          )}
+          {stage.name !== "stopped" && (
+            <button
+              type="button"
+              className="stop-button"
+              onClick={() => dispatch({ type: "stop" })}
+            >
+              {STOP_LABEL}
+            </button>
+          )}
+        </header>
+      )}
       <main ref={mainRef} tabIndex={-1} className="app-main">
         {onBoard && (
           <Board
