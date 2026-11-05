@@ -1368,8 +1368,10 @@ body,
   cursor: pointer;
 }
 
+/* 押した状態は淡いミントの地に濃い文字（--ink は --mint に対して約12:1。--mint-strong では約4.2:1で足りない） */
 .bgm-toggle[aria-pressed="true"] {
   background: var(--mint);
+  color: var(--ink);
 }
 
 .bgm-close {
@@ -1403,10 +1405,28 @@ body,
   outline-offset: 2px;
 }
 
-/* 幅375pxでも、題・BGM・訓練をやめるを1行に収め、ヘッダーの高さを変えない */
-.app-header .app-title,
-.app-header .stop-button {
+/* 幅320〜375pxでも、題・BGM・訓練をやめるを1行に収め、ヘッダーの高さを変えない。
+   狭いときは題を2行に折り返し（ボタンの高さ44pxに収まる）、ボタンは1行のまま。
+   文字を大きくして1行に入らないときは、ボタンを次の行へ送り、横にはみ出さない */
+.app-header {
+  flex-wrap: wrap;
+}
+
+.app-header .app-title {
+  flex: 1 1 0;
+  min-width: 4em;
+  /* 2行にしても 1rem×1.3×2＝約42px で、ボタンの44pxを超えない */
+  line-height: 1.3;
+}
+
+.app-header .stop-button,
+.bgm-opener {
+  flex: 0 0 auto;
   white-space: nowrap;
+}
+
+.app-header .bgm {
+  flex: 0 0 auto;
 }
 
 @media (max-width: 400px) {
