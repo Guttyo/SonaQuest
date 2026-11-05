@@ -8,6 +8,7 @@ import {
   JUDGMENT_LABELS,
   JUDGMENT_NOTE,
   NEXT_STEPS_HEADING,
+  NEXT_STEP_FIRST_TAG,
   NEXT_STEP_LABEL,
   NEXT_STEP_PICK,
   NEXT_STEP_PICKED,
@@ -37,6 +38,9 @@ import {
 } from "../flow/rules";
 import type { TrainingState } from "../flow/training";
 import type { EventId, PrepActionId, TimingId } from "../flow/types";
+import { SpeakerControls } from "../voice/SpeakerControls";
+import { useSpeakWhenChanged, useSpeaker } from "../voice/hooks";
+import { reviewSpeech, speechKey } from "../voice/speech";
 import { SceneBar } from "./ListenerStage";
 import { RecordCard } from "./RecordCard";
 import { LostSources, PREP_ICON, SourceIcon, VIEWPOINT_ICON } from "./SourceIcon";
@@ -83,6 +87,12 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
   const [action, setAction] = useState<PrepActionId | null>(null);
   const [timing, setTiming] = useState<TimingId | null>(null);
 
+  // 3D の対話モードでは、先頭のまとめ（固定文だけ。回答は読まない）を読み上げる（ADR-0033、ADR-0051）
+  const voiceOn = state.mode === "3d";
+  const { speaker, snapshot: speech } = useSpeaker(voiceOn, state.session);
+  const spoken = voiceOn ? reviewSpeech(state) : null;
+  useSpeakWhenChanged(speaker, spoken, spoken === null ? null : speechKey(state, spoken));
+
   /** 「これを準備する」：準備行動を選び、カードの場所へ送る（キーボードの焦点は動かさない） */
   const pick = (id: PrepActionId) => {
     setAction(id);
@@ -99,21 +109,34 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
       {state.closingAck !== null && (
         <ListenerLine>{state.closingAck}</ListenerLine>
       )}
+      {voiceOn && (
+        <SpeakerControls
+          snapshot={speech}
+          onStop={() => speaker?.stop()}
+          onReplay={() => speaker?.replay()}
+        />
+      )}
 
       {steps.length > 0 && (
         <>
           <h2>{NEXT_STEPS_HEADING}</h2>
           <ol className="next-step-list">
-            {steps.map((s) => (
-              <li key={s.viewpoint} className="next-step">
+            {/* 最初の1枚だけ一言と大きなボタン。2枚目からは短い行（読み上げも最初の一言だけ。reviewSpeech） */}
+            {steps.map((s, i) => (
+              <li key={s.viewpoint} className={i === 0 ? "next-step" : "next-step next-step-compact"}>
                 <div className="next-step-head">
                   <SourceIcon id={VIEWPOINT_ICON[s.viewpoint]} className="source-icon next-step-icon" />
                   <span className="next-step-label">{VIEWPOINT_SHORT_LABELS[s.viewpoint]}</span>
                   <span className="next-step-judgment">{JUDGMENT_LABELS[s.judgment]}</span>
+                  {i === 0 && steps.length > 1 && (
+                    <span className="next-step-tag">{NEXT_STEP_FIRST_TAG}</span>
+                  )}
                 </div>
-                <p className="next-step-why">
-                  {WEAK_POINT_LINES[s.viewpoint][s.judgment as "not_mentioned" | "aware_unconfirmed"]}
-                </p>
+                {i === 0 && (
+                  <p className="next-step-why">
+                    {WEAK_POINT_LINES[s.viewpoint][s.judgment as "not_mentioned" | "aware_unconfirmed"]}
+                  </p>
+                )}
                 <div className="next-step-action">
                   <span className="next-step-action-text">
                     <span className="label">{NEXT_STEP_LABEL}：</span>
@@ -122,6 +145,7 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
                   <button
                     type="button"
                     className="next-step-pick"
+                    aria-label={`${NEXT_STEP_PICK}：${labelOf(s.action)}`}
                     aria-pressed={action === s.action}
                     onClick={() => pick(s.action)}
                   >

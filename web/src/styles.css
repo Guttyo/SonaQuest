@@ -1478,6 +1478,46 @@ body,
   margin: 0;
 }
 
+/* 「まず、ここから」の印（弱い観点が2つ以上のとき、最初の1枚に） */
+.next-step-tag {
+  margin-left: auto;
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-bold);
+  color: var(--surface);
+  background: var(--orange-strong);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+/* 2枚目からの短い行：枠を細く、絵を小さく、一言なし、ボタンを小さく */
+.next-step-compact {
+  gap: 4px;
+  padding: 8px 12px 10px;
+  border-width: 1px;
+  background: var(--surface);
+}
+
+.next-step-compact .next-step-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.next-step-compact .next-step-label {
+  font-size: var(--fs-body);
+}
+
+.next-step-compact .next-step-action {
+  padding-top: 4px;
+  border-top: none;
+  font-size: var(--fs-sub);
+}
+
+.next-step-compact .next-step-pick {
+  min-height: 36px;
+  padding: 4px 12px;
+  font-size: var(--fs-sub);
+}
+
 .next-step-action {
   display: flex;
   flex-wrap: wrap;
@@ -1529,7 +1569,8 @@ body,
 
 /* 「これを準備する」で送られてくる見出し。上の固定の帯に隠れないよう余白を取る */
 #prep-cards {
-  scroll-margin-top: 72px;
+  /* 固定の帯の高さ（.dialogue の --header-h と同じ式。振り返りは .dialogue の外なので写して持つ）＋ 8px */
+  scroll-margin-top: calc(max(10px, env(safe-area-inset-top)) + 55px + 8px);
 }
 
 /* 準備行動のカードの「次の一手」の印 */

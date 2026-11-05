@@ -530,6 +530,8 @@ export const STRONG_POINTS_LABEL = "伝えられたこと";
 export const NO_WEAK_POINTS_NOTE =
   "5つの観点をどれも説明できました。説明できたことを、次の準備で形にしておきましょう。";
 export const NEXT_STEP_LABEL = "次の一手";
+/** 弱い観点が2つ以上のとき、最初の1枚に付ける印。2枚目からは短い行にする */
+export const NEXT_STEP_FIRST_TAG = "まず、ここから";
 export const NEXT_STEP_PICK = "これを準備する";
 export const NEXT_STEP_PICKED = "選びました";
 export const DETAILS_SUMMARY = "くわしく見る（出来事、5つの観点、あなたの回答、記録の形）";

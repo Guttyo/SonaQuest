@@ -2,8 +2,47 @@
 // 利用者の回答（answers の text）は使わない。読み上げの中継（/api/tts）と ElevenLabs に回答を送らないため（ADR-0005）。
 // 聞き取り係の文は、固定文か、Workers の検査と監査役を通った Claude の文（ADR-0025、ADR-0030）。
 
-import { CONFIRM_PROMPT, EVENTS, RECALL_NOW } from "../flow/content";
+import {
+  AI_FAILED_NOTE,
+  CONFIRM_PROMPT,
+  EVENTS,
+  JUDGMENT_LABELS,
+  NEXT_STEPS_HEADING,
+  NEXT_STEP_LABEL,
+  NO_WEAK_POINTS_NOTE,
+  PREP_ACTIONS,
+  RECALL_NOW,
+  UNDETERMINED_NOTE,
+  VIEWPOINT_ORDER,
+  VIEWPOINT_SHORT_LABELS,
+  WEAK_POINT_LINES,
+} from "../flow/content";
+import { nextSteps, undeterminedJudgments } from "../flow/rules";
 import { currentQuestion, type TrainingState } from "../flow/training";
+
+/**
+ * 振り返りの先頭で読み上げる文（3D のとき。ADR-0051）。固定文だけで、利用者の回答は使わない。
+ * 受け止め → 見出し → 弱い観点の短い名前と判定（全部）→ 最初の1つの一言と次の一手。
+ * 2つ目からの一言は読まない（長くなるので画面で読む）。判定が無い回はその知らせ、全部確認できた回はその一言
+ */
+export function reviewSpeech(state: TrainingState): string | null {
+  if (state.stage.name !== "review") return null;
+  const ack = state.closingAck ?? "";
+  const judgments =
+    state.ai === "on" && state.judgments !== null ? state.judgments : undeterminedJudgments();
+  if (VIEWPOINT_ORDER.every((v) => judgments[v] === "undetermined")) {
+    return ack + (state.ai === "off" ? UNDETERMINED_NOTE : AI_FAILED_NOTE);
+  }
+  const steps = nextSteps(judgments);
+  if (steps.length === 0) return ack + NO_WEAK_POINTS_NOTE;
+  const names = steps
+    .map((s) => `${VIEWPOINT_SHORT_LABELS[s.viewpoint]}は${JUDGMENT_LABELS[s.judgment]}。`)
+    .join("");
+  const first = steps[0];
+  const line = WEAK_POINT_LINES[first.viewpoint][first.judgment as "not_mentioned" | "aware_unconfirmed"];
+  const action = PREP_ACTIONS.find((a) => a.id === first.action)!.label;
+  return `${ack}${NEXT_STEPS_HEADING}。${names}${line}${NEXT_STEP_LABEL}は、${action}。`;
+}
 
 /** いま読み上げる文。読み上げるものが無い段階（返事を待つ間など）は null */
 export function listenerSpeech(state: TrainingState): string | null {

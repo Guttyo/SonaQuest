@@ -10,6 +10,7 @@ import {
   JUDGMENT_LABELS,
   JUDGMENT_NOTE,
   NEXT_STEPS_HEADING,
+  NEXT_STEP_FIRST_TAG,
   NEXT_STEP_LABEL,
   NEXT_STEP_PICK,
   NO_WEAK_POINTS_NOTE,
@@ -168,17 +169,23 @@ describe("まだ弱いところと、次の一手（ADR-0051）", () => {
   it("手薄な観点だけを、絵・短い名前・判定の文字・一言・準備行動1つ・「これを準備する」で示す", () => {
     const html = render(battery);
     const section = between(html, H.next, H.recall);
-    const items = section.match(/<li class="next-step">/g) ?? [];
-    expect(items).toHaveLength(2);
-    // 「確認していない」（current）が「未確認と気づいた」（alternative）より先
+    expect(section.match(/<li class="next-step">/g) ?? []).toHaveLength(1);
+    expect(section.match(/<li class="next-step next-step-compact">/g) ?? []).toHaveLength(1);
+    // 「確認していない」（current）が「未確認と気づいた」（alternative）より先。最初の1枚に「まず、ここから」
     expect(section.indexOf(VIEWPOINT_SHORT_LABELS.current)).toBeLessThan(
       section.indexOf(VIEWPOINT_SHORT_LABELS.alternative),
     );
+    expect(section.split(NEXT_STEP_FIRST_TAG)).toHaveLength(2);
     expect(section).toContain(JUDGMENT_LABELS.not_mentioned);
     expect(section).toContain(JUDGMENT_LABELS.aware_unconfirmed);
+    // 一言は最初の1枚だけ。2枚目は名前・判定・次の一手だけの短い行
     expect(section).toContain(WEAK_POINT_LINES.current.not_mentioned);
-    expect(section).toContain(WEAK_POINT_LINES.alternative.aware_unconfirmed);
+    expect(section).not.toContain(WEAK_POINT_LINES.alternative.aware_unconfirmed);
     expect(section).not.toContain(WEAK_POINT_LINES.current.aware_unconfirmed);
+    // ボタンには、読み上げ用に準備行動の名前を含む名前を付ける（同じ文字のボタンが並ぶため）
+    for (const s of nextSteps(mixed)) {
+      expect(section).toContain(`aria-label="${NEXT_STEP_PICK}：${label(s.action)}"`);
+    }
     // 次の一手は nextSteps と同じ準備行動
     for (const s of nextSteps(mixed)) {
       expect(section).toContain(`<span class="label">${NEXT_STEP_LABEL}：</span>${label(s.action)}`);
@@ -196,6 +203,22 @@ describe("まだ弱いところと、次の一手（ADR-0051）", () => {
     const svgs = section.slice(0, section.indexOf(STRONG_POINTS_LABEL)).match(/<svg[^>]*>/g) ?? [];
     expect(svgs).toHaveLength(2);
     for (const svg of svgs) expect(svg).toContain('aria-hidden="true"');
+  });
+
+  it("弱い観点が1つだけのとき：「まず、ここから」は付けず、1枚を一言付きで出す", () => {
+    const html = render(state({ ...battery, judgments: { ...allConfirmed, proxy: "not_mentioned" } }));
+    const section = between(html, H.next, H.recall);
+    expect(section).not.toContain(NEXT_STEP_FIRST_TAG);
+    expect(section).not.toContain("next-step-compact");
+    expect(section).toContain(WEAK_POINT_LINES.proxy.not_mentioned);
+  });
+
+  it("3D のときだけ、読み上げの操作を受け止めの直後に出す（読み上げる文は reviewSpeech。回答は含めない）", () => {
+    expect(render(battery)).not.toContain('class="speaker-controls"');
+    const html = render({ ...battery, mode: "3d" });
+    const controls = html.indexOf('class="speaker-controls"');
+    expect(controls).toBeGreaterThan(html.indexOf("試験の受け止め"));
+    expect(controls).toBeLessThan(html.indexOf(H.next));
   });
 
   it("まとめの文は固定文だけ：利用者の回答の文を引かず、1文が短い", () => {
