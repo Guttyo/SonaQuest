@@ -864,3 +864,4 @@
 - 影響：`web/src/screens/Puppet2D.tsx`（新規）・`ListenerStage.tsx`・`Listener.tsx`・`Dialogue.tsx`・`Transcript.tsx`・`Listener.test.tsx`、`web/src/styles.css`（末尾）、docs/safety-test-plan.md（G5）、docs/STATUS.md（A-03）。
 - オーナーが判断する点：
   - [TODO-OWNER: 2D の聞き取り係の姿と状態の見せ方の下書き（形・状態ごとの姿勢と動き・吹き出しの横の小さな顔）と、文字で答える 2D の訓練で「聞いている」「話している」を何に合わせるか（入力中・質問の表示中など。今はどちらも出ない）]
+  - → オーナー決定（2026-11-05、チャット）：「このまま採用」（2D の聞き取り係の姿と状態の見せ方の下書き。文字で答える 2D で「聞いている」「話している」を何に合わせるかは未回答）
