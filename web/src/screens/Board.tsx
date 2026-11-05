@@ -1153,12 +1153,11 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
                     <span className="board-tile-label">{BOARD_KPI.pending}</span>
                     <span className="board-tile-big">
                       <span data-testid="pending-count">{fmt.format(pending.pending)}</span>
-                      <span className="board-tile-of">
-                        {BOARD_KPI.unit}
-                        {BOARD_KPI.pendingSub(pending.undelivered, pending.awaiting)}
-                      </span>
+                      <span className="board-tile-of">{BOARD_KPI.unit}</span>
                     </span>
-                    <span className="board-tile-sub">{BOARD_KPI.pendingOffline(pending.offlineSites)}</span>
+                    <span className="board-tile-sub">
+                      <b>{BOARD_KPI.pendingSub(pending.undelivered, pending.awaiting)}</b> {BOARD_KPI.pendingOffline(pending.offlineSites)}
+                    </span>
                   </div>
                 </section>
 

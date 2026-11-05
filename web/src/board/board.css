@@ -1826,6 +1826,14 @@ body:has(.board) {
 .board-actions-table td:first-child {
   white-space: nowrap;
 }
+@container board-panel (min-width: 640px) {
+  .board-actions-table th:nth-child(2) {
+    width: 30%;
+  }
+  .board-actions-table th:nth-child(4) {
+    width: 24%;
+  }
+}
 .board-action-site {
   padding: 0;
   border: 0;
@@ -1840,7 +1848,7 @@ body:has(.board) {
 .board-action-item {
   font-weight: var(--fw-bold);
 }
-.board-action-now {
+.board .board-action-now {
   margin: 0;
   padding: 0;
   list-style: none;
