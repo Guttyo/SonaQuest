@@ -12,9 +12,10 @@ import { checkRateLimit, type RateLimiter } from "./ratelimit";
 import { ALLOWED_VOCABULARY, followsFixedOrder, runTurn } from "./turn";
 import { createTtsApp, type TtsEnv } from "./tts";
 import { createTtsLabApp } from "./ttsLab";
+import { createBoardChatApp, makeChatBackend, type BoardChatEnv } from "./boardChat";
 
-/** 読み上げの中継の設定（TtsEnv）は tts.ts */
-export interface Env extends TtsEnv {
+/** 読み上げの中継の設定（TtsEnv）は tts.ts、ボードの掲示板チャットの設定（BoardChatEnv）は boardChat.ts */
+export interface Env extends TtsEnv, BoardChatEnv {
   /** Workers の secrets（手元では .dev.vars）。ブラウザには出さない */
   ANTHROPIC_API_KEY?: string;
   /** 開発中だけの本文のログ出力。wrangler.jsonc には書かない（ADR-0007 の追記） */
@@ -89,6 +90,7 @@ export async function readLimitedText(request: Request, maxBytes: number): Promi
 export function createApp(
   makeClaude: (apiKey: string, options?: ClaudeOptions) => CallClaude = makeCallClaude,
   makeAuditor: (apiKey: string) => Audit = makeAudit,
+  makeChat: Parameters<typeof createBoardChatApp>[0]["makeBackend"] = makeChatBackend,
 ) {
   const app = new Hono<{ Bindings: Env }>();
 
@@ -198,6 +200,8 @@ export function createApp(
   app.route("/", createTtsApp({ readBody: readLimitedText }));
   // 読み上げの聞き比べ（開発用）。比較実験の切り替え（DEV_EXPERIMENT=1）が入っていて、手元からのときだけ使える
   app.route("/", createTtsLabApp({ readBody: readLimitedText }));
+  // ボードの掲示板チャット（B-07、ADR-0047）。Managed Agents のセッションを中継する。/api/turn と同じ条件で通す
+  app.route("/", createBoardChatApp({ readBody: readLimitedText, makeBackend: makeChat }));
 
   app.all("/api/*", (c) => c.json({ error: "not_found" }, 404));
   return app;

@@ -66,8 +66,13 @@ describe("ボードの題とレイアウト（Issue #107）", () => {
     expect(p).toContain(`>${BOARD_LAYOUT.marks.proposals} 2<`);
   });
 
-  it("上部タブは5つ（全体・在庫・発注・搬送・記録（カルテ）・デモ）で、選んだタブだけが aria-selected", () => {
-    expect(html.match(/role="tab"/g)).toHaveLength(5);
+  it("上部タブは6つ（全体・在庫・発注・搬送・記録（カルテ）・デモ・連絡）で、選んだタブだけが aria-selected", () => {
+    expect(html.match(/role="tab"/g)).toHaveLength(6);
+    // 連絡のタブ（掲示板チャット、Issue #121）は、選んだときだけ中身を描く
+    expect(html).not.toContain('class="board-chat"');
+    const chat = render(HQ, "chat");
+    expect(chat).toContain('id="board-tab-chat" aria-selected="true"');
+    expect(chat).toContain('class="board-chat"');
     for (const label of Object.values(BOARD_LAYOUT.tabs)) expect(html).toContain(label);
     expect(html.match(/aria-selected="true"/g)).toHaveLength(1);
     expect(html).toContain('id="board-tab-overview" aria-selected="true"');
