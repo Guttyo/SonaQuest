@@ -1998,3 +1998,19 @@ body,
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* ⑥振り返りの公的資料（A-06）。準備行動の名前の下に、リンクと見出し・確認日 */
+.public-sources h3 {
+  margin-bottom: 4px;
+}
+.public-source-list {
+  margin: 0 0 12px;
+  padding-left: 1.2em;
+}
+.public-source-list li {
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+}
+.public-source-meta {
+  display: block;
+}

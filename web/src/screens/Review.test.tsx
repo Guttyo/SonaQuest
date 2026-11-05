@@ -9,16 +9,20 @@ import {
   JUDGMENT_LABELS,
   JUDGMENT_NOTE,
   PREP_ACTIONS,
+  PUBLIC_SOURCES,
   RECALL_FEEDBACK,
   RECOVERY_QUESTION,
   REVIEW_EVENT_HEADING,
   REVIEW_RECOVERY_LABEL,
+  REVIEW_SOURCES_HEADING,
+  REVIEW_SOURCES_NOTE,
   TIMINGS,
   VIEWPOINT_LABELS,
   VIEWPOINT_ORDER,
 } from "../flow/content";
+import { orderPrepActions, verifiedSourcesFor } from "../flow/rules";
 import { initialState, type TrainingState } from "../flow/training";
-import type { Answer, Judgments } from "../flow/types";
+import type { Answer, Judgments, PrepActionId } from "../flow/types";
 import { Review } from "./Review";
 
 /** 試験は DOM の無い環境で動くので、文字列に描いて確かめる。回答はすべて架空の試験用の文 */
@@ -216,5 +220,81 @@ describe("⑥振り返りの並びと絵（A-05 の⑥、Issue #49）", () => {
     expect(html).not.toContain("（使えない）");
     expect(html).not.toContain("source-chip-slash");
     expect(html).not.toContain("使えなくなったもの：");
+  });
+});
+
+describe("⑥振り返りの公的資料（A-06）", () => {
+  const verified = {
+    publisher: "試験の発行元",
+    title: "試験の題",
+    section: "試験の見出し",
+    url: "https://example.test/verified",
+    checkedOn: "2026-11-05",
+    verified: true,
+  };
+  const pending = { ...verified, title: "未確認の題", url: "https://example.test/pending", verified: false };
+  const sources = { verified, pending };
+  const links = {
+    notebook_bag: ["verified", "pending"],
+    photo_and_paper: ["pending"],
+    wallet_memo: [],
+    tell_family: [],
+    pharmacy_contact: [],
+    check_portal: ["verified"],
+  } as const;
+  const sourcesFor = (a: PrepActionId) => verifiedSourcesFor(a, sources, links);
+  const renderWith = (s: TrainingState) =>
+    renderToStaticMarkup(<Review state={s} onChoose={() => {}} sourcesFor={sourcesFor} />);
+  const heading = `<h2>${REVIEW_SOURCES_HEADING}</h2>`;
+
+  it("verifiedSourcesFor は確認済みのものだけを返す", () => {
+    expect(sourcesFor("notebook_bag")).toEqual([verified]);
+    expect(sourcesFor("photo_and_paper")).toEqual([]);
+    expect(sourcesFor("tell_family")).toEqual([]);
+  });
+
+  it("今の資料の一覧では、オーナーが確認済みにした3件だけを、対応する準備行動に出す", () => {
+    const urls = (id: PrepActionId) => verifiedSourcesFor(id).map((s) => s.url);
+    expect(urls("notebook_bag")).toEqual([PUBLIC_SOURCES.gov_online_prep.url]);
+    expect(urls("photo_and_paper")).toEqual([PUBLIC_SOURCES.fdma_ecollege_pack.url]);
+    expect(urls("check_portal")).toEqual([PUBLIC_SOURCES.myna_faq_medicine.url]);
+    for (const id of ["wallet_memo", "tell_family", "pharmacy_contact"] as const) expect(urls(id)).toEqual([]);
+    const html = render(battery);
+    expect(html).toContain(REVIEW_SOURCES_HEADING);
+    // オーナーが選ばなかった資料（厚生労働省の報告書、マイナポータルのお知らせ）は出さない
+    expect(html).not.toContain(PUBLIC_SOURCES.mhlw_after_service_10_disaster.url);
+    expect(html).not.toContain(PUBLIC_SOURCES.myna_news_medicine.url);
+  });
+
+  it("確認済みの資料を、今ここで確かめましょうと次の準備の間に、準備行動の名前の下に出す", () => {
+    const html = renderWith(battery);
+    expectOrder(html, [H.recall, heading, H.prep]);
+    const section = between(html, heading, H.prep);
+    expect(section).toContain(REVIEW_SOURCES_NOTE);
+    const label = (id: PrepActionId) => PREP_ACTIONS.find((a) => a.id === id)!.label;
+    expect(section).toContain(`<h3>${label("notebook_bag")}</h3>`);
+    expect(section).toContain(`<h3>${label("check_portal")}</h3>`);
+    // 確認済みの資料が無い準備行動は、ここには出さない（カードではリンクなしで出る）
+    expect(section).not.toContain(label("photo_and_paper"));
+    expect(section).not.toContain(label("tell_family"));
+    // 並びは準備行動のカードと同じ（orderPrepActions）
+    const order = orderPrepActions(mixed).filter((id) => id === "notebook_bag" || id === "check_portal");
+    expect(section.indexOf(label(order[0]))).toBeLessThan(section.indexOf(label(order[1])));
+  });
+
+  it("リンクは別のタブで開き、発行元・題・見出し・確認日を出す。未確認の資料は出さない", () => {
+    const section = between(renderWith(battery), heading, H.prep);
+    expect(section).toContain(
+      '<a href="https://example.test/verified" target="_blank" rel="noopener noreferrer">試験の発行元「試験の題」</a>',
+    );
+    expect(section).toContain("試験の見出し。確認日 2026-11-05");
+    expect(section).not.toContain("未確認の題");
+    expect(section).not.toContain("https://example.test/pending");
+  });
+
+  it("リンクは準備行動のカード（label）の中に入れない", () => {
+    const html = renderWith(battery);
+    const cards = html.slice(html.indexOf(H.prep));
+    expect(cards).not.toContain("<a ");
   });
 });
