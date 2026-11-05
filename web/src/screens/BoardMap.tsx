@@ -321,9 +321,10 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
               {MAP_SITES.map((s) => {
                 const o = overview.find((x) => x.site === s.site);
                 const isHq = s.site === HQ;
-                const badges: string[] = [];
-                if (o && o.outOfStock > 0) badges.push(`${BOARD_MAP.outOfStock} ${fmt.format(o.outOfStock)}`);
-                if (o && o.pharmacistsShort > 0) badges.push(`${BOARD_MAP.pharmacistsShort} ${fmt.format(o.pharmacistsShort)}`);
+                // 在庫切れは赤、薬剤師の不足は無彩色（職種は残し、目立たせ方を抑える。Issue #113）
+                const badges: { text: string; bad: boolean }[] = [];
+                if (o && o.outOfStock > 0) badges.push({ text: `${BOARD_MAP.outOfStock} ${fmt.format(o.outOfStock)}`, bad: true });
+                if (o && o.pharmacistsShort > 0) badges.push({ text: BOARD_MAP.pharmacistsShort(o.pharmacistsShort), bad: false });
                 const name = isHq ? "本部" : s.site;
                 // 札：名前（18）、施設名（13）、不足の印（高さ20、間隔24）。印の向きに合わせて札ごと置き、印と重ねない
                 const blockH = 42 + badges.length * 24;
@@ -386,10 +387,10 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                       {s.place}
                     </text>
                     {badges.map((b, i) => (
-                      <g key={b} transform={`translate(${cx - 62}, ${top + 42 + i * 24})`}>
-                        <rect width="124" height="20" rx="10" fill="#fdecea" stroke="#c62828" />
-                        <text x="62" y="14" fontSize="12" fill="#8a1c1c" textAnchor="middle" fontWeight="700">
-                          {b}
+                      <g key={b.text} transform={`translate(${cx - 62}, ${top + 42 + i * 24})`}>
+                        <rect width="124" height="20" rx="4" fill={b.bad ? "#fdecea" : "#f1f3f5"} stroke={b.bad ? "#c62828" : "#8a8f96"} />
+                        <text x="62" y="14" fontSize="12" fill={b.bad ? "#8a1c1c" : "#2f3439"} textAnchor="middle" fontWeight={b.bad ? 700 : 400}>
+                          {b.text}
                         </text>
                       </g>
                     ))}

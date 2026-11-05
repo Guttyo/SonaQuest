@@ -7,6 +7,7 @@ import { HQ, INBOUND, SITES, type RouteRow, type SiteId, type SyncRow } from "./
 import { minutesAt, stampMinutes, type DemoInbound } from "./demo";
 import { MAP_ROUTES, MAP_SITES } from "./map";
 import type { SiteOverview } from "./summary";
+import { BOARD_CHANGES } from "./text";
 
 // ===== 図の上の線（経路）=====
 
@@ -92,7 +93,8 @@ export function sitePoint(site: SiteId): Pt {
  * 光の条件に使うだけで、緊急度や優先順位は決めない
  */
 // [TODO-OWNER: 最終報告が古いとみなす時間（Claude Code の下書き。12時間・仮の値）]
-export const STALE_REPORT_HOURS = 12;
+// ボードの「N時間以上 報告なし」（Issue #113、text.ts の BOARD_CHANGES.staleHours）と同じ値を使い、別の閾値を作らない
+export const STALE_REPORT_HOURS = BOARD_CHANGES.staleHours;
 
 /**
  * 最終報告（在庫の確認か、記録が本部に届いた、新しいほうの時刻。BOARD_AS_OF からの分）。
