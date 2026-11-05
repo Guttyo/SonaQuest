@@ -468,3 +468,8 @@
 - 直し方：`origin/main`（PR #73 の後）から `feat/49-review-visuals-main` を切り、`origin/feat/48-source-cards` をマージした。衝突は `docs/STATUS.md` の「最終更新」と「動作確認済み」だけで、PR #73 と PR #74 の両方の記録を残した。CSS は自動で合わさったので、PR #74 で足した振り返りの規則の太さ・大きさを、PR #73 の段階の変数に合わせた。
 - 画面の確認：共有の作業コピーを別のブランチで使っていたので、この worktree を別の口（5174）で開発用サーバーに出して確かめた（`launch.json` の一時的な項目は、確認後に戻した）。
 - 次からは、積み重ねた PR では、下の PR がマージされたら上の PR の base を `main` に付け替えてからマージする。
+
+## 2026-11-05 Issue #82・#30（hook の作業ツリーの判定と、マーカー解除の残りの経路）
+- 気づいたこと：hook は `CLAUDE_PROJECT_DIR`（共有の作業コピー）の根でブランチを読んでいたので、worktree で並行して作業すると、共有の作業コピーが main のときに作業ブランチへのコミットまで止まった。直した後も、worktree のセッションで動く hook は共有の作業コピーにある版なので、main に入って共有の作業コピーが新しくなるまで効かない。
+- 試したこと：git 2.56 で、am・cherry-pick・revert・rebase が pre-commit を呼ばないこと、pre-merge-commit の時点ではまだ MERGE_HEAD が無いこと（GIT_REFLOG_ACTION で取り込む相手が分かる）を確かめてから、止める操作を決めた。
+- 次に考えること：rebase を止めるか（ふだんの操作なので止めていない）。ローカルの main が古いと、main 側で解除したマーカーの取り込みは origin/main を見て通す。origin/main を手元から書き換える経路は止めたが、hook はセキュリティの境界ではない（ADR-0014）。

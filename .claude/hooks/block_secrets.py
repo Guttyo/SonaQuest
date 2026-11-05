@@ -4,6 +4,7 @@
 - APIキーの形をした値を書く・コマンドに含める操作
 - .claude/local/blocklist.txt の語を書く操作（語そのものは表示しない）
 - コミット前フックを迂回する操作（--no-verify、core.hooksPath の変更、.git/config・.git/hooks/ の書き換え）
+- .git/ の下への書き込み（refs/・packed-refs・HEAD など。ローカルの main を直接書き換えさせない。Issue #30）
 """
 import json
 import re
@@ -18,7 +19,10 @@ HOOKS_KEY = "core.hookspath"  # gitの設定キーは大文字小文字を区別
 HOOKS_PATH_OK = [["--get", HOOKS_KEY], [HOOKS_KEY], ["get", HOOKS_KEY],
                  [HOOKS_KEY, ".githooks"], ["set", HOOKS_KEY, ".githooks"]]
 GIT_CONFIG_ENV = re.compile(r"^(?:\$env:)?GIT_CONFIG_(?:COUNT|KEY_\d+|VALUE_\d+|PARAMETERS|GLOBAL|SYSTEM)\b", re.I)
-GIT_INTERNAL = re.compile(r"(?:^|[/\\])\.git[/\\](?:config$|hooks[/\\])")
+# .git/ の下（config・hooks/・refs/・packed-refs・HEAD・worktrees/ など）。読むのはよい（Issue #30）
+GIT_INTERNAL = re.compile(r"(?:^|[/\\])\.git[/\\]")
+GIT_INTERNAL_MSG = (".git/ の下（config・hooks/・refs/・packed-refs・HEAD など）は書き換えられません"
+                    "（コミット前フックの設定とローカルの main を守るため。ADR-0024）。")
 READ_ONLY = {"cat", "head", "tail", "less", "more", "grep", "rg", "type", "Get-Content", "ls", "stat", "git"}
 SAFE_SENSITIVE_CMD = [
     re.compile(r"^\s*(?:ls|stat|test|\[|git\s+(?:status|check-ignore))\b[^;|&]*$"),
@@ -62,7 +66,7 @@ def check_hooks_bypass(cmd):
             block("GIT_CONFIG_* の環境変数で git の設定を差し替える操作はできません。")
         writes = toks and toks[0] not in READ_ONLY
         if (writes and any(GIT_INTERNAL.search(t) for t in toks)) or any(GIT_INTERNAL.search(r) for r in redirects):
-            block(".git/config と .git/hooks/ は書き換えられません。")
+            block(GIT_INTERNAL_MSG)
         if dynamic_name(toks) and any(HOOKS_KEY in t.lower() for t in toks):
             block("コマンド名が変数・置換で決まるため、core.hooksPath に触れる操作か判定できません。")
         if shell_reads_stdin(toks) and HOOKS_KEY in cmd.lower():
@@ -94,7 +98,7 @@ def main():
         if sensitive_path(p):
             block(f"{p} は秘密情報・非公開ファイルです。中身を読んだり書いたりしないでください（存在確認は ls で）。")
         if tool != "Read" and p and GIT_INTERNAL.search(p):
-            block(".git/config と .git/hooks/ は書き換えられません。")
+            block(GIT_INTERNAL_MSG)
         check_text(ti.get("content"), "書き込む内容")
         check_text(ti.get("new_string"), "編集後の内容")
         check_text(ti.get("new_source"), "編集後の内容")
