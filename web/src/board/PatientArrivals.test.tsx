@@ -72,8 +72,12 @@ describe("救護所：到着した患者の一覧", () => {
   });
 
   it("点数・合否・緊急度の言葉を使わない", () => {
-    // 「判断しない」の注意書きは除いてから確かめる
-    const h = (render(site, "overview", arrived) + render(HQ, "overview", arrived)).split(BOARD_ARRIVALS.conditionNote).join("");
+    // この部品の出力だけを確かめる（ボードのほかの欄の「判断しない」の説明文を拾わないように）。「判断しない」の注意書きも除く
+    const h = (
+      renderToStaticMarkup(<PatientArrivals state={arrived} site={site} />) + renderToStaticMarkup(<PatientArrivals state={arrived} dispatch={() => {}} />)
+    )
+      .split(BOARD_ARRIVALS.conditionNote)
+      .join("");
     expect(h).not.toMatch(/点数|合格|不合格|正解|緊急度|重症|軽症|トリアージ/);
   });
 });
