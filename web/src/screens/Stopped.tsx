@@ -6,6 +6,7 @@ import {
   STOP_SOURCE,
 } from "../flow/content";
 import type { StopReason } from "../flow/emergency";
+import { stopBgm } from "../bgm/browser";
 import { stopAllVoice } from "../voice/browser";
 
 /**
@@ -21,6 +22,7 @@ export function Stopped({
 }) {
   useEffect(() => {
     stopAllVoice();
+    stopBgm();
   }, []);
   // 自傷のほのめかしでは、自傷用の案内を出す（ADR-0011）
   const [message, source] =

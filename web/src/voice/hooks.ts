@@ -1,6 +1,7 @@
 // 読み上げと押して話すを、React の画面につなぐ。画面を離れたら（中断の画面を含む）必ず止める（ADR-0011、ADR-0033）。
 
 import { useEffect, useRef, useState } from "react";
+import { duckBgm } from "../bgm/browser";
 import { createBrowserSpeaker, registerVoiceStopper } from "./browser";
 import type { Speaker, SpeakerSnapshot } from "./speaker";
 import { PushToTalk, browserRecognitionFactory, type MicStatus, type TalkSnapshot } from "./talk";
@@ -27,6 +28,12 @@ export function useSpeaker(enabled: boolean, session: number): { speaker: Speake
       setSnapshot(SPEAKER_IDLE);
     };
   }, [enabled, session]);
+  // 読み上げの間（音声を取りに行っている間を含む）は BGM を小さくし、終わったら戻す（B-03、ADR-0039）
+  const voiceActive = snapshot.speaking || snapshot.loading;
+  useEffect(() => {
+    duckBgm("speech", voiceActive);
+    return () => duckBgm("speech", false);
+  }, [voiceActive]);
   return { speaker, snapshot };
 }
 
