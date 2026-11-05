@@ -26,12 +26,16 @@ export const BOARD_LAYOUT = {
   siteTabs: {
     overview: "詳細",
   },
+  /** 拠点を選ぶ欄（狭い幅。Issue #113） */
+  siteSelect: "表示する拠点",
   marks: {
     outOfStock: "在庫切れ",
-    pharmacistsShort: "薬剤師 不足",
+    pharmacistsShort: (n: number) => `薬剤師 ${n}人不足`,
     undelivered: "未交付あり",
-    pending: "記録の形になっていない",
-    proposals: "提案",
+    pending: "未着・転記待ち",
+    proposals: "承認待ち",
+    /** 左のペインに出すのは印2つまで。残りの数（Issue #113） */
+    more: (n: number) => `ほか ${n} 件`,
   },
   detail: {
     title: "の詳細",
@@ -46,6 +50,12 @@ export const BOARD_LAYOUT = {
     comms: "記録と通信",
     charts: "この救護所のカルテ（架空）",
     district: "地区",
+    /** 情報の新しさを3つに分ける（Issue #113）。古いかどうかの閾値は作らない */
+    fresh: "情報の時刻",
+    freshStock: "在庫確認",
+    freshRecords: "記録到着",
+    freshRoute: "経路確認",
+    freshNote: "時刻は架空。デモの時計から数える。左のペインの「最終報告」は、在庫確認と記録到着の新しいほう。",
   },
   mapHint: "図の拠点を押すと、その拠点の詳細に切り替わる。",
   hqRecords: "救護所ごとのカルテの件数",
@@ -62,7 +72,11 @@ export const BOARD_ORDERS = {
   title: "発注の提案",
   note: "未交付や、目安の日数より早く切れる見込みの品目について、在庫の算数で必要な数量を出した提案。数量は「未交付・必要な数 ＋ 目安の日数分の出庫 − 現地の在庫 − 向かっている搬送・入荷」。未交付・必要な数が無いときは、1日の出庫分以上足りないときだけ出す。本部備蓄から出せる分と卸へ頼む分に分ける。アプリは薬の中身・代わりの薬・量の妥当性を判断しない。承認・却下は本部の担当者が押す。",
   empty: "提案はない",
-  pending: "提案中",
+  pending: "承認待ち",
+  /** 本部の全体の「確認・手配が必要な事項」の下に置く一覧の題（Issue #113） */
+  pendingTitle: "承認待ちの発注提案",
+  /** 数量の算数を開いて読む欄（Issue #113。承認の前に根拠を見られるように） */
+  basisLabel: "数量の根拠（在庫の算数）",
   approved: "承認済み",
   approve: "承認",
   reject: "却下",
@@ -89,7 +103,7 @@ export const BOARD_ORDERS = {
 export const BOARD_CHANGES = {
   label: "前回から変わったこと",
   since: (time: string) => `${time} 以降：`,
-  none: (time: string) => `${time} 以降、変わったことはありません`,
+  none: (time: string) => `${time} 以降、このボードに届いた更新はありません（更新が無いことは、問題が無いことを示しません）`,
   /** 並べる順と名前。未交付は「+N 件」、ほかは「N 件」 */
   kinds: [
     { kind: "登録", name: "登録" },
@@ -102,6 +116,8 @@ export const BOARD_CHANGES = {
   sep: "、",
   lastReport: "最終報告",
   lastReportNote: "在庫の確認か記録が本部に届いた、新しいほうの時刻。デモの時計から数える",
+  /** 更新が無いときの小さな補助表示の頭（Issue #113） */
+  noneLabel: "更新",
   ago: (minutes: number) =>
     minutes < 1 ? "いま" : minutes < 60 ? `${minutes} 分前` : minutes < 48 * 60 ? `${Math.floor(minutes / 60)} 時間前` : `${Math.floor(minutes / 1440)} 日前`,
 } as const;
@@ -110,6 +126,61 @@ export const BOARD_CHANGES = {
 export const BOARD_LEAD_TILE = {
   label: "不足が出ている救護所",
   sub: "在庫切れ・切れる見込み・薬剤師の不足のどれかがある救護所の数",
+} as const;
+
+/**
+ * 本部の全体の上段に横一列で並べる指標の札と、その直下の「確認・手配が必要な事項」の表（Issue #113）。
+ * 数はすべて架空データの算数。並び順は業務のルールで固定し、臨床の緊急度を表さない。Claude は使わない
+ */
+// [TODO-OWNER: 本部の全体の指標の札（上段の横並び）・「確認・手配が必要な事項」の表・活動状況の文言（Claude Code の下書き。Issue #113）]
+export const BOARD_KPI = {
+  label: "本部の数字",
+  critical: "在庫切れ・不足見込み",
+  criticalUnit: "件（拠点×品目）",
+  /** 在庫の数（10）と確認・手配の数（12）の関係を同じ場所で読めるように */
+  criticalBreakdown: (total: number, critical: number, unconfirmed: number, noPace: number) =>
+    `確認・手配の ${total}件 ＝ この ${critical}件 ＋ 未確認 ${unconfirmed}件 ＋ 算出不可 ${noPace}件`,
+  proposals: "承認待ちの発注提案",
+  proposalsSub: (approved: number) => `承認済み ${approved}件`,
+  pending: "記録の未着・転記待ち",
+  pendingSub: (undelivered: number, awaiting: number) => `（未着 ${undelivered}・転記待ち ${awaiting}）`,
+  pendingOffline: (n: number) => `通信なしの救護所 ${n}か所`,
+  unit: "件",
+} as const;
+
+export const BOARD_ACTIONS = {
+  title: "確認・手配が必要な事項",
+  cols: { site: "拠点", what: "確認が必要なこと", now: "現在の状況", next: "次の確認" },
+  order:
+    "並びは業務のルールで固定：在庫切れ → 未確認 → 在庫切れの見込みが近い順 → 見込み算出不可。患者にとっての緊急度は表さない（「在庫切れ」の表示も、緊急度を表すものではない）。",
+  stock: "在庫",
+  onHand: "現地",
+  hq: "本部",
+  supply: "入荷・融通",
+  proposal: "発注の提案",
+  checked: "在庫確認",
+  /** 拠点×品目の数（確認・手配の数）と、その内訳 */
+  breakdown: (critical: number, unconfirmed: number, noPace: number) => `在庫切れ・不足見込み ${critical} ＋ 未確認 ${unconfirmed} ＋ 算出不可 ${noPace}`,
+  empty: "確認・手配が必要な事項はありません",
+} as const;
+
+export const BOARD_ACTIVITY = {
+  title: "救護所ごとの活動状況",
+  patients: "今日の患者（延べ）",
+  chronic: "うち普段の薬の継続",
+  evacuees: "避難者（見込み）",
+  pharmacists: "薬剤師",
+  comms: "記録の届き方",
+  total: "4か所の合計",
+  inbound: "入荷・融通の予定（受領済みを除く）",
+  undated: "到着未定",
+} as const;
+
+/** デモ操作の開閉（Issue #113）。ふだんは閉じておく。時計と「架空データ」の印は開閉の外に常に出す */
+// [TODO-OWNER: デモ操作の開閉の題と、自動で進めているときの印（Claude Code の下書き。Issue #113）]
+export const BOARD_DEMO_MENU = {
+  title: "デモ操作",
+  running: "自動で進行中",
 } as const;
 export const BOARD_LEAD =
   "救護所4か所の情報を本部に集める、ホワイトボードの代わりになる1枚です。実際の災害で使う形ではなく、訓練と同じ記録の項目で何が見えるかを示す試作です。";
@@ -148,6 +219,7 @@ export const BOARD_OVERVIEW = {
   patients: "今日の患者（延べ）",
   pharmacists: "薬剤師",
   short: "不足",
+  shortBy: (n: number) => `${n}人不足`,
   outOfStock: "在庫切れ",
   forecast: "切れる見込み",
   unconfirmed: "未確認",
@@ -229,7 +301,7 @@ export const BOARD_MAP = {
   legendHq: "本部",
   legendSite: "救護所",
   outOfStock: "在庫切れ",
-  pharmacistsShort: "薬剤師 不足",
+  pharmacistsShort: (n: number) => `薬剤師 ${n}人不足`,
   statusTitle: "本部の周りの状況（架空）",
   temp: "気温",
   snow: "積雪",

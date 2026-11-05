@@ -137,7 +137,9 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                 </pattern>
               </defs>
               {/* 地面（生活道路の色）と街区（住宅地） */}
-              <rect width={MAP_W} height={MAP_H} fill="#fbfaf6" />
+              <rect width={MAP_W} height={MAP_H} fill="#f7f8fa" />
+              {/* 道路・街区・川などの背景は弱める（Issue #113）。拠点・経路・通行状況を目立たせる */}
+              <g className="board-map-base">
               {MAP_BLOCKS.map((b) => (
                 <g key={`${b.x},${b.y}`}>
                   <rect x={b.x} y={b.y} width={b.w} height={b.h} fill="#ede5d4" />
@@ -192,6 +194,7 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                   ))}
                 </text>
               </g>
+              </g>
               {/* 本部からの経路。状態で色と線を変える */}
               {MAP_ROUTES.map((m) => {
                 const r = routeOf(m.to);
@@ -237,7 +240,7 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                 const isHq = s.site === HQ;
                 const badges: string[] = [];
                 if (o && o.outOfStock > 0) badges.push(`${BOARD_MAP.outOfStock} ${fmt.format(o.outOfStock)}`);
-                if (o && o.pharmacistsShort > 0) badges.push(`${BOARD_MAP.pharmacistsShort} ${fmt.format(o.pharmacistsShort)}`);
+                if (o && o.pharmacistsShort > 0) badges.push(BOARD_MAP.pharmacistsShort(o.pharmacistsShort));
                 const name = isHq ? "本部" : s.site;
                 // 札：名前（18）、施設名（13）、不足の印（高さ20、間隔24）。印の向きに合わせて札ごと置き、印と重ねない
                 const blockH = 42 + badges.length * 24;
