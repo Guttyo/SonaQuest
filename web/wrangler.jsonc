@@ -23,5 +23,16 @@
       "namespace_id": "5701",
       "simple": { "limit": 10, "period": 60 }
     }
-  ]
+  ],
+  // ボードの掲示板チャット（B-07、ADR-0047）の Managed Agents の ID。秘密ではない。
+  // オーナーが setup スクリプト（npm --prefix web run setup:board-chat）で作り、出た値をここに入れる（手順は docs/board-chat-setup.md）。
+  // 空のままなら、チャットはルールで組んだ固定の掲示だけになる。API キーはここに書かない（secrets）
+  "vars": {
+    "BOARD_CHAT_ENVIRONMENT_ID": "",
+    "BOARD_CHAT_AGENT_HQ": "",
+    "BOARD_CHAT_AGENT_A": "",
+    "BOARD_CHAT_AGENT_B": "",
+    "BOARD_CHAT_AGENT_C": "",
+    "BOARD_CHAT_AGENT_D": ""
+  }
 }
