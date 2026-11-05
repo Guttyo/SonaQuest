@@ -1,9 +1,10 @@
-import { useEffect, useReducer, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useReducer, useRef, useState, type FormEvent, type ReactNode } from "react";
 import "../board/board.css";
 import {
   BOARD_AS_OF,
   COVER_GUIDE_DAYS,
   DEMAND,
+  DISTRICTS,
   HQ,
   INTAKE_RECORDS,
   ITEMS,
@@ -12,6 +13,7 @@ import {
   SHELTERS,
   SITES,
   STOCK,
+  districtOf,
   inboundKind,
   routeTo,
   siteInfo,
@@ -25,12 +27,17 @@ import {
   initialDemo,
   nextFictionalName,
   patientsWithExtra,
+  proposalStage,
+  type DemoAction,
+  type DemoInbound,
   type DemoState,
+  type OrderProposal,
   type PatientChart,
 } from "../board/demo";
 import {
   caseRows,
   criticalItems,
+  daysLeft,
   heatCell,
   inboundSummary,
   levelOf,
@@ -38,6 +45,7 @@ import {
   roundDays,
   shelterRows,
   siteOverview,
+  stockStatus,
   todaySummary,
   trendSeries,
   unknownCounts,
@@ -48,25 +56,35 @@ import {
   BOARD_ABOUT,
   BOARD_BACK_LABEL,
   BOARD_CASES,
-} from "../board/text";
-import { BoardMap } from "./BoardMap";
-import {
   BOARD_DEMO,
   BOARD_GROUPS,
   BOARD_INTAKE_FORM,
+  BOARD_LAYOUT,
   BOARD_LEAD,
   BOARD_MOCK_BADGE,
+  BOARD_ORDERS,
   BOARD_OVERVIEW,
   BOARD_RECORDS,
   BOARD_SECTIONS,
+  BOARD_SUBTITLE,
   BOARD_TITLE,
   INTAKE_IMAGE,
 } from "../board/text";
+import { BoardMap } from "./BoardMap";
+
+/** 上部タブ（Issue #107） */
+export type BoardTab = "overview" | "stock" | "supply" | "records" | "demo";
+const TABS: readonly BoardTab[] = ["overview", "stock", "supply", "records", "demo"];
 
 interface Props {
   onBack: () => void;
   /** 試験・見本のため。省くと自動進行の判定にブラウザの設定を使う */
   reducedMotion?: boolean;
+  /** 最初に選ぶ拠点とタブ（試験のため。DOM の無い試験で画面の切り替えを確かめる）。省くと本部・全体 */
+  initialSite?: SiteId;
+  initialTab?: BoardTab;
+  /** 最初のデモの状態（試験のため） */
+  initialState?: DemoState;
 }
 
 const fmt = new Intl.NumberFormat("ja-JP");
@@ -207,94 +225,27 @@ function CaseItem({ c, state }: { c: CaseRow; state: DemoState }) {
   );
 }
 
-/** 救護所の1行（1タップ目）。人員と薬の不足を先に出し、開くと品目の行とカルテへの入口 */
-function SiteGroup({
-  o,
-  cases,
-  state,
-  charts,
-  onOpenRecords,
-}: {
-  o: SiteOverview;
-  cases: CaseRow[];
-  state: DemoState;
-  charts: PatientChart[];
-  onOpenRecords: () => void;
-}) {
-  const undelivered = charts.reduce((a, c) => a + c.undelivered, 0);
-  return (
-    <li className="board-group">
-      <details>
-        <summary>
-          <span className="board-group-row">
-            <span className="board-group-site">
-              <b>{o.site}</b>
-              <span className="board-group-sub">
-                {BOARD_OVERVIEW.patients} {o.patients === null ? "—" : fmt.format(o.patients)} 人
-              </span>
-            </span>
-            <span className={`board-group-cell ${o.pharmacistsShort > 0 ? "short" : ""}`}>
-              <span className="k">{BOARD_OVERVIEW.pharmacists}</span> {o.pharmacists === null ? "—" : `${fmt.format(o.pharmacists)} 人`}
-              {o.pharmacistsShort > 0 && <Pill level="bad">{`${BOARD_OVERVIEW.short} ${fmt.format(o.pharmacistsShort)} 人`}</Pill>}
-            </span>
-            <span className={`board-group-cell ${o.outOfStock > 0 ? "short" : ""}`}>
-              <span className="k">{BOARD_OVERVIEW.outOfStock}</span> {fmt.format(o.outOfStock)}
-            </span>
-            <span className={`board-group-cell ${o.forecast > 0 ? "warn" : ""}`}>
-              <span className="k">{BOARD_OVERVIEW.forecast}</span> {fmt.format(o.forecast)}
-            </span>
-            <span className="board-group-cell">
-              <span className="k">
-                {BOARD_OVERVIEW.unconfirmed}・{BOARD_OVERVIEW.noPace}
-              </span>{" "}
-              {fmt.format(o.unconfirmed)}・{fmt.format(o.noPace)}
-            </span>
-            <span className="board-group-cell">
-              <span className="k">{BOARD_OVERVIEW.route}</span> <Pill level={routeLevel(o.routeStatus)}>{o.routeStatus}</Pill>
-            </span>
-            <span className="board-group-cell">
-              <span className="k">{BOARD_OVERVIEW.comms}</span> {o.mode}
-              {o.pending !== null && o.pending > 0 && `（${BOARD_OVERVIEW.pending} ${fmt.format(o.pending)}）`}
-            </span>
-            <span className={`board-group-cell ${undelivered > 0 ? "short" : ""}`}>
-              <span className="k">{BOARD_RECORDS.chartLabel}</span> {fmt.format(charts.length)} {BOARD_RECORDS.count}
-              {undelivered > 0 && <Pill level="bad">{`${BOARD_RECORDS.flagUndelivered}`}</Pill>}
-            </span>
-          </span>
-        </summary>
-        <div className="board-group-body">
-          <button type="button" className="secondary board-group-open" onClick={onOpenRecords}>
-            {BOARD_RECORDS.open}（{fmt.format(charts.length)} {BOARD_RECORDS.count}）
-          </button>
-          {cases.length === 0 ? (
-            <p className="board-note">{BOARD_GROUPS.empty}</p>
-          ) : (
-            <>
-              <div className="board-cases-head" aria-hidden="true">
-                <span>{BOARD_CASES.cols.status}</span>
-                <span>{BOARD_GROUPS.items}</span>
-                <span>{BOARD_CASES.cols.onHand}</span>
-                <span>{BOARD_CASES.cols.hq}</span>
-                <span>{BOARD_CASES.cols.supply}</span>
-                <span>{BOARD_CASES.cols.next}</span>
-              </div>
-              <ol className="board-cases" aria-label={`${o.site} の${BOARD_CASES.title}`}>
-                {cases.map((c) => (
-                  <CaseItem key={`${c.site}-${c.item}`} c={c} state={state} />
-                ))}
-              </ol>
-            </>
-          )}
-        </div>
-      </details>
-    </li>
-  );
-}
 
-/** 架空の問診の入力（デモ）。送信先は無く、reducer に渡すだけ */
-function IntakeForm({ state, onAdd }: { state: DemoState; onAdd: (a: Parameters<typeof demoReducer>[1]) => void }) {
-  const [site, setSite] = useState<SiteId>(DEMO_SITES[0]);
-  const [name, setName] = useState(() => nextFictionalName(0));
+/**
+ * 架空の問診の入力（カルテに登録する。デモ）。送信先は無く、reducer に渡すだけ。
+ * fixedSite を渡すと救護所を選ぶ欄を出さない（救護所の「記録（カルテ）」のタブ）
+ */
+function IntakeForm({
+  state,
+  onAdd,
+  fixedSite,
+  defaultSite,
+  onGoSupply,
+}: {
+  state: DemoState;
+  onAdd: (a: DemoAction) => void;
+  fixedSite?: SiteId;
+  defaultSite?: SiteId;
+  onGoSupply?: () => void;
+}) {
+  const [chosen, setChosen] = useState<SiteId>(defaultSite ?? DEMO_SITES[0]);
+  const site = fixedSite ?? chosen;
+  const [name, setName] = useState(() => nextFictionalName(state.records.length));
   const [values, setValues] = useState<string[]>(() => BOARD_INTAKE_FORM.items.map(() => ""));
   const [item, setItem] = useState("");
   const [count, setCount] = useState("");
@@ -330,16 +281,18 @@ function IntakeForm({ state, onAdd }: { state: DemoState; onAdd: (a: Parameters<
     <form className="board-form" onSubmit={submit}>
       <p className="board-note">{BOARD_INTAKE_FORM.note}</p>
       <div className="board-form-grid">
-        <label>
-          <span>{BOARD_INTAKE_FORM.site}</span>
-          <select value={site} onChange={(e) => setSite(e.target.value as SiteId)}>
-            {DEMO_SITES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
+        {fixedSite === undefined && (
+          <label>
+            <span>{BOARD_INTAKE_FORM.site}</span>
+            <select value={site} onChange={(e) => setChosen(e.target.value as SiteId)}>
+              {DEMO_SITES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label>
           <span>
             {BOARD_INTAKE_FORM.name}
@@ -392,6 +345,11 @@ function IntakeForm({ state, onAdd }: { state: DemoState; onAdd: (a: Parameters<
       <p className="board-form-message" role="status" aria-live="polite">
         {message}
       </p>
+      {message !== "" && onGoSupply && (
+        <button type="button" className="secondary" onClick={onGoSupply}>
+          {BOARD_ORDERS.goSupply}
+        </button>
+      )}
     </form>
   );
 }
@@ -566,16 +524,327 @@ function prefersReducedMotion(): boolean {
   return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
+const siteName = (site: SiteId) => (site === HQ ? BOARD_LAYOUT.hq : site);
+
+/** 発注の提案の状態の色 */
+function stageLevel(stage: string): "bad" | "warn" | "ok" | "none" {
+  if (stage === "提案") return "warn";
+  if (stage === "卸に照会中") return "bad";
+  if (stage === "受領") return "none";
+  return "ok";
+}
+
+/** 入荷・搬送の状態の色（照会中・到着未定は赤、融通の調整中は黄） */
+function inboundLevel(r: DemoInbound): "bad" | "warn" | "ok" {
+  if (r.status === "受領" || r.status === "確定" || r.status === "搬送中" || r.status === "引当済み") return "ok";
+  return r.eta === "未定" ? "bad" : "warn";
+}
+
 /**
- * 地域本部の医薬品ボード（試作。Issue #97、#101、#102、ADR-0042）。
+ * 発注の提案の一覧（Issue #107）。数量の算数の内訳を並べ、承認・却下は本部の画面だけで押せる。
+ * 承認済みは、搬送の状態（引当済み → 搬送中 → 受領）を出す
+ */
+function ProposalList({
+  state,
+  proposals,
+  canDecide,
+  dispatch,
+  showSite = true,
+}: {
+  state: DemoState;
+  proposals: readonly OrderProposal[];
+  canDecide: boolean;
+  dispatch: (a: DemoAction) => void;
+  showSite?: boolean;
+}) {
+  if (proposals.length === 0) return <p className="board-note">{BOARD_ORDERS.empty}</p>;
+  return (
+    <ol className="board-orders">
+      {proposals.map((p) => {
+        const stage = proposalStage(p, state.inbound);
+        const isNew = p.status === "提案" && p.createdRev > 0 && p.createdRev === state.rev;
+        const isUpdated = !isNew && p.status === "提案" && p.rev > 0 && p.rev === state.rev;
+        const b = p.basis;
+        return (
+          <li key={p.id} className={`board-order ${p.status === "提案" ? "pending" : "approved"}`} data-proposal={p.id}>
+            <div className="board-order-head">
+              <span className="board-record-id">{p.id}</span>
+              {isNew && <span className="board-new">{BOARD_ORDERS.newMark}</span>}
+              {isUpdated && <span className="board-new">{BOARD_ORDERS.updatedMark}</span>}
+              {showSite && <b>{p.site}</b>}
+              <span className="board-order-item">
+                {p.item}
+                <span className="board-case-form">（{ITEM_FORMS[p.item] ?? "—"}）</span>
+              </span>
+              <span className="board-order-qty">
+                {fmt.format(p.qty)}
+                {p.unit}
+              </span>
+              <Pill level={stageLevel(stage)}>{stage}</Pill>
+            </div>
+            <p className="board-order-split">
+              {BOARD_ORDERS.fromHq} {fmt.format(p.fromHq)}
+              {p.unit}・{BOARD_ORDERS.fromVendor} {fmt.format(p.fromVendor)}
+              {p.unit}
+            </p>
+            <p className="board-order-basis">
+              {BOARD_ORDERS.basisNeed} {fmt.format(b.need)} ＋ {b.cover === null ? BOARD_ORDERS.basisCoverUnknown : `${BOARD_ORDERS.basisCover} ${fmt.format(b.cover)}`} −{" "}
+              {BOARD_ORDERS.basisOnHand} {fmt.format(Math.floor(b.onHand))} − {BOARD_ORDERS.basisIncoming} {fmt.format(b.incoming)} ＝ {fmt.format(p.qty)}
+              {p.unit}
+            </p>
+            {p.status === "提案" && canDecide && (
+              <div className="board-order-actions">
+                <button type="button" className="board-approve" onClick={() => dispatch({ type: "approve_proposal", id: p.id })}>
+                  {BOARD_ORDERS.approve}
+                </button>
+                <button type="button" className="secondary" onClick={() => dispatch({ type: "reject_proposal", id: p.id })}>
+                  {BOARD_ORDERS.reject}
+                </button>
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/** 入荷・搬送の表。rows を絞って救護所の画面でも使う */
+function InboundTable({ rows }: { rows: readonly DemoInbound[] }) {
+  if (rows.length === 0) return <p className="board-note">{BOARD_CASES.detail.none}</p>;
+  return (
+    <div className="board-tablebox">
+      <table>
+        <thead>
+          <tr>
+            <th>種類</th>
+            <th>薬（仮名）</th>
+            <th>どこから</th>
+            <th>どこへ</th>
+            <th className="num">数量</th>
+            <th>到着の見込み</th>
+            <th>状態</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id} data-inbound={r.id}>
+              <td>
+                {inboundKind(r)}
+                {r.forSite && `（${r.forSite} 向け）`}
+              </td>
+              <td>{r.item}</td>
+              <td>{r.from}</td>
+              <td>{r.to}</td>
+              <td className="num">{fmt.format(r.qty)}</td>
+              <td>{r.arriveAt !== undefined ? clockText(r.arriveAt) : r.eta === "未定" ? "未定" : md(r.eta)}</td>
+              <td>
+                <Pill level={inboundLevel(r)}>{r.status}</Pill>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** 左のペインの1行に付ける短い印 */
+function PaneMarks({ marks }: { marks: { text: string; level: "bad" | "warn" | "none" }[] }) {
+  if (marks.length === 0) return null;
+  return (
+    <span className="board-pane-marks">
+      {marks.map((m) => (
+        <span key={m.text} className={`board-pane-mark ${m.level}`}>
+          {m.text}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** 救護所の詳細（Issue #107）：今日の様子、不足薬、連絡先、経路、通信、提案、カルテ */
+function SiteDetail({
+  site,
+  state,
+  overview,
+  cases,
+  charts,
+  latestAddedKey,
+  dispatch,
+}: {
+  site: SiteId;
+  state: DemoState;
+  overview: SiteOverview | undefined;
+  cases: CaseRow[];
+  charts: PatientChart[];
+  latestAddedKey: string | null;
+  dispatch: (a: DemoAction) => void;
+}) {
+  const info = siteInfo(site);
+  const route = routeTo(site);
+  const sync = state.sync.find((s) => s.site === site);
+  const patients = patientsWithExtra(state);
+  const date = todaySummary(patients).date;
+  const today = patients.find((r) => r.date === date && r.site === site);
+  const demand = DEMAND.find((d) => d.site === site);
+  const proposals = state.proposals.filter((p) => p.site === site);
+  return (
+    <div className="board-detail">
+      <section aria-labelledby="board-detail-stats">
+        <h3 id="board-detail-stats">{BOARD_LAYOUT.detail.stats}</h3>
+        <dl className="board-stats">
+          <div>
+            <dt>{BOARD_LAYOUT.detail.patients}</dt>
+            <dd data-testid="site-patients">{today ? `${fmt.format(today.patients)} 人` : "—"}</dd>
+          </div>
+          <div>
+            <dt>{BOARD_LAYOUT.detail.chronic}</dt>
+            <dd>{today ? `${fmt.format(today.chronic)} 人` : "—"}</dd>
+          </div>
+          <div className={overview && overview.pharmacistsShort > 0 ? "short" : ""}>
+            <dt>{BOARD_OVERVIEW.pharmacists}</dt>
+            <dd>
+              {info ? `${fmt.format(info.pharmacists)} 人` : "—"}
+              {overview && overview.pharmacistsShort > 0 && <Pill level="bad">{`${BOARD_OVERVIEW.short} ${fmt.format(overview.pharmacistsShort)} 人`}</Pill>}
+            </dd>
+          </div>
+          <div className={overview && overview.outOfStock > 0 ? "short" : ""}>
+            <dt>{BOARD_OVERVIEW.outOfStock}</dt>
+            <dd>{fmt.format(overview?.outOfStock ?? 0)}</dd>
+          </div>
+          <div>
+            <dt>{BOARD_OVERVIEW.forecast}</dt>
+            <dd>{fmt.format(overview?.forecast ?? 0)}</dd>
+          </div>
+          <div>
+            <dt>{BOARD_LAYOUT.detail.evacuees}</dt>
+            <dd>{demand ? `${fmt.format(demand.evacuees)} 人` : "—"}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section aria-labelledby="board-detail-shortage">
+        <h3 id="board-detail-shortage">
+          {BOARD_LAYOUT.detail.shortage} <span className="board-count">{fmt.format(cases.length)} 件</span>
+        </h3>
+        {cases.length === 0 ? (
+          <p className="board-note">{BOARD_GROUPS.empty}</p>
+        ) : (
+          <>
+            <div className="board-cases-head" aria-hidden="true">
+              <span>{BOARD_CASES.cols.status}</span>
+              <span>{BOARD_GROUPS.items}</span>
+              <span>{BOARD_CASES.cols.onHand}</span>
+              <span>{BOARD_CASES.cols.hq}</span>
+              <span>{BOARD_CASES.cols.supply}</span>
+              <span>{BOARD_CASES.cols.next}</span>
+            </div>
+            <ol className="board-cases" aria-label={`${site} の${BOARD_LAYOUT.detail.shortage}`}>
+              {cases.map((c) => (
+                <CaseItem key={`${c.site}-${c.item}`} c={c} state={state} />
+              ))}
+            </ol>
+          </>
+        )}
+        <p className="board-note">{BOARD_LAYOUT.detail.shortageNote}</p>
+      </section>
+
+      <div className="board-detail-cols">
+        <section aria-labelledby="board-detail-contact">
+          <h3 id="board-detail-contact">{BOARD_LAYOUT.detail.contact}</h3>
+          {info && (
+            <dl className="board-dl">
+              <div>
+                <dt>{BOARD_CASES.detail.contact}</dt>
+                <dd>{info.phone}</dd>
+              </div>
+              <div>
+                <dt>{BOARD_CASES.detail.pickup}</dt>
+                <dd>
+                  {info.pickup}（{info.status}）
+                </dd>
+              </div>
+              <div>
+                <dt>{BOARD_CASES.detail.alt}</dt>
+                <dd>{info.altMeans}</dd>
+              </div>
+              <div>
+                <dt>{BOARD_CASES.detail.stockChecked}</dt>
+                <dd>{mdhm(info.stockCheckedAt)}</dd>
+              </div>
+            </dl>
+          )}
+        </section>
+        <section aria-labelledby="board-detail-route">
+          <h3 id="board-detail-route">{BOARD_LAYOUT.detail.route}</h3>
+          {route && (
+            <p className="board-route">
+              <Pill level={routeLevel(route.status)}>{route.status}</Pill> {route.via}
+              {route.minutes !== null && `（約${fmt.format(route.minutes)}分）`}。確認 {mdhm(route.checkedAt)}
+            </p>
+          )}
+          <h3>{BOARD_LAYOUT.detail.comms}</h3>
+          {sync && (
+            <dl className="board-dl">
+              <div>
+                <dt>{BOARD_CASES.detail.comms}</dt>
+                <dd>{sync.mode}</dd>
+              </div>
+              <div>
+                <dt>{BOARD_CASES.detail.lastReport}</dt>
+                <dd>{mdhm(sync.lastSync)}</dd>
+              </div>
+              <div>
+                <dt>{BOARD_OVERVIEW.pending}</dt>
+                <dd>
+                  {fmt.format(sync.pending)}（{sync.pendingKind}）
+                </dd>
+              </div>
+            </dl>
+          )}
+        </section>
+      </div>
+
+      <section aria-labelledby="board-detail-orders">
+        <h3 id="board-detail-orders">
+          {BOARD_ORDERS.title} <span className="board-count">{fmt.format(proposals.length)} {BOARD_ORDERS.count}</span>
+        </h3>
+        <ProposalList state={state} proposals={proposals} canDecide={false} dispatch={dispatch} showSite={false} />
+        {proposals.some((p) => p.status === "提案") && <p className="board-note">{BOARD_ORDERS.approveOnlyHq}</p>}
+      </section>
+
+      <section aria-labelledby="board-detail-charts" id="board-intake">
+        <h3 id="board-detail-charts">
+          {BOARD_LAYOUT.detail.charts} <span className="board-count">{fmt.format(charts.length)} {BOARD_RECORDS.count}</span>
+        </h3>
+        <p className="board-note">{BOARD_RECORDS.note}</p>
+        {charts.length === 0 ? (
+          <p className="board-note">{BOARD_RECORDS.empty}</p>
+        ) : (
+          <ul className="board-chart-list">
+            {charts.map((c) => (
+              <ChartCard key={c.key} chart={c} open={c.key === latestAddedKey} />
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}
+
+/**
+ * 地域本部のボード（Issue #97、#101、#102、#105、#107、ADR-0042・ADR-0043）。
+ * 左のペインに本部（HQ）→ 地区 → 救護所、右のメインに上部タブ（全体・在庫・発注・搬送・記録・デモ）。
  * 架空データ（web/src/board/data.ts）から始め、デモの reducer（demo.ts）でメモリの中だけ動かす。Claude も API も保存も使わない。
- * 先頭に救護所ごとの一覧（1タップ目：救護所、2タップ目：品目）、デモの時計と入力、集計、残りは閉じた詳細。
  * 焦点は App の画面遷移の処理（[data-scroll-target]）に任せる
  */
-export function Board({ onBack, reducedMotion }: Props) {
-  const [state, dispatch] = useReducer(demoReducer, undefined, initialDemo);
+export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "overview", initialState }: Props) {
+  const [state, dispatch] = useReducer(demoReducer, initialState, (s) => s ?? initialDemo());
+  const [selected, setSelected] = useState<SiteId>(initialSite);
+  const [tab, setTab] = useState<BoardTab>(initialTab);
+  const panelRef = useRef<HTMLDivElement>(null);
   const noAuto = reducedMotion ?? prefersReducedMotion();
-  const [recordsOpen, setRecordsOpen] = useState(false);
 
   // 自動進行：2秒で架空の1時間。止めるか、画面を離れると止まる
   useEffect(() => {
@@ -584,6 +853,12 @@ export function Board({ onBack, reducedMotion }: Props) {
     return () => window.clearInterval(id);
   }, [state.running, noAuto]);
 
+  // 拠点・タブを切り替えたら、メインの枠の先頭から見せる
+  useEffect(() => {
+    panelRef.current?.scrollTo?.({ top: 0 });
+  }, [selected, tab]);
+
+  const isHq = selected === HQ;
   const patients = patientsWithExtra(state);
   const today = todaySummary(patients);
   const critical = criticalItems(state.stock);
@@ -592,64 +867,54 @@ export function Board({ onBack, reducedMotion }: Props) {
   const inbound = inboundSummary(state.inbound);
   const cases = caseRows(state.stock, state.inbound, state.needs, SITES, state.sync);
   const rows = shelterRows(state.stock, patients, state.sync, DEMAND);
-  const overview = siteOverview(state.stock, patients, SITES, state.sync, ROUTES).sort(
-    (a, b) => b.outOfStock - a.outOfStock || b.pharmacistsShort - a.pharmacistsShort || b.forecast - a.forecast || b.unconfirmed - a.unconfirmed,
-  );
-  const sites: SiteId[] = [...SHELTERS, HQ];
-  const maxDays = Math.max(COVER_GUIDE_DAYS, ...DEMAND.map((d) => d.daysCovered)) * 1.15;
-  const openInbound = state.inbound.filter((r) => r.status !== "受領");
+  const overview = siteOverview(state.stock, patients, SITES, state.sync, ROUTES);
   const charts = chartsFor(state, INTAKE_RECORDS);
   const latestAddedKey = state.records.length > 0 ? `${state.records[0].site}|${state.records[0].name}` : null;
-  function openRecords() {
-    setRecordsOpen(true);
-    document.getElementById("board-intake")?.scrollIntoView({ block: "start" });
+  const pendingProposals = state.proposals.filter((p) => p.status === "提案");
+  const sites: SiteId[] = [...SHELTERS, HQ];
+  const maxDays = Math.max(COVER_GUIDE_DAYS, ...DEMAND.map((d) => d.daysCovered)) * 1.15;
+
+  function select(site: SiteId) {
+    setSelected(site);
   }
+  function goSupplyHq() {
+    setSelected(HQ);
+    setTab("supply");
+  }
+
+  const marksFor = (site: SiteId) => {
+    const o = overview.find((x) => x.site === site);
+    const m: { text: string; level: "bad" | "warn" | "none" }[] = [];
+    if (!o) return m;
+    if (o.outOfStock > 0) m.push({ text: `${BOARD_LAYOUT.marks.outOfStock} ${fmt.format(o.outOfStock)}`, level: "bad" });
+    if (o.pharmacistsShort > 0) m.push({ text: `${BOARD_LAYOUT.marks.pharmacistsShort} ${fmt.format(o.pharmacistsShort)}`, level: "bad" });
+    if (charts.some((c) => c.site === site && c.undelivered > 0)) m.push({ text: BOARD_LAYOUT.marks.undelivered, level: "bad" });
+    if (o.pending !== null && o.pending > 0) m.push({ text: `${BOARD_LAYOUT.marks.pending} ${fmt.format(o.pending)}`, level: "warn" });
+    return m;
+  };
+
+  const tabLabel = (t: BoardTab) => (t === "overview" && !isHq ? BOARD_LAYOUT.siteTabs.overview : BOARD_LAYOUT.tabs[t]);
+
+  const siteStock = state.stock.filter((r) => r.site === selected);
+  const siteInbound = state.inbound.filter((r) => r.to === selected || r.from === selected || r.forSite === selected);
 
   return (
     <section className="screen board" aria-labelledby="board-title">
-      <h1 id="board-title" data-scroll-target tabIndex={-1}>
-        {BOARD_TITLE}
-      </h1>
-      <p className="board-asof">
-        <span className="board-badge">{BOARD_MOCK_BADGE}</span>
-        <span>集計 {mdhm(BOARD_AS_OF)} 時点</span>
-        {state.minutes > 0 && (
+      <header className="board-head">
+        <div className="board-head-title">
+          <h1 id="board-title" data-scroll-target tabIndex={-1}>
+            {BOARD_TITLE}
+          </h1>
+          <span className="board-subtitle">{BOARD_SUBTITLE}</span>
+        </div>
+        <p className="board-asof">
+          <span className="board-badge">{BOARD_MOCK_BADGE}</span>
+          <span>集計 {mdhm(BOARD_AS_OF)} 時点</span>
           <span>
-            → {BOARD_DEMO.clock} <b data-testid="demo-clock">{clockText(state.minutes)}</b>
+            {BOARD_DEMO.clock} <b data-testid="demo-clock">{clockText(state.minutes)}</b>
           </span>
-        )}
-      </p>
-
-      <section aria-labelledby="board-cases">
-        <h2 id="board-cases">
-          {BOARD_CASES.title} <span className="board-count">{fmt.format(cases.length)} 件</span>
-        </h2>
-        <ol className="board-groups" aria-label={BOARD_CASES.title}>
-          {overview.map((o) => (
-            <SiteGroup
-              key={o.site}
-              o={o}
-              cases={cases.filter((c) => c.site === o.site)}
-              state={state}
-              charts={charts.filter((c) => c.site === o.site)}
-              onOpenRecords={openRecords}
-            />
-          ))}
-        </ol>
-        <p className="board-note">{BOARD_GROUPS.note}</p>
-        <p className="board-note">{BOARD_CASES.note}</p>
-        <p className="board-note">{BOARD_CASES.guide.replace("{days}", String(COVER_GUIDE_DAYS))}</p>
-      </section>
-
-      <BoardMap overview={overview} />
-
-      <section aria-labelledby="board-demo" className="board-demo">
-        <h2 id="board-demo">{BOARD_DEMO.title}</h2>
-        <p className="board-note">{BOARD_DEMO.note}</p>
-        <div className="board-demo-controls">
-          <span className="board-demo-clock">
-            {BOARD_DEMO.clock} <b data-testid="demo-clock-main">{clockText(state.minutes)}</b>
-          </span>
+        </p>
+        <div className="board-demo-controls" aria-label={BOARD_DEMO.title} role="group">
           {noAuto ? (
             <span className="board-note">{BOARD_DEMO.reducedMotion}</span>
           ) : (
@@ -666,358 +931,554 @@ export function Board({ onBack, reducedMotion }: Props) {
           <button type="button" className="secondary" onClick={() => dispatch({ type: "reset" })}>
             {BOARD_DEMO.reset}
           </button>
+          <button type="button" className="secondary board-back" onClick={onBack}>
+            {BOARD_BACK_LABEL}
+          </button>
         </div>
-        <details className="board-more">
-          <summary>
-            <h3>{BOARD_INTAKE_FORM.title}</h3>
-          </summary>
-          <div className="board-more-body">
-            <IntakeForm
-              state={state}
-              onAdd={(a) => {
-                dispatch(a);
-                setRecordsOpen(true);
-              }}
+      </header>
+
+      <div className="board-body">
+        <nav className="board-pane" aria-label={BOARD_LAYOUT.paneLabel}>
+          <button
+            type="button"
+            className={`board-pane-item hq${isHq ? " current" : ""}`}
+            aria-current={isHq ? "true" : undefined}
+            data-pane={HQ}
+            onClick={() => select(HQ)}
+          >
+            <span className="board-pane-name">{BOARD_LAYOUT.hq}</span>
+            <span className="board-pane-sub">{BOARD_LAYOUT.hqSub}</span>
+            <PaneMarks
+              marks={pendingProposals.length > 0 ? [{ text: `${BOARD_LAYOUT.marks.proposals} ${fmt.format(pendingProposals.length)}`, level: "warn" }] : []}
             />
-          </div>
-        </details>
-        <details className="board-more">
-          <summary>
-            <h3>
-              {BOARD_DEMO.logTitle} <span className="board-count">{fmt.format(state.log.length)} 件</span>
-            </h3>
-          </summary>
-          <div className="board-more-body">
-            {state.log.length === 0 ? (
-              <p className="board-note">{BOARD_DEMO.logEmpty}</p>
-            ) : (
-              <ul className="board-log">
-                {state.log.map((l, i) => (
-                  <li key={`${l.at}-${i}`}>
-                    <span className="board-log-at">{clockText(l.at)}</span> {l.text}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </details>
-      </section>
-
-      <section aria-label={BOARD_SECTIONS.today}>
-        <div className="board-tiles">
-          <div className="board-tile">
-            <span className="board-tile-label">今日の患者（延べ・4か所）</span>
-            <span className="board-tile-big" data-testid="today-patients">
-              {fmt.format(today.patients)}
-            </span>
-            <span className="board-tile-sub">うち普段の薬の継続で来た人 {fmt.format(today.chronic)} 人</span>
-          </div>
-          <div className="board-tile">
-            <span className="board-tile-label">在庫切れ・目安より早く切れる見込み</span>
-            <span className="board-tile-big" data-testid="critical-count">
-              {fmt.format(critical.length)}
-            </span>
-            <span className="board-tile-sub">
-              救護所×品目の数。別に、未確認 {fmt.format(unknown.unconfirmed)}、見込み算出不可 {fmt.format(unknown.noPace)}
-            </span>
-          </div>
-          <div className="board-tile">
-            <span className="board-tile-label">本部で記録の形になっていないもの</span>
-            <span className="board-tile-big" data-testid="pending-count">
-              {fmt.format(pending.pending)}
-            </span>
-            <span className="board-tile-sub">
-              未着 {fmt.format(pending.undelivered)}・転記待ち {fmt.format(pending.awaiting)}。通信なしの救護所 {fmt.format(pending.offlineSites)} か所
-            </span>
-          </div>
-          <div className="board-tile">
-            <span className="board-tile-label">入荷・融通の予定（受領済みを除く）</span>
-            <span className="board-tile-big">{fmt.format(inbound.count)}</span>
-            <span className="board-tile-sub">うち到着が未定のもの {fmt.format(inbound.undated)} 件</span>
-          </div>
-        </div>
-      </section>
-
-      <More id="board-intake" title={BOARD_RECORDS.title} note={BOARD_RECORDS.note} open={recordsOpen}>
-        <div className="board-charts">
-          {SHELTERS.map((site) => {
-            const list = charts.filter((c) => c.site === site);
-            return (
-              <section key={site} className="board-charts-site" aria-labelledby={`board-charts-${site}`}>
-                <h3 id={`board-charts-${site}`}>
-                  {site}
-                  {BOARD_RECORDS.perSite} <span className="board-count">{fmt.format(list.length)} {BOARD_RECORDS.count}</span>
-                </h3>
-                {list.length === 0 ? (
-                  <p className="board-note">{BOARD_RECORDS.empty}</p>
-                ) : (
-                  <ul className="board-chart-list">
-                    {list.map((c) => (
-                      <ChartCard key={c.key} chart={c} open={c.key === latestAddedKey} />
-                    ))}
-                  </ul>
-                )}
-              </section>
-            );
-          })}
-          {/* 画像は制作者が用意する（SoapVox の録音中の画面）。届くまでは枠ごと出さない（Issue #101） */}
-          {INTAKE_IMAGE.src !== "" && (
-            <figure className="board-image">
-              <img src={INTAKE_IMAGE.src} alt={INTAKE_IMAGE.caption} />
-              <figcaption className="board-image-caption">{INTAKE_IMAGE.caption}</figcaption>
-              <p className="board-image-caption">{INTAKE_IMAGE.qr}</p>
-            </figure>
-          )}
-        </div>
-      </More>
-
-      <More id="board-sites" title={BOARD_SECTIONS.sites} note={BOARD_SECTIONS.sitesNote}>
-        <div className="board-tablebox">
-          <table>
-            <thead>
-              <tr>
-                <th>拠点</th>
-                <th>稼働</th>
-                <th className="num">薬剤師</th>
-                <th>連絡先（架空）</th>
-                <th>受け取りの窓口</th>
-                <th>代わりの手段</th>
-                <th>本部からの経路</th>
-                <th>在庫を確認した時刻</th>
-              </tr>
-            </thead>
-            <tbody>
-              {SITES.map((s) => {
-                const route = routeTo(s.site);
+          </button>
+          {DISTRICTS.map((d) => (
+            <div key={d.id} className="board-pane-district" role="group" aria-labelledby={`board-district-${d.id}`}>
+              <p className="board-pane-district-name" id={`board-district-${d.id}`}>
+                {d.name}
+              </p>
+              {d.sites.map((s) => {
+                const o = overview.find((x) => x.site === s);
                 return (
-                  <tr key={s.site}>
-                    <td>{s.site}</td>
-                    <td>{s.status}</td>
-                    <td className="num">{fmt.format(s.pharmacists)}</td>
-                    <td>{s.phone}</td>
-                    <td>{s.pickup}</td>
-                    <td>{s.altMeans}</td>
-                    <td>
-                      {route ? (
-                        <>
-                          <Pill level={routeLevel(route.status)}>{route.status}</Pill> {route.via}
-                          {route.minutes !== null && `（約${fmt.format(route.minutes)}分）`}
-                        </>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td>{mdhm(s.stockCheckedAt)}</td>
-                  </tr>
+                  <button
+                    key={s}
+                    type="button"
+                    className={`board-pane-item${selected === s ? " current" : ""}`}
+                    aria-current={selected === s ? "true" : undefined}
+                    data-pane={s}
+                    onClick={() => select(s)}
+                  >
+                    <span className="board-pane-name">{s}</span>
+                    <span className="board-pane-sub">
+                      {BOARD_OVERVIEW.patients} {o?.patients === null || o === undefined ? "—" : fmt.format(o.patients)} 人
+                    </span>
+                    <PaneMarks marks={marksFor(s)} />
+                  </button>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
-      </More>
-
-      <More id="board-shelters" title={BOARD_SECTIONS.shelters} note={BOARD_SECTIONS.sheltersNote}>
-        <div className="board-tablebox">
-          <table>
-            <thead>
-              <tr>
-                <th>救護所</th>
-                <th className="num">今日の患者（延べ）</th>
-                <th className="num">避難者数</th>
-                <th className="num">在庫でまかなえる日数</th>
-                <th>在庫切れ・切れる見込みの薬</th>
-                <th>記録の届き方</th>
-                <th className="num">記録の形になっていないもの</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.site}>
-                  <td>{r.site}</td>
-                  <td className="num">{r.patients === null ? "—" : fmt.format(r.patients)}</td>
-                  <td className="num">{r.evacuees === null ? "—" : fmt.format(r.evacuees)}</td>
-                  <td className="num">
-                    {r.daysCovered === null ? "—" : <Pill level={levelOf(r.daysCovered)}>{`${r.daysCovered} 日`}</Pill>}
-                  </td>
-                  <td>{r.critical.length === 0 ? "なし" : r.critical.join("、")}</td>
-                  <td>{r.mode}</td>
-                  <td className="num">{r.pending === null ? "—" : fmt.format(r.pending)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </More>
-
-      <More id="board-heat" title={BOARD_SECTIONS.heat} note={BOARD_SECTIONS.heatNote}>
-        <div className="board-legend">
-          <span>
-            <span className="cell bad">{COVER_GUIDE_DAYS}日未満・切れ</span>
-          </span>
-          <span>
-            <span className="cell warn">
-              {COVER_GUIDE_DAYS}日以上{COVER_GUIDE_DAYS + 2}日未満
-            </span>
-          </span>
-          <span>
-            <span className="cell ok">{COVER_GUIDE_DAYS + 2}日以上</span>
-          </span>
-          <span>
-            <span className="cell none">未確認・算出不可</span>
-          </span>
-        </div>
-        <div className="board-tablebox board-heat">
-          <table>
-            <thead>
-              <tr>
-                <th>薬（仮名）</th>
-                {sites.map((s) => (
-                  <th key={s} className="site">
-                    {s === HQ ? "本部備蓄" : short(s)}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {ITEMS.map((item) => (
-                <tr key={item}>
-                  <td className="item">{item}</td>
-                  {sites.map((site) => {
-                    const c = heatCell(state.stock, site, item);
-                    if (c === null) return <td key={site}>—</td>;
-                    const onHand = c.onHand === null ? "在庫 未確認" : `在庫 ${fmt.format(Math.floor(c.onHand))} ${c.unit}`;
-                    const pace =
-                      site === HQ ? "出庫のペースなし" : c.dailyUse === null ? "1日の出庫 不明" : `1日の出庫 ${fmt.format(c.dailyUse)} ${c.unit}`;
-                    return (
-                      <td key={site}>
-                        <span className={`cell ${c.level}`} title={`${site}：${item}。${onHand}、${pace}`}>
-                          {c.label}
-                        </span>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </More>
-
-      <More id="board-inbound" title={BOARD_SECTIONS.inbound} note={BOARD_SECTIONS.inboundNote}>
-        <div className="board-tablebox">
-          <table>
-            <thead>
-              <tr>
-                <th>種類</th>
-                <th>薬（仮名）</th>
-                <th>どこから</th>
-                <th>どこへ</th>
-                <th className="num">数量</th>
-                <th>到着の見込み</th>
-                <th>状態</th>
-              </tr>
-            </thead>
-            <tbody>
-              {state.inbound.map((r) => (
-                <tr key={r.id}>
-                  <td>{inboundKind(r)}</td>
-                  <td>{r.item}</td>
-                  <td>{r.from}</td>
-                  <td>{r.to}</td>
-                  <td className="num">{fmt.format(r.qty)}</td>
-                  <td>{r.eta === "未定" ? "未定" : md(r.eta)}</td>
-                  <td>
-                    <Pill
-                      level={
-                        r.status === "受領" || r.status === "確定" || r.status === "搬送中" || r.status === "引当済み"
-                          ? "ok"
-                          : r.eta === "未定"
-                            ? "bad"
-                            : "warn"
-                      }
-                    >
-                      {r.status}
-                    </Pill>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p className="board-note">受領済みを除いた件数：{fmt.format(openInbound.length)}。照会中・到着未定の数量は、どの在庫にも足していない。</p>
-      </More>
-
-      <More id="board-demand" title={BOARD_SECTIONS.demand} note={BOARD_SECTIONS.demandNote}>
-        <div className="board-chart board-bars">
-          {DEMAND.map((d) => (
-            <div key={d.site} className="board-bar-row">
-              <span>{d.site}</span>
-              <span
-                className="board-bar-track"
-                title={`避難者 ${fmt.format(d.evacuees)} 人、1日に要る量の見込み ${fmt.format(d.dailyNeed)}`}
-              >
-                <span
-                  className={`board-bar-fill ${d.daysCovered < COVER_GUIDE_DAYS ? "bad" : ""}`}
-                  style={{ width: `${(d.daysCovered / maxDays) * 100}%` }}
-                />
-                <span className="board-bar-guide" style={{ left: `${(COVER_GUIDE_DAYS / maxDays) * 100}%` }} />
-              </span>
-              <span className="board-bar-value">{d.daysCovered} 日</span>
             </div>
           ))}
-          <p className="board-note">点線：{COVER_GUIDE_DAYS}日の目安（この試作で仮に置いた値）。この見込みは架空データの開始時の値で、デモでは動かない。</p>
+        </nav>
+
+        <div className="board-main">
+          <div className="board-tabs" role="tablist" aria-label={BOARD_LAYOUT.tabsLabel}>
+            {TABS.map((t) => (
+              <button
+                key={t}
+                type="button"
+                role="tab"
+                id={`board-tab-${t}`}
+                aria-selected={tab === t}
+                aria-controls="board-panel"
+                className={`board-tab${tab === t ? " current" : ""}`}
+                onClick={() => setTab(t)}
+              >
+                {tabLabel(t)}
+                {t === "supply" && pendingProposals.length > 0 && <span className="board-tab-count">{fmt.format(pendingProposals.length)}</span>}
+              </button>
+            ))}
+          </div>
+
+          <div className="board-panel" id="board-panel" role="tabpanel" aria-labelledby={`board-tab-${tab}`} ref={panelRef} tabIndex={-1}>
+            <h2 className="board-panel-title" id="board-panel-title" data-panel={`${selected}|${tab}`}>
+              {siteName(selected)}
+              {!isHq && districtOf(selected) && <span className="board-count">{districtOf(selected)?.name}</span>}
+              <span className="board-panel-tab">{tabLabel(tab)}</span>
+            </h2>
+
+            {/* 本部・全体：数字、提案、図、救護所ごとの不足 */}
+            {isHq && tab === "overview" && (
+              <>
+                <div className="board-tiles">
+                  <div className="board-tile">
+                    <span className="board-tile-label">今日の患者（延べ・4か所）</span>
+                    <span className="board-tile-big" data-testid="today-patients">
+                      {fmt.format(today.patients)}
+                    </span>
+                    <span className="board-tile-sub">うち普段の薬の継続で来た人 {fmt.format(today.chronic)} 人</span>
+                  </div>
+                  <div className="board-tile">
+                    <span className="board-tile-label">在庫切れ・目安より早く切れる見込み</span>
+                    <span className="board-tile-big" data-testid="critical-count">
+                      {fmt.format(critical.length)}
+                    </span>
+                    <span className="board-tile-sub">
+                      救護所×品目の数。別に、未確認 {fmt.format(unknown.unconfirmed)}、見込み算出不可 {fmt.format(unknown.noPace)}
+                    </span>
+                  </div>
+                  <div className="board-tile">
+                    <span className="board-tile-label">{BOARD_ORDERS.title}（{BOARD_ORDERS.pending}）</span>
+                    <span className="board-tile-big" data-testid="proposal-count">
+                      {fmt.format(pendingProposals.length)}
+                    </span>
+                    <span className="board-tile-sub">
+                      {BOARD_ORDERS.approved} {fmt.format(state.proposals.length - pendingProposals.length)} 件
+                    </span>
+                  </div>
+                  <div className="board-tile">
+                    <span className="board-tile-label">本部で記録の形になっていないもの</span>
+                    <span className="board-tile-big" data-testid="pending-count">
+                      {fmt.format(pending.pending)}
+                    </span>
+                    <span className="board-tile-sub">
+                      未着 {fmt.format(pending.undelivered)}・転記待ち {fmt.format(pending.awaiting)}。通信なしの救護所 {fmt.format(pending.offlineSites)} か所
+                    </span>
+                  </div>
+                  <div className="board-tile">
+                    <span className="board-tile-label">入荷・融通の予定（受領済みを除く）</span>
+                    <span className="board-tile-big">{fmt.format(inbound.count)}</span>
+                    <span className="board-tile-sub">うち到着が未定のもの {fmt.format(inbound.undated)} 件</span>
+                  </div>
+                </div>
+
+                <div className="board-overview-cols">
+                  <div className="board-overview-map">
+                    <BoardMap overview={overview} onSelect={select} selected={selected} />
+                    <p className="board-note">{BOARD_LAYOUT.mapHint}</p>
+                  </div>
+                  <section aria-labelledby="board-cases" className="board-overview-sites">
+                    <h3 id="board-cases">
+                      {BOARD_CASES.title} <span className="board-count">{fmt.format(cases.length)} 件</span>
+                    </h3>
+                    <ul className="board-site-cards">
+                      {SHELTERS.map((s) => {
+                        const list = cases.filter((c) => c.site === s);
+                        return (
+                          <li key={s} className="board-site-card">
+                            <button type="button" className="board-site-card-button" onClick={() => select(s)} aria-label={`${s}${BOARD_LAYOUT.openSite}`}>
+                              <span className="board-site-card-head">
+                                <b>{s}</b>
+                                <span className="board-pane-sub">{districtOf(s)?.name}</span>
+                              </span>
+                              <PaneMarks marks={marksFor(s)} />
+                              <span className="board-site-card-items">
+                                {list.length === 0
+                                  ? BOARD_GROUPS.empty
+                                  : list.map((c) => `${c.item}（${c.status === "在庫切れ見込み" && c.days !== null ? `あと${roundDays(c.days)}日` : c.status}）`).join("、")}
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <p className="board-note">{BOARD_CASES.guide.replace("{days}", String(COVER_GUIDE_DAYS))}</p>
+                  </section>
+                </div>
+
+                <section aria-labelledby="board-hq-orders">
+                  <h3 id="board-hq-orders">
+                    {BOARD_ORDERS.title}（{BOARD_ORDERS.pending}） <span className="board-count">{fmt.format(pendingProposals.length)} {BOARD_ORDERS.count}</span>
+                  </h3>
+                  <ProposalList state={state} proposals={pendingProposals} canDecide dispatch={dispatch} />
+                </section>
+
+                <More id="board-shelters" title={BOARD_SECTIONS.shelters} note={BOARD_SECTIONS.sheltersNote}>
+                  <div className="board-tablebox">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>救護所</th>
+                          <th className="num">今日の患者（延べ）</th>
+                          <th className="num">避難者数</th>
+                          <th className="num">在庫でまかなえる日数</th>
+                          <th>在庫切れ・切れる見込みの薬</th>
+                          <th>記録の届き方</th>
+                          <th className="num">記録の形になっていないもの</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((r) => (
+                          <tr key={r.site}>
+                            <td>{r.site}</td>
+                            <td className="num">{r.patients === null ? "—" : fmt.format(r.patients)}</td>
+                            <td className="num">{r.evacuees === null ? "—" : fmt.format(r.evacuees)}</td>
+                            <td className="num">
+                              {r.daysCovered === null ? "—" : <Pill level={levelOf(r.daysCovered)}>{`${r.daysCovered} 日`}</Pill>}
+                            </td>
+                            <td>{r.critical.length === 0 ? "なし" : r.critical.join("、")}</td>
+                            <td>{r.mode}</td>
+                            <td className="num">{r.pending === null ? "—" : fmt.format(r.pending)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </More>
+
+                <More id="board-sites" title={BOARD_SECTIONS.sites} note={BOARD_SECTIONS.sitesNote}>
+                  <div className="board-tablebox">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>拠点</th>
+                          <th>稼働</th>
+                          <th className="num">薬剤師</th>
+                          <th>連絡先（架空）</th>
+                          <th>受け取りの窓口</th>
+                          <th>代わりの手段</th>
+                          <th>本部からの経路</th>
+                          <th>在庫を確認した時刻</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {SITES.map((s) => {
+                          const route = routeTo(s.site);
+                          return (
+                            <tr key={s.site}>
+                              <td>{s.site}</td>
+                              <td>{s.status}</td>
+                              <td className="num">{fmt.format(s.pharmacists)}</td>
+                              <td>{s.phone}</td>
+                              <td>{s.pickup}</td>
+                              <td>{s.altMeans}</td>
+                              <td>
+                                {route ? (
+                                  <>
+                                    <Pill level={routeLevel(route.status)}>{route.status}</Pill> {route.via}
+                                    {route.minutes !== null && `（約${fmt.format(route.minutes)}分）`}
+                                  </>
+                                ) : (
+                                  "—"
+                                )}
+                              </td>
+                              <td>{mdhm(s.stockCheckedAt)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </More>
+
+                <More id="board-trend" title={BOARD_SECTIONS.trend} note={BOARD_SECTIONS.trendNote}>
+                  <div className="board-chart">
+                    <Trend state={state} />
+                  </div>
+                </More>
+              </>
+            )}
+
+            {/* 救護所・詳細：不足薬、患者人数、連絡先、経路、カルテ */}
+            {!isHq && tab === "overview" && (
+              <SiteDetail
+                site={selected}
+                state={state}
+                overview={overview.find((o) => o.site === selected)}
+                cases={cases.filter((c) => c.site === selected)}
+                charts={charts.filter((c) => c.site === selected)}
+                latestAddedKey={latestAddedKey}
+                dispatch={dispatch}
+              />
+            )}
+
+            {/* 在庫 */}
+            {isHq && tab === "stock" && (
+              <>
+                <p className="board-note">{BOARD_SECTIONS.heatNote}</p>
+                <div className="board-legend">
+                  <span>
+                    <span className="cell bad">{COVER_GUIDE_DAYS}日未満・切れ</span>
+                  </span>
+                  <span>
+                    <span className="cell warn">
+                      {COVER_GUIDE_DAYS}日以上{COVER_GUIDE_DAYS + 2}日未満
+                    </span>
+                  </span>
+                  <span>
+                    <span className="cell ok">{COVER_GUIDE_DAYS + 2}日以上</span>
+                  </span>
+                  <span>
+                    <span className="cell none">未確認・算出不可</span>
+                  </span>
+                </div>
+                <div className="board-tablebox board-heat">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>薬（仮名）</th>
+                        {sites.map((s) => (
+                          <th key={s} className="site">
+                            {s === HQ ? "本部備蓄" : short(s)}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ITEMS.map((item) => (
+                        <tr key={item}>
+                          <td className="item">{item}</td>
+                          {sites.map((site) => {
+                            const c = heatCell(state.stock, site, item);
+                            if (c === null) return <td key={site}>—</td>;
+                            const onHand = c.onHand === null ? "在庫 未確認" : `在庫 ${fmt.format(Math.floor(c.onHand))} ${c.unit}`;
+                            const pace =
+                              site === HQ ? "出庫のペースなし" : c.dailyUse === null ? "1日の出庫 不明" : `1日の出庫 ${fmt.format(c.dailyUse)} ${c.unit}`;
+                            return (
+                              <td key={site}>
+                                <span className={`cell ${c.level}`} title={`${site}：${item}。${onHand}、${pace}`}>
+                                  {c.label}
+                                </span>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <More id="board-demand" title={BOARD_SECTIONS.demand} note={BOARD_SECTIONS.demandNote}>
+                  <div className="board-chart board-bars">
+                    {DEMAND.map((d) => (
+                      <div key={d.site} className="board-bar-row">
+                        <span>{d.site}</span>
+                        <span className="board-bar-track" title={`避難者 ${fmt.format(d.evacuees)} 人、1日に要る量の見込み ${fmt.format(d.dailyNeed)}`}>
+                          <span className={`board-bar-fill ${d.daysCovered < COVER_GUIDE_DAYS ? "bad" : ""}`} style={{ width: `${(d.daysCovered / maxDays) * 100}%` }} />
+                          <span className="board-bar-guide" style={{ left: `${(COVER_GUIDE_DAYS / maxDays) * 100}%` }} />
+                        </span>
+                        <span className="board-bar-value">{d.daysCovered} 日</span>
+                      </div>
+                    ))}
+                    <p className="board-note">点線：{COVER_GUIDE_DAYS}日の目安（仮に置いた値）。この見込みは架空データの開始時の値で、デモでは動かない。</p>
+                  </div>
+                </More>
+              </>
+            )}
+            {!isHq && tab === "stock" && (
+              <>
+                <p className="board-note">{BOARD_LAYOUT.siteStockNote}</p>
+                <div className="board-tablebox">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>薬（仮名）</th>
+                        <th className="num">現地の在庫</th>
+                        <th className="num">1日の出庫</th>
+                        <th className="num">残り日数</th>
+                        <th>状態</th>
+                        <th className="num">本部の在庫</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {siteStock.map((r) => {
+                        const d = daysLeft(r);
+                        const st = stockStatus(r);
+                        const hq = state.stock.find((x) => x.site === HQ && x.item === r.item);
+                        return (
+                          <tr key={r.item}>
+                            <td>
+                              {r.item}
+                              <span className="board-case-form">（{ITEM_FORMS[r.item] ?? "—"}）</span>
+                            </td>
+                            <td className="num">{qty(r.onHand, r.unit)}</td>
+                            <td className="num">{r.dailyUse === null ? "不明" : `${fmt.format(r.dailyUse)}${r.unit}`}</td>
+                            <td className="num">{d === null ? "—" : `${roundDays(d)} 日`}</td>
+                            <td>
+                              <Pill level={st === "在庫切れ" ? "bad" : st === "在庫切れ見込み" ? "warn" : st === "余裕あり" ? "ok" : "none"}>{st}</Pill>
+                            </td>
+                            <td className="num">{hq ? qty(hq.onHand, hq.unit) : "—"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            {/* 発注・搬送 */}
+            {tab === "supply" && (
+              <>
+                <section aria-labelledby="board-orders">
+                  <h3 id="board-orders">
+                    {BOARD_ORDERS.title}{" "}
+                    <span className="board-count">
+                      {BOARD_ORDERS.pending} {fmt.format((isHq ? pendingProposals : pendingProposals.filter((p) => p.site === selected)).length)} {BOARD_ORDERS.count}
+                    </span>
+                  </h3>
+                  <p className="board-note">{BOARD_ORDERS.note}</p>
+                  <ProposalList
+                    state={state}
+                    proposals={isHq ? state.proposals : state.proposals.filter((p) => p.site === selected)}
+                    canDecide={isHq}
+                    dispatch={dispatch}
+                    showSite={isHq}
+                  />
+                  {!isHq && <p className="board-note">{BOARD_ORDERS.approveOnlyHq}</p>}
+                  <p className="board-note">{BOARD_ORDERS.stageNote}</p>
+                </section>
+                <section aria-labelledby="board-inbound">
+                  <h3 id="board-inbound">{BOARD_SECTIONS.inbound}</h3>
+                  <p className="board-note">{BOARD_SECTIONS.inboundNote}</p>
+                  <InboundTable rows={isHq ? state.inbound : siteInbound} />
+                  <p className="board-note">照会中・到着未定の数量は、どの在庫にも足していない。</p>
+                </section>
+              </>
+            )}
+
+            {/* 記録（カルテ） */}
+            {isHq && tab === "records" && (
+              <>
+                <section aria-labelledby="board-hq-charts">
+                  <h3 id="board-hq-charts">{BOARD_LAYOUT.hqRecords}</h3>
+                  <ul className="board-site-cards">
+                    {SHELTERS.map((s) => {
+                      const list = charts.filter((c) => c.site === s);
+                      return (
+                        <li key={s} className="board-site-card">
+                          <button
+                            type="button"
+                            className="board-site-card-button"
+                            onClick={() => {
+                              setSelected(s);
+                              setTab("records");
+                            }}
+                          >
+                            <span className="board-site-card-head">
+                              <b>{s}</b>
+                              <span className="board-pane-sub">
+                                {BOARD_RECORDS.chartLabel} {fmt.format(list.length)} {BOARD_RECORDS.count}
+                              </span>
+                            </span>
+                            {list.some((c) => c.undelivered > 0) && <PaneMarks marks={[{ text: BOARD_RECORDS.flagUndelivered, level: "bad" }]} />}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+                <section aria-labelledby="board-sync">
+                  <h3 id="board-sync">{BOARD_SECTIONS.sync}</h3>
+                  <p className="board-note">{BOARD_SECTIONS.syncNote}</p>
+                  <div className="board-tablebox">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>拠点</th>
+                          <th>記録と通信</th>
+                          <th>最後に記録が届いた時刻</th>
+                          <th className="num">記録の形になっていないもの</th>
+                          <th>内訳</th>
+                          <th>次の予定</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {state.sync.map((r) => (
+                          <tr key={r.site}>
+                            <td>{r.site}</td>
+                            <td>
+                              <Pill level={r.mode === "オンライン" ? "ok" : r.mode === "紙で記録・通信なし" ? "bad" : "warn"}>{r.mode}</Pill>
+                            </td>
+                            <td>{mdhm(r.lastSync)}</td>
+                            <td className="num">{fmt.format(r.pending)}</td>
+                            <td>{r.pendingKind}</td>
+                            <td>{r.note}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              </>
+            )}
+            {!isHq && tab === "records" && (
+              <>
+                <details className="board-more" open>
+                  <summary>
+                    <h3>{BOARD_INTAKE_FORM.title}</h3>
+                  </summary>
+                  <div className="board-more-body">
+                    <IntakeForm key={selected} state={state} onAdd={dispatch} fixedSite={selected} onGoSupply={goSupplyHq} />
+                  </div>
+                </details>
+                <section aria-labelledby="board-site-charts">
+                  <h3 id="board-site-charts">
+                    {BOARD_LAYOUT.detail.charts}{" "}
+                    <span className="board-count">
+                      {fmt.format(charts.filter((c) => c.site === selected).length)} {BOARD_RECORDS.count}
+                    </span>
+                  </h3>
+                  <p className="board-note">{BOARD_RECORDS.note}</p>
+                  <ul className="board-chart-list">
+                    {charts
+                      .filter((c) => c.site === selected)
+                      .map((c) => (
+                        <ChartCard key={c.key} chart={c} open={c.key === latestAddedKey} />
+                      ))}
+                  </ul>
+                  {charts.every((c) => c.site !== selected) && <p className="board-note">{BOARD_RECORDS.empty}</p>}
+                </section>
+              </>
+            )}
+
+            {/* デモ：入力と起きたこと */}
+            {tab === "demo" && (
+              <>
+                <p className="board-note">{BOARD_DEMO.note}</p>
+                <details className="board-more" open>
+                  <summary>
+                    <h3>{BOARD_INTAKE_FORM.title}</h3>
+                  </summary>
+                  <div className="board-more-body">
+                    <IntakeForm key={selected} state={state} onAdd={dispatch} defaultSite={isHq ? undefined : selected} onGoSupply={goSupplyHq} />
+                  </div>
+                </details>
+                <section aria-labelledby="board-log">
+                  <h3 id="board-log">
+                    {BOARD_DEMO.logTitle} <span className="board-count">{fmt.format(state.log.length)} 件</span>
+                  </h3>
+                  {state.log.length === 0 ? (
+                    <p className="board-note">{BOARD_DEMO.logEmpty}</p>
+                  ) : (
+                    <ul className="board-log">
+                      {state.log.map((l, i) => (
+                        <li key={`${l.at}-${i}`}>
+                          <span className="board-log-at">{clockText(l.at)}</span> {l.text}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+                {/* 画像は制作者が用意する（SoapVox の録音中の画面）。届くまでは枠ごと出さない（Issue #101） */}
+                {INTAKE_IMAGE.src !== "" && (
+                  <figure className="board-image">
+                    <img src={INTAKE_IMAGE.src} alt={INTAKE_IMAGE.caption} />
+                    <figcaption className="board-image-caption">{INTAKE_IMAGE.caption}</figcaption>
+                    <p className="board-image-caption">{INTAKE_IMAGE.qr}</p>
+                  </figure>
+                )}
+                <More id="board-about" title={BOARD_SECTIONS.about}>
+                  <p className="board-note">{BOARD_LEAD}</p>
+                  <ul>
+                    {BOARD_ABOUT.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                </More>
+              </>
+            )}
+          </div>
         </div>
-      </More>
-
-      <More id="board-trend" title={BOARD_SECTIONS.trend} note={BOARD_SECTIONS.trendNote}>
-        <div className="board-chart">
-          <Trend state={state} />
-        </div>
-      </More>
-
-      <More id="board-sync" title={BOARD_SECTIONS.sync} note={BOARD_SECTIONS.syncNote}>
-        <div className="board-tablebox">
-          <table>
-            <thead>
-              <tr>
-                <th>拠点</th>
-                <th>記録と通信</th>
-                <th>最後に記録が届いた時刻</th>
-                <th className="num">記録の形になっていないもの</th>
-                <th>内訳</th>
-                <th>次の予定</th>
-              </tr>
-            </thead>
-            <tbody>
-              {state.sync.map((r) => (
-                <tr key={r.site}>
-                  <td>{r.site}</td>
-                  <td>
-                    <Pill level={r.mode === "オンライン" ? "ok" : r.mode === "紙で記録・通信なし" ? "bad" : "warn"}>{r.mode}</Pill>
-                  </td>
-                  <td>{mdhm(r.lastSync)}</td>
-                  <td className="num">{fmt.format(r.pending)}</td>
-                  <td>{r.pendingKind}</td>
-                  <td>{r.note}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </More>
-
-      <More id="board-about" title={BOARD_SECTIONS.about}>
-        <p className="board-note">{BOARD_LEAD}</p>
-        <ul>
-          {BOARD_ABOUT.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
-      </More>
-
-      <button type="button" className="secondary" onClick={onBack}>
-        {BOARD_BACK_LABEL}
-      </button>
+      </div>
     </section>
   );
 }
