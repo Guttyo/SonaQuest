@@ -502,3 +502,46 @@ export const SELF_HARM_SOURCE = {
 // [TODO-OWNER: 振り返りの「出来事と立て直し」の見出しと、立て直しの回答の見出し（Claude Code の下書き）]
 export const REVIEW_EVENT_HEADING = "出来事と立て直しの回答";
 export const REVIEW_RECOVERY_LABEL = "出来事の後の、あなたの回答（入力したまま）";
+
+// --- BGM（B-03、ADR-0039） ---------------------------------------------------
+
+// [TODO-OWNER: BGM の操作の文字と説明（Claude Code の下書き）]
+// → オーナー決定（2026-11-05、チャット）：「このまま採用」（BGM の操作の文字と説明、音の雰囲気）
+export const BGM_LABELS = {
+  /** ヘッダーの開閉ボタン。後ろに今の状態（オン・オフ）を続ける */
+  name: "BGM",
+  on: "オン",
+  off: "オフ",
+  /** 開いた欄の、鳴らす・止めるボタン */
+  toggle: "BGM を鳴らす",
+  volume: "BGM の音量",
+  close: "閉じる",
+  unavailable: "この端末では BGM を使えません。訓練はそのまま続けられます。",
+  note: "読み上げの間は小さくなります。訓練をやめると止まります。",
+} as const;
+
+// 2026-11-05 オーナー決定（ヘッダーで1回で消音できる形・動きを減らす設定では鳴らさない・終わりの画面で止める）で足した文字
+// [TODO-OWNER: BGM の音量の欄を開くボタンの文字と、鳴らせないときの説明（Claude Code の下書き）]
+export const BGM_EXTRA_LABELS = {
+  /** ヘッダーの、音量の欄を開くボタン（BGM のオン・オフのボタンの隣） */
+  volumeOpener: "音量",
+  /** 動きを減らす設定のとき。オン・オフのボタンは押せない */
+  reducedMotion: "動きを減らす設定のため、BGM は鳴らしません。",
+  /** 終わりの画面。オン・オフのボタンは押せない */
+  ended: "訓練が終わったので、BGM を止めました。",
+} as const;
+
+// --- 出来事のあとの情報源（B-02、Issue #55） ------------------------------------
+
+/**
+ * 後半（それでも伝えられる？）で、係の横に出す情報源の並びの文（SourceShift.tsx）。
+ * 何が使えなくなったかは PRD「出来事で使えなくなるもの」の表だけで決め、利用者の回答も Claude の判断も使わない
+ */
+// [TODO-OWNER: 出来事のあとの情報源の並びの文面（B-02 の下書き。点数や正解に見えないか、後半の答えの手がかりになりすぎないか）]
+// → オーナー決定（2026-11-05、チャット）：「このまま採用」（出来事のあとの情報源の並びの文面）
+export const SHIFT_CAPTION = "出来事のあとの情報源";
+export const SHIFT_LOST_PREFIX = "使えない：";
+export const SHIFT_NONE_LOST = "使えなくなった情報源はありません";
+export const SHIFT_LOST_STATE = "使えない";
+export const SHIFT_KEPT_STATE = "この出来事では使えなくなっていない";
+export const SHIFT_CHOSEN_STATE = "頼りにしていた";

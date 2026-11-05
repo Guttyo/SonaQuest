@@ -6,7 +6,7 @@
 - ローカルの main を動かす・同じ名前の参照を作る（branch -f/-m/-c、update-ref、tag、fetch の X:main、
   switch -C・checkout -B、worktree add -b main）。マーカー解除の判定がローカルの main を見るため（ADR-0024）
 - main にいるときのコミット・マージ等（コマンドを区切りごとに順に見て、途中のブランチ切り替えも追う）
-- PRのマージ（gh pr merge）は止めずに、確認の画面を出す（permissionDecision: "ask"。ADR-0040）。
+- PRのマージ（gh pr merge）は止めずに、確認の画面を出す（permissionDecision: "ask"。ADR-0041）。
   ただし --admin・--auto と、PR を番号・URLで1つ指さないもの（省くと今のブランチのPRになる）は止める
 - リポジトリ設定の変更、保護設定・Rulesetsへの書き込み
 - コミット前の検査（pre-commit）を通らない操作：git am、コミットまで行う cherry-pick・revert、
@@ -502,14 +502,14 @@ def check_git(sub, args, branch, configs=(), trees=None, d=None):
 
 
 MERGE_ASK = ("PRのマージは、オーナーがチャットで明示的に頼んだときだけ行います。"
-             "許可する前に、PR番号がオーナーの頼んだものと同じか確かめてください（ADR-0040）。")
+             "許可する前に、PR番号がオーナーの頼んだものと同じか確かめてください（ADR-0041）。")
 GH_MERGE_VALUE_OPTS = {"-R", "--repo", "-t", "--subject", "-b", "--body", "-F", "--body-file",
                        "-A", "--author-email", "--match-head-commit"}
 PR_URL = re.compile(r"https://github\.com/[^/\s]+/[^/\s]+/pull/\d+/?")
 
 
 def check_pr_merge(args):
-    """gh pr merge の引数を確かめる。止めるなら Blocked、確認の画面を出すならその理由を返す（ADR-0040）。"""
+    """gh pr merge の引数を確かめる。止めるなら Blocked、確認の画面を出すならその理由を返す（ADR-0041）。"""
     for a in args:
         if a == "--":
             break
@@ -593,7 +593,7 @@ def main():
         print(f"BLOCKED（main・GitHubの保護）: {e}", file=sys.stderr)
         sys.exit(2)
     if asks:
-        # 標準出力にはこの JSON だけを出す。終了コード0なら、Claude Code が確認の画面を出す（ADR-0040）
+        # 標準出力にはこの JSON だけを出す。終了コード0なら、Claude Code が確認の画面を出す（ADR-0041）
         print(json.dumps({"hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": "ask",

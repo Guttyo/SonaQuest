@@ -266,7 +266,7 @@ def decision(script, tool, tool_input, extra=None):
 
 
 def merge_hook_ask_tests(G, on_work):
-    """Issue #90（ADR-0040）：gh pr merge は確認の画面を出す。--admin・--auto・PR を指さないものは止める。"""
+    """Issue #90（ADR-0041）：gh pr merge は確認の画面を出す。--admin・--auto・PR を指さないものは止める。"""
     print("--- gh pr merge の確認の画面（Claude Code hook）")
     for cmd, want in (
             ("gh pr merge 12 --merge", "ask"),

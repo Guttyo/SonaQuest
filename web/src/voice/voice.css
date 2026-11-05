@@ -31,7 +31,8 @@
 .talk-button[data-listening="true"] {
   border-color: var(--orange-strong);
   background: var(--alert-bg);
-  color: var(--orange-strong);
+  /* 薄いオレンジの地の上の文字は、少し濃いオレンジにする（--orange-strong では 4.46 で AA に届かない。Issue #46） */
+  color: var(--orange-strong-text);
 }
 
 .talk-button:focus-visible,
