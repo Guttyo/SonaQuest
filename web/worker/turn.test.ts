@@ -687,3 +687,27 @@ describe("聞き返しの例（Issue #110）", () => {
     expect(decideNext(atLocation, { ...parseClaudeOutput({ ...output, next_type: "clarify", text })! }).text).toBe(text);
   });
 });
+
+describe("例を許すのは聞き返しのときだけ（Issue #110、PR #112 のレビュー）", () => {
+  const atOther: TurnRequest = {
+    ...request,
+    inputs: [
+      ...request.inputs,
+      { question_id: "first_location", half: "first", asked: "その薬のことは、何を見れば確かめられますか？", text: "手帳です" },
+      { question_id: "first_other", half: "first", asked: "ほかの病院でもらっている薬や、市販の薬・サプリはありますか？", text: "えーと" },
+    ],
+    next_question_id: "first_unrecorded",
+  };
+  const withExample = "ほかの病院でもらっている薬や、市販の薬・サプリはありますか？たとえば、ドラッグストアで買う薬などです。";
+
+  it("聞き返しでは、いまの質問の例の言葉を使った文が通る", () => {
+    expect(decideNext(atOther, { ...parseClaudeOutput({ ...output, next_type: "clarify", text: withExample })! }).text).toBe(
+      withExample,
+    );
+  });
+
+  it("次の質問へ進む文に例の言葉を足すと、検査で捨てる", () => {
+    const text = `わかりました。薬のアレルギーや、薬が合わなかったことはありますか？たとえば、ドラッグストアで買う薬などです。`;
+    expect(decideNext(atOther, { ...parseClaudeOutput({ ...output, next_type: "ask", text })! }).text).toBeNull();
+  });
+});

@@ -73,8 +73,7 @@ const QUESTION_EXAMPLES = new Map(ALL_QUESTIONS.flatMap((q) => (q.examples === u
 /** 文に含まれてよいアプリの固定の言葉（情報源の分類、出来事）。利用者が同じ言葉を使っても繰り返しとみなさない */
 export const ALLOWED_VOCABULARY: readonly string[] = [
   ...ALL_QUESTIONS.map((q) => q.text),
-  // 聞き返しで添えてよい例（Issue #110）
-  ...ALL_QUESTIONS.map((q) => q.examples ?? ""),
+  // 聞き返しで添えてよい例（Issue #110）は、ここには入れない。聞き返しのときに、いまの質問の例だけを chooseNext で許す
   ...SOURCE_OPTIONS.flatMap((o) => [o.label, o.description]),
   ...Object.values(EVENTS).flatMap((e) => [e.text, e.unavailable ?? ""]),
   SCENE_INTRO,
@@ -129,6 +128,8 @@ export function chooseNext(
           allowed: [
             QUESTION_TEXT.get(current) ?? "",
             questionId === null ? "" : QUESTION_TEXT.get(questionId) ?? "",
+            // 例は聞き返しのときだけ、いまの質問のものだけを許す（Issue #110）
+            type === "clarify" ? QUESTION_EXAMPLES.get(current) ?? "" : "",
             ...ALLOWED_VOCABULARY,
           ],
         });
