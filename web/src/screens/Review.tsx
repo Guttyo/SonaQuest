@@ -3,6 +3,7 @@ import {
   AI_FAILED_NOTE,
   EVENTS,
   HANDOVER_QUESTION,
+  INTERRUPTION_NOTE,
   JUDGMENT_LABELS,
   JUDGMENT_NOTE,
   PREP_ACTIONS,
@@ -147,6 +148,8 @@ export function Review({ state, onChoose }: Props) {
         {RECALL_FEEDBACK.map((line) => (
           <p key={line}>{line}</p>
         ))}
+        {/* 中断すると体調を崩しやすい薬の名前も言えるように（Issue #94）。薬の種類は挙げず、飲む・やめるの助言はしない */}
+        <p className="interruption-note">{INTERRUPTION_NOTE}</p>
       </div>
 
       {/* 準備行動といつやるかは、はじめに・③確認と同じ大きなカード（.mode-card。中は見えないラジオ） */}
