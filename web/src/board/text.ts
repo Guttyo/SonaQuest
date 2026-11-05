@@ -387,6 +387,37 @@ export const INTAKE_IMAGE = {
   qr: "QR コードで、文字起こしの結果をこのボードの記録の項目に渡す（構想。実装していません）",
 } as const;
 
+// ===== 動く地図（Issue #128）=====
+/** 光る救護所・道筋・搬送便と医療チームの車の文言。光る条件は既存の状態だけで、緊急度や優先順位を言わない */
+// [TODO-OWNER: 動く地図の文言（Claude Code の下書き。凡例・道筋の案内・動いているものの説明・「架空・模擬」の書き方）]
+export const BOARD_MAP_LIVE = {
+  legendGlowBad: "光（赤）：在庫切れがある",
+  legendGlowWarn: "光（黄）：切れる見込み・薬剤師の不足・最終報告が古い",
+  legendShipment: "便：搬送中の便",
+  legendVehicle: "車：医療チームの車（架空・模擬）",
+  glowReason: {
+    在庫切れ: (n: number) => `在庫切れ ${n}`,
+    切れる見込み: (n: number) => `切れる見込み ${n}`,
+    薬剤師の不足: (n: number) => `薬剤師 不足 ${n}`,
+    最終報告が古い: (h: number) => `最終報告 ${h} 時間前`,
+  },
+  glowTitle: "光っている救護所",
+  glowNone: "光っている救護所はない",
+  /** 最終報告が古いとみなす時間（仮の値）の注記 */
+  staleNote: (h: number) => `「最終報告が古い」は ${h} 時間以上たったもの（試作の仮の目安）。光は状態を知らせるだけで、優先順位は決めない。`,
+  routeHint: "拠点にカーソルを置くか焦点を当てる、または「本部からの経路」の行を押すと、本部からの道筋が浮かび上がる。",
+  routeLine: (site: string, status: string, via: string, minutes: number | null) =>
+    `本部 → ${site}：${status}。${via}${minutes !== null ? `（約${minutes}分）` : ""}`,
+  moversTitle: "動いているもの（架空・模擬）",
+  moversNote: "位置はデモ時計と到着見込みから求めた模擬の位置で、実際の現在地ではない。",
+  vehicleName: "医療チームの車（架空・模擬）",
+  vehicleMoving: (to: string, eta: string) => `${to}へ移動中。到着見込み ${eta}`,
+  vehicleStopped: (at: string, to: string, eta: string) => `${at}で停車中。次の行き先 ${to}（到着見込み ${eta}）`,
+  shipment: (mode: string, item: string, qty: number, to: string, eta: string) => `${mode}：${item} ${qty} → ${to}（到着見込み ${eta}）`,
+  noShipment: "搬送中の便はない",
+  pressHint: "下の一覧の行か、図の「便」「車」を押すと、図の印を太くし、行き先と到着見込みをここに出す。",
+} as const;
+
 /**
  * 架空の患者の到着（Issue #122、ADR-0048）。架空の患者 100 人が種（seed）とルールで救護所に到着し、
  * 服薬の品目の在庫を 3 日分ずつ減らす。Claude も API も使わない。けがの重さ・緊急度・処置は判断しない
