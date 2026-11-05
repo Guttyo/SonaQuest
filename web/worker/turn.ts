@@ -68,10 +68,13 @@ export function parseClaudeOutput(value: unknown): ClaudeOutput | null {
 }
 
 const QUESTION_TEXT = new Map(ALL_QUESTIONS.map((q) => [q.id, q.text]));
+const QUESTION_EXAMPLES = new Map(ALL_QUESTIONS.flatMap((q) => (q.examples === undefined ? [] : [[q.id, q.examples] as const])));
 
 /** 文に含まれてよいアプリの固定の言葉（情報源の分類、出来事）。利用者が同じ言葉を使っても繰り返しとみなさない */
 export const ALLOWED_VOCABULARY: readonly string[] = [
   ...ALL_QUESTIONS.map((q) => q.text),
+  // 聞き返しで添えてよい例（Issue #110）
+  ...ALL_QUESTIONS.map((q) => q.examples ?? ""),
   ...SOURCE_OPTIONS.flatMap((o) => [o.label, o.description]),
   ...Object.values(EVENTS).flatMap((e) => [e.text, e.unavailable ?? ""]),
   SCENE_INTRO,
@@ -171,12 +174,15 @@ export type TurnOutcome =
 
 /**
  * 監査役に渡す固定の質問文。Claude の文が言い直している質問にする（監査役の比較実験と同じ渡し方）。
- * 次の質問へ進むときは次の質問、聞き返し・質問し直し・半分の最後の受け止めは、いま答えた質問
+ * 次の質問へ進むときは次の質問、聞き返し・質問し直し・半分の最後の受け止めは、いま答えた質問。
+ * 聞き返しのときは、添えてよい例（Issue #110）も書き添える。例は固定の言葉で、利用者の回答は含まない
  */
 export function auditedQuestion(request: TurnRequest, next: TurnResponse["next"]): string {
   const current = request.inputs[request.inputs.length - 1].question_id;
   const id = next.type === "ask" && next.question_id !== null ? next.question_id : current;
-  return QUESTION_TEXT.get(id) ?? "";
+  const text = QUESTION_TEXT.get(id) ?? "";
+  const examples = next.type === "clarify" ? QUESTION_EXAMPLES.get(id) : undefined;
+  return examples === undefined ? text : `${text}（聞き返しで添えてよい例：${examples}）`;
 }
 
 /**

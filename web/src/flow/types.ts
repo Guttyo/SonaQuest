@@ -52,6 +52,11 @@ export interface Question {
   /** 主に確かめる観点 */
   viewpoint: ViewpointId;
   answerAs: AnswerAs;
+  /**
+   * 聞き返すときだけ添えてよい例（Issue #110、2026-11-05 オーナー決定「聞き返すときだけ」）。
+   * 最初の問いでは声にも画面にも出さない。Claude の聞き返しの文はこの言葉を使ってよい（prompt.ts、turn.ts）
+   */
+  examples?: string;
 }
 
 /**

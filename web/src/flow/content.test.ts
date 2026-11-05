@@ -6,6 +6,8 @@ import {
   ALL_QUESTIONS,
   ANSWER_HINTS,
   CLARIFY_TEXTS,
+  CONTACT_CHOICES,
+  CONTACT_CHOICE_QUESTIONS,
   FIRST_HALF_QUESTIONS,
   INTERRUPTION_NOTE,
   INTRO_LEAD,
@@ -84,15 +86,40 @@ describe("答える範囲（ADR-0022 案B）", () => {
   });
 
   it.each([PROXY_QUESTION, PROXY_QUESTION_AFTER_FAMILY])(
-    "薬を知っている人の質問（$id）は、連絡先や薬の中身ではなく、手段の種類とどのくらい知っているかを聞く",
+    "薬を知っている人の質問（$id）は、連絡先や薬の中身を聞かず、伝えられる人を続柄で聞く。連絡の手段は画面の選択肢で補う（Issue #110）",
     (q) => {
       expect(q.text).not.toContain("どうやって連絡がとれますか");
-      expect(q.text).not.toContain("何を知っていて");
-      expect(q.text).toContain("手段");
-      expect(q.text).toContain("どのくらい知っていますか");
-      expect(q.text).toContain("電話番号や薬の名前は書かなくて大丈夫です");
+      expect(q.text).not.toContain("電話番号");
+      expect(q.text).toContain("続柄");
+      expect(CONTACT_CHOICE_QUESTIONS.has(q.id)).toBe(true);
+      // 連絡先そのものを書かせない案内は、回答欄に出る
+      expect(ANSWER_HINTS[q.answerAs]).toContain("電話番号");
     },
   );
+
+  it("連絡の手段の選択肢は、手段の種類だけで、連絡先や体調の語を含まない（Issue #110）", () => {
+    for (const c of CONTACT_CHOICES) {
+      expect(c).not.toMatch(/[0-9０-９]/);
+      expect(detectDistress(c), c).toBeNull();
+    }
+  });
+
+  it("質問は1問1問いで短い：疑問符は1つまで、声で聞いても負担にならない長さ（Issue #110）", () => {
+    for (const q of ALL_QUESTIONS) {
+      expect((q.text.match(/？/g) ?? []).length, q.id).toBeLessThanOrEqual(1);
+      // 1問目は挨拶と、オーナーが決めた剤形の言葉（Issue #94）を含むので長い。ほかは60字以内
+      const limit = q.id === "first_medicines" ? 90 : 60;
+      expect(q.text.length, q.id).toBeLessThanOrEqual(limit);
+    }
+  });
+
+  it("例は聞き返しのときだけ：質問文には例を入れず、聞き返しの固定文には入れる（Issue #110）", () => {
+    for (const q of ALL_QUESTIONS) {
+      expect(q.text, q.id).not.toContain("たとえば");
+      if (q.examples !== undefined) expect(detectDistress(q.examples), q.id).toBeNull();
+    }
+    expect(CLARIFY_TEXTS.first_location).toContain("たとえば");
+  });
 
   it("思い出せなかったことの問いは、候補を出さず、確かめた内容の入力も求めない（ADR-0022、Issue #41）", () => {
     expect(RECHECK_QUESTION.text).toContain("思い出せなかったこと");

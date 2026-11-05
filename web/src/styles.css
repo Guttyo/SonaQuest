@@ -888,6 +888,42 @@ h1:focus-visible {
   color: var(--ink-soft);
 }
 
+/* 連絡の手段の選択肢（Issue #110）。押すと入力欄に足すだけで、送らない */
+.answer-choices {
+  margin: 0 0 6px;
+  padding: 0;
+  border: 0;
+}
+
+.answer-choices legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: var(--fs-sub);
+  color: var(--ink-soft);
+}
+
+.answer-choices-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.answer-choice {
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--fs-sub);
+  line-height: var(--lh-tight);
+}
+
+.answer-choice[aria-pressed="true"] {
+  border-color: var(--mint-strong);
+  background: var(--mint);
+}
+
 /* 場面（Issue #55 の一部）：「SCENE 02 普段の薬を伝える」と、5つの点 */
 .scene-bar {
   display: flex;

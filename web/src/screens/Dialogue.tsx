@@ -1,6 +1,9 @@
 import { useEffect, useState, type Dispatch } from "react";
 import {
   ANSWER_HINTS,
+  CONTACT_CHOICES,
+  CONTACT_CHOICES_LABEL,
+  CONTACT_CHOICE_QUESTIONS,
   SCENE_INTRO,
   WAITING_TEXT,
 } from "../flow/content";
@@ -128,6 +131,7 @@ export function Dialogue({ state, dispatch }: Props) {
           // 聞き取り係の発言が変わったら下書きを消す
           key={state.answers.length}
           hint={ANSWER_HINTS[question.answerAs]}
+          choices={CONTACT_CHOICE_QUESTIONS.has(question.id) ? CONTACT_CHOICES : null}
           onSubmit={(text) => {
             setNods((n) => n + 1);
             dispatch({ type: "answer", text });
@@ -176,15 +180,25 @@ function Thinking() {
   );
 }
 
+/** 選択肢の文を入力欄の後ろに足す（Issue #110）。前に文があれば「、」でつなぐ。上限の字数で切る */
+export function appendChoice(draft: string, choice: string): string {
+  const trimmed = draft.trimEnd();
+  const joined = trimmed === "" ? choice : /[、。,.!?！？]$/.test(trimmed) ? trimmed + choice : `${trimmed}、${choice}`;
+  return joined.slice(0, MAX_ANSWER_LENGTH);
+}
+
 /** 下に固定する回答の欄。質問文はやり取りの欄の最後（id="current-question"）にある */
-function AnswerForm({
+export function AnswerForm({
   hint,
+  choices = null,
   onSubmit,
   onListeningChange,
   voice,
 }: {
   /** 誰のこととして答えるか（ADR-0022） */
   hint: string;
+  /** 押すと入力欄に足す選択肢（連絡の手段。Issue #110）。無い質問は null */
+  choices?: readonly string[] | null;
   onSubmit: (text: string) => void;
   onListeningChange: (listening: boolean) => void;
   /** 3D の対話モードのときだけ。2D は文字で答える（ADR-0031） */
@@ -241,6 +255,33 @@ function AnswerForm({
       <p id="answer-hint" className="small answer-hint">
         {hint}
       </p>
+      {choices !== null && (
+        <fieldset className="answer-choices">
+          <legend>{CONTACT_CHOICES_LABEL}</legend>
+          <div className="answer-choices-list">
+            {choices.map((choice) => {
+              const added = draft.includes(choice);
+              return (
+                <button
+                  key={choice}
+                  type="button"
+                  className="answer-choice"
+                  aria-pressed={added}
+                  onClick={() => {
+                    // 足した後にもう一度押しても、同じ文を重ねない
+                    if (added) return;
+                    setDraft((current) => appendChoice(current, choice));
+                    setInserted(false);
+                  }}
+                >
+                  {added && <span aria-hidden="true">✓ </span>}
+                  {choice}
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+      )}
       <div className="dock-row">
         <textarea
           id="answer"

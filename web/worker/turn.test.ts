@@ -10,7 +10,7 @@ import { DEV_METRICS_HEADER, MAX_BODY_BYTES, MAX_BODY_LENGTH, createApp as creat
 import { AUDIT_CATEGORIES, AUDIT_SYSTEM_PROMPT, buildAuditMessage, type Audit, type AuditResult } from "./audit";
 import * as entry from "./index";
 import { SYSTEM_PROMPT, buildUserMessage } from "./prompt";
-import { chooseNext, decideNext, followsFixedOrder, parseClaudeOutput, runTurn } from "./turn";
+import { auditedQuestion, chooseNext, decideNext, followsFixedOrder, parseClaudeOutput, runTurn } from "./turn";
 
 const request: TurnRequest = {
   inputs: [
@@ -142,8 +142,8 @@ describe("次の手の決め方（ADR-0025 の A）", () => {
   it.each<[string, string]>([
     ["first_location", "教えてくださってありがとうございます。その薬のことは、お薬手帳やスマホのアプリなど、何を見れば確かめられますか？"],
     ["first_other", "ありがとうございます。ほかの病院や診療所でもらっている薬や、市販の薬・サプリはありますか？アレルギーはありますか？"],
-    ["second_recent", "教えてくださってありがとうございます。ここ数日、いつもどおり薬を飲めていますか？最近変わった薬は、記録にも載っていますか？"],
-    ["second_proxy", "ありがとうございます。あなたの薬のことを知っている人はいますか？続柄で教えてください。電話やメッセージなど、どんな手段で連絡をとれますか？"],
+    ["second_recent", "教えてくださってありがとうございます。最近変わった薬は、お薬手帳などの記録にも載っていますか？"],
+    ["second_proxy", "ありがとうございます。あなたの代わりに、薬のことを伝えられる人はいますか？続柄で教えてください。"],
   ])("ふつうの言い回し（%s）は検査を通る", (nextId, text) => {
     const req = { ...request, next_question_id: nextId };
     expect(decideNext(req, { ...parsed, text }).text).toBe(text);
@@ -657,5 +657,33 @@ describe("/api/turn の回数制限（ADR-0035、safety-test-plan P7）", () => 
     const turn = limiter(true);
     await post(createApp(() => fake(ok(output))), { ...base, TURN_LIMITER: turn }, JSON.stringify(request), publicUrl, {});
     expect(turn.limit).toHaveBeenCalledWith({ key: "turn:unknown" });
+  });
+});
+
+describe("聞き返しの例（Issue #110）", () => {
+  const atLocation: TurnRequest = {
+    ...request,
+    inputs: [
+      ...request.inputs,
+      { question_id: "first_location", half: "first", asked: "その薬のことは、何を見れば確かめられますか？", text: "えーと" },
+    ],
+    next_question_id: "first_other",
+  };
+
+  it("監査役には、聞き返しのときだけ固定の例を書き添え、利用者の回答は入れない", () => {
+    const clarify = auditedQuestion(atLocation, { type: "clarify", question_id: "first_location", text: "…" });
+    expect(clarify).toContain("その薬のことは、何を見れば確かめられますか？");
+    expect(clarify).toContain("聞き返しで添えてよい例");
+    expect(clarify).toContain("お薬手帳");
+    expect(clarify).not.toContain("えーと");
+    const ask = auditedQuestion(atLocation, { type: "ask", question_id: "first_other", text: "…" });
+    expect(ask).not.toContain("聞き返しで添えてよい例");
+  });
+
+  it("Claude に渡すいまの質問に例を付け、例の言葉を使った聞き返しは検査を通る", () => {
+    const message = buildUserMessage(atLocation);
+    expect(message).toContain('"examples"');
+    const text = "もう少し教えてください。その薬のことは、何を見れば確かめられますか？たとえば、お薬手帳やスマホのお薬手帳アプリなどです。";
+    expect(decideNext(atLocation, { ...parseClaudeOutput({ ...output, next_type: "clarify", text })! }).text).toBe(text);
   });
 });
