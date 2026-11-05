@@ -1056,180 +1056,187 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
             {/* 本部・全体：数字、提案、図、救護所ごとの不足 */}
             {isHq && tab === "overview" && (
               <>
-                <div className="board-tiles">
-                  <div className="board-tile board-tile-lead">
-                    <span className="board-tile-label">{BOARD_LEAD_TILE.label}</span>
-                    <span className="board-tile-big" data-testid="sites-short">
-                      {fmt.format(sitesShort)}
-                      <span className="board-tile-of"> / {fmt.format(SHELTERS.length)} か所</span>
-                    </span>
-                    <span className="board-tile-sub">{BOARD_LEAD_TILE.sub}</span>
-                  </div>
-                  <div className="board-tile">
-                    <span className="board-tile-label">今日の患者（延べ・4か所）</span>
-                    <span className="board-tile-big" data-testid="today-patients">
-                      {fmt.format(today.patients)}
-                    </span>
-                    <span className="board-tile-sub">うち普段の薬の継続で来た人 {fmt.format(today.chronic)} 人</span>
-                  </div>
-                  <div className="board-tile">
-                    <span className="board-tile-label">在庫切れ・目安より早く切れる見込み</span>
-                    <span className="board-tile-big" data-testid="critical-count">
-                      {fmt.format(critical.length)}
-                    </span>
-                    <span className="board-tile-sub">
-                      救護所×品目の数。別に、未確認 {fmt.format(unknown.unconfirmed)}、見込み算出不可 {fmt.format(unknown.noPace)}
-                    </span>
-                  </div>
-                  <div className="board-tile">
-                    <span className="board-tile-label">{BOARD_ORDERS.title}（{BOARD_ORDERS.pending}）</span>
-                    <span className="board-tile-big" data-testid="proposal-count">
-                      {fmt.format(pendingProposals.length)}
-                    </span>
-                    <span className="board-tile-sub">
-                      {BOARD_ORDERS.approved} {fmt.format(state.proposals.length - pendingProposals.length)} 件
-                    </span>
-                  </div>
-                  <div className="board-tile">
-                    <span className="board-tile-label">本部で記録の形になっていないもの</span>
-                    <span className="board-tile-big" data-testid="pending-count">
-                      {fmt.format(pending.pending)}
-                    </span>
-                    <span className="board-tile-sub">
-                      未着 {fmt.format(pending.undelivered)}・転記待ち {fmt.format(pending.awaiting)}。通信なしの救護所 {fmt.format(pending.offlineSites)} か所
-                    </span>
-                  </div>
-                  <div className="board-tile">
-                    <span className="board-tile-label">入荷・融通の予定（受領済みを除く）</span>
-                    <span className="board-tile-big">{fmt.format(inbound.count)}</span>
-                    <span className="board-tile-sub">うち到着が未定のもの {fmt.format(inbound.undated)} 件</span>
-                  </div>
-                </div>
+                <div className="board-hq-layout">
+                  {/* 指標の札は右の細い列（PC）。スマホでは上に小さく並ぶ */}
+                  <aside className="board-hq-side" aria-label={BOARD_LAYOUT.hqSideLabel}>
+                    <div className="board-tiles">
+                      <div className="board-tile board-tile-lead">
+                        <span className="board-tile-label">{BOARD_LEAD_TILE.label}</span>
+                        <span className="board-tile-big" data-testid="sites-short">
+                          {fmt.format(sitesShort)}
+                          <span className="board-tile-of"> / {fmt.format(SHELTERS.length)} か所</span>
+                        </span>
+                        <span className="board-tile-sub">{BOARD_LEAD_TILE.sub}</span>
+                      </div>
+                      <div className="board-tile">
+                        <span className="board-tile-label">今日の患者（延べ・4か所）</span>
+                        <span className="board-tile-big" data-testid="today-patients">
+                          {fmt.format(today.patients)}
+                        </span>
+                        <span className="board-tile-sub">うち普段の薬の継続で来た人 {fmt.format(today.chronic)} 人</span>
+                      </div>
+                      <div className="board-tile">
+                        <span className="board-tile-label">在庫切れ・目安より早く切れる見込み</span>
+                        <span className="board-tile-big" data-testid="critical-count">
+                          {fmt.format(critical.length)}
+                        </span>
+                        <span className="board-tile-sub">
+                          救護所×品目の数。別に、未確認 {fmt.format(unknown.unconfirmed)}、見込み算出不可 {fmt.format(unknown.noPace)}
+                        </span>
+                      </div>
+                      <div className="board-tile">
+                        <span className="board-tile-label">{BOARD_ORDERS.title}（{BOARD_ORDERS.pending}）</span>
+                        <span className="board-tile-big" data-testid="proposal-count">
+                          {fmt.format(pendingProposals.length)}
+                        </span>
+                        <span className="board-tile-sub">
+                          {BOARD_ORDERS.approved} {fmt.format(state.proposals.length - pendingProposals.length)} 件
+                        </span>
+                      </div>
+                      <div className="board-tile">
+                        <span className="board-tile-label">本部で記録の形になっていないもの</span>
+                        <span className="board-tile-big" data-testid="pending-count">
+                          {fmt.format(pending.pending)}
+                        </span>
+                        <span className="board-tile-sub">
+                          未着 {fmt.format(pending.undelivered)}・転記待ち {fmt.format(pending.awaiting)}。通信なしの救護所 {fmt.format(pending.offlineSites)} か所
+                        </span>
+                      </div>
+                      <div className="board-tile">
+                        <span className="board-tile-label">入荷・融通の予定（受領済みを除く）</span>
+                        <span className="board-tile-big">{fmt.format(inbound.count)}</span>
+                        <span className="board-tile-sub">うち到着が未定のもの {fmt.format(inbound.undated)} 件</span>
+                      </div>
+                    </div>
+                  </aside>
+                  <div className="board-hq-main">
 
-                <div className="board-overview-cols">
-                  <div className="board-overview-map">
-                    <BoardMap overview={overview} onSelect={select} selected={selected} />
-                    <p className="board-note">{BOARD_LAYOUT.mapHint}</p>
-                  </div>
-                  <section aria-labelledby="board-cases" className="board-overview-sites">
-                    <h3 id="board-cases">
-                      {BOARD_CASES.title} <span className="board-count">{fmt.format(cases.length)} 件</span>
-                    </h3>
-                    <ul className="board-site-cards">
-                      {SHELTERS.map((s) => {
-                        const list = cases.filter((c) => c.site === s);
-                        return (
-                          <li key={s} className="board-site-card">
-                            <button type="button" className="board-site-card-button" onClick={() => select(s)} aria-label={`${s}${BOARD_LAYOUT.openSite}`}>
-                              <span className="board-site-card-head">
-                                <b>{s}</b>
-                                <span className="board-pane-sub">{districtOf(s)?.name}</span>
-                              </span>
-                              <PaneMarks marks={marksFor(s)} />
-                              <span className="board-site-card-items">
-                                {list.length === 0
-                                  ? BOARD_GROUPS.empty
-                                  : list.map((c) => `${c.item}（${c.status === "在庫切れ見込み" && c.days !== null ? `あと${roundDays(c.days)}日` : c.status}）`).join("、")}
-                              </span>
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                    <p className="board-note">{BOARD_CASES.guide.replace("{days}", String(COVER_GUIDE_DAYS))}</p>
-                  </section>
-                </div>
+                    <div className="board-overview-cols">
+                      <div className="board-overview-map">
+                        <BoardMap overview={overview} onSelect={select} selected={selected} />
+                        <p className="board-note">{BOARD_LAYOUT.mapHint}</p>
+                      </div>
+                      <section aria-labelledby="board-cases" className="board-overview-sites">
+                        <h3 id="board-cases">
+                          {BOARD_CASES.title} <span className="board-count">{fmt.format(cases.length)} 件</span>
+                        </h3>
+                        <ul className="board-site-cards">
+                          {SHELTERS.map((s) => {
+                            const list = cases.filter((c) => c.site === s);
+                            return (
+                              <li key={s} className="board-site-card">
+                                <button type="button" className="board-site-card-button" onClick={() => select(s)} aria-label={`${s}${BOARD_LAYOUT.openSite}`}>
+                                  <span className="board-site-card-head">
+                                    <b>{s}</b>
+                                    <span className="board-pane-sub">{districtOf(s)?.name}</span>
+                                  </span>
+                                  <PaneMarks marks={marksFor(s)} />
+                                  <span className="board-site-card-items">
+                                    {list.length === 0
+                                      ? BOARD_GROUPS.empty
+                                      : list.map((c) => `${c.item}（${c.status === "在庫切れ見込み" && c.days !== null ? `あと${roundDays(c.days)}日` : c.status}）`).join("、")}
+                                  </span>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                        <p className="board-note">{BOARD_CASES.guide.replace("{days}", String(COVER_GUIDE_DAYS))}</p>
+                      </section>
+                    </div>
 
-                <section aria-labelledby="board-hq-orders">
-                  <h3 id="board-hq-orders">
-                    {BOARD_ORDERS.title}（{BOARD_ORDERS.pending}） <span className="board-count">{fmt.format(pendingProposals.length)} {BOARD_ORDERS.count}</span>
-                  </h3>
-                  <ProposalList state={state} proposals={pendingProposals} canDecide dispatch={dispatch} />
-                </section>
+                    <section aria-labelledby="board-hq-orders">
+                      <h3 id="board-hq-orders">
+                        {BOARD_ORDERS.title}（{BOARD_ORDERS.pending}） <span className="board-count">{fmt.format(pendingProposals.length)} {BOARD_ORDERS.count}</span>
+                      </h3>
+                      <ProposalList state={state} proposals={pendingProposals} canDecide dispatch={dispatch} />
+                    </section>
 
-                <More id="board-shelters" title={BOARD_SECTIONS.shelters} note={BOARD_SECTIONS.sheltersNote}>
-                  <div className="board-tablebox">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>救護所</th>
-                          <th className="num">今日の患者（延べ）</th>
-                          <th className="num">避難者数</th>
-                          <th className="num">在庫でまかなえる日数</th>
-                          <th>在庫切れ・切れる見込みの薬</th>
-                          <th>記録の届き方</th>
-                          <th className="num">記録の形になっていないもの</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rows.map((r) => (
-                          <tr key={r.site}>
-                            <td>{r.site}</td>
-                            <td className="num">{r.patients === null ? "—" : fmt.format(r.patients)}</td>
-                            <td className="num">{r.evacuees === null ? "—" : fmt.format(r.evacuees)}</td>
-                            <td className="num">
-                              {r.daysCovered === null ? "—" : <Pill level={levelOf(r.daysCovered)}>{`${r.daysCovered} 日`}</Pill>}
-                            </td>
-                            <td>{r.critical.length === 0 ? "なし" : r.critical.join("、")}</td>
-                            <td>{r.mode}</td>
-                            <td className="num">{r.pending === null ? "—" : fmt.format(r.pending)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </More>
-
-                <More id="board-sites" title={BOARD_SECTIONS.sites} note={BOARD_SECTIONS.sitesNote}>
-                  <div className="board-tablebox">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>拠点</th>
-                          <th>稼働</th>
-                          <th className="num">薬剤師</th>
-                          <th>連絡先（架空）</th>
-                          <th>受け取りの窓口</th>
-                          <th>代わりの手段</th>
-                          <th>本部からの経路</th>
-                          <th>在庫を確認した時刻</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {SITES.map((s) => {
-                          const route = routeTo(s.site);
-                          return (
-                            <tr key={s.site}>
-                              <td>{s.site}</td>
-                              <td>{s.status}</td>
-                              <td className="num">{fmt.format(s.pharmacists)}</td>
-                              <td>{s.phone}</td>
-                              <td>{s.pickup}</td>
-                              <td>{s.altMeans}</td>
-                              <td>
-                                {route ? (
-                                  <>
-                                    <Pill level={routeLevel(route.status)}>{route.status}</Pill> {route.via}
-                                    {route.minutes !== null && `（約${fmt.format(route.minutes)}分）`}
-                                  </>
-                                ) : (
-                                  "—"
-                                )}
-                              </td>
-                              <td>{mdhm(s.stockCheckedAt)}</td>
+                    <More id="board-shelters" title={BOARD_SECTIONS.shelters} note={BOARD_SECTIONS.sheltersNote}>
+                      <div className="board-tablebox">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>救護所</th>
+                              <th className="num">今日の患者（延べ）</th>
+                              <th className="num">避難者数</th>
+                              <th className="num">在庫でまかなえる日数</th>
+                              <th>在庫切れ・切れる見込みの薬</th>
+                              <th>記録の届き方</th>
+                              <th className="num">記録の形になっていないもの</th>
                             </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </More>
+                          </thead>
+                          <tbody>
+                            {rows.map((r) => (
+                              <tr key={r.site}>
+                                <td>{r.site}</td>
+                                <td className="num">{r.patients === null ? "—" : fmt.format(r.patients)}</td>
+                                <td className="num">{r.evacuees === null ? "—" : fmt.format(r.evacuees)}</td>
+                                <td className="num">
+                                  {r.daysCovered === null ? "—" : <Pill level={levelOf(r.daysCovered)}>{`${r.daysCovered} 日`}</Pill>}
+                                </td>
+                                <td>{r.critical.length === 0 ? "なし" : r.critical.join("、")}</td>
+                                <td>{r.mode}</td>
+                                <td className="num">{r.pending === null ? "—" : fmt.format(r.pending)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </More>
 
-                <More id="board-trend" title={BOARD_SECTIONS.trend} note={BOARD_SECTIONS.trendNote}>
-                  <div className="board-chart">
-                    <Trend state={state} />
+                    <More id="board-sites" title={BOARD_SECTIONS.sites} note={BOARD_SECTIONS.sitesNote}>
+                      <div className="board-tablebox">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>拠点</th>
+                              <th>稼働</th>
+                              <th className="num">薬剤師</th>
+                              <th>連絡先（架空）</th>
+                              <th>受け取りの窓口</th>
+                              <th>代わりの手段</th>
+                              <th>本部からの経路</th>
+                              <th>在庫を確認した時刻</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {SITES.map((s) => {
+                              const route = routeTo(s.site);
+                              return (
+                                <tr key={s.site}>
+                                  <td>{s.site}</td>
+                                  <td>{s.status}</td>
+                                  <td className="num">{fmt.format(s.pharmacists)}</td>
+                                  <td>{s.phone}</td>
+                                  <td>{s.pickup}</td>
+                                  <td>{s.altMeans}</td>
+                                  <td>
+                                    {route ? (
+                                      <>
+                                        <Pill level={routeLevel(route.status)}>{route.status}</Pill> {route.via}
+                                        {route.minutes !== null && `（約${fmt.format(route.minutes)}分）`}
+                                      </>
+                                    ) : (
+                                      "—"
+                                    )}
+                                  </td>
+                                  <td>{mdhm(s.stockCheckedAt)}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </More>
+
+                    <More id="board-trend" title={BOARD_SECTIONS.trend} note={BOARD_SECTIONS.trendNote}>
+                      <div className="board-chart">
+                        <Trend state={state} />
+                      </div>
+                    </More>
                   </div>
-                </More>
+                </div>
               </>
             )}
 

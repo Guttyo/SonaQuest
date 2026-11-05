@@ -1562,3 +1562,80 @@
 .board-map-legend .dot.site {
   background: #3d3a36;
 }
+
+/* ===== 本部の全体：指標の札を右の細い列に（Issue #107。オーナー「タイルが大きすぎてスペースがもったいない。サイドカラムでよい」） ===== */
+.board-hq-layout {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.board-hq-main {
+  /* 図・一覧の切り替えは、この列の幅で決める（右の列のぶん狭くなるため） */
+  container: board-panel / inline-size;
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.board-hq-side .board-tiles {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr));
+  gap: 6px;
+}
+.board-hq-side .board-tile {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+.board-hq-side .board-tile .board-tile-label {
+  grid-column: 1;
+  grid-row: 1;
+}
+.board-hq-side .board-tile .board-tile-big {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: 1.375rem;
+  line-height: 1.2;
+}
+.board-hq-side .board-tile .board-tile-sub {
+  grid-column: 1 / -1;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+.board-hq-side .board-tile-lead {
+  grid-column: auto;
+  border-width: 2px;
+}
+.board-hq-side .board-tile-lead .board-tile-big {
+  font-size: 1.75rem;
+}
+@container board-panel (min-width: 900px) {
+  .board-hq-layout {
+    grid-template-columns: minmax(0, 1fr) 15rem;
+    align-items: start;
+  }
+  .board-hq-side {
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky;
+    top: 0;
+  }
+  .board-hq-side .board-tiles {
+    grid-template-columns: 1fr;
+  }
+  .board-hq-side .board-tile-lead {
+    grid-column: auto;
+  }
+  .board-hq-main {
+    grid-column: 1;
+    grid-row: 1;
+  }
+}
+/* 一番大きな数は、題の下に数を置く（題が細く折り返さないように） */
+.board-hq-side .board-tile-lead {
+  grid-template-columns: minmax(0, 1fr);
+}
+.board-hq-side .board-tile-lead .board-tile-big {
+  grid-column: 1;
+  grid-row: 2;
+}

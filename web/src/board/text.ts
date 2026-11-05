@@ -15,6 +15,7 @@ export const BOARD_LAYOUT = {
   hq: "本部（HQ）",
   hqSub: "本部備蓄・全体",
   tabsLabel: "表示の切り替え",
+  hqSideLabel: "本部の数字",
   tabs: {
     overview: "全体",
     stock: "在庫",
