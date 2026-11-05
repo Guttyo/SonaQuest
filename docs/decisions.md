@@ -1262,3 +1262,27 @@
   - 車の印に赤十字や赤い色を使う：赤は状態だけに使う（ADR-0043 の追記8）。
 - 影響：`web/src/board/live.ts`（新規）、`web/src/board/vehicles.ts`（新規）、`web/src/board/live.test.ts`（新規）、`web/src/screens/BoardMap.tsx`、`web/src/screens/BoardMap.test.tsx`、`web/src/board/text.ts`（末尾の `BOARD_MAP_LIVE`）、`web/src/board/board.css`（末尾）、`web/src/screens/Board.tsx`（1行）。残るリスク：07:00・10:00 を `demo.ts` から写して持つので、`demo.ts` の時刻を変えたら `live.ts` も直す（試験が落ちて気づく）。便と車が時計の1時間の進みの間に角を曲がるとき、滑らかに移る間は角を斜めに横切って見える。
 - 追記（PR #130 のレビュー）：図は `role="img"` で、その中の操作要素は読み上げに出ないので、便と車の印はマウス・タッチで押せるだけにし、キーボード・読み上げでは図の下の「動いているもの（架空・模擬）」の一覧の各行（`<button>`、`aria-pressed`）で同じ操作をする。
+
+## ADR-0050 提出動画を Remotion の独立パッケージ（`video/`）で組み、ナレーションは手元のスクリプトで合成する
+- 状態：採用（Remotion で組むことと依存の追加は 2026-11-06 にオーナーがチャットで承認。ナレーションを API で合成し、キーを env ファイルに置くことは Issue #28 のコメントの 2026-11-04 のオーナー決定）　日付：2026-11-06（Issue #28、SUB-01）
+- 背景：
+  - Issue #28 のコメント（2026-11-04）の「オーナーの決定」：ナレーションは ElevenLabs の API で合成する。キーは安全な env ファイルに入れる。まずはローカルで動くことを目標にする。長さは 20秒×9＝180秒でよい。
+  - 2026-11-06 の決定（`docs/demo-script.md`）：動画は Remotion で組む。アプリ画面の録画は Cowork が操作して撮る。冒頭は本人の実写と生声、2〜9番の解説は本人のクローン音声、アプリの聞き取り係の声は録画の音声をそのまま使う。
+  - CLAUDE.md 絶対ルール6 は「API キーは Workers の secrets だけで扱い、ブラウザに出さない」。動画のナレーションの合成はアプリの外で、Workers を通らない。
+- 決定：
+  1. **独立したパッケージ**：`video/` に `package.json`（`private: true`）を置き、アプリ（`web/`）とは依存も設定も分ける。足した依存は `remotion`・`@remotion/cli`（4.0.541。`@remotion/*` は同じ版にそろえる）、`react`・`react-dom`（19.3.1）、`typescript`（7.0.2）、`@types/react`・`@types/react-dom`（19.3.0）だけで、版は固定する（`web/` と同じ版）。
+  2. **構成**：1920×1080・30fps・180秒（5400フレーム）の Composition を1つ。9ビート（各 600フレーム）の表を `video/src/sections.ts` に持ち、`docs/demo-script.md` の「場面ごとの台本」から写す。各ビートは、素材が `video/public/` にあれば映し・鳴らし、無ければ仮の画面（番号・時間・見出し語・場面の説明）のまま描く。素材の有無は Remotion の `getStaticFiles()` で確かめる（無い素材を描くと書き出しが落ちるため）。
+  3. **素材はリポジトリに入れない**：写真・本人の映像・音声・画面の録画・合成したナレーション・書き出した動画は `video/public/`・`video/out/`（どちらも `.gitignore`）に置き、正本は BWJ2026_Docs。Git で管理するのは、コードと、読み上げに渡す最終の原稿（`video/narration/NN.txt`。2〜9番）だけ。
+  4. **日本語の書体**：外部のフォント配信も、フォントファイルも使わず、端末のゴシックの並び（`web/src/styles.css` と同じ考え）を指定する。書き出す端末に入っている書体で描かれる。
+  5. **ナレーションの合成**：`video/scripts/synthesize-narration.mjs` を、オーナーが手元で実行する（`npm --prefix video run narration`）。`video/.env` を Node.js 標準の `process.loadEnvFile()` で読み、ElevenLabs の text-to-speech を `fetch` で呼んで `video/public/narration/NN.mp3` に書く。既にある mp3 は上書きしない（`--force` で上書き）。モデルは `ELEVENLABS_MODEL_ID` で替えられ、無ければアプリと同じ `eleven_v4_turbo`、声の設定もアプリと同じ（ADR-0045）。値は写して持ち、`web/` を import しない。
+  6. **ログ**：合成スクリプトは、キー・声の ID・ナレーションの本文・宛先の URL・エラーの文・応答の本文をログに出さない。出すのはビートの番号・件数・所要時間・HTTP の状態・エラーの種類（name・code）だけ。単体試験（`node:test`）で確かめる。
+  7. **絶対ルール6の例外**：「API キーは Workers の secrets だけで扱う」の例外として、手元で動画を作るこのスクリプトが `video/.env` のキーを使うことを認める。根拠は上の 2026-11-04 のオーナー決定。`video/.env` は `.gitignore` の `.env` の行で Git の対象外。Claude Code は `video/.env` を読まない・作らない・書かない（雛形は `video/.env.example`）。キーがブラウザに出ることはない（Remotion の画面にはキーを渡さない）。
+  8. 合成・撮影・組み立て・書き出しの本番はオーナーが行う。合成は ElevenLabs の課金の対象。Remotion のライセンス（個人の利用の範囲か）はオーナーが確かめる。
+- 理由：台本の表をそのままコードの表にでき、ビートの長さや順番を直しても再び書き出すだけで済む。素材が届く前から骨組みを確かめられる。アプリの依存と分けることで、アプリの試験・ビルド・デプロイに影響しない。
+- 却下案：
+  - Premiere などの編集ソフトだけで組む：オーナーの手作業が増え、台本との対応をコードで持てない。2026-11-06 にオーナーが Remotion を選んだ。
+  - `@remotion/google-fonts` で日本語の書体を読む：依存が増え、書き出しのたびに外部のフォント配信へつなぐ。端末の書体で足りる。
+  - dotenv で `.env` を読む：Node.js 標準の `process.loadEnvFile()` で足り、依存を増やさない（Issue #28 のコメント、2026-11-04）。
+  - `web/` に Remotion を足す：アプリのビルドと依存に動画の道具が混ざる。
+  - ナレーションを Workers の `/api/tts` 経由で合成する：アプリの声の ID（聞き取り係）と動画のナレーターの声の ID を分ける決定（2026-11-06）と合わず、公開の宛先に動画用の口を開けることになる。
+- 影響：`video/`（新規。`package.json`・`package-lock.json`・`remotion.config.ts`・`tsconfig.json`・`README.md`・`src/`・`scripts/`・`narration/`）、`.claude/launch.json`（Remotion Studio の起動の設定）、`docs/STATUS.md`。残るリスク：書体は書き出す端末に依存する（Windows では Yu Gothic UI、macOS ではヒラギノ）。`process.loadEnvFile()` は、同じ名前の環境変数がシェルに既にあると上書きしない（README に書いた）。台本を直したときに `sections.ts` と `narration/NN.txt` を直し忘れると食い違う（`docs/demo-script.md` との照合は手作業）。
