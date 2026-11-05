@@ -78,10 +78,11 @@ import {
   INTAKE_IMAGE,
 } from "../board/text";
 import { BoardMap } from "./BoardMap";
+import { BoardChat } from "../board/chat/BoardChat";
 
-/** 上部タブ（Issue #107） */
-export type BoardTab = "overview" | "stock" | "supply" | "records" | "demo";
-const TABS: readonly BoardTab[] = ["overview", "stock", "supply", "records", "demo"];
+/** 上部タブ（Issue #107）。「連絡」は掲示板チャット（Issue #121） */
+export type BoardTab = "overview" | "stock" | "supply" | "records" | "demo" | "chat";
+const TABS: readonly BoardTab[] = ["overview", "stock", "supply", "records", "demo", "chat"];
 
 interface Props {
   onBack: () => void;
@@ -1603,6 +1604,8 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
                 </section>
               </>
             )}
+
+            {tab === "chat" && <BoardChat state={state} />}
 
             {/* デモ：入力と起きたこと */}
             {tab === "demo" && (

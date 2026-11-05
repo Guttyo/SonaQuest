@@ -22,6 +22,7 @@ export const BOARD_LAYOUT = {
     supply: "発注・搬送",
     records: "記録（カルテ）",
     demo: "デモ",
+    chat: "連絡",
   },
   siteTabs: {
     overview: "詳細",
