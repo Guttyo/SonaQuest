@@ -531,6 +531,7 @@ export type PublicSourceId =
  * section は資料の見出しをそのまま写したもので、説明文ではない。資料の説明を Claude に作らせない。
  */
 // [TODO-OWNER: 振り返りの公的資料を確認済みにするか（Claude Code が本文を確かめた候補。docs/references.md）。確かめたものは verified を true に、checkedOn をオーナーの確認日にする]
+// → オーナー決定（2026-11-05、チャット）：1（政府広報オンライン）・3（消防庁 eカレッジ）・4（マイナポータル FAQ No.4901）を確認済みにする。2・5 は選ばなかった。
 export const PUBLIC_SOURCES: Readonly<
   Record<
     PublicSourceId,
@@ -550,7 +551,7 @@ export const PUBLIC_SOURCES: Readonly<
     section: "常用薬・お薬手帳の備え",
     url: "https://www.gov-online.go.jp/tokusyu/bousai/preparation.html",
     checkedOn: "2026-11-05",
-    verified: false,
+    verified: true,
   },
   // 同じ報告書の、準備行動ごとに根拠になる子見出しを分けて持つ
   mhlw_after_service_10_disaster: {
@@ -575,7 +576,7 @@ export const PUBLIC_SOURCES: Readonly<
     section: "4.非常持出品の準備",
     url: "https://www.fdma.go.jp/relocation/e-college/cat65/cat63/cat31/4-7.html",
     checkedOn: "2026-11-05",
-    verified: false,
+    verified: true,
   },
   myna_faq_medicine: {
     publisher: "デジタル庁（マイナポータル よくあるご質問）",
@@ -583,7 +584,7 @@ export const PUBLIC_SOURCES: Readonly<
     section: "No : 4901",
     url: "https://faq.myna.go.jp/faq/show/4901?category_id=18&site_domain=default",
     checkedOn: "2026-11-05",
-    verified: false,
+    verified: true,
   },
   myna_news_medicine: {
     publisher: "デジタル庁（マイナポータル お知らせ）",

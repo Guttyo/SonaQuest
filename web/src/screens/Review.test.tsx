@@ -9,6 +9,7 @@ import {
   JUDGMENT_LABELS,
   JUDGMENT_NOTE,
   PREP_ACTIONS,
+  PUBLIC_SOURCES,
   RECALL_FEEDBACK,
   RECOVERY_QUESTION,
   REVIEW_EVENT_HEADING,
@@ -252,9 +253,17 @@ describe("⑥振り返りの公的資料（A-06）", () => {
     expect(sourcesFor("tell_family")).toEqual([]);
   });
 
-  it("今の資料の一覧（オーナーの確認前）では、どの準備行動にも資料を出さず、見出しも出さない", () => {
-    for (const a of PREP_ACTIONS) expect(verifiedSourcesFor(a.id)).toEqual([]);
-    expect(render(battery)).not.toContain(REVIEW_SOURCES_HEADING);
+  it("今の資料の一覧では、オーナーが確認済みにした3件だけを、対応する準備行動に出す", () => {
+    const urls = (id: PrepActionId) => verifiedSourcesFor(id).map((s) => s.url);
+    expect(urls("notebook_bag")).toEqual([PUBLIC_SOURCES.gov_online_prep.url]);
+    expect(urls("photo_and_paper")).toEqual([PUBLIC_SOURCES.fdma_ecollege_pack.url]);
+    expect(urls("check_portal")).toEqual([PUBLIC_SOURCES.myna_faq_medicine.url]);
+    for (const id of ["wallet_memo", "tell_family", "pharmacy_contact"] as const) expect(urls(id)).toEqual([]);
+    const html = render(battery);
+    expect(html).toContain(REVIEW_SOURCES_HEADING);
+    // オーナーが選ばなかった資料（厚生労働省の報告書、マイナポータルのお知らせ）は出さない
+    expect(html).not.toContain(PUBLIC_SOURCES.mhlw_after_service_10_disaster.url);
+    expect(html).not.toContain(PUBLIC_SOURCES.myna_news_medicine.url);
   });
 
   it("確認済みの資料を、今ここで確かめましょうと次の準備の間に、準備行動の名前の下に出す", () => {
