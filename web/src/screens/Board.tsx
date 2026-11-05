@@ -204,7 +204,7 @@ export function Board({ onBack }: Props) {
             <span className="cell bad">{COVER_GUIDE_DAYS}日未満</span>
           </span>
           <span>
-            <span className="cell warn">{COVER_GUIDE_DAYS}〜{COVER_GUIDE_DAYS + 1}日</span>
+            <span className="cell warn">{COVER_GUIDE_DAYS}日以上{COVER_GUIDE_DAYS + 2}日未満</span>
           </span>
           <span>
             <span className="cell ok">{COVER_GUIDE_DAYS + 2}日以上</span>

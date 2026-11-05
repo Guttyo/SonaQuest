@@ -202,6 +202,7 @@ export const SYNC: readonly SyncRow[] = [
  * 患者の名前は持たず、架空の番号だけ。値は本人の言葉のままで、要約・言い換えをしない形を示す。
  * 「医師の処方」は人（医師）が入力する欄で、アプリも Claude も決めない
  */
+// [TODO-OWNER: 問診の記録の架空の文（「医師の処方」の欄の文を含む）と、薬の仮名（薬効の分類名を仮名に使っている。Claude Code の下書き）]
 export interface IntakeRecord {
   /** 架空の番号（名前は使わない） */
   id: string;
