@@ -1099,6 +1099,12 @@
   - 影響：`web/src/screens/Board.tsx`・`Board.test.tsx`、`BoardMap.tsx`、`web/src/board/demo.ts`・`orders.test.ts`、`data.ts`、`text.ts`、`board.css`、`docs/PRD.md`（B-04・B-06）、`docs/safety-test-plan.md`（H7）、`docs/STATUS.md`、README、`docs/KEEP-THINKING.md`。訓練の流れ、Claude への送信、Workers、ログ、保存、依存は変えない。
   - [TODO-OWNER: ボードの副題・ペイン・タブ・地区の名前・発注の提案と承認の文言（`text.ts` の `BOARD_SUBTITLE`・`BOARD_LAYOUT`・`BOARD_ORDERS`、`data.ts` の `DISTRICTS`。Claude Code の下書き）と、はじめにのボタンの文言を変えるか]
 
+- 追記（2026-11-05、Issue #114）：カルテ入力の専用画面と処方の累計。オーナー（2026-11-05、チャット）「入力は専用画面、閲覧は今の画面のままでもよいかもしれない。ただ、在庫管理画面とは切り分けたほうがいいかもしれないから、全画面の専用モードがいいか。カルテの処方記録を、各救護所の状況の処方薬累計とかに出しておけば発注必要数とか判定できるよね。」
+  - 決定（Claude Code の実装。文言は下書き）：救護所の記録タブとデモタブの入力欄を「カルテを入力する」ボタンにし、押すとボード全体が救護所のカルテ入力の専用画面に切り替わる（左のペイン・タブ・デモ操作・在庫の表を出さない）。「戻る」で救護所の記録タブに戻る。閲覧は記録タブのまま。`?view=intake&site=A` は最初の表示だけ読む（保存しない）。状態は同じ reducer のメモリだけで持ち、別のタブ・端末へは送らない（BroadcastChannel・サーバーへの送信・保存はしない）。
+  - 処方の累計（`demo.ts` の `prescriptionTotals`）：画面で入力したカルテの処方の数量を救護所×品目で足すだけ（合計・うち渡せた数・うち未交付・件数）。救護所の詳細と専用画面に出し、発注の提案の内訳に「うちカルテの処方の未交付 N」を出す。必要数の算数は変えない（未交付はすでに「未交付・必要な数」に入っている。文案で推奨として示し、オーナーが「作って着手して」と承認）。量の妥当性・代わりの薬・薬効は判断しない。
+  - 却下案：処方の累計から出庫のペースを出し直して必要数に足す（ペースの決め方が新しい判断になり、凍結の前には重い）。
+  - 影響：`web/src/screens/Board.tsx`・`Board.test.tsx`、`web/src/board/demo.ts`・`demo.test.ts`・`url.ts`・`url.test.ts`・`text.ts`（`BOARD_INTAKE_MODE` にマーカー）・`board.css`、`web/src/App.tsx`。
+
 ## ADR-0044 振り返りの公的資料は、確認済みの印を付けた固定の一覧から出す
 - 状態：提案（Issue #99。2026-11-05、オーナーがチャットで A-06 に「今すぐ着手する」と答えた。採用はこの ADR を含む PR のマージで）　日付：2026-11-05
 - 番号：ADR-0042・ADR-0043 は PR #98（Issue #97・#102）が使ったので、0044 にした
