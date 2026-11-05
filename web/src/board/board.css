@@ -1754,8 +1754,8 @@ body:has(.board) {
   color: var(--ink-soft);
 }
 
-/* タブ：狭い幅は折り返して横に送らない */
-@media (max-width: 640px) {
+/* タブ：1024px 未満（拠点を選ぶ欄になる幅）は折り返して横に送らない */
+@media (max-width: 1023.98px) {
   .board-tabs {
     flex-wrap: wrap;
     overflow-x: visible;

@@ -157,7 +157,7 @@ export const BOARD_ACTIONS = {
   proposal: "発注の提案",
   checked: "在庫確認",
   /** 拠点×品目の数（確認・手配の数）と、その内訳 */
-  breakdown: (critical: number, unconfirmed: number, noPace: number) => `在庫切れ・不足見込み ${critical} ＋ 未確認 ${unconfirmed} ＋ 算出不可 ${noPace}`,
+  breakdown: (critical: number, unconfirmed: number, noPace: number) => `在庫切れ・不足見込み ${critical}件 ＋ 未確認 ${unconfirmed}件 ＋ 算出不可 ${noPace}件`,
   empty: "確認・手配が必要な事項はありません",
 } as const;
 
