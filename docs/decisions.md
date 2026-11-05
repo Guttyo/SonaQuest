@@ -851,3 +851,28 @@
 - 影響：`web/src/styles.css`。`voice.css` は rem と `font: inherit` で書かれているので、変数の書体がそのまま当たる。`voice.css` の太さの直書き（700）2か所は `var(--fw-bold)` にそろえた（PR #73 の自動レビューの指摘）。コントラストの確認の結果は docs/STATUS.md「動作確認済み」。
 - オーナーが判断する点（Issue #71 の PR の説明にも一覧）：
   - [TODO-OWNER: 書体の並びの順（Claude Code の下書き。Windows で BIZ UDPゴシックを游ゴシック UI より先にした）と、大きさの段階の値（決定3・5）、聞き取り係の質問を本文の大きさと墨の色にしたこと（決定6）]
+
+## ADR-0040 オーナーが頼んだときだけ、確認の画面を出して Claude Code が PR をマージする
+- 状態：採用（Issue #90。2026-11-05、オーナーがチャットで「issueを作って着手して」と言い、Issue #90 を作って着手した。この ADR を含む PR のマージで有効になる）　日付：2026-11-05
+- 背景：
+  - それまでの `guard_github.py` は、`gh pr merge` を例外なく止めていた（ADR-0014 のローカルの補助）。オーナーがチャットで明示的にマージを頼んでも、オーナーが GitHub の画面で押す必要があり、PR が多いときに手間がかかった。
+  - Claude Code の PreToolUse の hook は、標準出力に `{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "ask", "permissionDecisionReason": "…"}}` だけを出して終了コード0で終えると、利用者に確認の画面を出せる（Claude Code の hooks の文書、2026-11-05 に確認）。複数の hook の判定が違うときは deny が ask より強い。終了コード2は、JSON の中身にかかわらず止める。
+- 決定：
+  1. `guard_github.py` は `gh pr merge` を止めずに、確認の画面を出す（`permissionDecision: "ask"`）。理由の文は「マージはオーナーがチャットで明示的に頼んだときだけ。許可する前にPR番号を確かめる」。
+  2. 次の `gh pr merge` は、これまでどおり止める（終了コード2）：`--admin`（保護を飛ばす）、`--auto`（条件がそろうと自動でマージする。確認の画面の後の、別の時点でマージされる）、PR を指さないもの（今のブランチの PR になる）、PR を2つ以上指すもの、番号・URL 以外（ブランチ名・変数・置換）で指すもの。確認の画面で見る PR 番号と、実際にマージされる PR を同じにするため、ブランチ名でも指さない。
+  3. 1つのコマンドに、止める操作と確認が要る操作が並んだときは止める。コマンドの区切りを最後まで見てから決める。止める操作が無く、確認が要る操作だけがあるときに確認の画面を出す。
+  4. hook が働かなかったときの予備として、`.claude/settings.json` の `permissions.ask` に `Bash(gh pr merge:*)` を置く。文書では、明示の ask の規則は `bypassPermissions` と auto のモードでも確認の画面を出す。
+  5. Claude Code が `gh pr merge` を実行してよいのは、オーナーがチャットでそのPRのマージを明示的に頼んだときだけ。確認の画面での許可は、チャットでの依頼の代わりにならない（CLAUDE.md 絶対ルール7、`.claude/rules/github.md`）。
+- 理由：
+  - オーナーの判断（チャットでの依頼）と、その場の確かめ（確認の画面での許可）の両方があれば、オーナーが GitHub の画面へ移らなくてもよく、誤ったマージは防げる。
+  - `--admin`・`--auto` は、保護を飛ばす、または確認の画面で許可した時点の状態と実際にマージされる状態がずれるので、確認の画面では足りない。
+  - 正は GitHub の Ruleset（ADR-0014）のままで、PR 必須・CI 成功必須はマージのときに GitHub が確かめる。
+- 却下案：
+  - 現状のまま止める：オーナーが毎回 GitHub の画面へ移る必要があり、PR が多いときに作業が止まる。
+  - settings の `permissions.ask` だけにする：`--admin`・`--auto`・PR を指さないマージを止められない。PR 番号を確かめるよう促す理由の文も出せない。
+  - オーナー承認用の環境変数（`.claude/rules/github.md`「hookの位置づけ」）を使う：本人確認ではなく、オーナーが自分で操作するための解除の目印にすぎない。その場でオーナーが確かめる仕組みにならず、Claude Code には使わせない決まりでもある。
+- 影響：
+  - `.claude/hooks/guard_github.py`（`check_pr_merge` を足し、`check_command` が確認の理由の一覧を返し、`main` が確認の JSON を出す）、`.claude/hooks/test_hooks.py`、`.claude/settings.json`、`.claude/rules/github.md`、CLAUDE.md。ADR-0014 の「Claude Codeのhookが…PRのマージ…を止める」は、この ADR の範囲で変わる。
+  - 確認の画面を出せない場面では、確認が要る操作は実行されない：`dontAsk` のモードは、確認の画面が出るはずの操作を断る。`-p` などの対話の無い実行でも、答える人がいなければ断られる。
+  - hook の `ask` が `bypassPermissions` のモードでも確認の画面を出すかは、文書に明記が無い。そのため予備の `permissions.ask` を置いた（明示の ask の規則は `bypassPermissions` でも確認の画面を出すと文書にある）。実際の確認の画面は、この PR のマージ後に、オーナーが頼んだマージで確かめる。
+  - `gh` の名前を `gh.exe` やパス付きで書いたもの、スクリプトから呼んだものは、hook も `permissions.ask` も見分けられない（ほかの hook の判定と同じ限界。`.claude/rules/github.md`「hookの位置づけ」）。

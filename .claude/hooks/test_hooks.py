@@ -243,6 +243,65 @@ def secret_hook_tests(tmp):
                                                 {"SONAQUEST_BLOCKLIST": str(tmp / "none.txt")})[0])
 
 
+def decision(script, tool, tool_input, extra=None):
+    """hook の判定を "ask"・"block"・"allow" で返す。確認を求めるときは、標準出力が決まった形の JSON だけか確かめる。"""
+    payload = json.dumps({"tool_name": tool, "tool_input": tool_input, **(extra or {})},
+                         ensure_ascii=False).encode("utf-8")
+    p = subprocess.run([PY, str(HOOKS / script)], input=payload, capture_output=True)
+    out = p.stdout.decode("utf-8", "replace").strip()
+    if p.returncode == 2:
+        return "block" if not out else "block+stdout"
+    if p.returncode != 0:
+        return f"exit {p.returncode}"
+    if not out:
+        return "allow"
+    try:
+        h = json.loads(out)["hookSpecificOutput"]
+    except (ValueError, KeyError, TypeError):
+        return "bad-json"
+    if h.get("hookEventName") == "PreToolUse" and h.get("permissionDecision") == "ask" \
+            and "オーナー" in h.get("permissionDecisionReason", "") and "PR番号" in h["permissionDecisionReason"]:
+        return "ask"
+    return "bad-json"
+
+
+def merge_hook_ask_tests(G, on_work):
+    """Issue #90（ADR-0040）：gh pr merge は確認の画面を出す。--admin・--auto・PR を指さないものは止める。"""
+    print("--- gh pr merge の確認の画面（Claude Code hook）")
+    for cmd, want in (
+            ("gh pr merge 12 --merge", "ask"),
+            ("gh pr merge 3 --squash", "ask"),
+            ("gh pr merge --merge 12", "ask"),
+            ("gh pr merge 12 --merge --delete-branch", "ask"),
+            ("gh pr merge https://github.com/Owner/Repo/pull/12 --merge", "ask"),
+            ("gh pr merge -R Owner/Repo 12 --merge", "ask"),
+            ("gh pr merge 12 --merge --subject 件名 --body 本文", "ask"),
+            ("gh pr merge 12 --merge --admin", "block"),
+            ("gh pr merge 12 --admin=true", "block"),
+            ("gh pr merge 12 --auto --merge", "block"),
+            ("gh pr merge --auto 12", "block"),
+            ("gh pr merge", "block"),
+            ("gh pr merge --merge", "block"),
+            ("gh pr merge -R Owner/Repo --merge", "block"),
+            ("gh pr merge feat/1-x --merge", "block"),
+            ("gh pr merge 12 13 --merge", "block"),
+            ("gh pr merge $(gh pr list -q x) --merge", "block"),
+            ('gh pr merge "$N" --merge', "block"),
+            ("git status && gh pr merge 12 --merge", "ask"),
+            ("gh pr merge 12 --merge && git status", "ask"),
+            ("gh pr merge 12 --merge; gh pr merge 13 --merge", "ask"),
+            ("gh pr merge 12 --merge && git push origin main", "block"),
+            ("git push --force && gh pr merge 12 --merge", "block"),
+            ("gh pr merge 12 --merge && gh pr merge 13 --auto", "block"),
+            ("git status && gh pr merge", "block"),
+            ("git status", "allow"),
+            ("gh pr view 12", "allow"),
+            ("git push origin main", "block")):
+        check(f"Bash: {cmd}", want, decision(G, "Bash", {"command": cmd}, extra=on_work))
+    check("PowerShell: gh pr merge 12 --merge", "ask", decision(G, "PowerShell", {"command": "gh pr merge 12 --merge"}, extra=on_work))
+    check("PowerShell: gh pr merge 12 --admin", "block", decision(G, "PowerShell", {"command": "gh pr merge 12 --admin"}, extra=on_work))
+
+
 def github_hook_tests():
     G = "guard_github.py"
     on_main, on_work = {"_test_branch": "main"}, {"_test_branch": "docs/1-x"}
@@ -252,7 +311,7 @@ def github_hook_tests():
     check("Bash: main へpush", 2, hook(G, "Bash", {"command": "git push origin main"}, extra=on_work)[0])
     check("Bash: 作業ブランチをpush", 0, hook(G, "Bash", {"command": "git push -u origin docs/1-x"}, extra=on_work)[0])
     check("Bash: main を削除", 2, hook(G, "Bash", {"command": "git branch -D main"}, extra=on_work)[0])
-    check("Bash: gh pr merge", 2, hook(G, "Bash", {"command": "gh pr merge 3 --squash"}, extra=on_work)[0])
+    merge_hook_ask_tests(G, on_work)
     check("Bash: 保護設定を変更", 2, hook(G, "Bash", {"command": "gh api -X PUT repos/o/r/branches/main/protection"}, extra=on_work)[0])
     check("Bash: 保護設定を読むだけ", 0, hook(G, "Bash", {"command": "gh api repos/o/r/rulesets"}, extra=on_work)[0])
     check("Bash: main にいてコミット", 2, hook(G, "Bash", {"command": "git commit -m x"}, extra=on_main)[0])

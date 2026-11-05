@@ -6,7 +6,9 @@
 - ローカルの main を動かす・同じ名前の参照を作る（branch -f/-m/-c、update-ref、tag、fetch の X:main、
   switch -C・checkout -B、worktree add -b main）。マーカー解除の判定がローカルの main を見るため（ADR-0024）
 - main にいるときのコミット・マージ等（コマンドを区切りごとに順に見て、途中のブランチ切り替えも追う）
-- PRのマージ（gh pr merge）、リポジトリ設定の変更、保護設定・Rulesetsへの書き込み
+- PRのマージ（gh pr merge）は止めずに、確認の画面を出す（permissionDecision: "ask"。ADR-0040）。
+  ただし --admin・--auto と、PR を番号・URLで1つ指さないもの（省くと今のブランチのPRになる）は止める
+- リポジトリ設定の変更、保護設定・Rulesetsへの書き込み
 - コミット前の検査（pre-commit）を通らない操作：git am、コミットまで行う cherry-pick・revert、
   git commit -n・--no-verify の省略形（Issue #30。merge は pre-merge-commit が検査する）
 - push・fetch の宛先を設定で変える操作（-c remote.*.push=…、push.default、remote.*.fetch、git remote add 等）
@@ -15,6 +17,8 @@
 コマンドの cd・pushd・Set-Location の行き先、git -C の指定の順にたどる。worktree ごとにブランチを見る。
 行き先を判定できないとき（変数・置換、cd -、popd、まだ無いフォルダ、--git-dir・GIT_DIR）は、
 main を変えうる操作を止める。
+止める区切りが1つでもあれば止める（終了コード2）。止めるものが無く、確認が要る区切りがあれば、
+標準出力に確認を求める JSON だけを出して終了コード0で終える。
 これはClaude Codeを通した誤操作を防ぐ補助で、正は GitHub の Ruleset（ADR-0014）。
 """
 import json
@@ -497,9 +501,35 @@ def check_git(sub, args, branch, configs=(), trees=None, d=None):
     return branch
 
 
+MERGE_ASK = ("PRのマージは、オーナーがチャットで明示的に頼んだときだけ行います。"
+             "許可する前に、PR番号がオーナーの頼んだものと同じか確かめてください（ADR-0040）。")
+GH_MERGE_VALUE_OPTS = {"-R", "--repo", "-t", "--subject", "-b", "--body", "-F", "--body-file",
+                       "-A", "--author-email", "--match-head-commit"}
+PR_URL = re.compile(r"https://github\.com/[^/\s]+/[^/\s]+/pull/\d+/?")
+
+
+def check_pr_merge(args):
+    """gh pr merge の引数を確かめる。止めるなら Blocked、確認の画面を出すならその理由を返す（ADR-0040）。"""
+    for a in args:
+        if a == "--":
+            break
+        name = a.split("=", 1)[0]
+        if name == "--admin":
+            raise Blocked("gh pr merge --admin（保護を飛ばすマージ）は使いません。")
+        if name == "--auto":
+            raise Blocked("gh pr merge --auto（条件がそろうと自動でマージする）は使いません。")
+    targets = positionals(args, GH_MERGE_VALUE_OPTS)
+    if len(targets) != 1:
+        raise Blocked("gh pr merge には、マージするPRの番号かURLを1つだけ書いてください（省くと今のブランチのPRになります）。")
+    if not (targets[0].isdigit() or PR_URL.fullmatch(targets[0])):
+        raise Blocked("gh pr merge のPRは、番号かURLで指してください（ブランチ名・変数・置換では指さない）。")
+    return MERGE_ASK
+
+
 def check_gh(segment, tokens):
+    """止めるなら Blocked。確認の画面を出すなら、その理由を返す。"""
     if tokens[:3] == ["gh", "pr", "merge"]:
-        raise Blocked("PRのマージはオーナーの明示的な承認後に、オーナーが行います。")
+        return check_pr_merge(tokens[3:])
     if tokens[:2] == ["gh", "repo"] and len(tokens) > 2 and tokens[2] in ("edit", "delete", "rename", "archive"):
         raise Blocked("リポジトリ設定の変更・削除はオーナーの承認が要ります。")
     if tokens[:2] == ["gh", "api"] and re.search(r"protection|rulesets", segment) \
@@ -508,11 +538,14 @@ def check_gh(segment, tokens):
 
 
 def check_command(cmd, trees):
+    """止める区切りがあれば Blocked。無ければ、確認の画面を出す理由の一覧（空なら何もしない）を返す。
+    確認が要る区切りの後に止める区切りがあっても止めるよう、最後の区切りまで見てから返す。"""
+    asks = []
     commands = split_commands(cmd)
     if commands is None:
         if re.search(r"\bgit\b|\bgh\b", cmd):
             raise Blocked("コマンドを解析できません（引用符が閉じていない等）。git・gh の操作は分けて実行してください。")
-        return
+        return asks
     # GIT_DIR・GIT_WORK_TREE を設定すると、git が操作する作業ツリーを判定できない
     repo_env = any(GIT_REPO_ENV.match(t) for assigns, tokens, _ in commands for t in assigns + tokens)
     for _, tokens, _ in commands:
@@ -537,7 +570,10 @@ def check_command(cmd, trees):
             if g["sub"] in ("switch", "checkout") and after != branch:
                 trees.switch(d, after)
         elif tokens and tokens[0] == "gh":
-            check_gh(" ".join(tokens), tokens)
+            reason = check_gh(" ".join(tokens), tokens)
+            if reason and reason not in asks:
+                asks.append(reason)
+    return asks
 
 
 def main():
@@ -552,10 +588,17 @@ def main():
     cwd = data.get("cwd") or os.getcwd()
     cwd = os.path.normpath(native_path(cwd))
     try:
-        check_command(cmd, Trees(cwd, data.get("_test_branch")))
+        asks = check_command(cmd, Trees(cwd, data.get("_test_branch")))
     except Blocked as e:
         print(f"BLOCKED（main・GitHubの保護）: {e}", file=sys.stderr)
         sys.exit(2)
+    if asks:
+        # 標準出力にはこの JSON だけを出す。終了コード0なら、Claude Code が確認の画面を出す（ADR-0040）
+        print(json.dumps({"hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "ask",
+            "permissionDecisionReason": " ".join(asks),
+        }}, ensure_ascii=False))
 
 
 if __name__ == "__main__":
