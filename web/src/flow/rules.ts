@@ -21,6 +21,7 @@ import type {
   PrepActionId,
   Question,
   SourceId,
+  ViewpointId,
 } from "./types";
 
 /**
@@ -109,4 +110,34 @@ export function verifiedSourcesFor(
   return links[action]
     .map((id) => sources[id])
     .filter((s): s is PublicSource => s !== undefined && s.verified);
+}
+
+/** 振り返りの先頭の「まだ弱いところ → 次の一手」1件（ADR-0051） */
+export interface NextStep {
+  viewpoint: ViewpointId;
+  judgment: Judgment;
+  /** その観点に関係する準備行動のうち、規則で選んだ1つ */
+  action: PrepActionId;
+}
+
+/**
+ * 手薄な観点ごとに、次の一手（準備行動）を1つ選ぶ（ADR-0051）。固定の表と規則だけで、Claude は使わない。
+ * 並びは「確認していない」を先に、次に「未確認と気づいた」。同じ判定の中は VIEWPOINT_ORDER の順。
+ * 準備行動は PREP_ACTIONS の順で、その観点に関係する最初のもの。別の観点で既に選んだものはなるべく避け、
+ * 避けられないときは重なってもよい（同じ行動が2つの観点を強くすることはある）。
+ * 「判定できませんでした」は手薄として扱わないので、すべて undetermined の回は空になる
+ */
+export function nextSteps(judgments: Judgments): NextStep[] {
+  const weak = VIEWPOINT_ORDER.filter((v) => isWeak(judgments[v]));
+  const ordered = [
+    ...weak.filter((v) => judgments[v] === "not_mentioned"),
+    ...weak.filter((v) => judgments[v] === "aware_unconfirmed"),
+  ];
+  const used = new Set<PrepActionId>();
+  return ordered.map((viewpoint) => {
+    const related = PREP_ACTIONS.filter((a) => a.viewpoints.includes(viewpoint));
+    const pick = related.find((a) => !used.has(a.id)) ?? related[0];
+    used.add(pick.id);
+    return { viewpoint, judgment: judgments[viewpoint], action: pick.id };
+  });
 }

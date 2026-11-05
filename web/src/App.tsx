@@ -154,6 +154,7 @@ export function App() {
           <Done
             action={stage.action}
             timing={stage.timing}
+            judgments={state.ai === "on" ? state.judgments : null}
             onRestart={() => dispatch({ type: "restart" })}
           />
         )}

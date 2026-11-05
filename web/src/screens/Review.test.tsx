@@ -2,13 +2,19 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
   AI_FAILED_NOTE,
+  DETAILS_SUMMARY,
   EVENTS,
   FIRST_HALF_QUESTIONS,
   HANDOVER_QUESTION,
   INTERRUPTION_NOTE,
   JUDGMENT_LABELS,
   JUDGMENT_NOTE,
+  NEXT_STEPS_HEADING,
+  NEXT_STEP_LABEL,
+  NEXT_STEP_PICK,
+  NO_WEAK_POINTS_NOTE,
   PREP_ACTIONS,
+  PREP_ACTION_EFFECTS,
   PUBLIC_SOURCES,
   RECALL_FEEDBACK,
   RECOVERY_QUESTION,
@@ -16,11 +22,14 @@ import {
   REVIEW_RECOVERY_LABEL,
   REVIEW_SOURCES_HEADING,
   REVIEW_SOURCES_NOTE,
+  STRONG_POINTS_LABEL,
   TIMINGS,
   VIEWPOINT_LABELS,
   VIEWPOINT_ORDER,
+  VIEWPOINT_SHORT_LABELS,
+  WEAK_POINT_LINES,
 } from "../flow/content";
-import { orderPrepActions, verifiedSourcesFor } from "../flow/rules";
+import { nextSteps, orderPrepActions, verifiedSourcesFor } from "../flow/rules";
 import { initialState, type TrainingState } from "../flow/training";
 import type { Answer, Judgments, PrepActionId } from "../flow/types";
 import { Review } from "./Review";
@@ -89,12 +98,13 @@ const handover = state({
 const render = (s: TrainingState) => renderToStaticMarkup(<Review state={s} onChoose={() => {}} />);
 
 const H = {
-  weak: "<h2>手薄なところ</h2>",
+  next: `<h2>${NEXT_STEPS_HEADING}</h2>`,
+  recall: "<h2>今ここで確かめましょう</h2>",
+  prep: '<h2 id="prep-cards">次の準備を1つ決める</h2>',
+  details: `<summary>${DETAILS_SUMMARY}</summary>`,
   event: `<h2>${REVIEW_EVENT_HEADING}</h2>`,
   viewpoints: "<h2>5つの観点</h2>",
   raw: "<h2>あなたの回答（入力したまま）</h2>",
-  recall: "<h2>今ここで確かめましょう</h2>",
-  prep: "<h2>次の準備を1つ決める</h2>",
 };
 
 /** 見出しが、この順に1回ずつ出ていること */
@@ -110,51 +120,37 @@ function expectOrder(html: string, headings: string[]) {
 const between = (html: string, from: string, to: string) =>
   html.slice(html.indexOf(from), html.indexOf(to));
 
-describe("⑥振り返りの並びと絵（A-05 の⑥、Issue #49）", () => {
-  it("判定が混在する回：受け止め → 手薄 → 出来事と立て直し → 判定 → 原文 → 今ここで → 次の準備", () => {
+const label = (id: PrepActionId) => PREP_ACTIONS.find((a) => a.id === id)!.label;
+
+describe("⑥振り返りの並び（A-05 の⑥、Issue #49、ADR-0051）", () => {
+  it("判定が混在する回：受け止め → まだ弱いところと次の一手 → 今ここで → 次の準備 → くわしく見る（出来事 → 5つの観点 → 原文）", () => {
     const html = render(battery);
-    expect(html.indexOf("試験の受け止め")).toBeLessThan(html.indexOf(H.weak));
-    expectOrder(html, [H.weak, H.event, H.viewpoints, H.raw, H.recall, H.prep]);
+    expect(html.indexOf("試験の受け止め")).toBeLessThan(html.indexOf(H.next));
+    expectOrder(html, [H.next, H.recall, H.prep, H.details, H.event, H.viewpoints, H.raw]);
   });
 
-  it("手薄なところは、確認していない・未確認と気づいた観点だけを、絵と観点の名前・判定の文字で示す", () => {
+  it("先頭に見えるのは短いまとめだけ：次の一手の前に、回答の原文も出来事の文も出ない", () => {
     const html = render(battery);
-    const weak = between(html, H.weak, H.event);
-    expect(weak).toContain(VIEWPOINT_LABELS.alternative);
-    expect(weak).toContain(VIEWPOINT_LABELS.current);
-    expect(weak).not.toContain(VIEWPOINT_LABELS.location);
-    expect(weak).toContain(JUDGMENT_LABELS.aware_unconfirmed);
-    expect(weak).toContain(JUDGMENT_LABELS.not_mentioned);
-    const svgs = weak.match(/<svg[^>]*>/g) ?? [];
-    expect(svgs).toHaveLength(2);
-    for (const svg of svgs) expect(svg).toContain('aria-hidden="true"');
+    const top = html.slice(0, html.indexOf(H.details));
+    expect(top).not.toContain("試験の回答・前半");
+    expect(top).not.toContain("試験の回答・立て直し");
+    expect(top).not.toContain(EVENTS.battery.text);
+    // 判定の意味（医学的な正しさではない）は、判定の文字が最初に出る先頭のまとめのすぐ下に1回だけ
+    expect(html.split(JUDGMENT_NOTE)).toHaveLength(2);
+    expect(html.indexOf(JUDGMENT_NOTE)).toBeLessThan(html.indexOf(H.recall));
   });
 
-  it("5つの観点の判定の文字がすべて出て、JUDGMENT_NOTE が判定の一覧の直後にある", () => {
+  it("出来事と立て直し、5つの観点、回答の原文、記録の形は details の中に残す（消さない）", () => {
     const html = render(battery);
-    const section = between(html, H.viewpoints, H.raw);
+    const details = html.slice(html.indexOf(H.details));
+    expect(details).toContain(EVENTS.battery.text);
+    expect(details).toContain(EVENTS.battery.unavailable!);
+    expect(details).toContain(`<h3>${REVIEW_RECOVERY_LABEL}</h3>`);
+    expect(details).toContain("試験の回答・立て直し");
     for (const v of VIEWPOINT_ORDER) {
-      expect(section).toContain(`<dt>${VIEWPOINT_LABELS[v]}</dt><dd>${JUDGMENT_LABELS[mixed[v]]}</dd>`);
+      expect(details).toContain(`<dt>${VIEWPOINT_LABELS[v]}</dt><dd>${JUDGMENT_LABELS[mixed[v]]}</dd>`);
     }
-    expect(html).toContain(`</dl><p class="small">${JUDGMENT_NOTE}</p>`);
-  });
-
-  it("出来事と立て直し：電池切れで使えなくなった2つを、絵・斜線・「（使えない）」で示し、立て直しの回答を原文で出す", () => {
-    const html = render(battery);
-    const section = between(html, H.event, H.viewpoints);
-    expect(section).toContain(EVENTS.battery.text);
-    expect(section).toContain(EVENTS.battery.unavailable!);
-    expect(section).toContain("スマートフォン<span class=\"source-chip-state\">（使えない）</span>");
-    expect(section).toContain("アプリ・マイナポータル<span class=\"source-chip-state\">（使えない）</span>");
-    expect(section.match(/class="source-chip-slash" aria-hidden="true"/g)).toHaveLength(2);
-    expect(section).toContain(`<h3>${REVIEW_RECOVERY_LABEL}</h3>`);
-    expect(section).toContain("試験の回答・立て直し");
-    expect(section).not.toContain("試験の回答・前半");
-  });
-
-  it("回答の原文は出来事の前後に分けたまま、その間に出来事と使えなくなったものを示す", () => {
-    const html = render(battery);
-    const raw = between(html, H.raw, H.recall);
+    const raw = details.slice(details.indexOf(H.raw));
     const before = raw.indexOf("<h3>出来事の前</h3>");
     const divider = raw.indexOf("<h3>出来事</h3>");
     const after = raw.indexOf("<h3>出来事の後</h3>");
@@ -164,14 +160,94 @@ describe("⑥振り返りの並びと絵（A-05 の⑥、Issue #49）", () => {
     expect(raw.indexOf("試験の回答・前半")).toBeLessThan(divider);
     expect(raw.indexOf("試験の回答・立て直し")).toBeGreaterThan(after);
     expect(raw.slice(divider, after)).toContain("（使えない）");
+    expect(details).toContain('class="record-card"');
+  });
+});
+
+describe("まだ弱いところと、次の一手（ADR-0051）", () => {
+  it("手薄な観点だけを、絵・短い名前・判定の文字・一言・準備行動1つ・「これを準備する」で示す", () => {
+    const html = render(battery);
+    const section = between(html, H.next, H.recall);
+    const items = section.match(/<li class="next-step">/g) ?? [];
+    expect(items).toHaveLength(2);
+    // 「確認していない」（current）が「未確認と気づいた」（alternative）より先
+    expect(section.indexOf(VIEWPOINT_SHORT_LABELS.current)).toBeLessThan(
+      section.indexOf(VIEWPOINT_SHORT_LABELS.alternative),
+    );
+    expect(section).toContain(JUDGMENT_LABELS.not_mentioned);
+    expect(section).toContain(JUDGMENT_LABELS.aware_unconfirmed);
+    expect(section).toContain(WEAK_POINT_LINES.current.not_mentioned);
+    expect(section).toContain(WEAK_POINT_LINES.alternative.aware_unconfirmed);
+    expect(section).not.toContain(WEAK_POINT_LINES.current.aware_unconfirmed);
+    // 次の一手は nextSteps と同じ準備行動
+    for (const s of nextSteps(mixed)) {
+      expect(section).toContain(`<span class="label">${NEXT_STEP_LABEL}：</span>${label(s.action)}`);
+    }
+    expect(section.match(new RegExp(`>${NEXT_STEP_PICK}</button>`, "g"))).toHaveLength(2);
+    expect(section.match(/aria-pressed="false"/g)).toHaveLength(2);
+    // 確認できた観点は、ここでは「伝えられたこと」の1行にだけ出る
+    const strong = section.slice(section.indexOf(STRONG_POINTS_LABEL));
+    expect(strong).toContain(VIEWPOINT_SHORT_LABELS.location);
+    expect(strong).toContain(VIEWPOINT_SHORT_LABELS.unrecorded);
+    expect(strong).toContain(VIEWPOINT_SHORT_LABELS.proxy);
+    expect(section.slice(0, section.indexOf(STRONG_POINTS_LABEL))).not.toContain(
+      VIEWPOINT_SHORT_LABELS.location,
+    );
+    const svgs = section.slice(0, section.indexOf(STRONG_POINTS_LABEL)).match(/<svg[^>]*>/g) ?? [];
+    expect(svgs).toHaveLength(2);
+    for (const svg of svgs) expect(svg).toContain('aria-hidden="true"');
   });
 
-  it("準備行動とそのときは大きなカード。準備行動には絵（aria-hidden）が付き、「これに決める」は fieldset の直後", () => {
+  it("まとめの文は固定文だけ：利用者の回答の文を引かず、1文が短い", () => {
+    const section = between(render(battery), H.next, H.recall);
+    expect(section).not.toContain("試験の回答");
+    for (const v of VIEWPOINT_ORDER) {
+      for (const line of Object.values(WEAK_POINT_LINES[v])) {
+        expect(line.length).toBeLessThanOrEqual(40);
+        expect(line).not.toMatch(/mg|錠|カプセル/);
+      }
+      expect(VIEWPOINT_SHORT_LABELS[v].length).toBeLessThanOrEqual(12);
+    }
+    for (const a of PREP_ACTIONS) expect(PREP_ACTION_EFFECTS[a.id].length).toBeLessThanOrEqual(40);
+  });
+
+  it("全部「確認できた」の回：弱いところの一覧を出さず、固定の一言と判定の意味を出し、準備は選ばせる", () => {
+    const html = render(confirmedAll);
+    expect(html).not.toContain(H.next);
+    expect(html).not.toContain('class="next-step"');
+    expect(html).toContain(NO_WEAK_POINTS_NOTE);
+    expect(html).toContain(JUDGMENT_NOTE);
+    expectOrder(html, [H.recall, H.prep, H.details, H.event, H.viewpoints, H.raw]);
+    expect(html).toContain("お薬手帳<span class=\"source-chip-state\">（使えない）</span>");
+  });
+
+  it("全部「判定できませんでした」の回（ai: failed）：弱いところを出さず、判定できなかった知らせだけ。推測の一手も出さない", () => {
+    const html = render(failed);
+    expect(html).not.toContain(H.next);
+    expect(html).not.toContain('class="next-step"');
+    expect(html).not.toContain(NO_WEAK_POINTS_NOTE);
+    expect(html).not.toContain('class="mode-card-badge"');
+    expect(html).toContain(AI_FAILED_NOTE);
+    expectOrder(html, [H.recall, H.prep, H.details, H.event, H.viewpoints, H.raw]);
+    expect(html.split(`<dd>${JUDGMENT_LABELS.undetermined}</dd>`)).toHaveLength(VIEWPOINT_ORDER.length + 1);
+  });
+});
+
+describe("⑥振り返りの準備行動と、今ここで確かめましょう", () => {
+  it("準備行動とそのときは大きなカード。次の一手の行動に印、どの行動にも一言。「これに決める」は fieldset の直後", () => {
     const html = render(battery);
-    const prep = html.slice(html.indexOf(H.prep));
+    const prep = between(html, H.prep, H.details);
     expect(prep.match(/<label class="mode-card">/g)).toHaveLength(PREP_ACTIONS.length + TIMINGS.length);
-    for (const a of PREP_ACTIONS) expect(prep).toContain(`<span class="mode-card-label">${a.label}</span>`);
+    for (const a of PREP_ACTIONS) {
+      expect(prep).toContain(`<span class="mode-card-label">${a.label}</span>`);
+      expect(prep).toContain(`<span class="mode-card-description">${PREP_ACTION_EFFECTS[a.id]}</span>`);
+    }
     for (const t of TIMINGS) expect(prep).toContain(`<span class="mode-card-label">${t.label}</span>`);
+    const recommended = new Set(nextSteps(mixed).map((s) => s.action));
+    expect(prep.match(/<span class="mode-card-badge">/g)).toHaveLength(recommended.size);
+    // 印の付いた行動は上に並ぶ（orderPrepActions）
+    const order = orderPrepActions(mixed);
+    for (const id of recommended) expect(order.indexOf(id)).toBeLessThan(recommended.size + 1);
     const actionSet = prep.slice(0, prep.indexOf("<legend>いつやるか</legend>"));
     const svgs = actionSet.match(/<svg[^>]*>/g) ?? [];
     expect(svgs).toHaveLength(PREP_ACTIONS.length);
@@ -179,23 +255,6 @@ describe("⑥振り返りの並びと絵（A-05 の⑥、Issue #49）", () => {
     expect(prep).toContain('</fieldset><button type="button" class="primary" disabled="">これに決める</button>');
     // 何も選ばないうちは、どのラジオも選ばれていない
     expect(prep).not.toContain('checked=""');
-  });
-
-  it("全部「確認できた」の回：手薄なところを出さず、ほかの順は崩れない", () => {
-    const html = render(confirmedAll);
-    expect(html).not.toContain(H.weak);
-    expect(html).not.toContain('class="weak-item"');
-    expectOrder(html, [H.event, H.viewpoints, H.raw, H.recall, H.prep]);
-    expect(html).toContain("お薬手帳<span class=\"source-chip-state\">（使えない）</span>");
-  });
-
-  it("全部「判定できませんでした」の回（ai: failed）：手薄なところを出さず、判定できなかった知らせと判定の文字を出す", () => {
-    const html = render(failed);
-    expect(html).not.toContain(H.weak);
-    expect(html).not.toContain('class="weak-item"');
-    expectOrder(html, [H.event, H.viewpoints, H.raw, H.recall, H.prep]);
-    expect(html).toContain(AI_FAILED_NOTE);
-    expect(html.split(`<dd>${JUDGMENT_LABELS.undetermined}</dd>`)).toHaveLength(VIEWPOINT_ORDER.length + 1);
   });
 
   it("「今ここで確かめましょう」に、中断すると体調を崩しやすい薬の固定文が、思い出せないときの案内の後に、どの回でも1回出る（Issue #94）", () => {
@@ -211,12 +270,12 @@ describe("⑥振り返りの並びと絵（A-05 の⑥、Issue #49）", () => {
     }
   });
 
-  it("source が null（係の交代）：出来事の文と説明し直しの回答は出し、使えなくなったものの絵・斜線・「（使えない）」は出さない", () => {
+  it("source が null（係の交代）：出来事の文と説明し直しの回答は details に出し、使えなくなったものの絵・斜線・「（使えない）」は出さない", () => {
     const html = render(handover);
-    expectOrder(html, [H.weak, H.event, H.viewpoints, H.raw, H.recall, H.prep]);
-    const section = between(html, H.event, H.viewpoints);
-    expect(section).toContain(EVENTS.handover.text);
-    expect(section).toContain("試験の回答・説明し直し");
+    expectOrder(html, [H.next, H.recall, H.prep, H.details, H.event, H.viewpoints, H.raw]);
+    const details = html.slice(html.indexOf(H.details));
+    expect(details).toContain(EVENTS.handover.text);
+    expect(details).toContain("試験の回答・説明し直し");
     expect(html).not.toContain("（使えない）");
     expect(html).not.toContain("source-chip-slash");
     expect(html).not.toContain("使えなくなったもの：");
@@ -266,12 +325,11 @@ describe("⑥振り返りの公的資料（A-06）", () => {
     expect(html).not.toContain(PUBLIC_SOURCES.myna_news_medicine.url);
   });
 
-  it("確認済みの資料を、今ここで確かめましょうと次の準備の間に、準備行動の名前の下に出す", () => {
+  it("確認済みの資料を、「これに決める」の後・くわしく見るの前に、準備行動の名前の下に出す", () => {
     const html = renderWith(battery);
-    expectOrder(html, [H.recall, heading, H.prep]);
-    const section = between(html, heading, H.prep);
+    expectOrder(html, [H.prep, "これに決める</button>", heading, H.details]);
+    const section = between(html, heading, H.details);
     expect(section).toContain(REVIEW_SOURCES_NOTE);
-    const label = (id: PrepActionId) => PREP_ACTIONS.find((a) => a.id === id)!.label;
     expect(section).toContain(`<h3>${label("notebook_bag")}</h3>`);
     expect(section).toContain(`<h3>${label("check_portal")}</h3>`);
     // 確認済みの資料が無い準備行動は、ここには出さない（カードではリンクなしで出る）
@@ -283,7 +341,7 @@ describe("⑥振り返りの公的資料（A-06）", () => {
   });
 
   it("リンクは別のタブで開き、発行元・題・見出し・確認日を出す。未確認の資料は出さない", () => {
-    const section = between(renderWith(battery), heading, H.prep);
+    const section = between(renderWith(battery), heading, H.details);
     expect(section).toContain(
       '<a href="https://example.test/verified" target="_blank" rel="noopener noreferrer">試験の発行元「試験の題」</a>',
     );
@@ -294,7 +352,7 @@ describe("⑥振り返りの公的資料（A-06）", () => {
 
   it("リンクは準備行動のカード（label）の中に入れない", () => {
     const html = renderWith(battery);
-    const cards = html.slice(html.indexOf(H.prep));
+    const cards = between(html, H.prep, heading);
     expect(cards).not.toContain("<a ");
   });
 });
