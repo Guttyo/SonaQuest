@@ -19,6 +19,9 @@ describe("掲示板チャットの文の検査：薬剤以外の連絡は通す"
     "近くの総合病院へ向かう道が通れるようになりました。",
     "患者さんの待合のいすが足りません。毛布も追加をお願いします。",
     "本部と救護所Aだけの欄で、次の便の時刻を知らせます。",
+    "毛布を2ヶ所に分けて届けます。",
+    "トイレ タオル、ブルーシートを積みました。",
+    "救護所A と B に、すごーく助かったと伝えてください。",
   ])("%s", (text) => {
     expect(chatTextProblem(text)).toBeNull();
   });
@@ -67,9 +70,28 @@ describe("掲示板チャットの文の検査：許していないカタカナ�
     expect(chatUnknownTerms("アムロジンとトイレ")).toEqual(["アムロジン"]);
   });
 
-  it("英字の言葉は HQ だけを許す", () => {
+  it("空白・改行・中黒で分けたカタカナの言葉も捨てる（すり抜け）", () => {
+    expect(chatTextProblem("ア ム ロ ジ ンを届けます。")).toBe("unknown_term");
+    expect(chatTextProblem("ア\nム\nロを届けます。")).toBe("unknown_term");
+    expect(chatTextProblem("ア・ム・ロを届けます。")).toBe("unknown_term");
+  });
+
+  it("1文字のカタカナも、数える言葉（ヶ・ヵ）と長音のほかは捨てる", () => {
+    expect(chatTextProblem("カを届けます。")).toBe("unknown_term");
+    expect(chatUnknownTerms("1ヶ所と2ヵ所")).toEqual([]);
+  });
+
+  it("許可の言葉をつなげた並びは通し、一覧に無い言葉が混じれば捨てる", () => {
+    expect(chatUnknownTerms("トイレタオル")).toEqual([]);
+    expect(chatUnknownTerms("トイレアムロ")).toEqual(["トイレアムロ"]);
+  });
+
+  it("英字の言葉は HQ と救護所の記号（大文字の A〜D の1文字）だけを許す", () => {
     expect(chatTextProblem("Please send water.")).toBe("unknown_term");
     expect(chatTextProblem("DMで知らせます。")).toBe("unknown_term");
+    expect(chatTextProblem("救護所Xへ届けます。")).toBe("unknown_term");
+    expect(chatTextProblem("救護所aへ届けます。")).toBe("unknown_term");
+    expect(chatUnknownTerms("HQ から救護所A・B・C・D へ")).toEqual([]);
     expect(chatUnknownTerms("HQ と救護所A")).toEqual([]);
   });
 

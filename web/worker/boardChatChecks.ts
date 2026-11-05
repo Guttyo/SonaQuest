@@ -41,13 +41,40 @@ export const CHAT_FORBIDDEN_PATTERNS: readonly RegExp[] = [
 /** 文を捨てた理由の種類。本文を含まないので、公開する版でもログに出してよい */
 export type ChatRejectReason = "length" | "forbidden" | "unknown_term";
 
-/** 許していないカタカナの言葉と英字の言葉を探す。英字は「HQ」と救護所の記号（1文字）だけを許す */
+/** カタカナで1文字だけ使ってよいもの（「1ヶ所」の「ヶ」など、数える言葉） */
+const KATAKANA_SINGLE_OK = new Set(["ヶ", "ヵ"]);
+/** 英字で使ってよいもの。本部の「HQ」と、救護所の記号（大文字の A〜D の1文字）だけ */
+const LATIN_OK = new Set(["HQ", "A", "B", "C", "D"]);
+
+/** カタカナの並びが、許可の一覧の言葉（後ろの長音は付いてよい）をつなげただけでできているか */
+function katakanaAllowed(run: string): boolean {
+  if (/^ー+$/.test(run) || KATAKANA_SINGLE_OK.has(run)) return true;
+  // 先頭から i 文字目までを、許可の言葉で区切れるか（区切れる位置を順に調べる）
+  const ok: boolean[] = new Array(run.length + 1).fill(false);
+  ok[0] = true;
+  for (let i = 0; i < run.length; i++) {
+    if (!ok[i]) continue;
+    for (const word of BOARD_CHAT_KATAKANA_WORDS) {
+      if (!run.startsWith(word, i)) continue;
+      let end = i + word.length;
+      while (run[end] === "ー") end += 1;
+      ok[i + word.length] = true;
+      ok[end] = true;
+    }
+  }
+  return ok[run.length];
+}
+
+/**
+ * 許していないカタカナの言葉と英字の言葉を探す。
+ * カタカナは空白・改行を除いてから、1文字の並びも含めて調べる（「ア ム ロ」のように分けてすり抜けないように）。
+ * 一覧の言葉をつなげただけの並び（「トイレタオル」）は通す。英字は「HQ」と救護所の記号（A〜D の1文字）だけを許す
+ */
 export function chatUnknownTerms(text: string): string[] {
   const nfkc = text.normalize("NFKC");
-  const katakana = [...nfkc.matchAll(new RegExp(`${KATAKANA}{2,}`, "gu"))]
-    .map((m) => m[0])
-    .filter((w) => !BOARD_CHAT_KATAKANA_WORDS.includes(w.replace(/ー+$/, "")) && !BOARD_CHAT_KATAKANA_WORDS.includes(w));
-  const latin = [...nfkc.matchAll(/[A-Za-z]{2,}/gu)].map((m) => m[0]).filter((w) => w !== "HQ");
+  const joined = nfkc.replace(/\s+/g, "");
+  const katakana = [...joined.matchAll(new RegExp(`${KATAKANA}+`, "gu"))].map((m) => m[0]).filter((w) => !katakanaAllowed(w));
+  const latin = [...nfkc.matchAll(/[A-Za-z]+/gu)].map((m) => m[0]).filter((w) => !LATIN_OK.has(w));
   return [...katakana, ...latin];
 }
 

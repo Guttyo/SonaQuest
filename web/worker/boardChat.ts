@@ -65,6 +65,7 @@ export type ChatFailure =
   | "refusal"
   | "terminated"
   | "no_message"
+  | "incomplete"
   | "unknown";
 
 export type CreateSessionResult = { ok: true; sessionId: string } | { ok: false; failure: ChatFailure };
@@ -184,12 +185,14 @@ export type ChatStreamEvent =
 
 /**
  * 送った後の出来事を、セッションが止まるまで読み、エージェントの文をつなげる。
- * 止まった（status_idle）は、この回の動き出し（status_running）かエージェントの文を見た後だけ数える
+ * 止まった（status_idle）は、この回の動き出し（status_running）かエージェントの文を見た後だけ数える。
+ * 文を使うのは、end_turn で止まったのを見たときだけ（途中で切れたストリームの文は使わない）
  * （ストリームは開いた後の出来事だけを流すが、開いた時点の状態が来ても1回目で終わらないようにする）
  */
 export async function collectTurn(stream: AsyncIterable<ChatStreamEvent>): Promise<RunTurnResult> {
   const texts: string[] = [];
   let started = false;
+  let ended = false;
   for await (const event of stream) {
     if (event.type === "agent.message" && "content" in event) {
       started = true;
@@ -199,7 +202,10 @@ export async function collectTurn(stream: AsyncIterable<ChatStreamEvent>): Promi
     } else if (event.type === "session.status_idle" && "stop_reason" in event) {
       if (!started) continue;
       const reason = event.stop_reason.type;
-      if (reason === "end_turn") break;
+      if (reason === "end_turn") {
+        ended = true;
+        break;
+      }
       if (reason === "budget_reached") return { ok: false, failure: "budget_reached" };
       if (reason === "requires_action") return { ok: false, failure: "requires_action" };
       if (reason === "retries_exhausted") return { ok: false, failure: "retries_exhausted" };
@@ -209,6 +215,8 @@ export async function collectTurn(stream: AsyncIterable<ChatStreamEvent>): Promi
       return { ok: false, failure: "terminated" };
     }
   }
+  // 止まった（end_turn）を見ないままストリームが終わったときは、文が途中かもしれないので使わない
+  if (!ended) return { ok: false, failure: "incomplete" };
   const text = texts.join("").trim();
   return text === "" ? { ok: false, failure: "no_message" } : { ok: true, text };
 }

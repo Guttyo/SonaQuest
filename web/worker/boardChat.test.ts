@@ -235,6 +235,7 @@ describe("/api/board/chat/turn", () => {
     ["terminated", 409, "session_unavailable"],
     ["refusal", 502, "unavailable"],
     ["no_message", 502, "unavailable"],
+    ["incomplete", 502, "unavailable"],
   ] as const)("失敗 %s は %i（%s）", async (failure, status, code) => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const { app } = fakeBackend(() => ({ ok: false, failure }));
@@ -341,6 +342,11 @@ describe("SSE の出来事の読み方（collectTurn）", () => {
     ["something_new", "unknown"],
   ])("止まった理由 %s は失敗 %s", async (reason, failure) => {
     expect(await collectTurn(events([running, message("途中"), idle(reason)]))).toEqual({ ok: false, failure });
+  });
+
+  it("止まった（end_turn）を見ないままストリームが終わったときは、文があっても失敗（incomplete）", async () => {
+    expect(await collectTurn(events([running, message("途中の文")]))).toEqual({ ok: false, failure: "incomplete" });
+    expect(await collectTurn(events([idle("end_turn"), message("途中の文")]))).toEqual({ ok: false, failure: "incomplete" });
   });
 
   it("終わった（terminated）セッションと、文が無いときは失敗", async () => {
