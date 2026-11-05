@@ -585,6 +585,17 @@ export const PREP_ACTION_EFFECTS: Record<PrepActionId, string> = {
 export const DONE_NOTE =
   "この内容は保存されません。忘れないように、メモや予定表に書いておきましょう。ときどきこの訓練を繰り返して、復習しておきましょう。";
 
+/**
+ * 終わりの画面の「メモに写す」（ADR-0051 の追記10）。決めた準備・いつ・まだ弱いところの固定文だけを、
+ * 利用者の端末のクリップボード（または共有）に渡す。回答の原文は入れない。アプリは保存しない
+ */
+// [TODO-OWNER: 「メモに写す」の文言と、写す内容の形（Claude Code の下書き。ADR-0051 追記10）]
+export const DONE_MEMO_TITLE = "お薬の避難訓練の、次の準備";
+export const DONE_MEMO_COPY = "メモに写す";
+export const DONE_MEMO_COPIED = "写しました。メモや予定表に貼ってください。";
+export const DONE_MEMO_FAILED = "写せませんでした。下の文を選んで写してください。";
+export const DONE_MEMO_SHARE = "共有する";
+
 // --- 中断 -----------------------------------------------------------------
 
 export const STOP_LABEL = "訓練をやめる";

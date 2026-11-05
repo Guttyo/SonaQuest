@@ -1636,6 +1636,42 @@ body,
   border: 1px solid var(--orange);
 }
 
+/* 終わりの画面の「メモに写す」：ボタン、写した知らせ、写す文（選んで写せる） */
+.done-memo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.done-memo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.done-memo-actions button {
+  flex: 1 1 160px;
+  margin: 0;
+}
+
+.done-memo-state {
+  min-height: 1.4em;
+  margin: 0;
+}
+
+.done-memo-text {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px dashed var(--line);
+  background: var(--surface);
+  font: inherit;
+  font-size: var(--fs-sub);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
 /* 振り返りで、出来事で使えなくなったもの（絵・斜線・「（使えない）」） */
 .lost-sources {
   list-style: none;

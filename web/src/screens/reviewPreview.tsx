@@ -121,7 +121,10 @@ function Preview() {
   );
 }
 
-createRoot(document.getElementById("root")!).render(
+// 開発中の HMR でこのファイルが再び動いても root を作り直さない（createRoot の二重呼び出しの警告を出さない）
+const container = document.getElementById("root")! as HTMLElement & { __previewRoot?: ReturnType<typeof createRoot> };
+const root = (container.__previewRoot ??= createRoot(container));
+root.render(
   <StrictMode>
     <Preview />
   </StrictMode>,
