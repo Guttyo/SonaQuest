@@ -1,6 +1,6 @@
 // 訓練の状態と遷移。状態はメモリにだけ持ち、保存しない（ADR-0007）。
 
-import { ACK_TEXT, AI_CONNECTED, CLARIFY_TEXTS, REDIRECT_TEXTS } from "./content";
+import { ACK_TEXT, AI_CONNECTED, CLARIFY_TEXTS, REDIRECT_TEXTS, ackFor } from "./content";
 import { detectDistress, type StopReason } from "./emergency";
 import type { TrainingMode } from "./mode";
 import {
@@ -142,7 +142,8 @@ function advance(state: TrainingState, text: string | null): TrainingState {
     return {
       ...state,
       stage: { name: half, index: nextIndex },
-      prompt: askPrompt(questions[nextIndex], text ?? ACK_TEXT + questions[nextIndex].text),
+      // 固定の受け止めは回答の数で替え、同じ言い方を続けない
+      prompt: askPrompt(questions[nextIndex], text ?? ackFor(state.answers.length) + questions[nextIndex].text),
     };
   }
   return {

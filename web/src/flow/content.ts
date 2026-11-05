@@ -305,6 +305,22 @@ export const WAITING_TEXT = "次の質問を考えています";
 // [TODO-OWNER: 前半・後半の最後と、固定の進行で次へ進むときに出す受け止めの一言（Claude Code の下書き：「教えてくださってありがとうございます。」）]
 export const ACK_TEXT = "教えてくださってありがとうございます。";
 
+/**
+ * 固定の進行で次の質問へ進むときの、短い受け止めの一言（2026-11-05 オーナー「教えてくださってありがとうございます。ばかり出て不愉快」）。
+ * 回答の数で順に替え、同じ言い方が続かないようにする。前半・後半の最後は ACK_TEXT のまま。内容には触れない
+ */
+export const ACK_TEXTS: readonly string[] = [
+  "はい、ありがとうございます。",
+  "わかりました。",
+  "ありがとうございます。",
+  "承知しました。",
+];
+
+/** n 番目の回答の後の受け止め（0 から） */
+export function ackFor(n: number): string {
+  return ACK_TEXTS[((n % ACK_TEXTS.length) + ACK_TEXTS.length) % ACK_TEXTS.length];
+}
+
 /** 途中で Claude とのやり取りに失敗し、固定の進行に切り替えたときに、1回だけ出す知らせ（ADR-0029 の4） */
 // [TODO-OWNER: 固定の進行に落ちたときの知らせ（Claude Code の下書き：「AIとのやり取りがうまくいかなかったため、ここからは決まった質問で進めます。」）]
 export const FALLBACK_NOTICE =
