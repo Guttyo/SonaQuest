@@ -3,7 +3,20 @@ import { describe, expect, it } from "vitest";
 import { HQ, INBOUND, STOCK, SYNC } from "./data";
 import { chartUndelivered, chartsFor, clockText, demoReducer, initialDemo, minutesAt, patientsWithExtra, prescriptionTotals, type DemoAction } from "./demo";
 import { caseRows, stockStatus } from "./summary";
-import { SITES } from "./data";
+import { ITEMS, SHELTERS, SITES } from "./data";
+import { arrivalRows, changesSince, FICTIONAL_NAMES, type DemoState } from "./demo";
+import {
+  CONDITIONS,
+  DEFAULT_ARRIVAL_SEED,
+  DISPENSE_DAYS,
+  SIM_PATIENTS,
+  arrivalPlan,
+  dispenseQty,
+  hasCondition,
+  mulberry32,
+  nextSeed,
+  simPatient,
+} from "./patients";
 
 const find = (s: ReturnType<typeof initialDemo>, site: string, item: string) => s.stock.find((r) => r.site === site && r.item === item)!;
 
@@ -182,5 +195,147 @@ describe("カルテの処方の累計（Issue #114）", () => {
     const p = s.proposals.find((x) => x.site === "救護所B" && x.item === "抗てんかん薬C")!;
     expect(chartUndelivered(s.records, "救護所B", "抗てんかん薬C")).toBe(12);
     expect(p.basis.need).toBe(needBefore + 12);
+  });
+});
+
+describe("架空の患者 100 人（Issue #122）", () => {
+  it("番号は 1〜100。氏名は架空と分かる姓だけで重ならず、入力の下書きの名前とも重ならない", () => {
+    expect(SIM_PATIENTS).toHaveLength(100);
+    expect(SIM_PATIENTS.map((p) => p.no)).toEqual(Array.from({ length: 100 }, (_, i) => i + 1));
+    const names = SIM_PATIENTS.map((p) => p.name);
+    expect(new Set(names).size).toBe(100);
+    for (const n of names) expect(n).toMatch(/^(架空|仮名|例示|見本|模擬) /);
+    for (const n of FICTIONAL_NAMES) expect(names).not.toContain(n);
+  });
+
+  it("服薬は既存の仮名の品目から 1〜3 品目で重ならず、1日の量は正の整数。けが・体調は固定の候補から", () => {
+    for (const p of SIM_PATIENTS) {
+      expect(p.meds.length).toBeGreaterThanOrEqual(1);
+      expect(p.meds.length).toBeLessThanOrEqual(3);
+      expect(new Set(p.meds.map((m) => m.item)).size).toBe(p.meds.length);
+      for (const m of p.meds) {
+        expect(ITEMS).toContain(m.item);
+        expect(Number.isInteger(m.perDay) && m.perDay > 0).toBe(true);
+        expect(dispenseQty(m)).toBe(m.perDay * DISPENSE_DAYS);
+      }
+      expect(CONDITIONS).toContain(p.condition);
+      expect(p.age).toBeGreaterThanOrEqual(20);
+      expect(["男性", "女性"]).toContain(p.sex);
+    }
+    // けがのある人もない人もいる
+    expect(SIM_PATIENTS.some(hasCondition)).toBe(true);
+    expect(SIM_PATIENTS.some((p) => !hasCondition(p))).toBe(true);
+  });
+
+  it("種付きの乱数は同じ種で同じ並び。到着の予定は100人を1回ずつ、救護所4か所のどこかに、時間の順で", () => {
+    const a = mulberry32(42);
+    const b = mulberry32(42);
+    expect([a(), a(), a()]).toEqual([b(), b(), b()]);
+    const plan = arrivalPlan(DEFAULT_ARRIVAL_SEED);
+    expect(plan).toEqual(arrivalPlan(DEFAULT_ARRIVAL_SEED));
+    expect(new Set(plan.map((p) => p.no)).size).toBe(100);
+    for (const p of plan) expect(SHELTERS).toContain(p.site);
+    for (let i = 1; i < plan.length; i += 1) expect(plan[i].hour).toBeGreaterThanOrEqual(plan[i - 1].hour);
+    const other = arrivalPlan(nextSeed(DEFAULT_ARRIVAL_SEED));
+    expect(other).not.toEqual(plan);
+    expect(nextSeed(DEFAULT_ARRIVAL_SEED)).toBe(nextSeed(DEFAULT_ARRIVAL_SEED));
+    expect(nextSeed(DEFAULT_ARRIVAL_SEED)).not.toBe(DEFAULT_ARRIVAL_SEED);
+  });
+});
+
+describe("架空の患者の到着（Issue #122）", () => {
+  const start = (seed = DEFAULT_ARRIVAL_SEED) => demoReducer(initialDemo(seed), { type: "arrivals", active: true });
+  const hours = (s: DemoState, n: number) => {
+    let t = s;
+    for (let i = 0; i < n; i += 1) t = demoReducer(t, { type: "tick", hours: 1 });
+    return t;
+  };
+
+  it("最初は止めていて、時計を進めても誰も到着しない（既存のデモの動きは変わらない）", () => {
+    const s = demoReducer(initialDemo(), { type: "tick", hours: 24 });
+    expect(s.arrivals.active).toBe(false);
+    expect(s.arrivals.arrived).toEqual([]);
+    expect(s.records).toEqual([]);
+  });
+
+  it("到着すると、記録に架空の氏名と番号で加わり、今日の患者が増え、服薬の品目ごとに 1日の量×3日分 を現地の在庫から引く。足りない分は未交付として需要に載る", () => {
+    const plan = arrivalPlan(DEFAULT_ARRIVAL_SEED);
+    const first = plan[0].hour;
+    // 到着の直前まで、止めたものと始めたものを並べて進める（ここまでは在庫が同じ）
+    const on0 = hours(start(), first - 1);
+    const off0 = { ...hours(initialDemo(), first - 1), arrivals: on0.arrivals };
+    expect(on0.stock).toEqual(off0.stock);
+    const on = demoReducer(on0, { type: "tick", hours: 1 });
+    const off = demoReducer({ ...off0, arrivals: { ...off0.arrivals, active: false } }, { type: "tick", hours: 1 });
+    const now = plan.filter((p) => p.hour === first);
+    expect(now.length).toBeGreaterThan(0);
+    expect(on.arrivals.arrived.map((a) => a.no).sort()).toEqual(now.map((p) => p.no).sort());
+    // 救護所×品目ごとに、3日分の合計を在庫から引き、0 より下にはしない。足りない分が未交付
+    const want = new Map<string, number>();
+    for (const p of now) for (const m of simPatient(p.no)!.meds) want.set(`${p.site}|${m.item}`, (want.get(`${p.site}|${m.item}`) ?? 0) + dispenseQty(m));
+    for (const [key, qty] of want) {
+      const [site, item] = key.split("|");
+      const before = find(off, site, item).onHand ?? 0;
+      const out = Math.min(before, qty);
+      expect(find(on, site, item).onHand).toBeCloseTo(before - out, 6);
+      const added = on.needs.slice(off.needs.length).filter((n) => n.site === site && n.item === item).reduce((a, n) => a + n.qty, 0);
+      expect(added).toBeCloseTo(qty - out, 6);
+    }
+    // 記録：架空の氏名・番号・服薬の品目（3日分）。今日の患者が到着の人数だけ増える
+    for (const p of now) {
+      const rec = on.records.find((r) => r.patientNo === p.no)!;
+      const patient = simPatient(p.no)!;
+      expect(rec).toMatchObject({ site: p.site, name: patient.name });
+      expect(rec.prescriptions.map((x) => [x.item, x.qty, x.days])).toEqual(patient.meds.map((m) => [m.item, m.perDay * 3, 3]));
+    }
+    for (const site of SHELTERS) {
+      const n = now.filter((p) => p.site === site).length;
+      expect(on.extraPatients[site]?.patients ?? 0).toBe(n);
+    }
+    // 「前回から変わったこと」は到着として数え、記録の文に氏名を入れない
+    expect(changesSince(on.log).到着).toBe(now.length);
+    for (const p of SIM_PATIENTS) expect(on.log.some((l) => l.text.includes(p.name))).toBe(false);
+  });
+
+  it("100人全員が到着したら止まる。各品目は 渡せた数＋未交付＝3日分 で、未交付はすべて需要に載っている", () => {
+    const s = hours(start(), 400);
+    expect(s.arrivals.arrived).toHaveLength(100);
+    const fromArrivals = s.records.filter((r) => r.patientNo !== undefined);
+    expect(fromArrivals).toHaveLength(100);
+    const undelivered = fromArrivals.flatMap((r) => r.prescriptions).reduce((a, x) => a + x.undelivered, 0);
+    expect(undelivered).toBeGreaterThan(0);
+    for (const r of fromArrivals) for (const x of r.prescriptions) expect(x.undelivered).toBeLessThanOrEqual(x.qty);
+    const needAdded = s.needs.slice(initialDemo().needs.length).reduce((a, n) => a + n.qty, 0);
+    expect(needAdded).toBeCloseTo(undelivered, 6);
+    const more = demoReducer(s, { type: "tick", hours: 24 });
+    expect(more.records).toHaveLength(s.records.length);
+    expect(arrivalRows(s)).toHaveLength(100);
+    expect(arrivalRows(s, "救護所A").every((r) => r.site === "救護所A")).toBe(true);
+  });
+
+  it("同じ種・同じ操作なら同じ動き。1日進めても1時間ずつ24回でも、同じ人が同じ時刻に同じ救護所に着く。種を替えると変わる", () => {
+    expect(hours(start(), 30)).toEqual(hours(start(), 30));
+    const day = demoReducer(start(), { type: "tick", hours: 24 });
+    const step = hours(start(), 24);
+    expect(day.arrivals.arrived).toEqual(step.arrivals.arrived);
+    const other = hours(start(nextSeed(DEFAULT_ARRIVAL_SEED)), 24);
+    expect(other.arrivals.arrived).not.toEqual(step.arrivals.arrived);
+  });
+
+  it("止めると到着しない。最初に戻すと同じ種のまま最初に戻り、別の並びでは種が替わって最初からになる", () => {
+    const s = hours(start(), 10);
+    const paused = demoReducer(s, { type: "arrivals", active: false });
+    expect(hours(paused, 5).arrivals.arrived).toEqual(s.arrivals.arrived);
+    expect(demoReducer(s, { type: "reset" })).toEqual(initialDemo());
+    const seed = nextSeed(DEFAULT_ARRIVAL_SEED);
+    const r = demoReducer(s, { type: "reseed", seed });
+    expect(r).toEqual(initialDemo(seed));
+    expect(demoReducer(hours(demoReducer(r, { type: "arrivals", active: true }), 3), { type: "reset" })).toEqual(initialDemo(seed));
+  });
+
+  it("元の架空データを書き換えない", () => {
+    hours(start(), 100);
+    expect(STOCK.find((r) => r.site === "救護所B" && r.item === "抗てんかん薬C")?.onHand).toBe(8);
+    expect(SYNC.find((r) => r.site === "救護所B")?.pending).toBe(42);
   });
 });
