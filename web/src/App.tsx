@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useRef } from "react";
 import { requestTurn } from "./flow/api";
 import { STOP_LABEL } from "./flow/content";
+import { currentIntroMode } from "./flow/mode";
 import { buildTurnRequest, initialState, trainingReducer } from "./flow/training";
 import { Dialogue } from "./screens/Dialogue";
 import { Done } from "./screens/Done";
@@ -71,7 +72,10 @@ export function App() {
       </header>
       <main ref={mainRef} tabIndex={-1} className="app-main">
         {stage.name === "intro" && (
-          <Intro onStart={(mode) => dispatch({ type: "start", mode })} />
+          <Intro
+            initialMode={currentIntroMode(state.session)}
+            onStart={(mode) => dispatch({ type: "start", mode })}
+          />
         )}
         {(stage.name === "first" ||
           stage.name === "confirm" ||

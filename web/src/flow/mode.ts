@@ -5,15 +5,24 @@
 export type TrainingMode = "2d" | "3d";
 
 /**
- * URL に `?mode=3d` を付けたときは、はじめにのモード選択の初期選択を 3D にする（予備）。それ以外は 2D。
- * 以前はこの値がそのまま訓練のモードだったが、今は初期選択にだけ使う。利用者はラジオで選び直せる
+ * URL に `?mode=3d` を付けたときは 3D、それ以外は 2D。
+ * 以前はこの値がそのまま訓練のモードだったが、今は最初の表示の初期選択にだけ使う（introInitialMode）
  */
 export function modeFromSearch(search: string): TrainingMode {
   return new URLSearchParams(search).get("mode") === "3d" ? "3d" : "2d";
 }
 
-/** URL から読んだ初期選択。ブラウザの外（試験など）では 2D */
-export function currentMode(): TrainingMode {
+/**
+ * はじめにの1画面目の初期選択（Issue #83、ADR-0036 の追記3）。
+ * ページを開いて最初の表示（session が 0）だけ、URL の `?mode=3d` を予備として読む。
+ * 「はじめに戻る」で戻った後（restart で session が 1 以上）は、URL にかかわらず既定の 2D。利用者はカードで選び直す
+ */
+export function introInitialMode(search: string, session: number): TrainingMode {
+  return session === 0 ? modeFromSearch(search) : "2d";
+}
+
+/** いまの URL から、はじめにの初期選択を決める。ブラウザの外（試験など）では 2D */
+export function currentIntroMode(session: number): TrainingMode {
   if (typeof window === "undefined") return "2d";
-  return modeFromSearch(window.location.search);
+  return introInitialMode(window.location.search, session);
 }
