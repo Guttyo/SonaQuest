@@ -1,12 +1,11 @@
 import { useEffect, useState, type Dispatch } from "react";
 import {
   ANSWER_HINTS,
-  EVENTS,
   SCENE_INTRO,
   WAITING_TEXT,
 } from "../flow/content";
 import { MAX_ANSWER_LENGTH, isAcceptableAnswer } from "../flow/rules";
-import { currentQuestion, type TrainingAction, type TrainingState } from "../flow/training";
+import { countedAnswers, currentQuestion, type TrainingAction, type TrainingState } from "../flow/training";
 import { SpeakerControls } from "../voice/SpeakerControls";
 import { TalkButton } from "../voice/TalkButton";
 import { usePushToTalk, useSpeakWhenChanged, useSpeaker } from "../voice/hooks";
@@ -15,9 +14,12 @@ import type { SpeakerSnapshot } from "../voice/speaker";
 import { listenerSpeech, speechKey } from "../voice/speech";
 import { listenerActivity } from "../voice/view";
 import { ConfirmSource } from "./ConfirmSource";
-import { ListenerStage, sceneNumber, type SceneId } from "./ListenerStage";
-import { EVENT_FOCUS, LOST_BY_EVENT, SourceChip, SourceIcon } from "./SourceIcon";
+import { EventScene } from "./EventScene";
+import { ListenerStage, type SceneId } from "./ListenerStage";
+import { LOST_BY_EVENT, SourceChip } from "./SourceIcon";
 import { ListenerLine, Transcript } from "./Transcript";
+import { SourceShift } from "./SourceShift";
+import { Puppet2DFace } from "./Puppet2D";
 
 interface Props {
   state: TrainingState;
@@ -79,7 +81,7 @@ export function Dialogue({ state, dispatch }: Props) {
 
   return (
     <section className={stage.name === "event" ? "screen dialogue scene-event" : "screen dialogue"} aria-label="対話">
-      <ListenerStage mode={mode} activity={activity} relief={relief} showState={voiceOn} scene={scene} nodKey={nods}>
+      <ListenerStage mode={mode} activity={activity} relief={relief} showState scene={scene} nodKey={nods}>
         {voiceOn && (
           <SpeakerControls
             snapshot={speech}
@@ -88,6 +90,8 @@ export function Dialogue({ state, dispatch }: Props) {
           />
         )}
         {chosen !== null && <SourceChip source={chosen} lost={lost} />}
+        {/* 後半の最初の回答を受け取った後は、出来事で使えなくなった情報源と残った情報源の並びも出す（B-02） */}
+        {showsSourceShift(state) && state.event !== null && <SourceShift event={state.event} chosen={chosen} />}
       </ListenerStage>
 
       <div className="dialogue-log">
@@ -115,34 +119,7 @@ export function Dialogue({ state, dispatch }: Props) {
         )}
 
         {stage.name === "event" && state.event !== null && (
-          <div className="event event-scene" role="alert" data-scroll-target tabIndex={-1}>
-            <p className="event-kicker">{sceneNumber("event")}</p>
-            <h2>想定外の出来事</h2>
-            {EVENT_FOCUS[state.event] !== null && (
-              <div className={`event-visual event-visual-${state.event}`} aria-hidden="true">
-                <SourceIcon
-                  id={EVENT_FOCUS[state.event]!}
-                  className="source-icon event-icon"
-                  battery={state.event === "battery"}
-                />
-                <span className="event-slash" />
-              </div>
-            )}
-            <p className="event-text">{EVENTS[state.event].text}</p>
-            {EVENTS[state.event].unavailable !== null && (
-              <p>
-                <span className="label">使えなくなったもの：</span>
-                {EVENTS[state.event].unavailable}
-              </p>
-            )}
-            <button
-              type="button"
-              className="primary"
-              onClick={() => dispatch({ type: "continue_after_event" })}
-            >
-              続ける
-            </button>
-          </div>
+          <EventScene event={state.event} onContinue={() => dispatch({ type: "continue_after_event" })} />
         )}
       </div>
 
@@ -164,14 +141,28 @@ export function Dialogue({ state, dispatch }: Props) {
 }
 
 /**
- * 返事を待つ間の「考え中」（ADR-0030）。光がゆっくり明滅し、文の後ろに点が流れる。
+ * 出来事のあとの情報源の並び（B-02）を出すか。後半の最初の問いは代わりの伝え方を尋ねるので、
+ * 答える前に候補を並べると答えの手がかりになり、Claude の判定にも影響し得る。
+ * そのため、後半の回答を1つ受け取った後からだけ出す（PR #81 のレビュー。出す時期はオーナーが確かめる）。
+ * 頼りにしていたもの1つが使えないこと（SourceChip）は、ほかの候補を並べないので後半の始めから出す
+ */
+export function showsSourceShift(state: TrainingState): boolean {
+  if (state.stage.name !== "second" || state.event === null) return false;
+  // 関係のない話として受け止めた入力（redirected）は数えない。最初の回答の返事を待つ間は、
+  // まだ関係のない話になるかもしれないので出さない
+  const answered = countedAnswers(state.answers, "second");
+  return answered >= 2 || (answered === 1 && !state.waiting);
+}
+
+/**
+ * 返事を待つ間の「考え中」（ADR-0030）。小さな顔が上を見て（止まった姿勢）、文の後ろに点が流れる。
  * 読み上げは文だけ（点は読まない）。動きを減らす設定では動きが止まり、文だけで示す（styles.css、ADR-0020）。
  * 3D の対話モードでは、上のパペットも考え中の様子になる（ListenerStage）
  */
 function Thinking() {
   return (
     <div className="exchange-row thinking" role="status" data-scroll-target="end" tabIndex={-1}>
-      <span className="listener-light listener-light-small listener-light-thinking" aria-hidden="true" />
+      <Puppet2DFace activity="thinking" />
       <p className="exchange-question">
         <span className="bubble-name">聞き取り係</span>
         {WAITING_TEXT}

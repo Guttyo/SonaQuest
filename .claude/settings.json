@@ -4,6 +4,9 @@
       "Read(./.dev.vars)",
       "Read(./.env)",
       "Read(./.claude/local/**)"
+    ],
+    "ask": [
+      "Bash(gh pr merge:*)"
     ]
   },
   "hooks": {

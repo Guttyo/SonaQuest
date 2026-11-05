@@ -215,6 +215,21 @@ def secret_hook_tests(tmp):
     check("Edit: .git/config を編集", 2, hook(S, "Edit", {"file_path": str(ROOT / ".git" / "config"), "old_string": "a", "new_string": "b"})[0])
     check("Bash: コミットメッセージの文中に core.hooksPath", 0, hook(S, "Bash", {"command": "git commit -q -F - <<'EOF'\n修正\n\n- core.hooksPath の判定を直した\nEOF"})[0])
     check("Bash: 通常のコマンド", 0, hook(S, "Bash", {"command": "git status && ls docs"})[0])
+    # Issue #30：.git/ の下（refs/・packed-refs・HEAD・worktrees/）への書き込み。読むのはよい
+    for name, cmd in [("refs/heads/main へリダイレクト", "git rev-parse HEAD > .git/refs/heads/main"),
+                      ("packed-refs へ追記", "echo x >> .git/packed-refs"),
+                      ("HEAD を cp で上書き", "cp x .git/HEAD"),
+                      ("worktree の HEAD を書き換える", 'echo "ref: refs/heads/main" > ../r/.git/worktrees/w/HEAD'),
+                      ("PowerShell の Set-Content で refs を書く", "Set-Content .git/refs/heads/main x")]:
+        check(f"Bash: {name}", 2, hook(S, "Bash", {"command": cmd})[0])
+    for name, cmd in [("refs を読む", "cat .git/refs/heads/main"), ("refs の一覧", "ls .git/refs/heads"),
+                      (".gitignore に追記", "echo x >> .gitignore"), (".github/ へ書く", "echo x > .github/a.yml"),
+                      (".githooks/ を読む", "cat .githooks/pre-commit")]:
+        check(f"Bash: {name}", 0, hook(S, "Bash", {"command": cmd})[0])
+    check("Write: .git/refs/heads/main", 2, hook(S, "Write", {"file_path": str(ROOT / ".git" / "refs" / "heads" / "main"), "content": "x"})[0])
+    check("Write: .git/packed-refs", 2, hook(S, "Write", {"file_path": str(ROOT / ".git" / "packed-refs"), "content": "x"})[0])
+    check("Read: .git/HEAD は読める", 0, hook(S, "Read", {"file_path": str(ROOT / ".git" / "HEAD")})[0])
+    check("Write: .github/ の下は書ける", 0, hook(S, "Write", {"file_path": str(tmp / ".github" / "a.yml"), "content": "x"})[0])
 
     print("--- ブロックリスト（Claude Code hook）")
     bl = tmp / "blocklist.txt"
@@ -228,6 +243,65 @@ def secret_hook_tests(tmp):
                                                 {"SONAQUEST_BLOCKLIST": str(tmp / "none.txt")})[0])
 
 
+def decision(script, tool, tool_input, extra=None):
+    """hook の判定を "ask"・"block"・"allow" で返す。確認を求めるときは、標準出力が決まった形の JSON だけか確かめる。"""
+    payload = json.dumps({"tool_name": tool, "tool_input": tool_input, **(extra or {})},
+                         ensure_ascii=False).encode("utf-8")
+    p = subprocess.run([PY, str(HOOKS / script)], input=payload, capture_output=True)
+    out = p.stdout.decode("utf-8", "replace").strip()
+    if p.returncode == 2:
+        return "block" if not out else "block+stdout"
+    if p.returncode != 0:
+        return f"exit {p.returncode}"
+    if not out:
+        return "allow"
+    try:
+        h = json.loads(out)["hookSpecificOutput"]
+    except (ValueError, KeyError, TypeError):
+        return "bad-json"
+    if h.get("hookEventName") == "PreToolUse" and h.get("permissionDecision") == "ask" \
+            and "オーナー" in h.get("permissionDecisionReason", "") and "PR番号" in h["permissionDecisionReason"]:
+        return "ask"
+    return "bad-json"
+
+
+def merge_hook_ask_tests(G, on_work):
+    """Issue #90（ADR-0041）：gh pr merge は確認の画面を出す。--admin・--auto・PR を指さないものは止める。"""
+    print("--- gh pr merge の確認の画面（Claude Code hook）")
+    for cmd, want in (
+            ("gh pr merge 12 --merge", "ask"),
+            ("gh pr merge 3 --squash", "ask"),
+            ("gh pr merge --merge 12", "ask"),
+            ("gh pr merge 12 --merge --delete-branch", "ask"),
+            ("gh pr merge https://github.com/Owner/Repo/pull/12 --merge", "ask"),
+            ("gh pr merge -R Owner/Repo 12 --merge", "ask"),
+            ("gh pr merge 12 --merge --subject 件名 --body 本文", "ask"),
+            ("gh pr merge 12 --merge --admin", "block"),
+            ("gh pr merge 12 --admin=true", "block"),
+            ("gh pr merge 12 --auto --merge", "block"),
+            ("gh pr merge --auto 12", "block"),
+            ("gh pr merge", "block"),
+            ("gh pr merge --merge", "block"),
+            ("gh pr merge -R Owner/Repo --merge", "block"),
+            ("gh pr merge feat/1-x --merge", "block"),
+            ("gh pr merge 12 13 --merge", "block"),
+            ("gh pr merge $(gh pr list -q x) --merge", "block"),
+            ('gh pr merge "$N" --merge', "block"),
+            ("git status && gh pr merge 12 --merge", "ask"),
+            ("gh pr merge 12 --merge && git status", "ask"),
+            ("gh pr merge 12 --merge; gh pr merge 13 --merge", "ask"),
+            ("gh pr merge 12 --merge && git push origin main", "block"),
+            ("git push --force && gh pr merge 12 --merge", "block"),
+            ("gh pr merge 12 --merge && gh pr merge 13 --auto", "block"),
+            ("git status && gh pr merge", "block"),
+            ("git status", "allow"),
+            ("gh pr view 12", "allow"),
+            ("git push origin main", "block")):
+        check(f"Bash: {cmd}", want, decision(G, "Bash", {"command": cmd}, extra=on_work))
+    check("PowerShell: gh pr merge 12 --merge", "ask", decision(G, "PowerShell", {"command": "gh pr merge 12 --merge"}, extra=on_work))
+    check("PowerShell: gh pr merge 12 --admin", "block", decision(G, "PowerShell", {"command": "gh pr merge 12 --admin"}, extra=on_work))
+
+
 def github_hook_tests():
     G = "guard_github.py"
     on_main, on_work = {"_test_branch": "main"}, {"_test_branch": "docs/1-x"}
@@ -237,7 +311,7 @@ def github_hook_tests():
     check("Bash: main へpush", 2, hook(G, "Bash", {"command": "git push origin main"}, extra=on_work)[0])
     check("Bash: 作業ブランチをpush", 0, hook(G, "Bash", {"command": "git push -u origin docs/1-x"}, extra=on_work)[0])
     check("Bash: main を削除", 2, hook(G, "Bash", {"command": "git branch -D main"}, extra=on_work)[0])
-    check("Bash: gh pr merge", 2, hook(G, "Bash", {"command": "gh pr merge 3 --squash"}, extra=on_work)[0])
+    merge_hook_ask_tests(G, on_work)
     check("Bash: 保護設定を変更", 2, hook(G, "Bash", {"command": "gh api -X PUT repos/o/r/branches/main/protection"}, extra=on_work)[0])
     check("Bash: 保護設定を読むだけ", 0, hook(G, "Bash", {"command": "gh api repos/o/r/rulesets"}, extra=on_work)[0])
     check("Bash: main にいてコミット", 2, hook(G, "Bash", {"command": "git commit -m x"}, extra=on_main)[0])
@@ -304,6 +378,186 @@ def github_hook_tests():
     check("Bash: env -u 名前 の後で main へpush", 2, hook(G, "Bash", {"command": "env -u X git push origin main"}, extra=on_work)[0])
     check("Bash: 本文に ) と \" を含むコミットメッセージ", 0, hook(G, "Bash", {"command": "git commit -m \"$(cat <<'EOF'\n修正) \"; git push origin main\nEOF\n)\""}, extra=on_work)[0])
     check("Bash: 2>&1 付きの作業ブランチのpush", 0, hook(G, "Bash", {"command": "git push -u origin docs/1-x 2>&1"}, extra=on_work)[0])
+
+    # Issue #30：コミット前の検査（pre-commit）を通らない操作と、push・fetch の宛先を設定で変える操作
+    nv = "--no-" + "verify"
+    for cmd in ("git am x.patch", "git am", "git am --continue", "git cherry-pick abc123", "git revert HEAD",
+                "git revert --continue", "git cherry-pick --skip", "git revert -m 1 HEAD",
+                "git commit -n -m x", "git commit -anm x", "git commit --no-ver -m x", f"git merge {nv} origin/main",
+                "git -c remote.origin.push=HEAD:refs/heads/main push", "git -c push.default=upstream push",
+                "git -c remote.origin.fetch=+refs/heads/x:refs/heads/main fetch", "git --config-env=remote.origin.url=X fetch",
+                "git -c url.../x.insteadOf=https://github.com/ fetch",
+                "git config remote.origin.push HEAD:refs/heads/main", "git config --add remote.origin.fetch +refs/heads/*:refs/heads/*",
+                "git config set push.default upstream", "git config --local remote.origin.url ../x",
+                "git remote add evil ../x", "git remote set-url origin ../x",
+                "git fetch . docs/1-x:refs/remotes/origin/main", "git fetch origin +refs/heads/*:refs/heads/*",
+                "git pull origin docs/1-x:main", "git update-ref refs/remotes/origin/main HEAD",
+                "git push . HEAD:refs/remotes/origin/main", "git worktree add -b main ../x", "git worktree add -B main ../x HEAD"):
+        check(f"Bash: 塞いだ経路（{cmd}）", 2, hook(G, "Bash", {"command": cmd}, extra=on_work)[0])
+    for cmd in ("git revert --no-commit HEAD", "git revert -n HEAD~2..HEAD", "git cherry-pick -n abc123",
+                "git cherry-pick --no-commit abc123", "git revert --abort", "git cherry-pick --quit", "git am --abort",
+                "git am --show-current-patch=diff", "git merge origin/main", "git merge --no-edit origin/main",
+                "git pull origin main", "git pull", "git commit -am x", "git commit -m nothing", "git commit -m -n",
+                "git commit --amend --no-edit", "git commit --message -n", "git config --get remote.origin.fetch",
+                "git config remote.origin.fetch", "git config user.name x", "git config --get-regexp ^remote",
+                "git fetch origin", "git fetch origin main:refs/remotes/origin/main", "git worktree add ../x feat/3-x",
+                "git worktree add -b feat/3-x ../x origin/main", "git -c core.autocrlf=false commit -m x", "git remote -v",
+                "git merge --abort", "git rebase origin/main"):
+        check(f"Bash: ふだんの操作は止めない（{cmd}）", 0, hook(G, "Bash", {"command": cmd}, extra=on_work)[0])
+    check("Bash: main で revert --no-commit", 2, hook(G, "Bash", {"command": "git revert --no-commit HEAD"}, extra=on_main)[0])
+    check("Bash: GIT_DIR を前置きしてコミット", 2, hook(G, "Bash", {"command": "GIT_DIR=../x/.git git commit -m x"}, extra=on_work)[0])
+    check("Bash: --git-dir を付けてコミット", 2, hook(G, "Bash", {"command": "git --git-dir=../x/.git commit -m x"}, extra=on_work)[0])
+    check("Bash: export GIT_WORK_TREE の後でコミット", 2, hook(G, "Bash", {"command": "export GIT_WORK_TREE=../x; git commit -m x"}, extra=on_work)[0])
+    check("Bash: checkout refs/heads/main の後でコミット", 2, hook(G, "Bash", {"command": "git checkout refs/heads/main && git commit -m x"}, extra=on_work)[0])
+    check("Bash: checkout - の後でコミット（前のブランチが判定できない）", 2, hook(G, "Bash", {"command": "git checkout - && git commit -m x"}, extra=on_work)[0])
+    check("Bash: switch @{-1} の後でコミット", 2, hook(G, "Bash", {"command": "git switch @{-1} && git commit -m x"}, extra=on_work)[0])
+
+
+def worktree_hook_tests(tmp):
+    """Issue #82：実際に操作する作業ツリーのブランチで判定する（_test_branch を使わず、本物の worktree で確かめる）。"""
+    G = "guard_github.py"
+    print("--- worktree ごとのブランチ（Claude Code hook。使い捨てリポジトリ）")
+    shared, wt, wt_main = tmp / "wt-shared", tmp / "wt-feat", tmp / "wt-main"
+    shared.mkdir()
+    env = {**os.environ, "GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "test@example.invalid",
+           "GIT_COMMITTER_NAME": "test", "GIT_COMMITTER_EMAIL": "test@example.invalid"}
+
+    def git(cwd, *args):
+        subprocess.run(["git", *args], cwd=cwd, capture_output=True, env=env, check=True)
+
+    def run(cwd, cmd):
+        return hook(G, "Bash", {"command": cmd}, extra={"cwd": str(cwd)})[0]
+
+    git(shared, "init", "-q", "-b", "main")
+    (shared / "a.txt").write_text("a", encoding="utf-8")
+    git(shared, "add", "-A")
+    git(shared, "commit", "-q", "-m", "最初")
+    git(shared, "branch", "feat/1-x")
+    git(shared, "worktree", "add", "-q", str(wt), "feat/1-x")
+    (wt / "sub").mkdir()
+
+    check("共有の作業コピーが main でも、worktree の作業ブランチでコミット", 0, run(wt, "git commit -m x"))
+    check("  worktree の下のフォルダからコミット", 0, run(wt / "sub", "git commit -m x"))
+    check("  worktree の作業ブランチを宛先を省いて push", 0, run(wt, "git push"))
+    check("  worktree で git push origin HEAD", 0, run(wt, "git push origin HEAD"))
+    check("共有の作業コピー（main）でコミット", 2, run(shared, "git commit -m x"))
+    check("共有の作業コピーから cd で worktree へ移ってコミット", 0, run(shared, f'cd "{wt}" && git commit -m x'))
+    check("共有の作業コピーから git -C worktree でコミット", 0, run(shared, f'git -C "{wt}" commit -m x'))
+    check("worktree から git -C で共有の作業コピー（main）にコミット", 2, run(wt, f'git -C "{shared}" commit -m x'))
+    check("worktree から相対パスの cd で main の作業コピーへ移ってマージ", 2, run(wt, "cd ../wt-shared && git merge feat/1-x"))
+    check("worktree から cd で main の作業コピーへ移って push origin HEAD", 2, run(wt, f'cd "{shared}"; git push origin HEAD'))
+    check("worktree から Set-Location で main の作業コピーへ移ってコミット", 2, run(wt, f'Set-Location -Path "{shared}"; git commit -m x'))
+    check("まだ無いフォルダへ git -C してコミット", 2, run(wt, "git -C ../nonexistent commit -m x"))
+    check("変数の cd の後でコミット", 2, run(wt, 'cd "$NO_SUCH_DIR_X" && git commit -m x'))
+    check("cd - の後でコミット", 2, run(wt, "cd - && git commit -m x"))
+    check("popd の後でコミット", 2, run(wt, "popd; git commit -m x"))
+    check("変数の cd の後でもブランチを変えない操作は通す", 0, run(wt, 'cd "$NO_SUCH_DIR_X" && git status && git log'))
+    check("worktree で switch -c してコミット", 0, run(wt, "git switch -c feat/2-y && git commit -m x"))
+    # @{-1} が本物の前のブランチを指すとき
+    git(wt, "switch", "-q", "-c", "feat/2-y")
+    check("checkout - で前の作業ブランチへ戻ってコミット", 0, run(wt, "git checkout - && git commit -m x"))
+    git(wt, "switch", "-q", "feat/1-x")
+    # worktree が main を checkout している場合（共有の作業コピーは detached HEAD）
+    git(shared, "switch", "-q", "--detach")
+    git(shared, "worktree", "add", "-q", str(wt_main), "main")
+    check("main を checkout した worktree でコミット", 2, run(wt_main, "git commit -m x"))
+    check("main を checkout した worktree で宛先を省いて push", 2, run(wt_main, "git push"))
+    check("作業ブランチの worktree から git -C で main の worktree にマージ", 2, run(wt, f'git -C "{wt_main}" merge feat/1-x'))
+    check("共有の作業コピー（detached HEAD）でコミット", 0, run(shared, "git commit -m x"))
+    check("main の worktree から cd で作業ブランチの worktree へ移ってコミット", 0, run(wt_main, f'cd "{wt}" && git commit -m x'))
+    # 宛先を設定で決める push・fetch（設定が既にリポジトリにある場合。Issue #30）
+    git(shared, "config", "push.default", "upstream")
+    check("push.default=upstream のとき宛先を省いた push", 2, run(wt, "git push"))
+    check("  ブランチ名を指定した push は通す", 0, run(wt, "git push origin feat/1-x"))
+    git(shared, "config", "--unset", "push.default")
+    git(shared, "config", "remote.origin.push", "refs/heads/feat/1-x:refs/heads/main")
+    check("remote.origin.push があるとき、宛先を書かない push", 2, run(wt, "git push origin feat/1-x"))
+    check("  宛先を書いた push は通す", 0, run(wt, "git push origin feat/1-x:feat/1-x"))
+    git(shared, "config", "--unset", "remote.origin.push")
+    git(shared, "config", "remote.origin.fetch", "+refs/heads/*:refs/heads/*")
+    check("remote.origin.fetch がローカルの main を書くとき fetch", 2, run(wt, "git fetch origin"))
+    git(shared, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
+    check("  ふつうの remote.origin.fetch なら通す", 0, run(wt, "git fetch origin"))
+
+
+def merge_hook_tests(tmp):
+    """Issue #30：pre-merge-commit でもマーカーを確かめる。main の取り込みでは、main 側で解除したマーカーを止めない。"""
+    print("--- マージのときのマーカーの確認（使い捨てリポジトリ）")
+    repo = tmp / "merge-repo"
+    repo.mkdir()
+    shutil.copytree(ROOT / ".githooks", repo / ".githooks")
+    (repo / ".claude" / "hooks").mkdir(parents=True)
+    for f in ("sonaguard.py", "run-python.sh"):
+        shutil.copy(HOOKS / f, repo / ".claude" / "hooks" / f)
+    base_env = {**os.environ, "GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "test@example.invalid",
+                "GIT_COMMITTER_NAME": "test", "GIT_COMMITTER_EMAIL": "test@example.invalid"}
+    base_env.pop("SONAQUEST_OWNER_APPROVED", None)
+    owner = {"SONAQUEST_OWNER_APPROVED": "1"}
+
+    def git(*args, env=None):
+        p = subprocess.run(["git", *args], cwd=repo, capture_output=True, env={**base_env, **(env or {})})
+        return p.returncode
+
+    def write(name, text):
+        (repo / name).write_text(text, encoding="utf-8")
+
+    def commit_all(msg, env=None):
+        git("add", "-A")
+        return git("commit", "-q", "-m", msg, env=env)
+
+    m_open, m_kept = "[TODO-OWNER: 未決]", "[TODO-OWNER: 両方にある]"
+    decision = "→ オーナー決定（2026-11-05、チャット）：A にする。"
+    git("init", "-q", "-b", "main")
+    git("config", "core.hooksPath", ".githooks")
+    git("config", "core.autocrlf", "false")
+    git("switch", "-q", "-c", "base")
+    write("n.md", f"上\n本文\n{m_open}\n{m_kept}\n下\n")
+    commit_all("最初")
+    git("branch", "-f", "main", "base")
+    # オーナーが GitHub で決定の行を足し、マーカーを解除した（ローカルの main はまだ古い。origin/main だけが新しい）
+    git("switch", "-q", "-c", "owner-release", "main")
+    write("n.md", f"上\n本文\n{decision}\n{m_kept}\n下\n")
+    commit_all("オーナーが解除", env=owner)
+    git("update-ref", "refs/remotes/origin/main", "owner-release")
+
+    git("switch", "-q", "-c", "feat/1", "main")
+    write("f.txt", "作業\n")
+    commit_all("作業")
+    check("作業ブランチに origin/main をマージ（main 側で解除したマーカー）", 0, git("merge", "-q", "--no-edit", "origin/main"))
+    git("switch", "-q", "-c", "feat/2", "main")
+    write("f2.txt", "作業\n")
+    commit_all("作業")
+    check("  git pull（FETCH_HEAD を読む）でも同じ扱い", 0,
+          git("pull", "-q", "--no-rebase", "--no-edit", ".", "refs/remotes/origin/main"))
+
+    # 衝突を直して git commit（pre-commit。MERGE_HEAD を読む）
+    git("switch", "-q", "-c", "feat/3", "main")
+    write("n.md", f"上\n本文を直した\n{m_open}\n{m_kept}\n下\n")
+    commit_all("近くを直す")
+    git("merge", "-q", "--no-edit", "origin/main")  # 衝突する
+    write("n.md", f"上\n本文を直した\n{decision}\n{m_kept}\n下\n")
+    check("衝突を直して main の取り込みをコミット", 0, commit_all("マージ"))
+    git("switch", "-q", "-c", "feat/4", "main")
+    write("n.md", f"上\n本文を直した\n{m_open}\n{m_kept}\n下\n")
+    commit_all("近くを直す")
+    git("merge", "-q", "--no-edit", "origin/main")
+    write("n.md", f"上\n本文を直した\n{decision}\n下\n")
+    check("  衝突を直すときに、両方にあるマーカーまで消す", 1, commit_all("マージ"))
+    git("merge", "--abort")
+
+    # main 以外のブランチの取り込みでは、今までどおり main を基準にする
+    git("switch", "-q", "-c", "other", "main")
+    write("n.md", f"上\n本文\n{m_kept}\n下\n")
+    commit_all("別のブランチで消す", env=owner)
+    git("switch", "-q", "-c", "feat/5", "main")
+    write("f5.txt", "作業\n")
+    commit_all("作業")
+    check("main 以外のブランチからマーカーの削除を取り込む（pre-merge-commit）", True,
+          git("merge", "-q", "--no-edit", "other") != 0)
+    git("merge", "--abort")
+    git("switch", "-q", "main")
+    check("main へのマージコミット（pre-merge-commit）", True, git("merge", "-q", "--no-ff", "-m", "マージ", "feat/1") != 0)
+    git("merge", "--abort")
 
 
 def git_hook_tests(tmp):
@@ -547,6 +801,13 @@ def status_hook_tests(tmp):
     check("git switch で未更新のブランチへ移ってから gh pr create", 2, pr("git switch docs/14-w && gh pr create --title x --body y"))
     check("git checkout で未更新のブランチへ移ってから gh pr create", 2, pr("git checkout -q docs/14-w; gh pr create --title x --body y"))
     check("git switch -c で今のブランチから作って gh pr create", 0, pr("git switch -c docs/16-v && gh pr create --title x --body y"))
+    # Issue #82：worktree で gh pr create したときは、共有の作業コピーではなく worktree のブランチを見る
+    git("switch", "-q", "docs/14-w")
+    wt = tmp / "status-wt"
+    git("worktree", "add", "-q", str(wt), "docs/13-z")
+    payload = {"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": "gh pr create --title x --body y"}}
+    check("worktree（STATUS.md 更新済み）で gh pr create", 0, run({**payload, "cwd": str(wt)})[0])
+    check("  共有の作業コピー（未更新のブランチ）で gh pr create", 2, run({**payload, "cwd": str(repo)})[0])
 
 
 def main():
@@ -558,7 +819,9 @@ def main():
         decision_hook_tests(tmp)
         secret_hook_tests(tmp)
         github_hook_tests()
+        worktree_hook_tests(tmp)
         git_hook_tests(tmp)
+        merge_hook_tests(tmp)
         status_hook_tests(tmp)
     print(f"\n{sum(results)}/{len(results)} PASS")
     sys.exit(0 if all(results) else 1)

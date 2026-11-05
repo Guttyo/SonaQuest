@@ -11,6 +11,7 @@
   --control-border: #8a8378; /* 入力欄の枠。背景・白地に対して3:1以上 */
   --surface: #ffffff;
   --alert-bg: #fff1e3;
+  --orange-strong-text: #a94e17; /* --alert-bg の上の文字用。--orange-strong（4.46）を少し濃くして 4.5 以上にする（Issue #46） */
 
   /* 書体はゴシックで統一する（Issue #71、ADR-0037。2026-11-05 オーナー決定「ゴシックで統一」）。
      端末に入っているゴシックだけを使い、外部のフォント配信もフォントファイルも使わない（送信先を増やさない。privacy.md）。
@@ -1230,6 +1231,206 @@ body,
   height: 44px;
 }
 
+/* 2D の聞き取り係（Issue #47、A-03、ADR-0038）。3D パペットの 2D 版の姿（screens/Puppet2D.tsx）。
+   状態ごとの姿勢は止まった transform で決め（data-activity）、動きは別の要素に重ねる。
+   動きを減らす設定では、上の prefers-reduced-motion で動きだけが止まり、状態ごとの姿勢が残る。
+   舞台は 3D と同じ .puppet3d-stage（ミントの地）なので、出来事の暗い場面でも係が地に沈まない */
+.listener.listener-2d {
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.listener-2d .listener-speech {
+  align-self: stretch;
+}
+
+.puppet2d-stage {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.puppet2d {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.puppet2d .p2d-sway,
+.puppet2d .p2d-head,
+.puppet2d .p2d-nod,
+.puppet2d .p2d-bob,
+.puppet2d .p2d-jaw,
+.puppet2d .p2d-mouth,
+.puppet2d .p2d-eyes,
+.puppet2d .p2d-arm {
+  transform-box: fill-box;
+}
+
+.puppet2d .p2d-sway {
+  transform-origin: 50% 100%;
+}
+
+.puppet2d .p2d-head,
+.puppet2d .p2d-nod,
+.puppet2d .p2d-bob {
+  transform-origin: 50% 90%;
+  transition: transform 300ms ease;
+}
+
+.puppet2d .p2d-jaw {
+  transform-origin: 50% 0%;
+}
+
+.puppet2d .p2d-mouth {
+  transform-origin: 50% 0%;
+}
+
+.puppet2d .p2d-arm-left {
+  transform-origin: 50% 0%;
+}
+
+.puppet2d .p2d-arm-right {
+  transform-origin: 50% 0%;
+}
+
+/* 待機：まっすぐ。ゆっくり左右に揺れる */
+.puppet2d[data-activity="idle"] .p2d-sway {
+  animation: p2d-sway 4.2s ease-in-out infinite alternate;
+}
+
+@keyframes p2d-sway {
+  from {
+    transform: rotate(-2.5deg);
+  }
+  to {
+    transform: rotate(2.5deg);
+  }
+}
+
+/* 聞いている：利用者のほうへ首をかしげ、片腕を少し上げる。ときどき小さくうなずく */
+.puppet2d[data-activity="listening"] .p2d-head {
+  transform: rotate(-9deg) translateY(2px);
+}
+
+.puppet2d[data-activity="listening"] .p2d-arm-right {
+  transform: rotate(-28deg);
+}
+
+.puppet2d[data-activity="listening"] .p2d-bob {
+  animation: p2d-listen 2.6s ease-in-out infinite;
+}
+
+@keyframes p2d-listen {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+  75% {
+    transform: translateY(2.5px);
+  }
+}
+
+/* 話している：下あごが下がって口が開く。開け閉めをくり返す */
+.puppet2d[data-activity="speaking"] .p2d-jaw {
+  transform: translateY(6px);
+  animation: p2d-jaw 0.36s ease-in-out infinite alternate;
+}
+
+.puppet2d[data-activity="speaking"] .p2d-mouth {
+  transform: scaleY(1.9);
+  animation: p2d-mouth 0.36s ease-in-out infinite alternate;
+}
+
+@keyframes p2d-jaw {
+  from {
+    transform: translateY(1px);
+  }
+  to {
+    transform: translateY(6px);
+  }
+}
+
+@keyframes p2d-mouth {
+  from {
+    transform: scaleY(1.1);
+  }
+  to {
+    transform: scaleY(1.9);
+  }
+}
+
+/* 考え中：反対へ首をかしげて少し上を見る。ゆっくり揺れる（返事を待つ間。ADR-0030） */
+.puppet2d[data-activity="thinking"] .p2d-head {
+  transform: rotate(8deg) translateY(-1px);
+}
+
+.puppet2d[data-activity="thinking"] .p2d-eyes {
+  transform: translate(2px, -2.5px);
+}
+
+.puppet2d[data-activity="thinking"] .p2d-arm-left {
+  transform: rotate(32deg);
+}
+
+.puppet2d[data-activity="thinking"] .p2d-sway {
+  animation: p2d-sway 6s ease-in-out infinite alternate;
+}
+
+/* 回答を受け取ったときのうなずき（PR #69 の光の沈みの代わり）。頭を大きく1回、小さく1回下げる */
+.puppet2d .p2d-nod-on {
+  animation: p2d-nod 700ms ease-in-out both;
+}
+
+@keyframes p2d-nod {
+  0%,
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+  30% {
+    transform: translateY(5px) scaleY(0.96);
+  }
+  55% {
+    transform: translateY(0) scaleY(1);
+  }
+  75% {
+    transform: translateY(2px) scaleY(0.98);
+  }
+}
+
+/* 吹き出しの横の小さな顔（光の丸の代わり） */
+.puppet2d-face {
+  flex: none;
+  display: block;
+  width: 30px;
+  height: 29px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--mint);
+  /* 頭のまわりだけを切り取った絵なので、胴や腕が枠の外に出ないよう切る */
+  overflow: hidden;
+}
+
+.puppet2d-face .puppet2d {
+  overflow: hidden;
+}
+
+/* 小さな顔は止まった姿（ADR-0038）。状態の姿勢は残し、揺れ・うなずき・口の動きだけを止める */
+.puppet2d.puppet2d-static[data-activity] [class*="p2d-"] {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .puppet2d .p2d-head,
+  .puppet2d .p2d-nod,
+  .puppet2d .p2d-bob {
+    transition: none;
+  }
+}
+
 /* 振り返りの「手薄なところ」（A-05 の⑥）。観点の絵と、観点の名前・判定の文字を並べる。色だけに頼らず、判定は文字で示す */
 .weak-list {
   list-style: none;
@@ -1299,4 +1500,541 @@ body,
 
 .timing-cards .mode-card {
   min-height: 56px;
+}
+
+/* BGM の操作（B-03、ADR-0039）。ヘッダーの決まった1か所に、今の状態を文字で出す。
+   開いた欄はヘッダーの下に重ねて出し、ヘッダーの高さ（--header-h）は変えない */
+.app-header {
+  z-index: 3;
+}
+
+.app-header .app-title {
+  margin-right: auto;
+}
+
+.bgm-opener {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 2px solid var(--control-border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sub);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* 鳴っているときは淡いミントの地に濃い文字（--ink は --mint に対して約12:1） */
+.bgm-opener-on {
+  border-color: var(--mint-strong);
+  background: var(--mint);
+  color: var(--ink);
+}
+
+/* 動きを減らす設定・終わりの画面・使えないときは押せない。文字は --ink-soft（白地に約6.9:1） */
+.bgm-opener:disabled {
+  border-style: dashed;
+  color: var(--ink-soft);
+  cursor: not-allowed;
+}
+
+/* 「BGM」と「音量」は1つの枠に並べ、間を空けない（幅320pxでもヘッダーを1行に収める） */
+.bgm {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.bgm .bgm-opener {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.bgm-volume-opener {
+  min-height: 44px;
+  padding: 0 8px;
+  border: 2px solid var(--control-border);
+  border-left: 0;
+  border-radius: 0 999px 999px 0;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sub);
+  line-height: var(--lh-tight);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.bgm-volume-opener[aria-expanded="true"] {
+  background: var(--mint);
+}
+
+.bgm-state {
+  font-weight: var(--fw-regular);
+}
+
+.bgm-panel {
+  position: absolute;
+  top: 100%;
+  right: max(16px, env(safe-area-inset-right));
+  width: min(280px, calc(100vw - 32px));
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
+}
+
+.bgm-toggle,
+.bgm-close {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 2px solid var(--mint-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--mint-strong);
+  font: inherit;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  cursor: pointer;
+}
+
+/* 押した状態は淡いミントの地に濃い文字（--ink は --mint に対して約12:1。--mint-strong では約4.2:1で足りない） */
+.bgm-toggle[aria-pressed="true"] {
+  background: var(--mint);
+  color: var(--ink);
+}
+
+.bgm-close {
+  border-color: var(--control-border);
+  color: var(--ink);
+  font-weight: var(--fw-regular);
+}
+
+.bgm-volume {
+  display: grid;
+  gap: 4px;
+  font-size: var(--fs-sub);
+}
+
+.bgm-volume input {
+  width: 100%;
+  min-height: 44px;
+  accent-color: var(--mint-strong);
+}
+
+.bgm-note {
+  margin: 0;
+  line-height: var(--lh-tight);
+}
+
+.bgm-opener:focus-visible,
+.bgm-volume-opener:focus-visible,
+.bgm-toggle:focus-visible,
+.bgm-close:focus-visible,
+.bgm-volume input:focus-visible {
+  outline: 3px solid var(--orange-strong);
+  outline-offset: 2px;
+}
+
+/* 幅320〜375pxでも、題・BGM・訓練をやめるを1行に収め、ヘッダーの高さを変えない。
+   狭いときは題を2行に折り返し（ボタンの高さ44pxに収まる）、ボタンは1行のまま。
+   文字を大きくして1行に入らないときは、ボタンを次の行へ送り、横にはみ出さない */
+.app-header {
+  flex-wrap: wrap;
+}
+
+.app-header .app-title {
+  flex: 1 1 0;
+  min-width: 4em;
+  /* 2行にしても 1rem×1.3×2＝約42px で、ボタンの44pxを超えない */
+  line-height: 1.3;
+}
+
+.app-header .stop-button,
+.bgm-opener {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.app-header .bgm {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 400px) {
+  .app-header {
+    gap: 6px;
+  }
+
+  /* 「BGM」の下に状態の文字を置き、「BGM」と「音量」を幅320pxでも1行に収める */
+  .bgm-opener {
+    flex-direction: column;
+    justify-content: center;
+    gap: 0;
+    padding: 0 8px;
+  }
+
+  .bgm-opener .bgm-state {
+    font-size: var(--fs-caption);
+  }
+
+  .bgm-volume-opener {
+    padding: 0 7px;
+  }
+}
+
+/* 幅320〜360pxでは、題を補足の大きさにし（2行で約36px）、ボタンの左右の余白を詰めて1行に収める */
+@media (max-width: 360px) {
+  .app-header .app-title {
+    font-size: var(--fs-sub);
+  }
+
+  .app-header .stop-button {
+    padding: 0 8px;
+  }
+
+  .bgm-volume-opener {
+    padding: 0 6px;
+  }
+}
+
+/* 場面の点（B-02、Issue #55）：場面が進むと、点がなめらかに伸びて色が付く。動きを減らす設定では止まり、すぐに変わる */
+.scene-dot {
+  transition:
+    width 480ms ease-out,
+    background-color 480ms ease-out;
+}
+
+/* 出来事のあとの情報源の並び（B-02、Issue #55）。後半だけ、係の横に出す。
+   動きは最後の姿を基本の見た目にし、from だけを書く（動きを減らす設定では、止まった最後の姿になる）。繰り返さず、点滅させない */
+.source-shift {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.source-shift-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.source-shift-item {
+  display: flex;
+}
+
+.source-shift-icon {
+  position: relative;
+  display: flex;
+  padding: 2px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--mint-strong);
+}
+
+.source-shift-icon .source-icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* 頼りにしていたものは枠で囲む（色だけに頼らない） */
+.source-shift-chosen .source-shift-icon {
+  border-color: var(--mint-strong);
+}
+
+.source-shift-lost .source-shift-icon {
+  color: var(--control-border);
+  animation: shift-fade 600ms ease-out both;
+}
+
+.source-shift-lost.source-shift-chosen .source-shift-icon {
+  border-color: var(--control-border);
+  border-style: dashed;
+}
+
+/* 斜線が左から引かれる */
+.source-shift-slash {
+  position: absolute;
+  left: -5%;
+  top: 50%;
+  width: 110%;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--orange-strong);
+  transform: rotate(-35deg);
+  transform-origin: left center;
+  animation: shift-slash 520ms ease-out 240ms both;
+}
+
+/* 残ったものは、少し遅れて小さく浮き上がる（1回だけ） */
+.source-shift-kept .source-shift-icon {
+  animation: enter-up 360ms ease-out 480ms both;
+}
+
+.source-shift-text {
+  margin: 0;
+  font-size: var(--fs-caption);
+  line-height: var(--lh-tight);
+  color: var(--ink-soft);
+}
+
+@keyframes shift-fade {
+  from {
+    color: var(--mint-strong);
+  }
+}
+
+@keyframes shift-slash {
+  from {
+    transform: rotate(-35deg) scaleX(0);
+  }
+}
+
+/* 出来事の6候補それぞれの絵（B-01、Issue #54）。使えなくなったものの大きな絵と、何が起きたかの小さな印を並べる。
+   どの動きも1回だけで繰り返さず、点滅させない（1.4秒以内）。基本の見た目を最後の姿にしてあるので、
+   動きを減らす設定（上の prefers-reduced-motion）では止まった絵になる。「続ける」は動きを待たずに押せる */
+.event-visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+}
+
+.event-focus {
+  position: relative;
+  flex: none;
+  width: 96px;
+  height: 96px;
+}
+
+.event-mark {
+  flex: none;
+  width: 56px;
+  height: 56px;
+}
+
+.event-mark g,
+.event-mark path,
+.event-mark circle,
+.event-handover g,
+.event-handover path {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes mark-fade {
+  from {
+    opacity: 1;
+  }
+}
+
+/* 電池切れ：プラグが差し込み口から抜ける */
+@keyframes mark-unplug {
+  from {
+    transform: translateX(8px);
+  }
+}
+
+.event-mark-battery .event-mark-move {
+  animation: mark-unplug 500ms ease-out 700ms both;
+}
+
+/* 通信の途絶：電波の棒が高いほうから順に薄くなる */
+.event-mark-bar {
+  opacity: 0.25;
+}
+
+.event-mark-network .event-mark-bar {
+  animation: mark-fade 300ms ease-in both;
+}
+
+/* 遅れは棒の高さの名前で決める（いちばん高い top が最初、いちばん低い low が最後） */
+.event-mark-network .event-mark-bar-top {
+  animation-delay: 400ms;
+}
+
+.event-mark-network .event-mark-bar-high {
+  animation-delay: 650ms;
+}
+
+.event-mark-network .event-mark-bar-mid {
+  animation-delay: 900ms;
+}
+
+.event-mark-network .event-mark-bar-low {
+  animation-delay: 1100ms;
+}
+
+/* 手帳が自宅にある：手帳の入った家が小さく遠ざかる */
+.event-mark-recede {
+  transform: scale(0.72) translateY(4px);
+  opacity: 0.7;
+}
+
+@keyframes mark-recede {
+  from {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.event-mark-notebook .event-mark-recede {
+  animation: mark-recede 700ms ease-in-out 500ms both;
+}
+
+/* 家族と連絡がつかない：返事の点が順に薄くなる */
+.event-mark-dot {
+  opacity: 0.2;
+}
+
+.event-mark-family .event-mark-dot {
+  animation: mark-fade 300ms ease-in both;
+}
+
+.event-mark-family .event-mark-dot:nth-of-type(1) {
+  animation-delay: 500ms;
+}
+
+.event-mark-family .event-mark-dot:nth-of-type(2) {
+  animation-delay: 750ms;
+}
+
+.event-mark-family .event-mark-dot:nth-of-type(3) {
+  animation-delay: 1000ms;
+}
+
+/* かかりつけ先と連絡がつかない：つないでいた線が切れて離れ、建物にひびが入る */
+.event-mark-apart-left {
+  transform: translateX(-3px);
+}
+
+.event-mark-apart-right {
+  transform: translateX(3px);
+}
+
+@keyframes mark-apart-left {
+  from {
+    transform: translateX(3px);
+  }
+}
+
+@keyframes mark-apart-right {
+  from {
+    transform: translateX(-3px);
+  }
+}
+
+.event-mark-clinic .event-mark-apart-left {
+  animation: mark-apart-left 500ms ease-out 700ms both;
+}
+
+.event-mark-clinic .event-mark-apart-right {
+  animation: mark-apart-right 500ms ease-out 700ms both;
+}
+
+.event-crack {
+  position: absolute;
+  inset: 0;
+  color: var(--orange);
+}
+
+.event-crack-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: crack-draw 500ms ease-out 600ms both;
+}
+
+@keyframes crack-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+/* 係の交代：使えなくなるものは無いので、色は落とさず斜線も引かない。前の係が離れ、新しい係が入る */
+.event-visual-handover {
+  color: #f5efe4;
+  animation: none;
+}
+
+.event-handover {
+  width: 144px;
+  height: 68px;
+}
+
+.event-handover-out {
+  opacity: 0.55;
+  transform: translateX(-4px);
+}
+
+.event-handover-arrow {
+  stroke: var(--orange);
+}
+
+@keyframes handover-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes handover-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+}
+
+.event-handover .event-handover-out {
+  animation: handover-out 600ms ease-in 300ms both;
+}
+
+.event-handover .event-handover-in {
+  animation: handover-in 600ms ease-out 700ms both;
+}
+/* PC の広い画面とコントラストの点検（Issue #46、A-02） */
+
+/* 出来事の暗い場面では、焦点の枠を明るいオレンジにする。
+   濃いオレンジ（--orange-strong）は暗い枠 #263034 の上で 2.73 しかなく、3:1 に届かない（明るいオレンジは 6.53） */
+.scene-event :focus-visible,
+.scene-event .mode-card:has(input:focus-visible) {
+  outline-color: var(--orange);
+}
+
+/* 出来事の暗い場面で、係の横の読み上げの知らせ（「ブラウザの読み上げに切り替えました。」など）は、
+   薄い墨のままだと暗い地 #1d2427 の上で 2.29 しかないので、くすんだクリームにする（9.97）。読み上げの操作のボタンは白地のまま */
+.scene-event .dialogue-stage .speaker-note {
+  color: #d4cdc1;
+}
+
+@media (min-width: 768px) {
+  /* ヘッダーの題と「訓練をやめる」を、本文の列（640px）の両端にそろえる。
+     広い画面で「訓練をやめる」が本文から離れすぎないように。線と背景は画面の幅いっぱいのまま */
+  .app-header {
+    padding-left: max(16px, env(safe-area-inset-left), calc((100% - 640px) / 2));
+    padding-right: max(16px, env(safe-area-inset-right), calc((100% - 640px) / 2));
+  }
+
+  /* ③確認の情報源のカードと準備行動のカードは1列のままにする（2列にすると、幅640pxの列では題が1〜2文字だけ次の行に残る） */
+
+  /* いつやるか（3枚、2〜5文字）は、1枚が横に長くなりすぎないように3列に並べる */
+  .timing-cards {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
