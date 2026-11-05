@@ -16,7 +16,7 @@ export const SHIFT_SOURCES: readonly DrawnSource[] = SOURCE_OPTIONS.flatMap((o) 
 );
 
 /**
- * 出来事のあとの情報源の並び（B-02、Issue #55）。後半（それでも伝えられる？）で係の横に出す。
+ * 出来事のあとの情報源の並び（B-02、Issue #55）。後半（それでも伝えられる？）の最初の回答を受け取った後から、係の横に出す（出す時期は Dialogue.tsx の showsSourceShift）。
  * ③確認の5つの情報源を並べ、出来事で使えなくなったものに斜線を引き、残りはそのまま見せる。
  * 何が使えなくなったかは PRD「出来事で使えなくなるもの」の表（LOST_BY_EVENT）だけで決める。
  * 利用者の回答（原文）も Claude の判断も使わず、数（残りいくつ）も出さない（「評価の方針」）。

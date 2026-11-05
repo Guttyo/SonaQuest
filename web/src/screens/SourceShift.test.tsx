@@ -1,7 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { EVENTS, SHIFT_LOST_PREFIX, SHIFT_NONE_LOST } from "../flow/content";
-import type { EventId } from "../flow/types";
+import { initialState, type TrainingState } from "../flow/training";
+import type { Answer, EventId } from "../flow/types";
+import { Dialogue, showsSourceShift } from "./Dialogue";
 import { SceneBar } from "./ListenerStage";
 import { LOST_BY_EVENT, sourceLabel, type DrawnSource } from "./SourceIcon";
 import { SHIFT_SOURCES, SourceShift } from "./SourceShift";
@@ -98,5 +100,65 @@ describe("場面の点（B-02）", () => {
       const text = html.replace(/<[^>]*>/g, " ");
       expect(text).not.toMatch(/%|％|\/\s*5|点中/);
     }
+  });
+});
+
+describe("出来事のあとの情報源の並びを出す時期（B-02、PR #81 のレビュー）", () => {
+  const firstAnswer: Answer = {
+    questionId: "first-q",
+    half: "first",
+    text: "架空の回答",
+    prompt: "前半の質問",
+    kind: "answer",
+    recall: false,
+  };
+  const secondAnswer: Answer = { ...firstAnswer, questionId: "second-q", half: "second", prompt: "後半の質問" };
+
+  function secondHalf(answers: readonly Answer[], waiting = false): TrainingState {
+    return {
+      ...initialState,
+      ai: "off",
+      stage: { name: "second", index: answers.filter((a) => a.half === "second").length },
+      answers: [firstAnswer, ...answers],
+      source: "smartphone",
+      event: "battery",
+      waiting,
+    };
+  }
+
+  function renderDialogue(state: TrainingState): string {
+    return renderToStaticMarkup(<Dialogue state={state} dispatch={() => {}} />);
+  }
+
+  it("後半の最初の問いに答える前は、候補の並びを出さない（頼りにしていたものが使えないことだけは出す）", () => {
+    const state = secondHalf([]);
+    expect(showsSourceShift(state)).toBe(false);
+    const html = renderDialogue(state);
+    expect(html).not.toContain("source-shift");
+    expect(html).not.toContain(SHIFT_NONE_LOST);
+    expect(html).toContain("source-chip");
+  });
+
+  it("後半の最初の回答の返事を待つ間と、関係のない話として受け止めた入力の後は、まだ出さない", () => {
+    expect(showsSourceShift(secondHalf([secondAnswer], true))).toBe(false);
+    expect(renderDialogue(secondHalf([secondAnswer], true))).not.toContain("source-shift");
+    const redirected = secondHalf([{ ...secondAnswer, kind: "redirected" }]);
+    expect(showsSourceShift(redirected)).toBe(false);
+    expect(renderDialogue(redirected)).not.toContain("source-shift");
+  });
+
+  it("後半の最初の回答を受け取った後は、候補の並びを出す", () => {
+    const state = secondHalf([secondAnswer]);
+    expect(showsSourceShift(state)).toBe(true);
+    const html = renderDialogue(state);
+    expect(count(html, 'class="source-shift-item')).toBe(5);
+    expect(html).toContain(`${SHIFT_LOST_PREFIX}${sourceLabel("smartphone")}`);
+    // 2つ目の回答の返事を待つ間も出したままにする
+    expect(showsSourceShift(secondHalf([secondAnswer, secondAnswer], true))).toBe(true);
+  });
+
+  it("前半・出来事の場面では出さない", () => {
+    expect(showsSourceShift({ ...secondHalf([secondAnswer]), stage: { name: "event" } })).toBe(false);
+    expect(showsSourceShift({ ...secondHalf([]), stage: { name: "first", index: 1 } })).toBe(false);
   });
 });

@@ -6,7 +6,7 @@ import {
   WAITING_TEXT,
 } from "../flow/content";
 import { MAX_ANSWER_LENGTH, isAcceptableAnswer } from "../flow/rules";
-import { currentQuestion, type TrainingAction, type TrainingState } from "../flow/training";
+import { countedAnswers, currentQuestion, type TrainingAction, type TrainingState } from "../flow/training";
 import { SpeakerControls } from "../voice/SpeakerControls";
 import { TalkButton } from "../voice/TalkButton";
 import { usePushToTalk, useSpeakWhenChanged, useSpeaker } from "../voice/hooks";
@@ -89,8 +89,8 @@ export function Dialogue({ state, dispatch }: Props) {
           />
         )}
         {chosen !== null && <SourceChip source={chosen} lost={lost} />}
-        {/* 後半は、出来事で使えなくなった情報源と残った情報源の並びも出す（B-02） */}
-        {stage.name === "second" && state.event !== null && <SourceShift event={state.event} chosen={chosen} />}
+        {/* 後半の最初の回答を受け取った後は、出来事で使えなくなった情報源と残った情報源の並びも出す（B-02） */}
+        {showsSourceShift(state) && state.event !== null && <SourceShift event={state.event} chosen={chosen} />}
       </ListenerStage>
 
       <div className="dialogue-log">
@@ -164,6 +164,20 @@ export function Dialogue({ state, dispatch }: Props) {
       )}
     </section>
   );
+}
+
+/**
+ * 出来事のあとの情報源の並び（B-02）を出すか。後半の最初の問いは代わりの伝え方を尋ねるので、
+ * 答える前に候補を並べると答えの手がかりになり、Claude の判定にも影響し得る。
+ * そのため、後半の回答を1つ受け取った後からだけ出す（PR #81 のレビュー。出す時期はオーナーが確かめる）。
+ * 頼りにしていたもの1つが使えないこと（SourceChip）は、ほかの候補を並べないので後半の始めから出す
+ */
+export function showsSourceShift(state: TrainingState): boolean {
+  if (state.stage.name !== "second" || state.event === null) return false;
+  // 関係のない話として受け止めた入力（redirected）は数えない。最初の回答の返事を待つ間は、
+  // まだ関係のない話になるかもしれないので出さない
+  const answered = countedAnswers(state.answers, "second");
+  return answered >= 2 || (answered === 1 && !state.waiting);
 }
 
 /**
