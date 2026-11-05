@@ -345,7 +345,19 @@
      - 試験：`.claude/hooks/test_hooks.py` に、決定ありで通る、決定なしで止まる、「方向」「指示」では止まる、決定の行ごと消すと止まる、決定の行を足すのと同時に消すと止まる、作業ブランチで足しただけの決定の行では止まる、同じ文のマーカーの取り違え・`replace_all`・MultiEdit、`main` という名前のタグ、空白と日本語を含むパス、名前の変更、別のファイルへの移動、main を動かす操作を足した。
 - 「Claude Code が決定の行を作ってマーカーを消す経路」の扱い：同じ編集・同じコミットで決定の行を足して消す経路と、作業ブランチで決定の行を足してコミットしてから消す経路は、ローカルの main が GitHub でマージした状態と同じである限り、**main を見るので止まる**。main を動かす主なコマンドは `guard_github.py` が止める。それでも次の経路は hook では止められない。
   - スクリプトの実行、別のターミナル、hook が読めない書き方でローカルの main を動かすこと（ADR-0014。hook はセキュリティの境界ではない）。この場合も、決定の行と解除は GitHub の main に対する1つの PR に一緒に出るので、オーナーがマージの前に気づける
-  - 2回目のレビュー（Issue #19）で見つかり、このPRでは塞いでいない経路：`git -c remote.*.push=…`・`remote.*.fetch=…` の設定で宛先を決める push・fetch、`git worktree add` や `git -C <別の作業フォルダ>` での main の操作、`git checkout -` の後に続けた操作、`.git/refs/` への直接の書き込み、`git am`・`git revert`・`git cherry-pick`・`git merge`（コミット前フックが呼ばれないので、マーカーの削除を確かめない。この PR より前からの抜け道）。`.claude/rules/github.md` のとおり、hook の修正は別の Issue で扱う（Issue #30）
+  - 2回目のレビュー（Issue #19）で見つかった経路は、Issue #30・#82 の PR で次のように塞いだ（2026-11-05。git 2.56 で確かめた）。
+    - 作業ツリーの取り違え（Issue #82）：`guard_github.py` は、hook の入力の `cwd`、コマンドの `cd`・`pushd`・`Set-Location` の行き先、`git -C` の指定の順にたどり、実際に操作する作業ツリー（worktree ごと）のブランチで判定する。worktree の作業ブランチへのコミット・push は止めず、どの作業ツリーでも `main` へのコミット・マージ・push は止める（worktree が `main` を checkout している場合も）。行き先を判定できないとき（変数・置換の `cd`・`-C`、`cd -`、`popd`、まだ無いフォルダ、`--git-dir`・`--work-tree`・`GIT_DIR`・`GIT_WORK_TREE`）は、ブランチを変えうる操作を止める。`git checkout -`・`@{-1}` は、同じコマンドの中で切り替える前なら本当の前のブランチを読み、切り替えた後なら判定できないとして扱う。`git checkout refs/heads/main` も main として扱う。`git worktree add -b/-B main` は main を動かすので止める。`status_check.py` も、gh pr create の判定に worktree のブランチを使う
+    - コミット前の検査を通らない操作：git 2.56 では `git am`・`git cherry-pick`・`git revert`・`git rebase` は pre-commit を呼ばず、`git merge` は pre-merge-commit だけを呼ぶ。`git am`（`--abort`・`--quit`・`--show-current-patch` は除く）、コミットまで行う `cherry-pick`・`revert`（`-n`・`--no-commit` と `--abort`・`--quit` は通す。`--continue`・`--skip` は止める）、`git commit -n`、`--no-verify` の省略形（`--no-ver` など）を止める。パッチを当てるときは `git apply --index` の後に `git commit` する
+    - マージ：pre-merge-commit でも、ステージした内容と同じ検査（秘密情報・ブロックリスト・マーカー・決定の行）をする。main の取り込み（取り込むコミットが1つで、ローカルの `main` か `origin/main` に含まれる）では、取り込む main 側に無いマーカー・決定の行（オーナーが解除したもの）は消えてよいとし、両方にあるものは残させる。取り込むコミットは、衝突を直した後の `git commit` では `MERGE_HEAD` から、pre-merge-commit では（`MERGE_HEAD` がまだ無いので）`GIT_REFLOG_ACTION` と `FETCH_HEAD` から読む。取り込む側にそのファイルが無いときと、main 以外のブランチの取り込みでは、今までどおりローカルの main を基準にする
+    - push・fetch の宛先を設定で変える操作：`-c`・`--config-env` の `remote.*.push`・`fetch`・`mirror`・`url`・`pushurl`、`push.default`、`url.*.insteadOf` と、`git config` でのそれらの書き込み、`git remote add`・`set-url`・`rename`・`remove`・`set-branches` を止める。設定が既にあるときも、`remote.*.push` があれば宛先を書かない push を、`push.default` が `matching`・`upstream`・`tracking` なら宛先を省いた push を、`remote.*.fetch` がローカルの main か、リモートの main 以外から `refs/remotes/*/main` を書くなら fetch・pull を止める。`refs/remotes/*/main` への `update-ref`・push と、main 以外から書く fetch の refspec も止める（main の取り込みの判定が `origin/main` を信頼するため）
+    - `.git/` の下への書き込み：`block_secrets.py` が、`.git/` の下（`config`・`hooks/`・`refs/`・`packed-refs`・`HEAD`・`worktrees/` など）への Write・Edit・リダイレクト・読むだけでないコマンドを止める。読むのは今までどおりよい
+    - ふだんの操作（作業ブランチへの `git merge origin/main`・`git pull`、`git revert --no-commit`・`git cherry-pick -n`、`git merge --abort`、`git fetch origin`、`git worktree add <パス> <作業ブランチ>`、`git rebase origin/main`）は止めない。試験は `.claude/hooks/test_hooks.py` の「塞いだ経路」「ふだんの操作は止めない」「worktree ごとのブランチ」「マージのときのマーカーの確認」
+  - Issue #30・#82 の PR の後も塞いでいない経路：
+    - `git rebase`（`git pull --rebase` を含む）は pre-commit を呼ばないので、衝突を直すときにマーカーを消しても確かめない。作業ブランチを main に載せ直すふだんの操作なので止めていない
+    - `git merge --squash` の後の `git commit` は `MERGE_HEAD` が無いので、main の取り込みとして扱わない（main 側で解除したマーカーを誤って止めることがある。そのときはふつうの `git merge` を使う）
+    - サブシェル `(cd x && …)`・`sh -c '…'` の中の `cd` は、その後のコマンドにも効くものとして読む（hook はかっこの範囲を分けない）。PowerShell の引用符なしの `\` を含むパスは、Bash の書き方として読むので判定できないことがある（そのときは止める）
+    - `git remote add` を通さずに作ったリモート（設定ファイルの直接の編集など）や、手元のパスを指す origin から fetch した `origin/main`
+    - スクリプトの実行、別のターミナル、シェル以外の言語からの git の実行（上のとおり）
   - Claude Code が作った決定の行を含む PR を、オーナーがそのままマージすること
   そのため、決定の行を足す PR では、足した決定の行を説明に一覧で書き、オーナーがチャットの言葉と合っているかをマージの前に確かめる。マーカーを解除する PR では、解除したマーカーと根拠の決定の行を説明に一覧で書く（`.claude/rules/github.md`）。
 - 理由：決定を足す PR と解除する PR を分ければ、オーナーのマージという確認を必ず1回はさむことになる。main を基準にすれば、作業ブランチの中だけで決定を作って解除する経路を、手元の git で止めやすい（止めきれない経路は上のとおりで、最後の確認はオーナーの PR の確認）。
@@ -811,6 +823,12 @@
   - 画面はメモリにだけ持つ（`localStorage` 等に保存しない）。やり直し（`restart`）では Intro が作り直され、1画面目の既定（2D）に戻る。画面が変わったら題へ焦点を移して上から見せる。1画面目のラジオから `PRIVACY_VOICE` への `aria-describedby` は、文が2画面目にあるので外した。
   - [TODO-OWNER: 2画面の文言（Claude Code の下書き。`web/src/flow/content.ts` の `NEXT_LABEL`「次へ」、`NOTES_TITLE`「はじめる前に」、`BACK_LABEL`「答え方を選び直す」）]
   - 試験（`Intro.test.tsx`）：1画面目に「訓練をはじめる」と必ず見せる説明の文が無いこと、2画面目に全文があり `<details>` が無いこと、3D のときの `PRIVACY_VOICE` の位置、並び。
+- 追記3（2026-11-05、Issue #83。Claude Code の下書き。オーナーが決定した。下の決定の行）：PR #70 の自動レビューの指摘で、URL に `?mode=3d` を付けて開いたあと「訓練をやめる」→「はじめに戻る」で戻ると、`Intro` が作り直されるときに URL を読み直し、1画面目で 3D が選ばれていた（決定2・追記2の「初期状態（2D）に戻る」と、PR #70 の動作確認の記録「はじめに戻ると既定の 2D」と食い違っていた）。次の規則にそろえた。
+  - → オーナー決定（2026-11-05、チャット）：「既定の 2D」（はじめに戻ったときの1画面目の初期選択）
+  - 1画面目の初期選択は、ページを開いて最初の表示（`TrainingState.session` が 0）だけ `?mode=3d` を読む。はじめに戻った後（`restart` で `session` が 1 以上）は、URL にかかわらず既定の 2D。利用者はカードで選び直す。「答え方を選び直す」は画面だけを戻すので、選んだ値はそのまま。
+  - 決め方は `web/src/flow/mode.ts` の `introInitialMode(search, session)`（純粋な関数）と `currentIntroMode(session)`。`App.tsx` が `Intro` の `initialMode` に渡し、`Intro.tsx` は URL を読まない（省くと 2D）。試験は `mode.test.ts`（`?mode=3d` 付き・無し × 最初の表示・戻った後、`start`→`stop`→`restart` の後）と `Intro.test.tsx`（`initialMode` に 3D を渡すと 3D が選ばれている）。
+  - アドレス欄には `?mode=3d` が残るので、ページを読み込み直すと最初の表示として 3D が選ばれる。`history.replaceState` で URL から消すことはしない。
+  - 別の案：はじめに戻っても `?mode=3d` の初期選択を保つ（URL を予備の指定として毎回読む。開発・デモで 3D を続けて試すときに手間が減る）。採らなかった理由：決定2の「初期状態（2D）に戻る」と、PR #70 の動作確認の記録に合わず、利用者が選び直す前提とも違うため。オーナーがこちらを選んだら、`introInitialMode` を `modeFromSearch` に戻し、試験を直す。
 
 ## ADR-0037 書体をゴシックで統一し、文字の大きさ・太さ・行間の段階を決める
 - 状態：採用（書体をゴシックにすることはオーナー決定。書体の並びと段階の値は Claude Code の下書きで、オーナーの確認待ち（下のマーカー）。Issue #71）　日付：2026-11-05

@@ -23,8 +23,11 @@ NO_UPDATE = re.compile(r"STATUS\.md\s*[：:]\s*更新不要")
 HEREDOC = re.compile(r"<<-?[ \t]*(['\"]?)(\w+)\1[^\n]*\n(.*?)^[ \t]*\2[ \t]*$", re.M | re.S)
 
 
+WORK = ROOT  # git を実行する作業ツリー。hook の入力の cwd（worktree）を使う（Issue #82）
+
+
 def git(*args):
-    p = subprocess.run(["git", *args], cwd=ROOT, capture_output=True)
+    p = subprocess.run(["git", *args], cwd=WORK, capture_output=True)
     return p.returncode, p.stdout.decode("utf-8", "replace")
 
 
@@ -65,7 +68,7 @@ def stale_mentions(text, merged):
 
 
 def session_start():
-    path = ROOT / STATUS
+    path = Path(WORK) / STATUS
     if not path.exists():
         return
     hits = stale_mentions(path.read_text(encoding="utf-8"), merged_branches())
@@ -108,7 +111,7 @@ def pr_body_says_no_update(cmd, tokens, cwd):
         return False
     p = Path(body_file)
     if not p.is_absolute():
-        p = Path(cwd or ROOT) / p
+        p = Path(cwd or WORK) / p
     try:
         return bool(NO_UPDATE.search(p.read_text(encoding="utf-8")))
     except (OSError, UnicodeDecodeError):
@@ -153,12 +156,23 @@ def pre_tool_use(data):
         sys.exit(2)
 
 
+def work_tree(cwd):
+    """hook の入力の cwd がある作業ツリーの根。無ければ ROOT。"""
+    if not cwd or not Path(cwd).is_dir():
+        return ROOT
+    p = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=cwd, capture_output=True)
+    top = p.stdout.decode("utf-8", "replace").strip()
+    return Path(top) if p.returncode == 0 and top else ROOT
+
+
 def main():
+    global WORK
     use_utf8_stdio()
     try:
         data = json.loads(sys.stdin.buffer.read().decode("utf-8"))
     except ValueError:
         return
+    WORK = work_tree(data.get("cwd"))
     if data.get("hook_event_name") == "SessionStart":
         session_start()
     else:
