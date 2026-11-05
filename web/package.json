@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:worker": "wrangler dev --port 8787",
+    "dev:worker:lab": "wrangler dev --port 8787 --var DEV_EXPERIMENT:1",
     "build": "tsc --noEmit && vite build",
     "bundle:worker": "wrangler deploy --dry-run --outdir .wrangler/dry-run",
     "typecheck": "tsc --noEmit",
