@@ -48,7 +48,7 @@ describe("架空の町の模式図（Issue #105）", () => {
     const c = html.slice(html.indexOf('data-site="救護所C"'), html.indexOf("</g>", html.indexOf('data-site="救護所C"')) + 100);
     expect(c).toContain("在庫切れ 1");
     const b = html.slice(html.indexOf('data-site="救護所B"'));
-    expect(b.slice(0, 1200)).toContain("薬剤師 不足 1");
+    expect(b.slice(0, 1200)).toContain("薬剤師 1人不足");
   });
 
   it("凡例・架空の明記・状況の欄・最新情報があり、外部の地図や画像を使わない", () => {
