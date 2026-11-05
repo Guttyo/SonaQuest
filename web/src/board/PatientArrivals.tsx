@@ -1,0 +1,131 @@
+// 架空の患者の到着（Issue #122、ADR-0048）。本部では到着の累計・けがのある人の人数（件数だけ）・種と操作、
+// 救護所ではその救護所に到着した患者の一覧を出す。状態は demo.ts の reducer のメモリだけで、保存・送信・ログ出力をしない。
+// けが・体調の文は入れたまま出し、アプリは重さ・緊急度・処置を判断しない。Claude も API も使わない。
+
+import { SHELTERS, type SiteId } from "./data";
+import { arrivalRows, clockText, type DemoAction, type DemoState } from "./demo";
+import { nextSeed } from "./patients";
+import { BOARD_ARRIVALS } from "./text";
+
+const fmt = new Intl.NumberFormat("ja-JP");
+
+interface Props {
+  state: DemoState;
+  /** 渡すと、本部の表示（累計・人数・種と操作）。省くとその救護所の一覧 */
+  dispatch?: (a: DemoAction) => void;
+  /** 救護所を渡すと、その救護所に到着した患者の一覧 */
+  site?: SiteId;
+}
+
+export function PatientArrivals({ state, dispatch, site }: Props) {
+  if (site !== undefined) return <ArrivalList state={state} site={site} />;
+  return <ArrivalSummary state={state} dispatch={dispatch} />;
+}
+
+function ArrivalSummary({ state, dispatch }: { state: DemoState; dispatch?: (a: DemoAction) => void }) {
+  const a = state.arrivals;
+  const rows = arrivalRows(state);
+  const withCondition = rows.filter((r) => r.hasCondition).length;
+  const done = a.arrived.length >= a.plan.length;
+  return (
+    <section aria-labelledby="board-arrivals" className="board-arrivals" data-testid="arrivals-summary">
+      <h3 id="board-arrivals">{BOARD_ARRIVALS.title}</h3>
+      <dl className="board-stats">
+        <div>
+          <dt>{BOARD_ARRIVALS.arrived}</dt>
+          <dd data-testid="arrivals-count">
+            {fmt.format(a.arrived.length)} / {fmt.format(a.plan.length)} {BOARD_ARRIVALS.people}
+          </dd>
+        </div>
+        <div>
+          <dt>{BOARD_ARRIVALS.withCondition}</dt>
+          <dd data-testid="arrivals-condition">
+            {fmt.format(withCondition)} {BOARD_ARRIVALS.people}
+          </dd>
+        </div>
+        <div>
+          <dt>{BOARD_ARRIVALS.seed}</dt>
+          <dd data-testid="arrivals-seed">{a.seed}</dd>
+        </div>
+      </dl>
+      <p className="board-note" data-testid="arrivals-by-site">
+        {BOARD_ARRIVALS.bySite}：
+        {SHELTERS.map((s) => `${s} ${fmt.format(a.arrived.filter((x) => x.site === s).length)}`).join("、")}
+      </p>
+      {dispatch && (
+        <div className="board-demo-controls" role="group" aria-label={BOARD_ARRIVALS.title}>
+          {done ? (
+            <span className="board-note">{BOARD_ARRIVALS.allArrived}</span>
+          ) : (
+            <button type="button" className="secondary" data-arrivals="toggle" onClick={() => dispatch({ type: "arrivals", active: !a.active })}>
+              {a.active ? BOARD_ARRIVALS.stop : BOARD_ARRIVALS.start}
+            </button>
+          )}
+          <button type="button" className="secondary" data-arrivals="reseed" onClick={() => dispatch({ type: "reseed", seed: nextSeed(a.seed) })}>
+            {BOARD_ARRIVALS.reseed}
+          </button>
+        </div>
+      )}
+      <p className="board-note">{BOARD_ARRIVALS.note}</p>
+      <p className="board-note">
+        {BOARD_ARRIVALS.nameNote}
+        {BOARD_ARRIVALS.memoryNote}
+      </p>
+    </section>
+  );
+}
+
+function ArrivalList({ state, site }: { state: DemoState; site: SiteId }) {
+  const rows = arrivalRows(state, site);
+  const headingId = `board-arrivals-${site}`;
+  return (
+    <section aria-labelledby={headingId} className="board-arrivals" data-testid="arrivals-list">
+      <h3 id={headingId}>
+        {BOARD_ARRIVALS.listTitle} <span className="board-count">{fmt.format(rows.length)} {BOARD_ARRIVALS.people}</span>
+      </h3>
+      <p className="board-note">{BOARD_ARRIVALS.nameNote}</p>
+      {rows.length === 0 ? (
+        <p className="board-note">{BOARD_ARRIVALS.empty}</p>
+      ) : (
+        <div className="board-tablebox">
+          <table>
+            <thead>
+              <tr>
+                <th>{BOARD_ARRIVALS.cols.at}</th>
+                <th>{BOARD_ARRIVALS.cols.no}</th>
+                <th>{BOARD_ARRIVALS.cols.name}</th>
+                <th>{BOARD_ARRIVALS.cols.sex}</th>
+                <th className="num">{BOARD_ARRIVALS.cols.age}</th>
+                <th>{BOARD_ARRIVALS.cols.condition}</th>
+                <th>{BOARD_ARRIVALS.cols.meds}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.no} data-arrival={r.no}>
+                  <td>{clockText(r.at)}</td>
+                  <td>
+                    No.{r.no}（{r.recordId}）
+                  </td>
+                  <td>{r.name}</td>
+                  <td>{r.sex}</td>
+                  <td className="num">{r.age}</td>
+                  <td>{r.condition}</td>
+                  <td>
+                    {r.meds
+                      .map(
+                        (m) =>
+                          `${m.item} 1日${m.perDay}${m.unit} → ${fmt.format(m.qty)}${m.unit}${m.undelivered > 0 ? `（${BOARD_ARRIVALS.undelivered} ${fmt.format(m.undelivered)}）` : ""}`,
+                      )
+                      .join("、")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="board-note">{BOARD_ARRIVALS.conditionNote}</p>
+    </section>
+  );
+}
