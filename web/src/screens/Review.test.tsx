@@ -240,6 +240,9 @@ describe("まだ弱いところと、次の一手（ADR-0051）", () => {
     expect(html).not.toContain('class="next-step"');
     expect(html).toContain(NO_WEAK_POINTS_NOTE);
     expect(html).toContain(JUDGMENT_NOTE);
+    // 確認できた5つの観点は「伝えられたこと」の1行に出す（PR #138 のレビュー）
+    const strong = html.slice(html.indexOf(STRONG_POINTS_LABEL), html.indexOf(H.recall));
+    for (const v of VIEWPOINT_ORDER) expect(strong).toContain(VIEWPOINT_SHORT_LABELS[v]);
     expectOrder(html, [H.recall, H.prep, H.details, H.event, H.viewpoints, H.raw]);
     expect(html).toContain("お薬手帳<span class=\"source-chip-state\">（使えない）</span>");
   });
@@ -249,6 +252,7 @@ describe("まだ弱いところと、次の一手（ADR-0051）", () => {
     expect(html).not.toContain(H.next);
     expect(html).not.toContain('class="next-step"');
     expect(html).not.toContain(NO_WEAK_POINTS_NOTE);
+    expect(html).not.toContain(STRONG_POINTS_LABEL);
     expect(html).not.toContain('class="mode-card-badge"');
     expect(html).toContain(AI_FAILED_NOTE);
     expectOrder(html, [H.recall, H.prep, H.details, H.event, H.viewpoints, H.raw]);

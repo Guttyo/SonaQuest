@@ -155,20 +155,21 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
               </li>
             ))}
           </ol>
-          {strong.length > 0 && (
-            <p className="strong-points">
-              <span className="label">{STRONG_POINTS_LABEL}：</span>
-              {strong.map((v) => (
-                <span key={v} className="strong-point">
-                  <span aria-hidden="true">✓ </span>
-                  {VIEWPOINT_SHORT_LABELS[v]}
-                </span>
-              ))}
-            </p>
-          )}
         </>
       )}
       {!allUndetermined && steps.length === 0 && <p className="notice">{NO_WEAK_POINTS_NOTE}</p>}
+      {/* 確認できた観点は、弱い観点の有無にかかわらず1行で示す（全部確認できた回にも出す。PR #138 のレビュー） */}
+      {strong.length > 0 && (
+        <p className="strong-points">
+          <span className="label">{STRONG_POINTS_LABEL}：</span>
+          {strong.map((v) => (
+            <span key={v} className="strong-point">
+              <span aria-hidden="true">✓ </span>
+              {VIEWPOINT_SHORT_LABELS[v]}
+            </span>
+          ))}
+        </p>
+      )}
       {allUndetermined && (
         <p className="notice">{state.ai === "off" ? UNDETERMINED_NOTE : AI_FAILED_NOTE}</p>
       )}

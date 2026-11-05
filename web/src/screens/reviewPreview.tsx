@@ -2,7 +2,7 @@ import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { FIRST_HALF_QUESTIONS, RECOVERY_QUESTION } from "../flow/content";
 import { initialState, type TrainingState } from "../flow/training";
-import type { Answer, Judgments } from "../flow/types";
+import type { Answer, Judgments, PrepActionId, TimingId } from "../flow/types";
 import "../styles.css";
 import { Done } from "./Done";
 import { Review } from "./Review";
@@ -64,7 +64,10 @@ const SAMPLES: { id: string; label: string; ai: TrainingState["ai"]; judgments: 
 function Preview() {
   const [sampleId, setSampleId] = useState(SAMPLES[0].id);
   const [mode, setMode] = useState<TrainingState["mode"]>("2d");
-  const [screen, setScreen] = useState<"review" | "done">("review");
+  // 「これに決める」で選んだ準備行動といつやるかを、終わりの画面にそのまま渡す
+  const [screen, setScreen] = useState<
+    { name: "review" } | { name: "done"; action: PrepActionId; timing: TimingId }
+  >({ name: "review" });
   const sample = SAMPLES.find((s) => s.id === sampleId)!;
   const state: TrainingState = {
     ...initialState,
@@ -102,18 +105,22 @@ function Preview() {
               <option value="3d">3D（読み上げあり）</option>
             </select>
           </label>
-          <button type="button" className="secondary" onClick={() => setScreen("review")}>
+          <button type="button" className="secondary" onClick={() => setScreen({ name: "review" })}>
             振り返り
           </button>
         </div>
-        {screen === "review" ? (
-          <Review key={`${sampleId}-${mode}`} state={state} onChoose={() => setScreen("done")} />
+        {screen.name === "review" ? (
+          <Review
+            key={`${sampleId}-${mode}`}
+            state={state}
+            onChoose={(action, timing) => setScreen({ name: "done", action, timing })}
+          />
         ) : (
           <Done
-            action="tell_family"
-            timing="today"
+            action={screen.action}
+            timing={screen.timing}
             judgments={sample.ai === "on" ? sample.judgments : null}
-            onRestart={() => setScreen("review")}
+            onRestart={() => setScreen({ name: "review" })}
           />
         )}
       </main>
