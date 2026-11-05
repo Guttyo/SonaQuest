@@ -6,6 +6,8 @@ import {
   ALL_QUESTIONS,
   ANSWER_HINTS,
   CLARIFY_TEXTS,
+  FIRST_HALF_QUESTIONS,
+  INTERRUPTION_NOTE,
   INTRO_LEAD,
   INTRO_POINTS,
   PRIVACY_VOICE,
@@ -146,5 +148,44 @@ describe("思い出せないときの案内（ADR-0022）", () => {
   it("候補を示したり、言い当てようとしたりしない", () => {
     expect(text).not.toContain("ではないですか");
     expect(text).not.toContain("かもしれません");
+  });
+});
+
+describe("1問目と、中断すると体調を崩しやすい薬の固定文（Issue #94、ADR-0040 の決定7）", () => {
+  const first = FIRST_HALF_QUESTIONS[0];
+
+  it("1問目は、飲み薬のほかに注射・貼り薬・塗り薬と、毎日でなく決まった日だけ使う薬も聞く", () => {
+    expect(first.id).toBe("first_medicines");
+    for (const word of ["注射", "貼り薬", "塗り薬", "決まった日", "毎日"]) {
+      expect(first.text).toContain(word);
+    }
+    // 薬の中身は架空で答える（ADR-0022）
+    expect(first.answerAs).toBe("fictional");
+  });
+
+  it("1問目に数字を入れない（Claude の言い直しが用量の形の検査に当たって固定文に戻るのを避ける）", () => {
+    expect(first.text).not.toMatch(/[0-9０-９]/);
+    expect(first.text).not.toMatch(/[一二三四五六七八九十]回/);
+  });
+
+  it("振り返りの固定文は、薬の種類を挙げず、飲む・やめるの助言も、候補の提示もしない", () => {
+    expect(INTERRUPTION_NOTE).toContain("名前");
+    for (const word of [
+      "ステロイド",
+      "麻薬",
+      "飲んで",
+      "飲み続け",
+      "やめ",
+      "続けて",
+      "ではないですか",
+      "かもしれません",
+      "mg",
+      "錠",
+    ]) {
+      expect(INTERRUPTION_NOTE, word).not.toContain(word);
+    }
+    expect(INTERRUPTION_NOTE).not.toMatch(/[0-9０-９]/);
+    // 利用者が同じ言葉を言い返しても中断しない
+    expect(detectDistress(INTERRUPTION_NOTE)).toBeNull();
   });
 });
