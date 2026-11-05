@@ -216,6 +216,29 @@ export const BOARD_RECORDS = {
   open: "この救護所の記録を見る",
 } as const;
 
+/**
+ * カルテ入力の専用画面と、処方の累計（Issue #114）。入力は在庫管理の画面から切り分けた全画面で行い、閲覧は記録タブのまま。
+ * 累計は人が入れた数量を足すだけで、量の妥当性・代わりの薬・薬効は判断しない
+ */
+// [TODO-OWNER: カルテ入力の専用画面と処方の累計の文言（Claude Code の下書き。ボタン・題・注意書き・表の見出し）]
+export const BOARD_INTAKE_MODE = {
+  open: "カルテを入力する",
+  openFor: "のカルテを入力する",
+  openNote: "入力は在庫の画面から切り分けた専用の画面で行う。入れた記録は、この画面のカルテに加わる。",
+  title: "カルテの入力",
+  back: "記録（カルテ）に戻る",
+  count: "この救護所のカルテ",
+  totalsTitle: "カルテの処方の累計",
+  totalsNote: "画面で入力したカルテの「医師の処方」の数量を、品目ごとに足しただけ。最初からある記録は数量を持たないので含めない。量の妥当性・代わりの薬・薬効は判断しない。未交付の分は、発注の提案の「未交付・必要な数」に入っている。",
+  totalsEmpty: "処方のあるカルテはまだない",
+  colItem: "薬（仮名）",
+  colPrescribed: "処方の合計",
+  colDelivered: "うち渡せた数",
+  colUndelivered: "うち未交付",
+  colCount: "件数",
+  basisFromCharts: "うちカルテの処方の未交付",
+} as const;
+
 /** 架空の町の模式図（Issue #105）。外部の地図は使わない */
 // [TODO-OWNER: 模式図の文言（題・凡例・状況の欄・最新情報の固定文。Claude Code の下書き）]
 export const BOARD_MAP = {
