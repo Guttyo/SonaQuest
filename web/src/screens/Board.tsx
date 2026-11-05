@@ -21,12 +21,14 @@ import {
 } from "../board/data";
 import {
   DEMO_SITES,
+  chartUndelivered,
   chartsFor,
   clockText,
   demoReducer,
   initialDemo,
   nextFictionalName,
   patientsWithExtra,
+  prescriptionTotals,
   proposalStage,
   changesSince,
   stampMinutes,
@@ -61,6 +63,7 @@ import {
   BOARD_DEMO,
   BOARD_GROUPS,
   BOARD_INTAKE_FORM,
+  BOARD_INTAKE_MODE,
   BOARD_LAYOUT,
   BOARD_LEAD,
   BOARD_MOCK_BADGE,
@@ -89,6 +92,8 @@ interface Props {
   initialTab?: BoardTab;
   /** 最初のデモの状態（試験のため） */
   initialState?: DemoState;
+  /** 最初からカルテ入力の専用画面で開く（initialSite の救護所。URL の ?view=intake&site=…。Issue #114） */
+  initialIntake?: boolean;
 }
 
 const fmt = new Intl.NumberFormat("ja-JP");
@@ -569,6 +574,7 @@ function ProposalList({
         const isNew = p.status === "提案" && p.createdRev > 0 && p.createdRev === state.rev;
         const isUpdated = !isNew && p.status === "提案" && p.rev > 0 && p.rev === state.rev;
         const b = p.basis;
+        const fromCharts = chartUndelivered(state.records, p.site, p.item);
         return (
           <li key={p.id} className={`board-order ${p.status === "提案" ? "pending" : "approved"}`} data-proposal={p.id}>
             <div className="board-order-head">
@@ -592,7 +598,8 @@ function ProposalList({
               {p.unit}
             </p>
             <p className="board-order-basis">
-              {BOARD_ORDERS.basisNeed} {fmt.format(b.need)} ＋ {b.cover === null ? BOARD_ORDERS.basisCoverUnknown : `${BOARD_ORDERS.basisCover} ${fmt.format(b.cover)}`} −{" "}
+              {BOARD_ORDERS.basisNeed} {fmt.format(b.need)}
+              {fromCharts > 0 && `（${BOARD_INTAKE_MODE.basisFromCharts} ${fmt.format(fromCharts)}）`} ＋ {b.cover === null ? BOARD_ORDERS.basisCoverUnknown : `${BOARD_ORDERS.basisCover} ${fmt.format(b.cover)}`} −{" "}
               {BOARD_ORDERS.basisOnHand} {fmt.format(Math.floor(b.onHand))} − {BOARD_ORDERS.basisIncoming} {fmt.format(b.incoming)} ＝ {fmt.format(p.qty)}
               {p.unit}
             </p>
@@ -692,6 +699,49 @@ export function changeLineText(state: DemoState, site?: SiteId): string {
     .filter((k) => counts[k.kind] > 0)
     .map((k) => `${k.name} ${k.kind === "未交付" ? "+" : ""}${fmt.format(counts[k.kind])} 件`);
   return parts.length === 0 ? BOARD_CHANGES.none(since) : `${BOARD_CHANGES.since(since)}${parts.join(BOARD_CHANGES.sep)}`;
+}
+
+/** カルテの処方の累計の表（Issue #114）。人が入れた数量を足しただけで、量の妥当性は判断しない */
+function PrescriptionTotals({ state, site, headingId }: { state: DemoState; site: SiteId; headingId: string }) {
+  const totals = prescriptionTotals(state.records, site);
+  return (
+    <section aria-labelledby={headingId} className="board-rx-totals">
+      <h3 id={headingId}>
+        {BOARD_INTAKE_MODE.totalsTitle} <span className="board-count">{fmt.format(totals.length)} 品目</span>
+      </h3>
+      {totals.length === 0 ? (
+        <p className="board-note">{BOARD_INTAKE_MODE.totalsEmpty}</p>
+      ) : (
+        <div className="board-tablebox">
+          <table data-testid="rx-totals">
+            <thead>
+              <tr>
+                <th>{BOARD_INTAKE_MODE.colItem}</th>
+                <th className="num">{BOARD_INTAKE_MODE.colPrescribed}</th>
+                <th className="num">{BOARD_INTAKE_MODE.colDelivered}</th>
+                <th className="num">{BOARD_INTAKE_MODE.colUndelivered}</th>
+                <th className="num">{BOARD_INTAKE_MODE.colCount}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {totals.map((t) => (
+                <tr key={t.item}>
+                  <td>{t.item}</td>
+                  <td className="num">{`${fmt.format(t.prescribed)}${t.unit}`}</td>
+                  <td className="num">{`${fmt.format(t.delivered)}${t.unit}`}</td>
+                  <td className="num">
+                    {t.undelivered > 0 ? <Pill level="bad">{`${fmt.format(t.undelivered)}${t.unit}`}</Pill> : `0${t.unit}`}
+                  </td>
+                  <td className="num">{fmt.format(t.count)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="board-note">{BOARD_INTAKE_MODE.totalsNote}</p>
+    </section>
+  );
 }
 
 function SiteDetail({
@@ -841,6 +891,8 @@ function SiteDetail({
         </section>
       </div>
 
+      <PrescriptionTotals state={state} site={site} headingId="board-detail-rx" />
+
       <section aria-labelledby="board-detail-orders">
         <h3 id="board-detail-orders">
           {BOARD_ORDERS.title} <span className="board-count">{fmt.format(proposals.length)} {BOARD_ORDERS.count}</span>
@@ -874,11 +926,17 @@ function SiteDetail({
  * 架空データ（web/src/board/data.ts）から始め、デモの reducer（demo.ts）でメモリの中だけ動かす。Claude も API も保存も使わない。
  * 焦点は App の画面遷移の処理（[data-scroll-target]）に任せる
  */
-export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "overview", initialState }: Props) {
+export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "overview", initialState, initialIntake = false }: Props) {
   const [state, dispatch] = useReducer(demoReducer, initialState, (s) => s ?? initialDemo());
   const [selected, setSelected] = useState<SiteId>(initialSite);
-  const [tab, setTab] = useState<BoardTab>(initialTab);
+  // カルテ入力の専用画面で開いている救護所（Issue #114）。開いているあいだはボード全体をこの画面にする
+  const startIntake = initialIntake && initialSite !== HQ ? initialSite : null;
+  const [intake, setIntake] = useState<SiteId | null>(startIntake);
+  const [tab, setTab] = useState<BoardTab>(startIntake !== null ? "records" : initialTab);
   const panelRef = useRef<HTMLDivElement>(null);
+  const intakeTitleRef = useRef<HTMLHeadingElement>(null);
+  const intakeOpenRef = useRef<HTMLButtonElement>(null);
+  const prevIntake = useRef<SiteId | null>(startIntake);
   const noAuto = reducedMotion ?? prefersReducedMotion();
 
   // 自動進行：2秒で架空の1時間。止めるか、画面を離れると止まる
@@ -892,6 +950,15 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
   useEffect(() => {
     panelRef.current?.scrollTo?.({ top: 0 });
   }, [selected, tab]);
+
+  // 専用画面に入ったら題へ、戻ったら「カルテを入力する」のボタンへ焦点を移す（最初の表示は App の処理に任せる）
+  useEffect(() => {
+    if (prevIntake.current === intake) return;
+    prevIntake.current = intake;
+    window.scrollTo?.({ top: 0 });
+    if (intake !== null) intakeTitleRef.current?.focus();
+    else (intakeOpenRef.current ?? panelRef.current)?.focus();
+  }, [intake]);
 
   const isHq = selected === HQ;
   const patients = patientsWithExtra(state);
@@ -913,8 +980,14 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
     setSelected(site);
   }
   function goSupplyHq() {
+    setIntake(null);
     setSelected(HQ);
     setTab("supply");
+  }
+  function openIntake(site: SiteId) {
+    setSelected(site);
+    setTab("records");
+    setIntake(site);
   }
 
   const marksFor = (site: SiteId) => {
@@ -935,6 +1008,41 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
 
   const siteStock = state.stock.filter((r) => r.site === selected);
   const siteInbound = state.inbound.filter((r) => r.to === selected || r.from === selected || r.forSite === selected);
+
+  if (intake !== null) {
+    const siteCharts = charts.filter((c) => c.site === intake);
+    const back = (
+      <button type="button" className="secondary board-intake-back" onClick={() => setIntake(null)}>
+        {BOARD_INTAKE_MODE.back}
+      </button>
+    );
+    return (
+      <section className="screen board board-intake-screen" aria-labelledby="board-intake-title" data-intake={intake}>
+        <header className="board-intake-head">
+          {back}
+          <h1 id="board-intake-title" data-scroll-target tabIndex={-1} ref={intakeTitleRef}>
+            {intake}
+            <span className="board-intake-title-sub">{BOARD_INTAKE_MODE.title}</span>
+          </h1>
+          <p className="board-asof">
+            <span className="board-badge">{BOARD_MOCK_BADGE}</span>
+            {districtOf(intake) && <span>{districtOf(intake)?.name}</span>}
+            <span>
+              {BOARD_DEMO.clock} <b data-testid="demo-clock">{clockText(state.minutes)}</b>
+            </span>
+          </p>
+        </header>
+        <div className="board-intake-body">
+          <IntakeForm key={intake} state={state} onAdd={dispatch} fixedSite={intake} onGoSupply={goSupplyHq} />
+          <PrescriptionTotals state={state} site={intake} headingId="board-intake-rx" />
+          <p className="board-note" data-testid="intake-chart-count">
+            {BOARD_INTAKE_MODE.count} {fmt.format(siteCharts.length)} {BOARD_RECORDS.count}
+          </p>
+          {back}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="screen board" aria-labelledby="board-title">
@@ -1469,14 +1577,13 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
             )}
             {!isHq && tab === "records" && (
               <>
-                <details className="board-more" open>
-                  <summary>
-                    <h3>{BOARD_INTAKE_FORM.title}</h3>
-                  </summary>
-                  <div className="board-more-body">
-                    <IntakeForm key={selected} state={state} onAdd={dispatch} fixedSite={selected} onGoSupply={goSupplyHq} />
-                  </div>
-                </details>
+                <section aria-labelledby="board-intake-open" className="board-intake-open">
+                  <h3 id="board-intake-open">{BOARD_INTAKE_FORM.title}</h3>
+                  <p className="board-note">{BOARD_INTAKE_MODE.openNote}</p>
+                  <button type="button" className="board-approve board-intake-button" ref={intakeOpenRef} onClick={() => openIntake(selected)}>
+                    {BOARD_INTAKE_MODE.open}
+                  </button>
+                </section>
                 <section aria-labelledby="board-site-charts">
                   <h3 id="board-site-charts">
                     {BOARD_LAYOUT.detail.charts}{" "}
@@ -1501,14 +1608,18 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
             {tab === "demo" && (
               <>
                 <p className="board-note">{BOARD_DEMO.note}</p>
-                <details className="board-more" open>
-                  <summary>
-                    <h3>{BOARD_INTAKE_FORM.title}</h3>
-                  </summary>
-                  <div className="board-more-body">
-                    <IntakeForm key={selected} state={state} onAdd={dispatch} defaultSite={isHq ? undefined : selected} onGoSupply={goSupplyHq} />
+                <section aria-labelledby="board-demo-intake" className="board-intake-open">
+                  <h3 id="board-demo-intake">{BOARD_INTAKE_FORM.title}</h3>
+                  <p className="board-note">{BOARD_INTAKE_MODE.openNote}</p>
+                  <div className="board-intake-launch">
+                    {(isHq ? DEMO_SITES : [selected]).map((s) => (
+                      <button key={s} type="button" className="secondary board-intake-button" data-intake-open={s} onClick={() => openIntake(s)}>
+                        {s}
+                        {BOARD_INTAKE_MODE.openFor}
+                      </button>
+                    ))}
                   </div>
-                </details>
+                </section>
                 <section aria-labelledby="board-log">
                   <h3 id="board-log">
                     {BOARD_DEMO.logTitle} <span className="board-count">{fmt.format(state.log.length)} 件</span>

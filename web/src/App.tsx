@@ -6,6 +6,7 @@ import { requestTurn } from "./flow/api";
 import { STOP_LABEL } from "./flow/content";
 import { currentIntroMode } from "./flow/mode";
 import { buildTurnRequest, initialState, trainingReducer } from "./flow/training";
+import { boardStartFrom } from "./board/url";
 import { Board } from "./screens/Board";
 import { Dialogue } from "./screens/Dialogue";
 import { Done } from "./screens/Done";
@@ -21,12 +22,11 @@ export function App() {
   const bgm = useBgmSnapshot();
   // 地域本部のボード（試作。Issue #97）は訓練の流れの外の画面。はじめにの画面からだけ入り、戻る。
   // 訓練の状態（reducer）には持たせず、はじめに以外の段階では出さない。メモリにだけ持つ
-  // 最初の表示だけ URL の ?view=board を読む（画面の確認・撮影のため。?mode=3d と同じ扱いで、保存しない。Issue #101）
-  const [view, setView] = useState<"training" | "board">(() =>
-    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("view") === "board"
-      ? "board"
-      : "training",
-  );
+  // 最初の表示だけ URL の ?view=board・?view=intake&site=A を読む（画面の確認・撮影のため。?mode=3d と同じ扱いで、保存しない。Issue #101、#114）
+  const [start] = useState(() => boardStartFrom(typeof window !== "undefined" ? window.location.search : ""));
+  const [view, setView] = useState<"training" | "board">(start.view);
+  // カルテ入力の専用画面で開くのは最初の1回だけ（はじめにへ戻ってから開き直したら、ボードの本部から）
+  const [intakeStart, setIntakeStart] = useState(start.intakeSite);
   const onBoard = stage.name === "intro" && view === "board";
 
   // 中断の画面（訓練をやめた・体調の訴え・自傷の案内）では BGM を止める（ADR-0011、ADR-0039）。
@@ -106,7 +106,16 @@ export function App() {
         )}
       </header>
       <main ref={mainRef} tabIndex={-1} className="app-main">
-        {onBoard && <Board onBack={() => setView("training")} />}
+        {onBoard && (
+          <Board
+            onBack={() => {
+              setIntakeStart(null);
+              setView("training");
+            }}
+            initialSite={intakeStart ?? undefined}
+            initialIntake={intakeStart !== null}
+          />
+        )}
         {stage.name === "intro" && !onBoard && (
           <Intro
             initialMode={currentIntroMode(state.session)}
