@@ -623,6 +623,137 @@
   font-size: var(--fs-body);
 }
 
+/* 架空の町の模式図（Issue #105）。PC は図と右の欄を横に並べ、スマホは縦に積む */
+.board-map {
+  display: grid;
+  gap: 10px;
+}
+.board-map-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
+}
+.board-map-figure {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.board-map-figure svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+/* 狭い画面では、文字が読める大きさを保ち、図の枠の中で横に送る（ページははみ出さない） */
+.board-map-scroll {
+  overflow-x: auto;
+  min-width: 0;
+}
+@media (max-width: 640px) {
+  .board-map-scroll svg {
+    min-width: 680px;
+  }
+}
+.board-map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+.board-map-legend .sw {
+  display: inline-block;
+  width: 22px;
+  height: 6px;
+  border-radius: 3px;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+.board-map-legend .sw.dashed {
+  background-image: repeating-linear-gradient(90deg, transparent 0 4px, #fff 4px 7px);
+}
+.board-map-legend .dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+.board-map-legend .dot.hq {
+  background: #1f4e8c;
+}
+.board-map-legend .dot.site {
+  background: #c62828;
+}
+.board-map-side {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-width: 0;
+}
+.board-map-side section {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  display: grid;
+  gap: 6px;
+}
+.board-map-side h3 {
+  margin: 0;
+  font-size: var(--fs-sub);
+}
+.board-map-status {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 10px;
+}
+.board-map-status > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: var(--fs-sub);
+  border-bottom: 1px dashed var(--line);
+  padding: 2px 0;
+}
+.board-map-status dt {
+  color: var(--ink-soft);
+  font-size: var(--fs-caption);
+}
+.board-map-status dd {
+  margin: 0;
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+.board-map-routes,
+.board-map-notes {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.board-map-notes {
+  padding-left: 1.2em;
+  list-style: disc;
+}
+.board-map-routes li,
+.board-map-notes li {
+  font-size: var(--fs-sub);
+  margin: 0;
+}
+@media (min-width: 900px) {
+  .board-map-grid {
+    grid-template-columns: minmax(0, 1.7fr) minmax(16rem, 1fr);
+    align-items: start;
+  }
+}
+
 /* 下部の詳細。閉じた状態で置く */
 .board-more {
   border: 1px solid var(--line);

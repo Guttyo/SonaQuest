@@ -48,6 +48,9 @@ import {
   BOARD_ABOUT,
   BOARD_BACK_LABEL,
   BOARD_CASES,
+} from "../board/text";
+import { BoardMap } from "./BoardMap";
+import {
   BOARD_DEMO,
   BOARD_GROUPS,
   BOARD_INTAKE_FORM,
@@ -637,6 +640,8 @@ export function Board({ onBack, reducedMotion }: Props) {
         <p className="board-note">{BOARD_CASES.note}</p>
         <p className="board-note">{BOARD_CASES.guide.replace("{days}", String(COVER_GUIDE_DAYS))}</p>
       </section>
+
+      <BoardMap overview={overview} />
 
       <section aria-labelledby="board-demo" className="board-demo">
         <h2 id="board-demo">{BOARD_DEMO.title}</h2>
