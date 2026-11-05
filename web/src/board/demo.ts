@@ -640,7 +640,7 @@ function arrive(state: DemoState, from: number, hours: number): DemoState {
           { label: ARRIVAL_ITEM_LABELS.sex, value: patient.sex },
           { label: ARRIVAL_ITEM_LABELS.age, value: `${patient.age}歳` },
           { label: ARRIVAL_ITEM_LABELS.condition, value: patient.condition },
-          { label: ARRIVAL_ITEM_LABELS.meds, value: patient.meds.map((m) => `${m.item} 1日${m.perDay}`).join("、") },
+          { label: ARRIVAL_ITEM_LABELS.meds, value: patient.meds.map((m) => `${m.item} 1日${m.perDay}${s.stock.find((r) => r.item === m.item)?.unit ?? ""}`).join("、") },
         ],
         prescriptions: patient.meds.map((m) => ({ item: m.item, qty: dispenseQty(m), days: DISPENSE_DAYS })),
         at,
