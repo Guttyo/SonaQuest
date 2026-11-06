@@ -89,6 +89,15 @@ npm --prefix video run render
 - 初回の書き出しで、Remotion が描画用の Chrome（Headless Shell）を取得します（ネットワークが要ります）。
 - 試しに最初の10秒だけ書き出すときは `npm --prefix video run render:test`（`video/out/sonaquest-test.mp4`）。
 
+## ボードの地図の紹介動画（BoardMapVideo、約30秒）
+Studio の左の一覧で `BoardMapVideo` を選びます。題材は Issue #167（地図の車と搬送便が道に沿って動く、救護所Dの迂回、錠の10錠単位）。中身は `src/boardMap/` です。
+
+- 1920×1080・30fps・900フレーム。7場面で、切り替えは0.4秒（12フレーム）の重ね。字幕は日本語と英語。音は入れていません。
+- 町・拠点・経路・車の位置・数量の文は `web/src/board/`（`map.ts`・`live.ts`・`vehicles.ts`・`text.ts`）から読みます。外部の地図・画像は使いません。白地に黒の線で描き直し、色は赤（通れない・以前）・黄（迂回）・緑（今）だけです。
+- 「以前の動き」は再現で、録画ではありません。Issue #167 の前のアプリと同じく、時計の1時間ごとに、前の位置からその時刻の位置へ 1.8秒（2秒で1時間の 9 割）で直線に移します。データは今のもの（救護所Dの迂回を含む）です。試験の場面の数（道の上にいた時刻の数）は、動画の中で `web/src/board/live.test.ts` と同じ検査をして数えています。
+- 各場面の左上に、使った表現（10のコツの番号）を小さく出しています。消すときは `src/boardMap/BoardMapVideo.tsx` の `SHOW_TIP_LABELS` を `false` にします。
+- 書き出し（render）はまだしていません。
+
 ## 試験
 ```bash
 npm --prefix video test
