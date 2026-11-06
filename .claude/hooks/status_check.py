@@ -1,14 +1,16 @@
-"""SessionStart・PreToolUse hook：docs/STATUS.md の更新漏れに気づかせる（ADR-0023）。
+"""SessionStart・PreToolUse hook：docs/STATUS.md と docs/KEEP-THINKING.md の更新漏れに気づかせる（ADR-0023、ADR-0058）。
 
 - SessionStart：STATUS.md に書かれたブランチ名のうち、main にマージ済みのものを知らせる。
   STATUS.md はマージ後の main の状態として書き、マージ済みの作業は Issue・PR の番号で書く約束なので、
   ブランチ名が残っていれば「作業中」のまま古くなっている。手元の git だけで調べ、通信しない。
-- PreToolUse（gh pr create）：ブランチで STATUS.md が変わっていなければ止める。
-  PR本文に「STATUS.md：更新不要（理由）」と書けば通す。
+- SessionStart：main の最新のマージの日付（JST）より、KEEP-THINKING.md の最後の節の日付が古ければ知らせる（ADR-0058）。
+- PreToolUse（gh pr create）：ブランチで STATUS.md・KEEP-THINKING.md が変わっていなければ止める。
+  PR本文に「STATUS.md：更新不要（理由）」「KEEP-THINKING.md：更新不要（理由）」と書けば、そのファイルは通す。
 マージの判定は main の「Merge pull request #N from 所有者/ブランチ」というマージコミットの件名による。
 squash マージや、fetch していない origin/main には気づけない。
 """
 import json
+import os
 import re
 import subprocess
 import sys
@@ -18,8 +20,13 @@ from guard_github import Blocked, check_git
 from sonaguard import ROOT, SUBST, git_invocation, sensitive_path, split_commands, use_utf8_stdio
 
 STATUS = "docs/STATUS.md"
+KEEP = "docs/KEEP-THINKING.md"
+# Windows の git は「Asia/Tokyo」を読めず UTC として扱うので、POSIX の書き方にする（macOS・Linux でも読める）
+JST = "JST-9"
+KEEP_HEADING = re.compile(r"^##[ \t]+(\d{4}-\d{2}-\d{2})", re.M)
 MERGE_SUBJECT = re.compile(r"^Merge pull request #(\d+) from [^/\s]+/(\S+)")
 NO_UPDATE = re.compile(r"STATUS\.md\s*[：:]\s*更新不要")
+NO_UPDATE_KEEP = re.compile(r"KEEP-THINKING\.md\s*[：:]\s*更新不要")
 HEREDOC = re.compile(r"<<-?[ \t]*(['\"]?)(\w+)\1[^\n]*\n(.*?)^[ \t]*\2[ \t]*$", re.M | re.S)
 
 
@@ -27,7 +34,7 @@ WORK = ROOT  # git を実行する作業ツリー。hook の入力の cwd（work
 
 
 def git(*args):
-    p = subprocess.run(["git", *args], cwd=WORK, capture_output=True)
+    p = subprocess.run(["git", *args], cwd=WORK, capture_output=True, env={**os.environ, "TZ": JST})
     return p.returncode, p.stdout.decode("utf-8", "replace")
 
 
@@ -67,7 +74,30 @@ def stale_mentions(text, merged):
     return hits
 
 
+def latest_merge_date():
+    """main の first-parent の最新のマージの日付（JST、YYYY-MM-DD）。無ければ None。"""
+    ref = base_ref()
+    if not ref:
+        return None
+    code, out = git("log", ref, "--first-parent", "--merges", "-1", "--format=%cd", "--date=format-local:%Y-%m-%d")
+    return (out.strip() or None) if code == 0 else None
+
+
+def keep_thinking_notice():
+    path = Path(WORK) / KEEP
+    if not path.exists():
+        return
+    dates = KEEP_HEADING.findall(path.read_text(encoding="utf-8"))
+    last = max(dates) if dates else None
+    merged = latest_merge_date()
+    if not merged or (last and last >= merged):
+        return
+    print(f"[KEEP-THINKING.md の確認] main の最新のマージは {merged} ですが、{KEEP} の最後の節は {last or '（節なし）'} です。"
+          "その間の作業の節が抜けていないか確かめ、`session-handoff` Skill の手順で末尾に追記してください（ADR-0058）。")
+
+
 def session_start():
+    keep_thinking_notice()
     path = Path(WORK) / STATUS
     if not path.exists():
         return
@@ -94,38 +124,38 @@ def heredoc_bodies(cmd):
     return [m.group(3) for m in HEREDOC.finditer(cmd)]
 
 
-def pr_body_says_no_update(cmd, tokens, cwd):
+def pr_body_says_no_update(cmd, tokens, cwd, pattern=NO_UPDATE):
     """PR本文（--body の値、--body-file の中身）だけを見る。タイトルや前後のコマンドは見ない。"""
     body = option_value(tokens, ("--body", "-b"))
     if body is not None:
-        if NO_UPDATE.search(body):
+        if pattern.search(body):
             return True
         # --body "$(cat <<'EOF' ... EOF)" の本文は、置換の印に置き換わっているので heredoc から読む
-        return SUBST in body and any(NO_UPDATE.search(b) for b in heredoc_bodies(cmd))
+        return SUBST in body and any(pattern.search(b) for b in heredoc_bodies(cmd))
     body_file = option_value(tokens, ("--body-file", "-F"))
     if not body_file:
         return False
     if body_file == "-":  # 標準入力（heredoc）で渡した本文
-        return any(NO_UPDATE.search(b) for b in heredoc_bodies(cmd))
+        return any(pattern.search(b) for b in heredoc_bodies(cmd))
     if sensitive_path(body_file):  # 秘密ファイルは開かない（block_secrets.py と同じ境界）
         return False
     p = Path(body_file)
     if not p.is_absolute():
         p = Path(cwd or WORK) / p
     try:
-        return bool(NO_UPDATE.search(p.read_text(encoding="utf-8")))
+        return bool(pattern.search(p.read_text(encoding="utf-8")))
     except (OSError, UnicodeDecodeError):
         return False
 
 
-def status_changed(base, head=None):
-    """head（--head の値。無ければ今の HEAD）で STATUS.md が変わっているか。"""
+def doc_changed(base, head=None, doc=STATUS):
+    """head（--head の値。無ければ今の HEAD）で doc が変わっているか。"""
     ref = base_ref(base)
     head_ref = base_ref(head.split(":", 1)[-1]) if head else "HEAD"  # 所有者:ブランチ の形も受ける
     if not ref or not head_ref:
         return True  # 比べる相手が無いときは止めない
     code, out = git("diff", "--name-only", f"{ref}...{head_ref}")
-    return code != 0 or STATUS in out.splitlines()
+    return code != 0 or doc in out.splitlines()
 
 
 def pre_tool_use(data):
@@ -146,8 +176,14 @@ def pre_tool_use(data):
         if branch and not base_ref(branch):
             branch = None  # switch -c で作る前のブランチは、今の HEAD から作られる
         head = option_value(tokens, ("--head", "-H")) or branch
-        if status_changed(option_value(tokens, ("--base", "-B")) or "main", head) \
-                or pr_body_says_no_update(cmd, tokens, data.get("cwd")):
+        base = option_value(tokens, ("--base", "-B")) or "main"
+        if not (doc_changed(base, head, KEEP) or pr_body_says_no_update(cmd, tokens, data.get("cwd"), NO_UPDATE_KEEP)):
+            print(f"BLOCKED（KEEP-THINKING.mdの更新確認）: このブランチで {KEEP} が変わっていません。"
+                  "この作業の節（うまくいったこと／つまずいたことと直し方／捨てた案と理由／次にやること／オーナーの判断待ち）を"
+                  "末尾に追記してコミットしてください（見出しは日付だけで、時刻は書かない）。"
+                  "書くことが無いときは、PR本文に「KEEP-THINKING.md：更新不要（理由）」と書いてください（ADR-0058）。", file=sys.stderr)
+            sys.exit(2)
+        if doc_changed(base, head) or pr_body_says_no_update(cmd, tokens, data.get("cwd")):
             continue
         print(f"BLOCKED（STATUS.mdの更新確認）: このブランチで {STATUS} が変わっていません。"
               "マージ後の main の状態として STATUS.md を更新してコミットしてください。"

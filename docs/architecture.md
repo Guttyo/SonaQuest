@@ -19,6 +19,14 @@
 [Claude API]  [ElevenLabs]
 ```
 
+## 地域本部のボード（訓練の流れの外の画面）の Workers の入口（2026-11-06 に main に入ったもの）
+上の図は訓練の経路。ボード（B-04〜B-11）は架空データのデモで、訓練の会話を送らない。`web/worker/app.ts` に次の入口がある。
+- `/api/board/chat/session`・`/api/board/chat/turn`（B-07、ADR-0047）：掲示板チャット。Managed Agents の役ごとのセッションを作り、Worker の中で SSE を読み切って、掲示板チャット用の検査（`boardChatChecks.ts`）を通った文を1件だけ返す。送るのは役・欄・件数と時刻・その欄の書き込みだけ。架空の書き込みは Anthropic 側のセッションに残る（privacy.md の例外）。Agent と Environment の ID は `wrangler.jsonc` の `vars`（PR #140）
+- `/api/board/authorize`（B-09、ADR-0050）：デモ用ログインの書き込みの確認。救護所の記号2つと出来事の種類だけを受け、違う救護所は 403。Claude は呼ばない。デモ用で偽装は簡単
+- `/api/karte/summary`・`/api/karte/audit`（B-10、ADR-0052・0053）：架空の会話の見本だけを入力にした抽出型の要約（Messages API）と、Managed Agents の監査役（要約と別のモデル、ツールなし、毎回セッションを削除）。ブラウザから受け取るのは見本の ID と要約だけ。監査役の Agent の ID（`KARTE_AUDIT_AGENT_ID`）はまだ空
+- 掲示板チャットとカルテの入口は、`/api/turn` と同じく手元からか `PUBLIC_TURN=1` のときだけ通し、別のサイトからの呼び出しを拒み、回数制限（ADR-0035）を通す。`/api/board/authorize` は外部のサービスを呼ばないので、公開の切り替えと回数制限をかけない（`boardAuthorize.ts` の注記）。ログはどれも失敗の種類・件数・所要時間だけで、値や本文は出さない
+- 提出動画を組む `video/`（ADR-0051）は、アプリとは別の npm パッケージで、Workers を通らない。ナレーションは手元のスクリプトから ElevenLabs に送って合成する
+
 ## 画面の聞き取り係（ADR-0020、ADR-0032）
 - 2D の聞き取り係は画面の部品（`web/src/screens/Listener.tsx`）。3D のパペット（ADR-0032。実装は Issue #37 の実装の PR）は、3D を表示するときだけ `three` を動的に読み込み、最初の表示を遅らせない。WebGL が使えない・動きを減らす設定・読み込みの失敗・描画の途中で文脈が失われたときは、2D の聞き取り係で続ける。中断の画面に移ったら、描画のくり返しを止めて描画の領域（canvas）を外し、three のデータを破棄する。パペットはアプリの状態（待機・聞いている・話している）だけで動き、Claude の出力は使わない。4つめの状態「考え中」を足すかは、ADR-0032 のマーカーでオーナーの確認待ち。
 

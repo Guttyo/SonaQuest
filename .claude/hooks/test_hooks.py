@@ -771,6 +771,8 @@ def status_hook_tests(tmp):
     git("commit", "-q", "-m", "STATUS を直す")
     git("switch", "-q", "-c", "docs/13-z")
     (repo / "b.txt").write_text("b", encoding="utf-8")
+    # KEEP-THINKING.md の確認（ADR-0058）は keep_thinking_hook_tests で試す。ここでは STATUS.md だけを見るため変えておく
+    (repo / "docs" / "KEEP-THINKING.md").write_text("## 2026-11-06 試験\n", encoding="utf-8")
     git("add", "-A")
     git("commit", "-q", "-m", "STATUS 以外を変える")
     check("gh pr create: STATUS.md が変わっていない", 2, pr("gh pr create --title x --body y"))
@@ -810,6 +812,84 @@ def status_hook_tests(tmp):
     check("  共有の作業コピー（未更新のブランチ）で gh pr create", 2, run({**payload, "cwd": str(repo)})[0])
 
 
+def keep_thinking_hook_tests(tmp):
+    print("--- KEEP-THINKING.md の更新確認（使い捨てリポジトリ。ADR-0058）")
+    repo = tmp / "keep-repo"
+    (repo / ".claude" / "hooks").mkdir(parents=True)
+    (repo / "docs").mkdir()
+    for f in ("status_check.py", "guard_github.py", "sonaguard.py"):
+        shutil.copy(HOOKS / f, repo / ".claude" / "hooks" / f)
+    env = {**os.environ, "GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "test@example.invalid",
+           "GIT_COMMITTER_NAME": "test", "GIT_COMMITTER_EMAIL": "test@example.invalid"}
+    keep = repo / "docs" / "KEEP-THINKING.md"
+
+    def git(*args, date=None):
+        e = {**env, **({"GIT_COMMITTER_DATE": date, "GIT_AUTHOR_DATE": date} if date else {})}
+        subprocess.run(["git", *args], cwd=repo, capture_output=True, env=e, check=True)
+
+    def run(payload):
+        p = subprocess.run([PY, str(repo / ".claude" / "hooks" / "status_check.py")], cwd=repo, capture_output=True,
+                           input=json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+        return p.returncode, p.stdout.decode("utf-8", "replace"), p.stderr.decode("utf-8", "replace")
+
+    def session():
+        return run({"hook_event_name": "SessionStart", "source": "startup"})[1]
+
+    def pr(cmd):
+        return run({"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": str(repo)})
+
+    git("init", "-q", "-b", "main")
+    (repo / "docs" / "STATUS.md").write_text("# 進捗\n", encoding="utf-8")
+    keep.write_text("# 日誌\n\n## 2026-11-05 Issue #1\n- x\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "最初", date="2026-11-05T10:00:00+09:00")
+    check("SessionStart: マージが無ければ知らせない", "", session())
+    git("switch", "-q", "-c", "feat/2-a")
+    (repo / "a.txt").write_text("a", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "作業", date="2026-11-06T00:30:00+09:00")
+    git("switch", "-q", "main")
+    # UTC では 11-05 だが JST では 11-06。日付は JST で比べる
+    git("merge", "-q", "--no-ff", "-m", "Merge pull request #3 from Owner/feat/2-a", "feat/2-a", date="2026-11-05T15:30:00+00:00")
+    out = session()
+    check("SessionStart: 最新のマージより日誌の最後の節が古ければ知らせる", True,
+          "最新のマージは 2026-11-06" in out and "最後の節は 2026-11-05" in out, out)
+    keep.write_text("# 日誌\n\n## 2026-11-05 Issue #1\n- x\n\n## 2026-11-06 Issue #2\n- y\n", encoding="utf-8")
+    check("SessionStart: 同じ日の節があれば知らせない", "", session())
+    keep.write_text("# 日誌\n\n## 2026-11-06 Issue #2\n- y\n\n## 2026-11-05 Issue #1（あとから足した）\n- x\n", encoding="utf-8")
+    check("SessionStart: 並びではなく一番新しい日付で比べる", "", session())
+    keep.write_text("# 日誌\n- 節なし\n", encoding="utf-8")
+    check("SessionStart: 節が無ければ知らせる", True, "（節なし）" in session())
+    git("checkout", "-q", "--", "docs/KEEP-THINKING.md")
+
+    git("switch", "-q", "-c", "docs/4-b")
+    (repo / "docs" / "STATUS.md").write_text("# 進捗\n- 4\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "STATUS だけ更新")
+    code, _, err = pr("gh pr create --title x --body y")
+    check("gh pr create: STATUS.md だけ更新して KEEP-THINKING.md が変わっていない", True, code == 2 and "KEEP-THINKING" in err, err)
+    check("gh pr create: STATUS の更新不要だけでは KEEP-THINKING は通らない", 2,
+          pr("gh pr create --title x --body 'STATUS.md：更新不要（x）'")[0])
+    check("gh pr create: タイトルにだけ KEEP-THINKING の更新不要", 2,
+          pr("gh pr create --title 'KEEP-THINKING.md：更新不要' --body y")[0])
+    check("gh pr create: 本文に KEEP-THINKING の更新不要と理由", 0,
+          pr("gh pr create --title x --body 'KEEP-THINKING.md：更新不要（誤字の修正のみ）'")[0])
+    check("gh pr create: heredoc の本文に KEEP-THINKING の更新不要", 0,
+          pr("gh pr create --title x --body-file - <<'EOF'\nKEEP-THINKING.md: 更新不要（誤字）\nEOF")[0])
+    git("switch", "-q", "-c", "docs/5-c", "main")
+    keep.write_text("# 日誌\n\n## 2026-11-05 Issue #1\n- x\n\n## 2026-11-06 Issue #5\n- z\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "日誌だけ更新")
+    code, _, err = pr("gh pr create --title x --body y")
+    check("gh pr create: KEEP-THINKING.md だけ更新して STATUS.md が変わっていない", True, code == 2 and "STATUS.md" in err, err)
+    (repo / "docs" / "STATUS.md").write_text("# 進捗\n- 5\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "STATUS も更新")
+    check("gh pr create: 両方を更新済み", 0, pr("gh pr create --title x --body y")[0])
+    check("git switch で KEEP-THINKING 未更新のブランチへ移ってから gh pr create", 2,
+          pr("git switch docs/4-b && gh pr create --title x --body y")[0])
+
+
 def main():
     for s in (sys.stdout, sys.stderr):
         s.reconfigure(encoding="utf-8")
@@ -823,6 +903,7 @@ def main():
         git_hook_tests(tmp)
         merge_hook_tests(tmp)
         status_hook_tests(tmp)
+        keep_thinking_hook_tests(tmp)
     print(f"\n{sum(results)}/{len(results)} PASS")
     sys.exit(0 if all(results) else 1)
 
