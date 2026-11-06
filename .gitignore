@@ -31,3 +31,7 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+
+# 提出動画の素材と書き出し（Issue #28。写真・本人の映像・音声・画面の録画・書き出した動画はリポジトリに入れない）
+video/public/
+video/out/
