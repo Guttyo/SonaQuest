@@ -33,9 +33,10 @@ export function roundDays(days: number): number {
 
 export type Level = "bad" | "warn" | "ok";
 
-/** 色分けの段階。目安（COVER_GUIDE_DAYS）より短ければ bad、その2日先までが warn。丸める前の値で判定する */
+/** 色分けの段階。0 日（切れ）は bad、目安（COVER_GUIDE_DAYS）の2日先までが warn。丸める前の値で判定する */
 export function levelOf(days: number): Level {
-  if (days < COVER_GUIDE_DAYS) return "bad";
+  if (days <= 0) return "bad";
+  // 目安の日数より少なくても、在庫が残っていれば黄（赤は在庫切れなど止まっているものだけ。2026-11-06 オーナー決定、計画書 9章）
   if (days < COVER_GUIDE_DAYS + 2) return "warn";
   return "ok";
 }

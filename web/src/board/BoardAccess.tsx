@@ -6,6 +6,7 @@ import type { SiteId } from "./data";
 import { clockText, type PatientChart } from "./demo";
 import { LOGIN_SITES, siteLabel, staffFor, type AccessEntry, type DemoSession } from "./access";
 import { ACCESS_LOG_TEXT, BOARD_LOGIN, BOARD_PERMISSION, CHART_REVIEW_TEXT } from "./accessText";
+import { BOARD_BAND } from "./text";
 import { confirmable, type AuditFinding, type ChartReview, type ChartSummaryDraft } from "./review";
 import { PLANTED_NOTICE, SAMPLE_NOTICE } from "./karte/contract";
 import { findSample } from "./karte/samples";
@@ -102,7 +103,11 @@ export function BoardLogin({ onLogin, onBack }: { onLogin: (site: SiteId, staff:
 export function SessionBar({ session, onLogout }: { session: DemoSession; onLogout: () => void }) {
   return (
     <div className="board-session" data-testid="board-session">
-      <span className="board-session-who">{BOARD_LOGIN.who(siteLabel(session.site), session.staff)}</span>
+      {/* 帯では「救護所A・見本 青葉」と短く出し、読み上げには全文を残す（Issue #143、2026-11-06 オーナー決定） */}
+      <span className="board-session-who">
+        <span aria-hidden="true">{BOARD_BAND.who(siteLabel(session.site), session.staff)}</span>
+        <span className="visually-hidden">{BOARD_LOGIN.who(siteLabel(session.site), session.staff)}</span>
+      </span>
       <button type="button" className="secondary board-session-logout" onClick={onLogout}>
         {BOARD_LOGIN.logout}
       </button>
@@ -354,12 +359,32 @@ export function ChartReviewPanel({ chart }: { chart: PatientChart }) {
 }
 
 /** 画面の端の、開閉できるアクセス記録の一覧 */
-export function AccessLogPanel({ log, defaultOpen = false }: { log: readonly AccessEntry[]; defaultOpen?: boolean }) {
+export function AccessLogPanel({
+  log,
+  defaultOpen = false,
+  compact = false,
+}: {
+  log: readonly AccessEntry[];
+  defaultOpen?: boolean;
+  /** 帯の中では「アクセス記録」とだけ出し、読み上げには全文を残す（Issue #143、2026-11-06 オーナー決定） */
+  compact?: boolean;
+}) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <aside className={`board-access-log${open ? " open" : ""}`} aria-label={ACCESS_LOG_TEXT.title}>
       <button type="button" className="secondary board-access-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
-        {open ? ACCESS_LOG_TEXT.close : ACCESS_LOG_TEXT.open}（{log.length} 件）
+        {compact ? (
+          <>
+            <span aria-hidden="true">{BOARD_BAND.accessLog}</span>
+            <span className="visually-hidden">
+              {open ? ACCESS_LOG_TEXT.close : ACCESS_LOG_TEXT.open}（{log.length} 件）
+            </span>
+          </>
+        ) : (
+          <>
+            {open ? ACCESS_LOG_TEXT.close : ACCESS_LOG_TEXT.open}（{log.length} 件）
+          </>
+        )}
       </button>
       {open && (
         <div className="board-access-body">

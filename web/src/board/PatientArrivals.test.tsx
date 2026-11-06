@@ -61,7 +61,7 @@ describe("本部：到着の累計とけがのある人の人数（件数だけ�
     expect(h).not.toContain("降圧薬A");
   });
 
-  it("本部の全体とデモのタブに出る。前回から変わったことの1行は件数だけ", () => {
+  it("本部の全体とデモのタブに出る。直近1時間で変わったことの1行は件数だけ", () => {
     for (const tab of ["overview", "demo"] as BoardTab[]) expect(render(HQ, tab, arrived)).toContain('data-testid="arrivals-summary"');
     const h = render(HQ, "overview", arrived);
     const line = h.slice(h.indexOf('data-testid="board-changes"'), h.indexOf('id="board-panel"'));

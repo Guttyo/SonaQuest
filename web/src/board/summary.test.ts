@@ -98,11 +98,14 @@ describe("残り日数と状態（0 と不明を混ぜない）", () => {
     const r = stock("救護所A", 74, 25); // 2.96
     expect(roundDays(daysLeft(r) ?? 0)).toBe(3);
     expect(stockStatus(r)).toBe("在庫切れ見込み");
-    expect(levelOf(daysLeft(r) ?? 0)).toBe("bad");
+    expect(levelOf(daysLeft(r) ?? 0)).toBe("warn");
+    // 4.96 日は 5.0 と表示されても、目安の2日先より短いので黄のまま
+    expect(levelOf(COVER_GUIDE_DAYS + 2 - 0.04)).toBe("warn");
   });
 
-  it("段階は目安の日数で決まる", () => {
-    expect(levelOf(COVER_GUIDE_DAYS - 0.5)).toBe("bad");
+  it("段階：0 日（切れ）だけ赤、目安の2日先までは黄（3日未満も黄。2026-11-06 オーナー決定）", () => {
+    expect(levelOf(0)).toBe("bad");
+    expect(levelOf(COVER_GUIDE_DAYS - 0.5)).toBe("warn");
     expect(levelOf(COVER_GUIDE_DAYS)).toBe("warn");
     expect(levelOf(COVER_GUIDE_DAYS + 2)).toBe("ok");
   });
@@ -144,7 +147,7 @@ describe("集計", () => {
   });
 
   it("表のセル：救護所は日数、本部備蓄は有無、在庫 0 は「切れ」、null は「未確認」「算出不可」", () => {
-    expect(heatCell(STOCK, "救護所A", "血糖降下薬B")).toMatchObject({ label: "2", level: "bad" });
+    expect(heatCell(STOCK, "救護所A", "血糖降下薬B")).toMatchObject({ label: "2", level: "warn" });
     expect(heatCell(STOCK, HQ, "降圧薬A")).toMatchObject({ label: "有", level: "hq" });
     expect(heatCell(STOCK, HQ, "抗てんかん薬C")).toMatchObject({ label: "切れ", level: "bad" });
     expect(heatCell(STOCK, "救護所D", "吸入薬D")).toMatchObject({ label: "未確認", level: "none" });

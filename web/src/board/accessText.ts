@@ -75,19 +75,20 @@ export const ACCESS_LOG_TEXT = {
 } as const;
 
 // [TODO-OWNER: カルテの確認状態の名前・ボタン・説明と、見本の AI 下書き・見本の指摘の文（Claude Code の下書き。AI 要約と監査の本体は Issue #142）]
+// → オーナー決定（2026-11-06、チャット）：カルテの確認状態の末尾「（確認待ち）」は「（人のレビュー待ち）」にする（「人が確認済み」はそのまま）。「要約、要約の監査はAIエージェントがやっるけれど、最終的な確認は人間がやるので、人間のレビュー待ちとか。要確認でもいいね。」
 export const CHART_REVIEW_TEXT = {
   title: "AI 下書きと確認",
   status: {
     none: "AI 下書きなし",
-    ai_draft: "AI下書き（確認待ち）",
-    ai_auditing: "AI監査中（確認待ち）",
-    audited_findings: (n: number) => `監査済み・指摘あり ${n} 件（確認待ち）`,
-    audited_clean: "監査済み・指摘なし（確認待ち）",
-    audit_unavailable: "監査できず（確認待ち）",
+    ai_draft: "AI下書き（人のレビュー待ち）",
+    ai_auditing: "AI監査中（人のレビュー待ち）",
+    audited_findings: (n: number) => `監査済み・指摘あり ${n} 件（人のレビュー待ち）`,
+    audited_clean: "監査済み・指摘なし（人のレビュー待ち）",
+    audit_unavailable: "監査できず（人のレビュー待ち）",
     human_confirmed: "人が確認済み",
   },
   /** カルテの見出しの印（下書きがあって人がまだ確認していない） */
-  pendingFlag: "確認待ち",
+  pendingFlag: "人のレビュー待ち",
   makeDraft: "AI 下書きを作る（見本）",
   sendAudit: "AI 監査に出す",
   confirm: "内容を確かめて、確認済みにする",
