@@ -3621,3 +3621,189 @@
     padding: 8px 10px;
   }
 }
+
+/* ===== 発注・搬送の時間軸（Issue #118）=====
+   図は位置（%）で描き、文字は図の外に同じ内容を並べる。色は状態の札だけ。棒・印・斜線は灰と墨（計画書 2.1）。
+   1024px 未満は図を出さず、文字だけで並べる */
+.board-timeline {
+  display: grid;
+  gap: 8px;
+}
+.board-tl-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-caption);
+  color: var(--b-ink-soft);
+}
+.board-tl-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.board-tl-key {
+  display: inline-block;
+  width: 22px;
+  height: 10px;
+}
+.board-tl-key.stock {
+  background: #9a9a9a;
+}
+.board-tl-key.arrival {
+  width: auto;
+  height: auto;
+  color: var(--b-ink);
+}
+.board-tl-key.transit {
+  height: 0;
+  border-top: 3px solid var(--b-ink);
+}
+.board-tl-key.gap,
+.board-tl-gap {
+  background: repeating-linear-gradient(135deg, var(--b-ink-soft) 0 2px, transparent 2px 7px);
+}
+.board-tl-key.need {
+  width: 0;
+  height: 14px;
+  border-left: 2px solid var(--b-ink);
+}
+.board-tl-key.undecided {
+  height: 0;
+  border-top: 2px dashed var(--b-ink-soft);
+}
+.board-tl-rows {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--b-rule);
+  background: var(--b-surface);
+}
+.board-tl-row {
+  display: grid;
+  grid-template-columns: minmax(11rem, 16rem) minmax(0, 1fr);
+  column-gap: 12px;
+  row-gap: 2px;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--b-rule);
+}
+.board-tl-head {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.board-tl-label {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.board-tl-meta {
+  font-size: var(--fs-caption);
+}
+.board-tl-stage {
+  color: var(--b-ink-soft);
+}
+.board-tl-track {
+  position: relative;
+  height: 28px;
+  min-width: 0;
+}
+.board-tl-head .board-tl-track {
+  height: 22px;
+}
+.board-tl-track > span,
+.board-tl-track > span > span {
+  position: absolute;
+}
+.board-tl-day {
+  top: 0;
+  transform: translateX(2px);
+  font-size: var(--fs-caption);
+  color: var(--b-ink-soft);
+  white-space: nowrap;
+}
+.board-tl-now-label {
+  top: 0;
+  transform: translateX(-50%);
+  padding: 0 4px;
+  background: var(--b-ink);
+  color: #ffffff;
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
+}
+.board-tl-grid {
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--b-rule);
+}
+.board-tl-bar {
+  top: 9px;
+  height: 10px;
+  background: #9a9a9a;
+}
+.board-tl-out {
+  top: 4px;
+  height: 20px;
+  border-left: 2px solid var(--b-ink);
+}
+.board-tl-gap {
+  top: 9px;
+  height: 10px;
+}
+.board-tl-transit {
+  top: 13px;
+  height: 0;
+  border-top: 3px solid var(--b-ink);
+}
+.board-tl-arrival {
+  top: 2px;
+  transform: translateX(-50%);
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--b-ink);
+}
+.board-tl-undecided {
+  top: 13px;
+  height: 0;
+  border-top: 2px dashed var(--b-ink-soft);
+}
+.board-tl-need {
+  top: 2px;
+  height: 24px;
+  border-left: 2px solid var(--b-ink);
+}
+.board-tl-now {
+  top: -8px;
+  bottom: -8px;
+  border-left: 2px solid var(--b-ink);
+}
+.board-tl-text {
+  grid-column: 2;
+  margin: 0;
+  font-size: var(--fs-caption);
+  color: var(--b-ink);
+}
+.board-tl-narrow {
+  display: none;
+}
+@media (max-width: 1023px) {
+  .board-tl-legend,
+  .board-tl-head,
+  .board-tl-track {
+    display: none;
+  }
+  .board-tl-narrow {
+    display: block;
+  }
+  .board-tl-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .board-tl-text {
+    grid-column: 1;
+    font-size: var(--fs-body);
+  }
+}
