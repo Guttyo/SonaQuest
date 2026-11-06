@@ -26,13 +26,16 @@
   ],
   // ボードの掲示板チャット（B-07、ADR-0047）の Managed Agents の ID。秘密ではない。
   // オーナーが setup スクリプト（npm --prefix web run setup:board-chat）で作り、出た値をここに入れる（手順は docs/board-chat-setup.md）。
-  // 空のままなら、チャットはルールで組んだ固定の掲示だけになる。API キーはここに書かない（secrets）
+  // 空のままなら、チャットはルールで組んだ固定の掲示だけになる。API キーはここに書かない（secrets）。
+  // 注意：この ID を入れてデプロイすると、PUBLIC_TURN=1 の公開環境では利用者が Managed Agents を呼べて課金が生じる。
+  // 接続元ごとの回数制限（P7）は公開環境で効かないことが分かっている（Issue #65、safety-test-plan P7）ので、
+  // 公開時の課金の上限は Claude API の月の支出の上限（P9）だけ。デプロイはオーナーの承認の後（docs/board-chat-setup.md）
   "vars": {
-    "BOARD_CHAT_ENVIRONMENT_ID": "",
-    "BOARD_CHAT_AGENT_HQ": "",
-    "BOARD_CHAT_AGENT_A": "",
-    "BOARD_CHAT_AGENT_B": "",
-    "BOARD_CHAT_AGENT_C": "",
-    "BOARD_CHAT_AGENT_D": ""
+    "BOARD_CHAT_ENVIRONMENT_ID": "env_0196dKYCHE3iBj5cc6Yt58M8",
+    "BOARD_CHAT_AGENT_HQ": "agent_01YFjq19JrePAN1fmSeQ5ytD",
+    "BOARD_CHAT_AGENT_A": "agent_01GCfgzvnPLemZt3dgUD7uPG",
+    "BOARD_CHAT_AGENT_B": "agent_01W9z1ZEp3T5oULzQS2xMx1j",
+    "BOARD_CHAT_AGENT_C": "agent_01V3XQChcCB4ZUjFB6ve1MNo",
+    "BOARD_CHAT_AGENT_D": "agent_01RazAsv5c4YUTDtxuQFWp57"
   }
 }

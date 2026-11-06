@@ -1206,7 +1206,8 @@
   - Agent に道具（agent_toolset）や web 検索を持たせる：連絡の文を作るだけなので要らない。外へつながる口を増やさない。
   - 使い終わったセッションを archive する：取り消せない操作で、ページを閉じたことを確かめられない。
 - 影響：`web/worker/boardChat.ts`・`boardChatAgents.ts`・`boardChatChecks.ts`（と試験）、`web/worker/app.ts`（`/api/board/chat/*` をつなぐ）、`web/wrangler.jsonc`（`vars`）、`web/scripts/setup-board-chat.ts`、`web/package.json`（`setup:board-chat` の script。依存は足していない）、`web/src/board/chat/`、`web/src/screens/Board.tsx`（タブ1つ）・`web/src/board/text.ts`（タブの名前）、`docs/board-chat-setup.md`、`docs/PRD.md`（B-07）、`.claude/rules/privacy.md`・`scope.md`・`safety.md`、`docs/safety-test-plan.md`（H8〜H12）、`docs/STATUS.md`。訓練の流れ・訓練の検査・監査役は変えない。到着の知らせをチャットに流すことは、Issue #121 と #122 の両方がマージされた後の別の Issue。
-- まだ確かめていないこと：本物の Managed Agents での動き（Agent を作っていないので、偽物の backend の試験だけ）。とくに、SSE の出来事の順番と、Workers の上で25秒まで SSE を読み続けられるか。
+- 確かめたこと（2026-11-06、Issue #139。オーナーが setup スクリプトで Environment 1つと Agent 5つを作り、ID を手元の `wrangler dev` に `--var` で渡して本物の Managed Agents で動かした。safety-test-plan H12）：5役のセッションの作成は 0.5〜1.4秒、1回の応答は 2.9〜6.0秒で、25秒の上限に収まった。SSE は `session.status_running` → `agent.message` → `session.status_idle`（`end_turn`）の順で、`incomplete`・`timeout` は出なかった。開始の一巡の後、40秒ごとの自動の往復が続き、人が本部として書き込むと相手の救護所が文脈に沿って返した。エージェントの文 9件（2回目の確認）＋5件（1回目）はすべて検査を通り、捨てた文は 0件。Workers のログに本文は出なかった。ID は `web/wrangler.jsonc` の `vars` に入れた。
+- まだ確かめていないこと：budget の上限（$0.20）に達したときの固定の掲示への切り替え（確認の回数を10往復ほどに抑えたため、上限に届いていない）。公開する版（デプロイした Workers）での動き（未デプロイ）。
 - オーナーが判断する点：
   - [TODO-OWNER: 掲示板チャットで、使ったセッションを消さずに残すこと（Claude Code の下書き。消すときはオーナーが Claude Console か API で行う）と、Anthropic 側に架空の履歴が残ることを、送る前の注意だけで知らせること]
   - [TODO-OWNER: 掲示板チャットの文を監査役（ADR-0030）に通さず、掲示板チャット用の検査（訓練の検査とは別の一覧、カタカナの許可の一覧、英字の制限）だけにすること]
