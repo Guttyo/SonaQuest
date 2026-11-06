@@ -81,6 +81,7 @@ import {
   INTAKE_IMAGE,
 } from "../board/text";
 import { BoardMap } from "./BoardMap";
+import { BoardTimeline } from "./BoardTimeline";
 import { BoardChat } from "../board/chat/BoardChat";
 import { ArrivalControls, PatientArrivals } from "../board/PatientArrivals";
 import { Fold, Help } from "../board/Fold";
@@ -101,6 +102,8 @@ import {
 } from "../board/BoardAccess";
 import { auditResultAfterStop, sampleAudit, sampleDraft, type ChartAuditResult, type ChartSummaryDraft } from "../board/review";
 import { requestAudit, requestSummary, sampleForChart } from "../board/karte/client";
+import { KarteTranscribe } from "../board/karte/Transcribe";
+import { TRANSCRIBE_TEXT } from "../board/karte/transcribeText";
 import { nextRecordId } from "../board/demo";
 
 /** 見本の監査の結果が届くまでの時間（ミリ秒。「AI監査中」が画面で見えるように。Issue #141） */
@@ -1961,6 +1964,8 @@ export function Board({
             {/* 発注・搬送 */}
             {tab === "supply" && (
               <>
+                {/* 時間軸は「発注・搬送」の先頭（Issue #118。2026-11-06 オーナー決定「凍結前・案1・3日」）。本部の全体の並びは変えない */}
+                <BoardTimeline state={state} site={isHq ? undefined : selected} showSite={isHq} />
                 <section aria-labelledby="board-orders">
                   <h3 id="board-orders">
                     {BOARD_ORDERS.title}{" "}
@@ -1995,6 +2000,8 @@ export function Board({
             {/* 記録（カルテ） */}
             {isHq && tab === "records" && (
               <>
+                {/* 聞き取りの文字起こし（話す見本・架空）。HQ でログインしたときだけ（Issue #202、ADR-0061） */}
+                {session.site === HQ ? <KarteTranscribe /> : <p className="board-note">{TRANSCRIBE_TEXT.hqOnly}</p>}
                 <section aria-labelledby="board-hq-charts">
                   <h3 id="board-hq-charts">{BOARD_LAYOUT.hqRecords}</h3>
                   <ul className="board-site-cards">

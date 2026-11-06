@@ -1,6 +1,13 @@
 import { TALK_HINT, TALK_INSERTED, TALK_LABELS, TALK_NOTICES } from "./messages";
-import { TALK_STYLE, micNotice, type TalkSnapshot } from "./talk";
+import { TALK_STYLE, micNotice, type TalkNotice, type TalkSnapshot } from "./talk";
 import "./voice.css";
+
+/** 画面ごとに差し替える文（ボードの文字起こし。Issue #202）。省くと訓練の文 */
+export interface TalkButtonTexts {
+  hint: string;
+  inserted: string;
+  notices: Readonly<Record<TalkNotice, string>>;
+}
 
 /**
  * 「押して話す」のボタン（ADR-0033）。指・マウス・キーボード（スペース・Enter）で押せる。
@@ -11,17 +18,20 @@ export function TalkButton({
   inserted,
   onPress,
   onRelease,
+  texts,
 }: {
   snapshot: TalkSnapshot;
   /** 聞き取った文を入力欄に入れた直後か */
   inserted: boolean;
   onPress: () => void;
   onRelease: () => void;
+  texts?: TalkButtonTexts;
 }) {
   const labels = TALK_LABELS[TALK_STYLE];
   const usable = snapshot.mic === "ready";
   const notice = snapshot.notice ?? micNotice(snapshot.mic);
-  const status = notice !== null ? TALK_NOTICES[notice] : inserted ? TALK_INSERTED : TALK_HINT;
+  const t = texts ?? { hint: TALK_HINT, inserted: TALK_INSERTED, notices: TALK_NOTICES };
+  const status = notice !== null ? t.notices[notice] : inserted ? t.inserted : t.hint;
 
   return (
     <div className="talk">

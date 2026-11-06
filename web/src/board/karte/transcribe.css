@@ -1,0 +1,81 @@
+/* HQ のカルテ画面の、聞き取りの文字起こし（Issue #202）。ほかの PR と重ならないよう board.css と分ける */
+.board-transcribe {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.board-transcribe-before {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+}
+.board-transcribe-before p {
+  margin: 0;
+}
+.board-transcribe-ack {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 44px;
+  padding-top: 6px;
+}
+.board-transcribe-ack input {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  margin: 0;
+}
+.board-transcribe-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.board-transcribe-field textarea {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-height: 8rem;
+  font: inherit;
+  padding: 8px;
+  resize: vertical;
+}
+.board-transcribe-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.board-transcribe-foot button {
+  min-height: 44px;
+  padding: 6px 16px;
+}
+/* 文字起こしの要約（Issue #202 の2つめ） */
+.board-transcript-summary {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid currentColor;
+}
+.board-transcript-summary h4 {
+  margin: 0;
+}
+.board-transcript-summary .board-approve {
+  min-height: 48px;
+  padding: 8px 20px;
+}
+.board-transcript-items {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 1.5em;
+}
+.board-transcript-items p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.board-transcript-findings {
+  margin: 4px 0 0;
+  padding-left: 1.2em;
+}
