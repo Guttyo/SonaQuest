@@ -44,7 +44,7 @@ describe("③確認の情報源のカード（A-04・A-05 の③、Issue #48・#
   });
 
   it("絵は「どれにも当てはまらない」以外の5枚にあり、すべて aria-hidden（意味は文字で示す）", () => {
-    // 吹き出しの横の聞き取り係の小さな顔（Puppet2DFace、Issue #47）は数えない
+    // 吹き出しの横のソナの小さな顔（Puppet2DFace、Issue #47）は数えない
     const svgs = (withGuess.match(/<svg[^>]*>/g) ?? []).filter((svg) => !/class="puppet2d[ "]/.test(svg));
     expect(svgs).toHaveLength(SOURCE_OPTIONS.filter((o) => o.id !== "none").length);
     for (const svg of svgs) {

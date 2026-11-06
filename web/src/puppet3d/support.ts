@@ -3,7 +3,7 @@ import type { ListenerMode } from "./types";
 /**
  * 3D を出してよいかの判定（ADR-0032）。three を読み込まずに決める（このファイルは three を import しない）。
  * 3D を出さないとき：WebGL 2 が使えない、動きを減らす設定、この画面で一度 3D が失敗した。
- * どれでも 2D の聞き取り係で続ける。
+ * どれでも 2D のソナで続ける。
  */
 
 export const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";

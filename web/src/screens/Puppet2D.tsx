@@ -2,7 +2,7 @@ import { paletteFor } from "../puppet3d/palette";
 import type { ListenerActivity } from "../puppet3d/types";
 
 /**
- * 2D の聞き取り係（Issue #47、A-03、ADR-0038）。3D パペット（ADR-0032、web/src/puppet3d/）の 2D 版の姿。
+ * 2D のソナ（Issue #47、A-03、ADR-0038）。3D パペット（ADR-0032、web/src/puppet3d/）の 2D 版の姿。
  * 袖のような胴・襟・短い腕・丸い頭・上下に開く口・目・頬・頭の上の房を、SVG の基本の形でコードで描く。
  * 色は 3D と同じ palette.ts から取る。外部の画像・素材は使わない。名前は付けず、医療者の記号は使わない（ADR-0020）。
  *

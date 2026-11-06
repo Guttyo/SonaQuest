@@ -36,7 +36,7 @@ export const TTS_VOICE_SETTINGS = {
 } as const;
 /** 声だけなので 64kbps で足りる（どのプランでも使える形式） */
 export const TTS_OUTPUT_FORMAT = "mp3_44100_64";
-/** 読み上げる文の長さの上限。聞き取り係の文（200字）に、受け止めと固定の確認の文を足しても収まる */
+/** 読み上げる文の長さの上限。ソナの文（200字）に、受け止めと固定の確認の文を足しても収まる */
 export const MAX_TTS_TEXT_LENGTH = 500;
 /** 本文のバイト数の上限（日本語は1文字3バイト。形と、引用符などを逃がした分の余裕を足す） */
 export const MAX_TTS_BODY_BYTES = MAX_TTS_TEXT_LENGTH * 3 + 512;
