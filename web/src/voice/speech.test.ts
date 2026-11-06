@@ -19,7 +19,7 @@ function run(actions: TrainingAction[], from: TrainingState = initialState): Tra
 /** Claude を使わない固定の進行（回答の後、すぐ次の質問へ進む） */
 const offline: TrainingState = { ...initialState, ai: "off" };
 
-describe("読み上げるのは聞き取り係の文と固定文だけ（ADR-0005）", () => {
+describe("読み上げるのはソナの文と固定文だけ（ADR-0005）", () => {
   it("最初の質問を読み、回答の後は次の質問を読む。回答は読み上げる文に入らない", () => {
     const started = run([{ type: "start" }], offline);
     expect(listenerSpeech(started)).toBe(firstHalfQuestions()[0].text);
@@ -134,7 +134,7 @@ describe("認識した文にも、送る前に緊急の照合がかかる（docs
   });
 });
 
-describe("聞き取り係の様子", () => {
+describe("ソナの様子", () => {
   it("待つ間は考え中、マイクが開いていれば聞いている、声が出ていれば話している", () => {
     expect(listenerActivity({ waiting: true, listening: false, speaking: false })).toBe("thinking");
     expect(listenerActivity({ waiting: false, listening: true, speaking: false })).toBe("listening");

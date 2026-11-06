@@ -30,7 +30,7 @@
   --fs-heading: 1.25rem; /* h2・答え方を選ぶ */
   --fs-emphasis: 1.125rem; /* 問いかけ・カードの題・出来事の文 */
   --fs-subheading: 1.0625rem; /* h3 */
-  --fs-body: 1rem; /* 本文・聞き取り係の質問・回答 */
+  --fs-body: 1rem; /* 本文・ソナの質問・回答 */
   --fs-sub: 0.875rem; /* 補足・説明・案内 */
   --fs-caption: 0.8125rem; /* 吹き出しの名札・場面番号・小さな札 */
 
@@ -256,7 +256,7 @@ a:focus-visible {
   color: var(--ink-soft);
 }
 
-/* 聞き取り係の吹き出しの並び。.listener-light（光の存在。ADR-0020）は、3D を読み込む間の仮の姿（puppet3d/PuppetView.tsx）にだけ残す。2D の係はパペットの 2D 版（.p2d-*、ADR-0038） */
+/* ソナの吹き出しの並び。.listener-light（光の存在。ADR-0020）は、3D を読み込む間の仮の姿（puppet3d/PuppetView.tsx）にだけ残す。2D の係はパペットの 2D 版（.p2d-*、ADR-0038） */
 .listener {
   display: flex;
   gap: 12px;
@@ -295,7 +295,7 @@ a:focus-visible {
   gap: 8px;
 }
 
-/* やり取りは会話の吹き出しで示す。聞き取り係は左、利用者は右の薄緑 */
+/* やり取りは会話の吹き出しで示す。ソナは左、利用者は右の薄緑 */
 .exchange {
   display: flex;
   flex-direction: column;
@@ -311,7 +311,7 @@ a:focus-visible {
   border-radius: 12px;
 }
 
-/* 吹き出しの行。聞き取り係は左に光、利用者は右にアイコン */
+/* 吹き出しの行。ソナは左に光、利用者は右にアイコン */
 .exchange-row {
   display: flex;
   align-items: flex-start;
@@ -371,13 +371,13 @@ a:focus-visible {
   margin-top: 4px;
 }
 
-/* 聞き取り係：左の白い吹き出し。しっぽは左へ */
+/* ソナ：左の白い吹き出し。しっぽは左へ */
 .exchange-question {
   align-self: flex-start;
   margin-left: 8px;
   background: var(--surface);
   border: 1px solid var(--line);
-  /* 聞き取り係の質問は、利用者が読んで答える本文。補足の扱い（小さく薄い色）にせず、本文の大きさと墨の色にする（ADR-0037） */
+  /* ソナの質問は、利用者が読んで答える本文。補足の扱い（小さく薄い色）にせず、本文の大きさと墨の色にする（ADR-0037） */
   color: var(--ink);
   font-size: var(--fs-body);
 }
@@ -802,7 +802,7 @@ h1:focus-visible {
   white-space: nowrap;
 }
 
-/* 対話の画面（Issue #46）：聞き取り係を上に固定し、やり取りは真ん中で上から下へ流れ、回答の欄を下に固定する。
+/* 対話の画面（Issue #46）：ソナを上に固定し、やり取りは真ん中で上から下へ流れ、回答の欄を下に固定する。
    ヘッダーの高さは「上の余白（安全領域）＋ボタン44px＋下の余白10px＋線1px」で決まる */
 .dialogue {
   --header-h: calc(max(10px, env(safe-area-inset-top)) + 55px);
@@ -878,7 +878,7 @@ h1:focus-visible {
   padding: 12px 0 16px;
 }
 
-/* 固定した上の聞き取り係の下に隠れないように */
+/* 固定した上のソナの下に隠れないように */
 .dialogue [data-scroll-target] {
   scroll-margin-top: calc(var(--header-h) + var(--stage-h) + 8px);
 }
@@ -1256,7 +1256,7 @@ body,
   height: 44px;
 }
 
-/* 2D の聞き取り係（Issue #47、A-03、ADR-0038）。3D パペットの 2D 版の姿（screens/Puppet2D.tsx）。
+/* 2D のソナ（Issue #47、A-03、ADR-0038）。3D パペットの 2D 版の姿（screens/Puppet2D.tsx）。
    状態ごとの姿勢は止まった transform で決め（data-activity）、動きは別の要素に重ねる。
    動きを減らす設定では、上の prefers-reduced-motion で動きだけが止まり、状態ごとの姿勢が残る。
    舞台は 3D と同じ .puppet3d-stage（ミントの地）なので、出来事の暗い場面でも係が地に沈まない */

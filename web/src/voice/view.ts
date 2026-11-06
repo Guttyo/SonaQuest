@@ -1,8 +1,8 @@
-// 聞き取り係の見せ方に渡す値（Listener.tsx の props、Issue #37）。声を使うかは mode だけで決まる（ADR-0033）。
+// ソナの見せ方に渡す値（Listener.tsx の props、Issue #37）。声を使うかは mode だけで決まる（ADR-0033）。
 
 import type { TrainingMode } from "../flow/mode";
 
-/** 聞き取り係の様子（3D のパペットと 2D の姿の動かし方。Listener.tsx の props、Issue #37） */
+/** ソナの様子（3D のパペットと 2D の姿の動かし方。Listener.tsx の props、Issue #37） */
 export type ListenerActivity = "idle" | "listening" | "speaking" | "thinking";
 
 /**
