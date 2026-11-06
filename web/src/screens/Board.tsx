@@ -171,150 +171,165 @@ function StatusText({ c }: { c: CaseRow }) {
 }
 
 /**
- * 本部の全体の「確認・手配が必要な事項」の1行（Issue #113）。並びは caseRows の業務のルールのまま（臨床の緊急度を表さない）。
- * 「現在の状況」「次の確認」は、在庫・入荷・提案・最終報告の既存の状態から固定文だけで組み立てる。Claude は使わない
+ * 確認・手配が必要な事項の表（Issue #113、Issue #159 第2段）。並びは caseRows の業務のルールのまま（臨床の緊急度を表さない）。
+ * 初めは4列（救護所・品目／状態／入荷・融通／次の確認）だけを見せ、現地・本部の数量や必要な数などの根拠は行を開いて見せる。
+ * 列の名前は今の言葉のまま（言葉をそろえるのは Issue #160）。在庫切れ・未確認・見込み算出不可の区別は状態の文字で残す。
+ * 開いている行は画面のメモリだけで持ち、保存しない。文は在庫・入荷・提案・最終報告の既存の状態から固定文だけで組み立てる。Claude は使わない
  */
-function ActionRow({ c, state, onSelect }: { c: CaseRow; state: DemoState; onSelect: (site: SiteId) => void }) {
-  const info = siteInfo(c.site);
-  const proposal = state.proposals.find((p) => p.site === c.site && p.item === c.item);
+function CaseTable({
+  cases,
+  state,
+  onSelect,
+  showSite = true,
+  label,
+}: {
+  cases: readonly CaseRow[];
+  state: DemoState;
+  onSelect: (site: SiteId) => void;
+  /** 救護所の詳細では、救護所名を出さず品目だけにする */
+  showSite?: boolean;
+  label: string;
+}) {
+  const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
+  const toggle = (key: string) =>
+    setOpen((cur) => {
+      const next = new Set(cur);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  const first = showSite ? BOARD_CASES.cols.where : BOARD_GROUPS.items;
   return (
-    <tr data-case={`${c.site}|${c.item}`}>
-      <td className="board-action-site">
-        <span className="board-action-k" aria-hidden="true">{BOARD_CASES.table.site}</span>
-        <button type="button" className="board-link" onClick={() => onSelect(c.site)} aria-label={`${c.site}${BOARD_LAYOUT.openSite}`}>
-          {c.site}
-        </button>
-        <StaleMark state={state} site={c.site} />
-      </td>
-      <td>
-        <span className="board-action-k" aria-hidden="true">{BOARD_CASES.table.what}</span>
-        <Pill level={statusLevel(c.status)}>
-          <StatusText c={c} />
-        </Pill>{" "}
-        <span className="board-action-item">
-          {c.item}
-          <span className="board-case-form">（{ITEM_FORMS[c.item] ?? "—"}）</span>
-        </span>
-      </td>
-      <td className="board-action-now">
-        <span className="board-action-k" aria-hidden="true">{BOARD_CASES.table.now}</span>
-        <span>
-          {BOARD_CASES.cols.onHand} {qty(c.onHand, c.unit)}・{BOARD_CASES.cols.hq} {c.hqOnHand === null ? "—" : qty(c.hqOnHand, c.unit)}
-        </span>
-        <span>
-          {BOARD_CASES.cols.supply}：{c.supply}
-        </span>
-        {proposal && (
-          <span>
-            {BOARD_CASES.proposal}：{proposal.status === "提案" ? BOARD_CASES.awaiting : proposalStage(proposal, state.inbound)}
-          </span>
-        )}
-        {c.status === "未確認" && info && (
-          <span>
-            {BOARD_CASES.stockCheckedAt}：{mdhm(info.stockCheckedAt)}
-          </span>
-        )}
-      </td>
-      <td>
-        <span className="board-action-k" aria-hidden="true">{BOARD_CASES.table.next}</span>
-        {c.next}
-      </td>
-    </tr>
+    <div className="board-tablebox">
+      <table className="board-action-table" data-testid={showSite ? "action-table" : "site-case-table"}>
+        <caption className="visually-hidden">{label}</caption>
+        <thead>
+          <tr>
+            <th>{first}</th>
+            <th>{BOARD_CASES.cols.status}</th>
+            <th>{BOARD_CASES.cols.supply}</th>
+            <th>{BOARD_CASES.table.next}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {cases.map((c, i) => {
+            const key = `${c.site}|${c.item}`;
+            return (
+              <ActionRow
+                key={key}
+                c={c}
+                state={state}
+                onSelect={onSelect}
+                showSite={showSite}
+                first={first}
+                open={open.has(key)}
+                detailId={`board-case-${showSite ? "hq" : "site"}-${i}`}
+                onToggle={() => toggle(key)}
+              />
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
-/** 品目の1行（2タップ目）。一覧の行（summary）と、開いたときの連絡に要るもの */
-function CaseItem({ c, state }: { c: CaseRow; state: DemoState }) {
+/** 表の1行と、開いたときの根拠の行 */
+function ActionRow({
+  c,
+  state,
+  onSelect,
+  showSite,
+  first,
+  open,
+  detailId,
+  onToggle,
+}: {
+  c: CaseRow;
+  state: DemoState;
+  onSelect: (site: SiteId) => void;
+  showSite: boolean;
+  first: string;
+  open: boolean;
+  detailId: string;
+  onToggle: () => void;
+}) {
   const info = siteInfo(c.site);
-  const route = routeTo(c.site);
-  const sync = state.sync.find((s) => s.site === c.site);
-  const offline = sync?.mode === "紙で記録・通信なし";
+  const proposal = state.proposals.find((p) => p.site === c.site && p.item === c.item);
+  const row = state.stock.find((s) => s.site === c.site && s.item === c.item);
   const start = STOCK.find((s) => s.site === c.site && s.item === c.item)?.onHand ?? null;
   const changed = start !== null && c.onHand !== null && Math.floor(start) !== Math.floor(c.onHand);
   return (
-    <li className="board-case">
-      <details>
-        <summary>
-          <span className="board-case-row">
-            <span className="board-case-status">
-              <Pill level={statusLevel(c.status)}>
-                <StatusText c={c} />
-              </Pill>
+    <>
+      <tr data-case={`${c.site}|${c.item}`} className={open ? "open" : undefined}>
+        <td className="board-action-site">
+          <span className="board-action-k" aria-hidden="true">{first}</span>
+          {showSite && (
+            <span className="board-action-where">
+              <button type="button" className="board-link" onClick={() => onSelect(c.site)} aria-label={`${c.site}${BOARD_LAYOUT.openSite}`}>
+                {c.site}
+              </button>
+              {/* 最終報告が古いことは、左の一覧と本部の数字の「報告が古い」で示す（表の行では繰り返さない。Issue #159 第2段） */}
             </span>
-            <span className="board-case-where">
-              {c.item}
-              <span className="board-case-form">（{ITEM_FORMS[c.item] ?? "—"}）</span>
-            </span>
-            <span className="board-case-num">
-              <span className="k">{BOARD_CASES.cols.onHand}</span> {qty(c.onHand, c.unit)}
-              {changed && <span className="board-delta">（開始時 {qty(start, c.unit)}）</span>}
-            </span>
-            <span className="board-case-num">
-              <span className="k">{BOARD_CASES.cols.hq}</span> {c.hqOnHand === null ? "—" : qty(c.hqOnHand, c.unit)}
-            </span>
-            <span className="board-case-supply">
-              <span className="k">{BOARD_CASES.cols.supply}</span> {c.supply}
-            </span>
-            <span className="board-case-next">
-              <span className="k">{BOARD_CASES.cols.next}</span> {c.next}
-            </span>
+          )}
+          <span className="board-action-item">
+            {c.item}
+            <span className="board-case-form">（{ITEM_FORMS[c.item] ?? "—"}）</span>
           </span>
-        </summary>
-        <div className="board-case-detail">
+        </td>
+        <td className="board-action-status">
+          <span className="board-action-k" aria-hidden="true">{BOARD_CASES.cols.status}</span>
+          <Pill level={statusLevel(c.status)}>
+            <StatusText c={c} />
+          </Pill>
+          <button
+            type="button"
+            className="board-action-toggle"
+            aria-expanded={open}
+            aria-controls={detailId}
+            aria-label={`${showSite ? c.site : ""}${c.item}の${BOARD_CASES.table.now}`}
+            onClick={onToggle}
+          >
+            {BOARD_CASES.table.now}
+          </button>
+        </td>
+        <td className="board-action-now">
+          <span className="board-action-k" aria-hidden="true">{BOARD_CASES.cols.supply}</span>
+          <span>{c.supply}</span>
+          {proposal && (
+            <span>
+              {BOARD_CASES.proposal}：{proposal.status === "提案" ? BOARD_CASES.awaiting : proposalStage(proposal, state.inbound)}
+            </span>
+          )}
+        </td>
+        <td>
+          <span className="board-action-k" aria-hidden="true">{BOARD_CASES.table.next}</span>
+          {c.next}
+        </td>
+      </tr>
+      {/* 開いたときだけ見せる根拠（現地・本部の数量、1日の出庫、必要な数、搬送・入荷、在庫を確認した時刻） */}
+      <tr className="board-action-detail" id={detailId} hidden={!open}>
+        <td colSpan={4}>
           <dl>
-            {offline && info && (
-              <div>
-                <dt>{BOARD_CASES.detail.alt}</dt>
-                <dd>{info.altMeans}</dd>
-              </div>
-            )}
-            {info && (
-              <>
-                <div>
-                  <dt>{BOARD_CASES.detail.contact}</dt>
-                  <dd>
-                    {info.phone}
-                    <br />
-                    {BOARD_CASES.detail.pickup}：{info.pickup}（{info.status}）
-                  </dd>
-                </div>
-                <div>
-                  <dt>{BOARD_CASES.detail.pharmacists}</dt>
-                  <dd>{fmt.format(info.pharmacists)} 人</dd>
-                </div>
-              </>
-            )}
-            {sync && (
-              <div>
-                <dt>{BOARD_CASES.detail.comms}</dt>
-                <dd>{sync.mode}</dd>
-              </div>
-            )}
-            {!offline && info && (
-              <div>
-                <dt>{BOARD_CASES.detail.alt}</dt>
-                <dd>{info.altMeans}</dd>
-              </div>
-            )}
-            {sync && (
-              <div>
-                <dt>{BOARD_CASES.detail.lastReport}</dt>
-                <dd>{mdhm(sync.lastSync)}</dd>
-              </div>
-            )}
+            <div>
+              <dt>{BOARD_CASES.cols.onHand}</dt>
+              <dd>
+                {qty(c.onHand, c.unit)}
+                {changed && <span className="board-delta">（開始時 {qty(start, c.unit)}）</span>}
+              </dd>
+            </div>
+            <div>
+              <dt>{BOARD_CASES.cols.hq}</dt>
+              <dd>{c.hqOnHand === null ? "—" : qty(c.hqOnHand, c.unit)}</dd>
+            </div>
+            <div>
+              <dt>1日の出庫</dt>
+              <dd>{row?.dailyUse === null || row?.dailyUse === undefined ? "不明" : `${fmt.format(row.dailyUse)}${c.unit}`}</dd>
+            </div>
             {info && (
               <div>
                 <dt>{BOARD_CASES.detail.stockChecked}</dt>
                 <dd>{mdhm(info.stockCheckedAt)}</dd>
-              </div>
-            )}
-            {route && (
-              <div>
-                <dt>{BOARD_CASES.detail.route}</dt>
-                <dd>
-                  <Pill level={routeLevel(route.status)}>{route.status}</Pill> {route.via}
-                  {route.minutes !== null && `（約${fmt.format(route.minutes)}分）`}。確認 {mdhm(route.checkedAt)}
-                </dd>
               </div>
             )}
             <div>
@@ -330,9 +345,9 @@ function CaseItem({ c, state }: { c: CaseRow; state: DemoState }) {
               <dd>{c.hqInbound.length === 0 ? BOARD_CASES.detail.none : c.hqInbound.map((r) => inboundLine(r, c.unit)).join("。")}</dd>
             </div>
           </dl>
-        </div>
-      </details>
-    </li>
+        </td>
+      </tr>
+    </>
   );
 }
 
@@ -981,6 +996,7 @@ function SiteDetail({
   charts,
   latestAddedKey,
   dispatch,
+  onSelect,
 }: {
   site: SiteId;
   state: DemoState;
@@ -989,6 +1005,7 @@ function SiteDetail({
   charts: PatientChart[];
   latestAddedKey: string | null;
   dispatch: (a: DemoAction) => void;
+  onSelect: (site: SiteId) => void;
 }) {
   const info = siteInfo(site);
   const route = routeTo(site);
@@ -1066,21 +1083,8 @@ function SiteDetail({
         {cases.length === 0 ? (
           <p className="board-note">{BOARD_GROUPS.empty}</p>
         ) : (
-          <>
-            <div className="board-cases-head" aria-hidden="true">
-              <span>{BOARD_CASES.cols.status}</span>
-              <span>{BOARD_GROUPS.items}</span>
-              <span>{BOARD_CASES.cols.onHand}</span>
-              <span>{BOARD_CASES.cols.hq}</span>
-              <span>{BOARD_CASES.cols.supply}</span>
-              <span>{BOARD_CASES.cols.next}</span>
-            </div>
-            <ol className="board-cases" aria-label={`${site} の${BOARD_LAYOUT.detail.shortage}`}>
-              {cases.map((c) => (
-                <CaseItem key={`${c.site}-${c.item}`} c={c} state={state} />
-              ))}
-            </ol>
-          </>
+          // 本部の表と同じ4列の表にし、数量と根拠は行を開いて見せる（Issue #159 第2段）
+          <CaseTable cases={cases} state={state} onSelect={onSelect} showSite={false} label={`${site} の${BOARD_LAYOUT.detail.shortage}`} />
         )}
         <Help>
           <p className="board-note">{BOARD_LAYOUT.detail.shortageNote}</p>
@@ -1379,7 +1383,7 @@ export function Board({
       ? null
       : { session, canEdit, reviews: state.chartReview, drafting, aiStopped, busy, notice, chartOp, logOpen: (c) => logAccess("chart_open", c.id), tryWrite };
 
-  // 印の並びは固定のルール（在庫切れ → 未交付 → 記録の未着・転記待ち → 人員）。先頭の2つだけを出し、残りは「ほか N 件」（Issue #113）
+  // 印の並びは固定のルール（在庫切れ → 未交付 → 記録の未着・転記待ち → 人員）。先頭の1つだけを出し、残りは「ほか N 件」（Issue #113、#159 第2段で2つから1つに）
   const marksFor = (site: SiteId) => {
     const o = overview.find((x) => x.site === site);
     const m: { text: string; level: "bad" | "warn" | "none" }[] = [];
@@ -1630,21 +1634,6 @@ export function Board({
               <>
                 <section aria-label={BOARD_LAYOUT.hqSideLabel} className="board-kpis">
                   <div className="board-tiles board-kpi-row">
-                    {/* 救護所の不足状況（2026-11-06 オーナー決定）：在庫と薬剤師に分ける。在庫は在庫切れがあれば赤、見込みだけなら黄、0 は灰。薬剤師は色なし */}
-                    <div className="board-tile board-tile-lead">
-                      <TileLabel full={BOARD_LEAD_TILE.label} short={BOARD_LEAD_TILE.short} />
-                      <span className="board-tile-big board-lead-split">
-                        <span className={`board-lead-part ${stockShortSites === 0 ? "zero" : anyOutOfStock ? "stop" : "check"}`} data-testid="sites-short-stock">
-                          {BOARD_LEAD_TILE.stock(stockShortSites)}
-                        </span>
-                        <span className="board-lead-sep">
-                          {BOARD_LEAD_TILE.sep}
-                        </span>
-                        <span className={`board-lead-part${pharmacistShortSites === 0 ? " zero" : ""}`} data-testid="sites-short-pharmacists">
-                          {BOARD_LEAD_TILE.pharmacists(pharmacistShortSites)}
-                        </span>
-                      </span>
-                    </div>
                     <div className={`board-tile board-tile-major ${anyOutOfStock ? "stop" : critical.length > 0 ? "check" : "zero"}`}>
                       <TileLabel full={BOARD_TILES.critical} short={BOARD_TILE_SHORT.critical} />
                       <span className="board-tile-big">
@@ -1682,6 +1671,18 @@ export function Board({
                       </span>
                     </div>
                   </div>
+                  {/* 救護所の不足状況（2026-11-06 オーナー決定）は補助の情報として数字の列の下に1行で出す（Issue #159 第2段）。
+                      在庫と薬剤師に分け、在庫は在庫切れがあれば赤、見込みだけなら黄、0 は灰。薬剤師は色なし */}
+                  <p className="board-kpi-aux" data-testid="sites-short">
+                    <span className="board-kpi-aux-label">{BOARD_LEAD_TILE.label}</span>
+                    <span className={`board-lead-part ${stockShortSites === 0 ? "zero" : anyOutOfStock ? "stop" : "check"}`} data-testid="sites-short-stock">
+                      {BOARD_LEAD_TILE.stock(stockShortSites)}
+                    </span>
+                    <span className="board-kpi-aux-sep">{BOARD_LEAD_TILE.sep}</span>
+                    <span className={`board-lead-part${pharmacistShortSites === 0 ? " zero" : ""}`} data-testid="sites-short-pharmacists">
+                      {BOARD_LEAD_TILE.pharmacists(pharmacistShortSites)}
+                    </span>
+                  </p>
                 </section>
 
                 {/* 在庫切れ・在庫切れ見込みがあるときだけ開いておく（Issue #159） */}
@@ -1695,24 +1696,7 @@ export function Board({
                   {cases.length === 0 ? (
                     <p className="board-note">{BOARD_CASES.empty}</p>
                   ) : (
-                    <div className="board-tablebox">
-                      <table className="board-action-table" data-testid="action-table">
-                        <caption className="visually-hidden">{BOARD_CASES.title}</caption>
-                        <thead>
-                          <tr>
-                            <th>{BOARD_CASES.table.site}</th>
-                            <th>{BOARD_CASES.table.what}</th>
-                            <th>{BOARD_CASES.table.now}</th>
-                            <th>{BOARD_CASES.table.next}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {cases.map((c) => (
-                            <ActionRow key={`${c.site}-${c.item}`} c={c} state={state} onSelect={select} />
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    <CaseTable cases={cases} state={state} onSelect={select} label={BOARD_CASES.title} />
                   )}
                   <Help>
                     <p className="board-note">{BOARD_CASES.note}</p>
@@ -1733,12 +1717,13 @@ export function Board({
                   {!canDecide && pendingProposals.length > 0 && <p className="board-note">{BOARD_ORDERS.approveOnlyHq}</p>}
                 </Fold>
 
-                <PatientArrivals state={state} />
-
+                {/* 地図を「状況」と「次の対応」のすぐ後に近づける（Issue #159 第2段）。患者の受け入れはその下 */}
                 <div className="board-overview-map">
                   <BoardMap overview={overview} onSelect={select} selected={selected} live={state} reducedMotion={noAuto} />
                   <p className="board-note">{BOARD_LAYOUT.mapHint}</p>
                 </div>
+
+                <PatientArrivals state={state} />
 
                 <section aria-labelledby="board-activity">
                   <h3 id="board-activity">{BOARD_TILES.activity}</h3>
@@ -1842,6 +1827,7 @@ export function Board({
                 charts={charts.filter((c) => c.site === selected)}
                 latestAddedKey={latestAddedKey}
                 dispatch={dispatch}
+                onSelect={select}
               />
             )}
 
