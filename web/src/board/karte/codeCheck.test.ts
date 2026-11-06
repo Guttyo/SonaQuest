@@ -130,6 +130,17 @@ describe("text の確かめ", () => {
     expect(maskForbidden(summary, findings).items[0].text).toBe(summary.items[0].text);
   });
 
+  it("会話に無い quote（モデルが作った文）が助言・診断めいていれば forbidden で伏せる。会話にある quote には当てない", () => {
+    const sample = findSample("karte-01")!;
+    const made = { aspect: "current" as const, text: "朝に1錠", quote: "朝に1錠を飲んでください" };
+    const summary = { ...sample.expected, items: [...sample.expected.items, made] };
+    const findings = checkSummary(summary, patientUtterances(sample));
+    expect(findings.map((f) => f.kind)).toEqual(["quote_not_found", "forbidden"]);
+    expect(maskForbidden(summary, findings).items[6]).toMatchObject({ text: MASKED_TEXT, quote: MASKED_TEXT });
+    const spoken = { aspect: "current" as const, text: "ときどき飲んでいる", quote: "胃薬を、ときどき飲んでいます" };
+    expect(textForbidden(spoken.quote)).toBe(false);
+  });
+
   it("空白をはさんでも、全角でも forbidden を拾う", () => {
     expect(textForbidden("飲 んで くだ さい")).toBe(true);
     expect(textForbidden("ｈｔｔｐｓ://example.test")).toBe(true);

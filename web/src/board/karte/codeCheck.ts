@@ -76,11 +76,12 @@ export function checkSummary(summary: KarteSummary, utterances: readonly string[
     }
     if (quote.length < MIN_QUOTE_LENGTH) {
       findings.push({ kind: "quote_too_short", ...at });
-    } else if (!quoteFound(quote, utterances)) {
-      findings.push({ kind: "quote_not_found", ...at });
     }
+    // 会話にある quote は架空の見本の本人の言葉なので、禁止表現を当てない。会話に無い quote はモデルが作った文なので当てる
+    const found = quote.length >= MIN_QUOTE_LENGTH && quoteFound(quote, utterances);
+    if (quote.length >= MIN_QUOTE_LENGTH && !found) findings.push({ kind: "quote_not_found", ...at });
     if (termsNotInQuote(text, quote).length > 0) findings.push({ kind: "text_adds_terms", ...at });
-    if (textForbidden(text)) findings.push({ kind: "forbidden", ...at });
+    if (textForbidden(text) || (!found && textForbidden(quote))) findings.push({ kind: "forbidden", ...at });
   });
   const covered = new Set(summary.items.map((i) => i.aspect));
   const notCovered = new Set(summary.not_covered);
@@ -91,12 +92,12 @@ export function checkSummary(summary: KarteSummary, utterances: readonly string[
   return findings;
 }
 
-/** 禁止表現に当たった項目の text を伏せた要約（画面に出す前に Workers で当てる） */
+/** 禁止表現に当たった項目の text と quote を伏せた要約（画面に出す前に Workers で当てる） */
 export const MASKED_TEXT = "（コードでの確認で止めた文）";
 export function maskForbidden(summary: KarteSummary, findings: readonly CodeFinding[]): KarteSummary {
   const masked = new Set(findings.filter((f) => f.kind === "forbidden").map((f) => f.itemIndex));
   return {
-    items: summary.items.map((item, i) => (masked.has(i) ? { ...item, text: MASKED_TEXT } : item)),
+    items: summary.items.map((item, i) => (masked.has(i) ? { ...item, text: MASKED_TEXT, quote: MASKED_TEXT } : item)),
     not_covered: [...summary.not_covered],
   };
 }
