@@ -12,6 +12,10 @@
   --surface: #ffffff;
   --alert-bg: #fff1e3;
   --orange-strong-text: #a94e17; /* --alert-bg の上の文字用。--orange-strong（4.46）を少し濃くして 4.5 以上にする（Issue #46） */
+  /* 色に1つずつ役目を持たせる（Issue #183、デザイン案B）。押して進むボタンは深い緑（--mint-strong を濃くしたもの）だけ。
+     オレンジは出来事と「未確認と気づいた」などの注意だけに使い、ボタンには使わない。「訓練をやめる」は墨色 */
+  --go: #1f6b52; /* 白地に約6.6:1。白い文字を載せても同じ */
+  --go-press: #154d3b;
 
   /* 書体はゴシックで統一する（Issue #71、ADR-0037。2026-11-05 オーナー決定「ゴシックで統一」）。
      端末に入っているゴシックだけを使い、外部のフォント配信もフォントファイルも使わない（送信先を増やさない。privacy.md）。
@@ -86,10 +90,10 @@ body {
 .stop-button {
   min-height: 44px;
   padding: 0 14px;
-  border: 2px solid var(--orange-strong);
-  border-radius: 999px;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
   background: var(--surface);
-  color: var(--orange-strong);
+  color: var(--ink);
   font: inherit;
   font-size: var(--fs-body);
   font-weight: var(--fw-bold);
@@ -216,8 +220,12 @@ button.secondary {
 
 button.primary {
   border: none;
-  background: var(--orange-strong);
+  background: var(--go);
   color: #fff;
+}
+
+button.primary:not(:disabled):active {
+  background: var(--go-press);
 }
 
 button.secondary {
@@ -589,7 +597,7 @@ textarea {
 }
 
 .mode-card:has(input:checked) .mode-card-icon {
-  color: var(--orange-strong);
+  color: var(--go);
 }
 
 .mode-card-text {
@@ -683,7 +691,7 @@ textarea {
   width: 36px;
   height: 36px;
   flex: none;
-  color: var(--orange-strong);
+  color: var(--go);
 }
 
 h1:focus-visible {
@@ -2272,4 +2280,118 @@ body,
 }
 .public-source-meta {
   display: block;
+}
+
+/* ---- デザイン案B（Issue #183）---------------------------------------------------------------
+   はじめにの上の帯は案A（2026-11-06 オーナー「1ページ目のヘッダーはA案がいいね。答え方を選ぶから下のはB案がよい」） */
+.intro-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: -16px -16px 4px;
+  padding: 24px 20px 20px;
+  background: var(--mint);
+}
+
+.intro-hero-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.intro-hero .tagline {
+  color: #215a47; /* --mint の上で約8:1 */
+}
+
+.intro-hero-art {
+  flex: none;
+  width: 96px;
+  height: 96px;
+}
+
+/* 答え方の2枚のカード。幅があれば横に並べ、絵を上、題と説明を下に置く。選んでいるカードは深い緑の太い枠と ✓ で示す */
+.intro-modes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.intro-modes legend {
+  grid-column: 1 / -1;
+}
+
+.intro-modes .mode-card {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 0;
+  padding: 14px 12px 16px;
+  border-width: 2px;
+}
+
+.intro-modes .mode-card:has(input:checked) {
+  border-width: 3px;
+  border-color: var(--go);
+  background: var(--surface);
+}
+
+.intro-modes .mode-card-mark {
+  top: 12px;
+  right: 12px;
+  transform: none;
+  background: var(--go);
+}
+
+.intro-modes .mode-card-label {
+  font-size: var(--fs-body);
+}
+
+/* 将来構想（C-01）は、カードの形にせず、鍵の印を付けた1行の説明にする（押せないことがより分かる） */
+.mode-card.locked {
+  min-height: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.mode-card.locked .mode-card-icon {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+}
+
+.mode-card.locked .mode-card-label {
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-regular);
+}
+
+/* 対話：今の問いを、答える欄のすぐ上で一番大きく見せる。答える欄は白い面にして、ボタンは欄の下に幅いっぱいで置く（親指の届く所） */
+#current-question {
+  font-size: var(--fs-emphasis);
+  font-weight: var(--fw-bold);
+  line-height: 1.55;
+  border: 2px solid var(--go);
+}
+
+.dialogue-dock {
+  background: var(--surface);
+  border-top: none;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -4px 16px rgba(43, 42, 40, 0.08);
+  padding-top: 12px;
+}
+
+.dock-row {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.dock-row button.primary {
+  min-height: 52px;
+  border-radius: 14px;
+  font-size: var(--fs-emphasis);
 }
