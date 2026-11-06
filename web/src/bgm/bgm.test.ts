@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { BGM_DEFAULT_ON, BGM_DUCK_RATIO, BGM_END_FADE_SECONDS, Bgm, bgmLocksOn, bgmStopsOn, type AudioContextLike, type GainLike, type OscillatorLike, type ParamLike } from "./bgm";
+import { BGM_BPM, BGM_DEFAULT_ON, BGM_DUCK_RATIO, BGM_END_FADE_SECONDS, BGM_PHRASE, Bgm, bgmLocksOn, bgmStopsOn, type AudioContextLike, type GainLike, type OscillatorLike, type ParamLike } from "./bgm";
 
 function fakeParam(): ParamLike & { target: number | null } {
   const p = {
@@ -131,7 +131,7 @@ describe("BGM（B-03）", () => {
     expect(bgm.snapshot.on).toBe(false);
   });
 
-  it("押すと鳴り、和音の音を作り、もう一度押すと消音して止まる", () => {
+  it("押すと鳴り、フレーズの音を作り、もう一度押すと消音して止まる", () => {
     const { bgm, fake, createContext, master } = setup();
     bgm.toggle();
     expect(createContext).toHaveBeenCalledTimes(1);
@@ -149,7 +149,7 @@ describe("BGM（B-03）", () => {
     expect(fake.oscillators.every((o) => o.stoppedAt.length >= 2)).toBe(true);
   });
 
-  it("消音した後は、次の和音を鳴らさない", () => {
+  it("消音した後は、次の小節を鳴らさない", () => {
     const { bgm, fake, timers } = setup();
     bgm.toggle();
     const count = fake.oscillators.length;
@@ -296,5 +296,32 @@ describe("BGM（B-03）", () => {
     bgm.toggle();
     expect(bgm.snapshot.on).toBe(false);
     expect(master().gain.target).toBe(0);
+  });
+});
+
+describe("BGM のフレーズ（B-03。2026-11-07 オーナー「もっとポップな感じで」）", () => {
+  it("長く伸ばす音を置かない（どの音も1拍以内）。メロディは高め（C5 以上）で、テンポがある", () => {
+    expect(BGM_BPM).toBeGreaterThanOrEqual(100);
+    expect(BGM_PHRASE.length).toBeGreaterThanOrEqual(4);
+    for (const bar of BGM_PHRASE) {
+      for (const [beat, midi, beats] of bar.melody) {
+        expect(beats).toBeLessThanOrEqual(1);
+        expect(beat + beats).toBeLessThanOrEqual(4);
+        expect(midi).toBeGreaterThanOrEqual(72);
+      }
+    }
+  });
+
+  it("鳴っている間は、タイマーごとに次の小節を予約し続ける", () => {
+    const { bgm, fake, timers } = setup();
+    bgm.toggle();
+    const first = fake.oscillators.length;
+    expect(first).toBeGreaterThan(0);
+    // 時計を進めてからタイマーを呼ぶと、次の小節の音が足される
+    fake.ctx.currentTime = 10;
+    timers[timers.length - 1]!();
+    expect(fake.oscillators.length).toBeGreaterThan(first);
+    // 予約した音は、どれも今より後に始まり、すぐ止める予定を持つ
+    expect(fake.oscillators.every((o) => o.started && o.stoppedAt.length >= 1)).toBe(true);
   });
 });

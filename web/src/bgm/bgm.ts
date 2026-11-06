@@ -1,4 +1,5 @@
-// BGM（B-03、ADR-0039）。音のファイルは使わず、Web Audio API で、ゆっくり移る穏やかな和音をコードで鳴らす。
+// BGM（B-03、ADR-0039）。音のファイルは使わず、Web Audio API で、明るく弾む短いフレーズ
+// （高めのメロディ、裏拍の和音、軽い刻み、弱い低音）をコードで鳴らし、繰り返す（2026-11-07 オーナー「もっとポップな感じで」）。
 // 利用者が「BGM」を押すまで AudioContext を作らない（自動再生しない）。
 // 読み上げの間は小さくし、中断の画面では止める（ADR-0011）。BGM が無くても訓練は進む：
 // Web Audio が無い・失敗したときは「使えない」に変わるだけで、例外を外に出さない。
@@ -99,22 +100,51 @@ export const BGM_DEFAULT_VOLUME = 40;
 const MASTER_MAX = 0.12;
 /** 読み上げの間に下げる割合（止めずに、聞き取りの邪魔にならない大きさまで下げる。下書き） */
 export const BGM_DUCK_RATIO = 0.2;
-/** 和音ひとつの長さ（秒）。ゆっくり移り、前後の和音を重ねてつなぐ */
-const CHORD_SECONDS = 8;
-const FADE_SECONDS = 3;
+/** テンポ（1分間の拍の数）。明るく弾む速さ（2026-11-07 オーナー「もっとポップな感じで」） */
+export const BGM_BPM = 120;
+const BEAT_SECONDS = 60 / BGM_BPM;
+/** 1小節は4拍 */
+const BAR_SECONDS = BEAT_SECONDS * 4;
+/** 何秒先まで音を予約しておくか（タイマーの遅れで途切れないように） */
+const LOOKAHEAD_SECONDS = BAR_SECONDS * 1.5;
+
+/** 音の高さ（MIDI の番号）を Hz にする */
+export function midiToHz(midi: number): number {
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+
+/** [拍の位置, 音の高さ（MIDI）, 長さ（拍）] */
+export type BgmNote = readonly [number, number, number];
+
+export interface BgmBar {
+  /** 和音（MIDI。真ん中の高さで、裏拍に短く刻む） */
+  chord: readonly number[];
+  /** 低音（MIDI）。1拍目と3拍目に短く、小さく鳴らす */
+  bass: number;
+  /** メロディ（C5〜C6 あたりの高めの音域） */
+  melody: readonly BgmNote[];
+}
 
 /**
- * 和音の進み（Hz）。ハ長調の I → vi → IV → V に近い、低めで柔らかい音。
- * 長く続く持続音だけで、拍やリズムは付けない（緊張をあおらない）
+ * 8小節の繰り返し。ハ長調の C → G → Am → F を2回。
+ * 長く伸ばす音は置かず（どの音も1拍以内で消える）、メロディは高め、低音は弱くする
  */
-export const BGM_CHORDS: readonly (readonly number[])[] = [
-  [130.81, 196.0, 329.63], // C3 G3 E4
-  [110.0, 164.81, 261.63], // A2 E3 C4
-  [87.31, 130.81, 220.0], // F2 C3 A3
-  [98.0, 146.83, 246.94], // G2 D3 B3
+export const BGM_PHRASE: readonly BgmBar[] = [
+  { chord: [60, 64, 67], bass: 48, melody: [[0, 76, 0.5], [0.5, 79, 0.5], [1, 84, 1], [2, 79, 0.5], [2.5, 76, 0.5], [3, 79, 1]] },
+  { chord: [59, 62, 67], bass: 43, melody: [[0, 74, 0.5], [0.5, 79, 0.5], [1, 83, 1], [2, 81, 0.5], [2.5, 79, 0.5], [3, 74, 1]] },
+  { chord: [60, 64, 69], bass: 45, melody: [[0, 72, 0.5], [0.5, 76, 0.5], [1, 81, 1], [2, 79, 0.5], [2.5, 76, 0.5], [3, 72, 1]] },
+  { chord: [60, 65, 69], bass: 41, melody: [[0, 81, 1], [1, 79, 0.5], [1.5, 77, 0.5], [2, 76, 1], [3, 74, 1]] },
+  { chord: [60, 64, 67], bass: 48, melody: [[0, 76, 0.5], [0.5, 79, 0.5], [1, 84, 0.5], [1.5, 83, 0.5], [2, 84, 1], [3, 79, 1]] },
+  { chord: [59, 62, 67], bass: 43, melody: [[0, 83, 0.5], [0.5, 81, 0.5], [1, 79, 1], [2, 74, 0.5], [2.5, 79, 0.5], [3, 83, 1]] },
+  { chord: [60, 64, 69], bass: 45, melody: [[0, 84, 1], [1, 83, 0.5], [1.5, 81, 0.5], [2, 76, 1], [3, 81, 1]] },
+  { chord: [60, 65, 69], bass: 41, melody: [[0, 81, 0.5], [0.5, 79, 0.5], [1, 77, 0.5], [1.5, 76, 0.5], [2, 74, 1], [3, 79, 1]] },
 ];
 
-const NOTE_LEVEL = 0.22;
+/** それぞれの音の大きさ（最大）。メロディがいちばん大きく、低音は弱く */
+const MELODY_LEVEL = 0.3;
+const CHORD_NOTE_LEVEL = 0.06;
+const BASS_LEVEL = 0.12;
+const TICK_LEVEL = 0.05;
 
 export class Bgm {
   private readonly deps: BgmDeps;
@@ -123,9 +153,11 @@ export class Bgm {
   private ctx: AudioContextLike | null = null;
   private master: GainLike | null = null;
   private timer: unknown = null;
-  private chordIndex = 0;
-  /** 鳴っている音。止めるときに、すべて消す */
-  private voices: OscillatorLike[] = [];
+  private barIndex = 0;
+  /** 次の小節を鳴らし始める時刻（AudioContext の時計） */
+  private nextBarTime = 0;
+  /** 鳴っている・予約した音と、鳴り終える時刻。止めるときに、すべて消す */
+  private voices: { osc: OscillatorLike; endAt: number }[] = [];
   /** 利用者が自分で BGM を押したか。押していれば、訓練の開始で初期状態に戻さない */
   private userChose = false;
   private readonly duckReasons = new Set<string>();
@@ -214,8 +246,9 @@ export class Bgm {
       void this.ctx.resume().catch(() => this.fail());
       this.set({ on: true });
       this.applyLevel();
-      this.chordIndex = 0;
-      this.playChord();
+      this.barIndex = 0;
+      this.nextBarTime = this.ctx.currentTime + 0.05;
+      this.scheduleAhead();
     } catch {
       this.fail();
     }
@@ -224,7 +257,7 @@ export class Bgm {
   /** 止める（消音、中断の画面、終わりの画面）。何度呼んでもよい。fadeSeconds で小さくし終えてから止める */
   stop(fadeSeconds: number = BGM_MUTE_FADE_SECONDS): void {
     const fade = Number.isFinite(fadeSeconds) && fadeSeconds > 0 ? fadeSeconds : BGM_MUTE_FADE_SECONDS;
-    this.clearChordTimer();
+    this.clearBarTimer();
     if (!this.state.on) return;
     this.set({ on: false });
     const ctx = this.ctx;
@@ -235,7 +268,7 @@ export class Bgm {
       master.gain.cancelScheduledValues(now);
       master.gain.setValueAtTime(master.gain.value, now);
       master.gain.linearRampToValueAtTime(0, now + fade);
-      for (const osc of this.voices) {
+      for (const { osc } of this.voices) {
         try {
           osc.stop(now + fade + 0.05);
         } catch {
@@ -301,41 +334,90 @@ export class Bgm {
     }
   }
 
-  private playChord(): void {
+  /** 少し先までの小節を予約し、1小節ごとにまた呼ぶ */
+  private scheduleAhead(): void {
     const ctx = this.ctx;
     const master = this.master;
     if (ctx === null || master === null || !this.state.on) return;
     try {
-      const notes = BGM_CHORDS[this.chordIndex % BGM_CHORDS.length]!;
-      this.chordIndex += 1;
-      const start = ctx.currentTime;
-      const end = start + CHORD_SECONDS + FADE_SECONDS;
-      notes.forEach((frequency, i) => {
-        const osc = ctx.createOscillator();
-        // いちばん低い音は三角波、上の音は正弦波にして、柔らかくする
-        osc.type = i === 0 ? "triangle" : "sine";
-        osc.frequency.value = frequency;
-        const gain = ctx.createGain();
-        gain.gain.value = 0;
-        gain.gain.setValueAtTime(0, start);
-        gain.gain.linearRampToValueAtTime(NOTE_LEVEL / notes.length, start + FADE_SECONDS);
-        gain.gain.setValueAtTime(NOTE_LEVEL / notes.length, start + CHORD_SECONDS);
-        gain.gain.linearRampToValueAtTime(0, end);
-        osc.connect(gain);
-        gain.connect(master);
-        osc.start(start);
-        osc.stop(end + 0.1);
-        this.voices.push(osc);
-      });
-      // 鳴り終えた和音の音は、一覧から外す（前の和音と重なる分だけ残す）
-      this.voices = this.voices.slice(-notes.length * 2);
-      this.timer = this.setTimer(() => this.playChord(), CHORD_SECONDS * 1000);
+      const now = ctx.currentTime;
+      // タブが裏に回ってタイマーが遅れたときは、今から鳴らし直す（過去に予約しない）
+      if (this.nextBarTime < now) this.nextBarTime = now + 0.05;
+      while (this.nextBarTime < now + LOOKAHEAD_SECONDS) {
+        const bar = BGM_PHRASE[this.barIndex % BGM_PHRASE.length]!;
+        this.barIndex += 1;
+        this.scheduleBar(ctx, master, bar, this.nextBarTime);
+        this.nextBarTime += BAR_SECONDS;
+      }
+      // 鳴り終えた音は、一覧から外す
+      this.voices = this.voices.filter((v) => v.endAt >= now);
+      this.timer = this.setTimer(() => this.scheduleAhead(), BAR_SECONDS * 1000);
     } catch {
       this.fail();
     }
   }
 
-  private clearChordTimer(): void {
+  private scheduleBar(ctx: AudioContextLike, master: GainLike, bar: BgmBar, t0: number): void {
+    // メロディ：三角波を短くはじく
+    for (const [beat, midi, beats] of bar.melody) {
+      this.pluck(ctx, master, "triangle", midiToHz(midi), t0 + beat * BEAT_SECONDS, beats * BEAT_SECONDS * 0.9, MELODY_LEVEL);
+    }
+    // 和音：裏拍に短く刻む（弾むリズム）
+    for (let beat = 0.5; beat < 4; beat += 1) {
+      for (const midi of bar.chord) {
+        this.pluck(ctx, master, "sine", midiToHz(midi), t0 + beat * BEAT_SECONDS, BEAT_SECONDS * 0.35, CHORD_NOTE_LEVEL);
+      }
+    }
+    // 低音：1拍目と3拍目に、短く小さく
+    for (const beat of [0, 2]) {
+      this.pluck(ctx, master, "sine", midiToHz(bar.bass), t0 + beat * BEAT_SECONDS, BEAT_SECONDS * 0.6, BASS_LEVEL);
+    }
+    // 軽い刻み：8分音符ごとに、高く短い音（裏をやや強く）
+    for (let i = 0; i < 8; i += 1) {
+      const t = t0 + i * BEAT_SECONDS * 0.5;
+      this.tick(ctx, master, t, i % 2 === 1 ? TICK_LEVEL : TICK_LEVEL * 0.5);
+    }
+  }
+
+  /** はじくような短い音（すぐ立ち上がり、長さの間に消える） */
+  private pluck(ctx: AudioContextLike, master: GainLike, type: string, frequency: number, start: number, length: number, level: number): void {
+    const osc = ctx.createOscillator();
+    osc.type = type;
+    osc.frequency.value = frequency;
+    const gain = ctx.createGain();
+    const end = start + length;
+    gain.gain.value = 0;
+    gain.gain.setValueAtTime(0, start);
+    gain.gain.linearRampToValueAtTime(level, start + 0.01);
+    gain.gain.linearRampToValueAtTime(level * 0.5, start + Math.min(0.12, length * 0.5));
+    gain.gain.linearRampToValueAtTime(0, end);
+    osc.connect(gain);
+    gain.connect(master);
+    osc.start(start);
+    osc.stop(end + 0.05);
+    this.voices.push({ osc, endAt: end + 0.05 });
+  }
+
+  /** 刻みの音。高い音を短く鳴らし、すぐに下げる（打楽器の代わり） */
+  private tick(ctx: AudioContextLike, master: GainLike, start: number, level: number): void {
+    const osc = ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(2600, start);
+    osc.frequency.linearRampToValueAtTime(1800, start + 0.03);
+    const gain = ctx.createGain();
+    const end = start + 0.04;
+    gain.gain.value = 0;
+    gain.gain.setValueAtTime(0, start);
+    gain.gain.linearRampToValueAtTime(level, start + 0.003);
+    gain.gain.linearRampToValueAtTime(0, end);
+    osc.connect(gain);
+    gain.connect(master);
+    osc.start(start);
+    osc.stop(end + 0.02);
+    this.voices.push({ osc, endAt: end + 0.02 });
+  }
+
+  private clearBarTimer(): void {
     if (this.timer !== null) {
       this.clearTimer(this.timer);
       this.timer = null;
@@ -344,7 +426,7 @@ export class Bgm {
 
   /** 使えないと分かった。鳴らさず、訓練はそのまま進める */
   private fail(): void {
-    this.clearChordTimer();
+    this.clearBarTimer();
     const ctx = this.ctx;
     this.ctx = null;
     this.master = null;
