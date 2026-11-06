@@ -3,7 +3,9 @@
 //   planted: true のときは、デモ用に誤りを混ぜた固定の要約を返す（AI を呼ばない）
 // - POST /api/karte/audit：見本の ID と要約（要約の入口の返事をそのまま返す）か planted を受け取り、
 //   Managed Agents の監査役で確かめる。一定時間で終わらなければ「監査できず」。セッションは毎回削除する
-// 会話の本文はブラウザから受け取らない（見本はコードに持つ）。API キーはブラウザに出さない。
+// - POST /api/karte/transcript-summary：HQ のカルテ画面で架空の患者を演じて話した文字起こし（2000字まで）を受け取り、
+//   同じモデルと決まりで要約し、1段目のコードでの確認を通して返す（Issue #202、ADR-0061 の追記）。監査役には回さない
+// 見本の要約・監査では、会話の本文をブラウザから受け取らない（見本はコードに持つ）。文字起こしの入口だけが本文を受け取る。API キーはブラウザに出さない。
 // 公開する版では、会話・要約・指摘の本文をログに出さない。出すのは失敗の種類・件数・所要時間だけ（ADR-0007）。
 
 import { Hono } from "hono";
@@ -24,7 +26,8 @@ import {
   type KarteAuditBackend,
   type KarteAuditConfig,
 } from "./karteAudit";
-import { makeSummarize, summaryModel, type Summarize } from "./karteSummary";
+import { makeSummarize, makeTranscriptSummarize, summaryModel, type Summarize, type TranscriptSummarize } from "./karteSummary";
+import { parseTranscriptSummaryRequest, transcriptUtterances, type TranscriptSummaryResponse } from "../src/board/karte/transcript";
 import { contentLogEnabled, logContent } from "./devlog";
 import { checkRateLimit, type RateLimiter } from "./ratelimit";
 import { crossSiteRequest, ttsAllowed } from "./tts";
@@ -44,6 +47,8 @@ export interface KarteEnv {
 
 /** 要約の入口の本文の上限（見本の ID だけ） */
 export const MAX_SUMMARY_BODY_BYTES = 200;
+/** 文字起こしの要約の入口の本文の上限（2000字。日本語は1文字3バイト。改行・引用符のエスケープと鍵の分の余裕） */
+export const MAX_TRANSCRIPT_BODY_BYTES = 6_400;
 /** 監査の入口の本文の上限（要約10項目の text・quote の上限に、形の余裕を足す。日本語は1文字3バイト） */
 export const MAX_AUDIT_BODY_BYTES = 16_000;
 
@@ -61,6 +66,7 @@ export function karteAuditConfig(env: KarteEnv): KarteAuditConfig | null {
 export interface KarteDeps {
   readBody: (request: Request, maxBytes: number) => Promise<string | null>;
   makeSummarizer?: (apiKey: string, model: string) => Summarize;
+  makeTranscriptSummarizer?: (apiKey: string, model: string) => TranscriptSummarize;
   makeAuditBackend?: (apiKey: string, config: KarteAuditConfig, defer: (task: Promise<unknown>) => void) => KarteAuditBackend;
   timeoutMs?: number;
 }
@@ -68,6 +74,7 @@ export interface KarteDeps {
 export function createKarteApp(deps: KarteDeps) {
   const app = new Hono<{ Bindings: KarteEnv }>();
   const makeSummarizer = deps.makeSummarizer ?? makeSummarize;
+  const makeTranscriptSummarizer = deps.makeTranscriptSummarizer ?? makeTranscriptSummarize;
   const makeBackend = deps.makeAuditBackend ?? makeKarteAuditBackend;
   const timeoutMs = deps.timeoutMs ?? KARTE_AUDIT_TIMEOUT_MS;
   const fail = (kind: string) => console.warn(`karte: ${kind}`);
@@ -147,6 +154,39 @@ export function createKarteApp(deps: KarteDeps) {
       summary: maskForbidden(result.summary, findings),
       findings,
     };
+    return c.json(response);
+  });
+
+  app.post("/api/karte/transcript-summary", async (c) => {
+    const read = await readJson(c, MAX_TRANSCRIPT_BODY_BYTES);
+    if (!read.ok) return c.json({ error: read.error }, read.status);
+    const request = parseTranscriptSummaryRequest(read.json);
+    if (request === null) return c.json({ error: "bad_request" }, 400);
+
+    const apiKey = c.env.ANTHROPIC_API_KEY;
+    if (apiKey === undefined || apiKey === "") {
+      fail("transcript_no_api_key");
+      return c.json({ error: "not_configured" }, 503);
+    }
+    const rate = await rateGate(c.req.raw, c.env, "kartetx");
+    if (rate === "limited") {
+      c.header("retry-after", "60");
+      return c.json({ error: "rate_limited" }, 429);
+    }
+    if (rate === "closed") return c.json({ error: "unavailable" }, 503);
+
+    const started = Date.now();
+    const result = await makeTranscriptSummarizer(apiKey, summaryModel(c.env.KARTE_SUMMARY_MODEL))(request.transcript);
+    const ms = Date.now() - started;
+    if (!result.ok) {
+      fail(`transcript_summary_${result.failure} ${ms}ms`);
+      return c.json({ error: "unavailable" }, 502);
+    }
+    logContent(contentLogEnabled(c.env.DEV_CONTENT_LOG, c.req.url), "karte transcript summary", JSON.stringify(result.summary));
+    const findings = checkSummary(result.summary, transcriptUtterances(request.transcript));
+    // 件数と所要時間だけ（文字起こし・要約の本文は出さない。ADR-0007）
+    console.info(`karte: transcript_summary items=${result.summary.items.length} findings=${findings.length} ${ms}ms`);
+    const response: TranscriptSummaryResponse = { source: "model", summary: maskForbidden(result.summary, findings), findings };
     return c.json(response);
   });
 

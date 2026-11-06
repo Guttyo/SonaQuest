@@ -52,3 +52,30 @@
   min-height: 44px;
   padding: 6px 16px;
 }
+/* 文字起こしの要約（Issue #202 の2つめ） */
+.board-transcript-summary {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid currentColor;
+}
+.board-transcript-summary h4 {
+  margin: 0;
+}
+.board-transcript-summary .board-approve {
+  min-height: 48px;
+  padding: 8px 20px;
+}
+.board-transcript-items {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 1.5em;
+}
+.board-transcript-items p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.board-transcript-findings {
+  margin: 4px 0 0;
+  padding-left: 1.2em;
+}

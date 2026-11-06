@@ -47,7 +47,7 @@ function lineWhere(summary: KarteSummary, itemIndex: number | null, aspect: stri
   return `${itemIndex + 1}行目（${label}）`;
 }
 
-function parseCodeFindings(value: unknown, summary: KarteSummary): CodeFinding[] | null {
+export function parseCodeFindings(value: unknown, summary: KarteSummary): CodeFinding[] | null {
   if (!Array.isArray(value)) return null;
   const out: CodeFinding[] = [];
   for (const f of value) {
@@ -167,4 +167,29 @@ export async function requestAudit(
   if (r === "network") return { ok: false, failure: "network" };
   if (r.status !== 200) return { ok: false, failure: "failed" };
   return auditToResult(r.json, draft.summary);
+}
+
+// --- HQ のカルテ画面の文字起こしの要約（Issue #202、ADR-0061 の追記） ------------------
+// 送るのは、利用者が「要約を作る」を押したときの文字起こしだけ。返事は画面のメモリにだけ持つ。
+
+export type TranscriptSummaryOutcome =
+  | { ok: true; summary: KarteSummary; findings: CodeFinding[] }
+  | { ok: false; failure: "not_configured" | "rate_limited" | "unavailable" | "bad_request" | "timeout" | "network" | "invalid" };
+
+export async function requestTranscriptSummary(
+  transcript: string,
+  fetchImpl: FetchLike | undefined = defaultFetch(),
+  timeoutMs = SUMMARY_CLIENT_TIMEOUT_MS,
+): Promise<TranscriptSummaryOutcome> {
+  if (fetchImpl === undefined) return { ok: false, failure: "network" };
+  const r = await postJson("/api/karte/transcript-summary", { transcript }, timeoutMs, fetchImpl);
+  if (r === "timeout" || r === "network") return { ok: false, failure: r };
+  if (r.status === 503 && isObject(r.json) && r.json.error === "not_configured") return { ok: false, failure: "not_configured" };
+  if (r.status === 429) return { ok: false, failure: "rate_limited" };
+  if (r.status === 400) return { ok: false, failure: "bad_request" };
+  if (r.status !== 200 || !isObject(r.json) || r.json.source !== "model") return { ok: false, failure: "unavailable" };
+  const summary = parseKarteSummary(r.json.summary);
+  const findings = summary === null ? null : parseCodeFindings(r.json.findings, summary);
+  if (summary === null || findings === null) return { ok: false, failure: "invalid" };
+  return { ok: true, summary, findings };
 }

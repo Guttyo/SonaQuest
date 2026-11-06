@@ -1,7 +1,8 @@
 // HQ のカルテ画面の、聞き取りの文字起こし（話す見本・架空。Issue #202、ADR-0061）。
 // 話すのはオーナーが演じる架空の患者。音声認識はブラウザ標準（voice/talk.ts と voice/hooks.ts を使い回す）。
-// 文はこの部品のメモリ（useState）にだけ持ち、保存（localStorage 等を含む）・送信・ログ出力をしない。
-// Claude にも送らない。画面を離れると（部品が外れると）消え、マイクも閉じる。
+// 文はこの部品のメモリ（useState）にだけ持ち、保存（localStorage 等を含む）・ログ出力をしない。
+// Claude に送るのは、要約の欄で「要約を作る」を押したときだけ（TranscriptSummary.tsx、ADR-0061 の追記）。
+// 画面を離れると（部品が外れると）消え、マイクも閉じる。
 
 import { useState } from "react";
 import { TalkButton } from "../../voice/TalkButton";
@@ -9,6 +10,7 @@ import { usePushToTalk } from "../../voice/hooks";
 import { browserRecognitionFactory, type MicStatus } from "../../voice/talk";
 import { TRANSCRIPT_MAX_LENGTH, appendTranscript } from "./transcript";
 import { TRANSCRIBE_NOTICES, TRANSCRIBE_TEXT as T } from "./transcribeText";
+import { TranscriptSummary } from "./TranscriptSummary";
 import "./transcribe.css";
 
 const TALK_TEXTS = { hint: T.hint, inserted: T.inserted, notices: TRANSCRIBE_NOTICES };
@@ -94,6 +96,7 @@ export function KarteTranscribe() {
           {T.clear}
         </button>
       </div>
+      <TranscriptSummary transcript={draft} />
     </section>
   );
 }
