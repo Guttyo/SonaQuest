@@ -67,13 +67,37 @@ const SELF_HARM = SELF_HARM_TERMS.map(normalizeForMatch);
 const SYMPTOM = SYMPTOM_TERMS.map(normalizeForMatch);
 
 /**
+ * 薬の説明の言い方（Issue #206、ADR-0011 の追記）。体調の訴えの語のすぐ後に続くと、
+ * 「胸が苦しい時に飲む薬」「けいれんを抑える薬」のような、何の薬かの説明とみなし、その一致を数えない。
+ * 2026-11-07 オーナー決定（チャット）：「薬の説明は止めない（推奨）」（症状の語のすぐ後に「時・とき・場合・用」
+ * 「を抑える・止め」が続く言い方は中断しない）。
+ * 「発作が」のように「が」で終わる語は、間に「起きた・起きる・出た・出る・ある・あった」だけを許す。
+ * 自傷の語には使わない。照合の前の表記（normalizeForMatch の後）で書く。
+ */
+const MEDICINE_DESCRIPTION_AFTER =
+  /^(?:(?:起き|おき|出|で)(?:た|る)|あ(?:った|る))?(?:時|とき|場合|用|を抑え|をおさえ|止め|どめ)/;
+
+/** 体調の訴えの語が、薬の説明ではない形で1回でも出てくるか */
+function hasSymptomComplaint(t: string): boolean {
+  for (const w of SYMPTOM) {
+    let at = t.indexOf(w);
+    while (at !== -1) {
+      if (!MEDICINE_DESCRIPTION_AFTER.test(t.slice(at + w.length))) return true;
+      at = t.indexOf(w, at + 1);
+    }
+  }
+  return false;
+}
+
+/**
  * 回答が体調の訴えらしいか。自傷のほのめかしなら "self_harm"、
  * 体調の訴えなら "symptom"、どちらでもなければ null。
+ * 自傷の語は薬の説明の形でも除かない（中断する側に倒す）。
  */
 export function detectDistress(text: string): "symptom" | "self_harm" | null {
   const t = normalizeForMatch(text);
   if (SELF_HARM.some((w) => t.includes(w))) return "self_harm";
-  if (SYMPTOM.some((w) => t.includes(w))) return "symptom";
+  if (hasSymptomComplaint(t)) return "symptom";
   return null;
 }
 
