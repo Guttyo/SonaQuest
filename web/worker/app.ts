@@ -13,6 +13,7 @@ import { ALLOWED_VOCABULARY, followsFixedOrder, runTurn } from "./turn";
 import { createTtsApp, type TtsEnv } from "./tts";
 import { createTtsLabApp } from "./ttsLab";
 import { createBoardChatApp, makeChatBackend, type BoardChatEnv } from "./boardChat";
+import { createBoardAuthorizeApp } from "./boardAuthorize";
 
 /** 読み上げの中継の設定（TtsEnv）は tts.ts、ボードの掲示板チャットの設定（BoardChatEnv）は boardChat.ts */
 export interface Env extends TtsEnv, BoardChatEnv {
@@ -202,6 +203,8 @@ export function createApp(
   app.route("/", createTtsLabApp({ readBody: readLimitedText }));
   // ボードの掲示板チャット（B-07、ADR-0047）。Managed Agents のセッションを中継する。/api/turn と同じ条件で通す
   app.route("/", createBoardChatApp({ readBody: readLimitedText, makeBackend: makeChat }));
+  // ボードの書き込みの権限の確認（B-09、ADR-0050）。救護所の記号と出来事の種類だけを受け、違う救護所への書き込みは 403
+  app.route("/", createBoardAuthorizeApp({ readBody: readLimitedText }));
 
   app.all("/api/*", (c) => c.json({ error: "not_found" }, 404));
   return app;
