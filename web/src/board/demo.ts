@@ -876,13 +876,21 @@ export function nextFictionalName(used: number): string {
 }
 
 /**
- * 「前回から変わったこと」（Issue #107）：デモの開始（BOARD_AS_OF）からの出来事を種類ごとに数える。
+ * 「直近1時間で変わったこと」（Issue #107。2026-11-06 オーナー決定で「前回から」をやめた）：
+ * デモの時計 now の直前 windowMinutes 分（now − windowMinutes より後、now まで）の出来事を種類ごとに数える。
+ * デモの開始（BOARD_AS_OF）より前の出来事（at < 0）は数えない。
  * site を渡すとその救護所の分だけ。記録の文・氏名・品目名・数量は使わない（件数だけ）
  */
-export function changesSince(log: readonly DemoLog[], site?: SiteId): Record<DemoEventKind, number> {
+export function changesSince(
+  log: readonly DemoLog[],
+  now: number,
+  site?: SiteId,
+  windowMinutes = 60,
+): Record<DemoEventKind, number> {
   const counts: Record<DemoEventKind, number> = { 登録: 0, 到着: 0, 未交付: 0, 提案: 0, 承認: 0, 受領: 0, 在庫切れ: 0 };
   for (const l of log) {
     if (!l.kind || l.at < 0) continue;
+    if (l.at <= now - windowMinutes || l.at > now) continue;
     if (site !== undefined && l.site !== site) continue;
     counts[l.kind] += 1;
   }

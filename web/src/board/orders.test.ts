@@ -234,28 +234,42 @@ describe("カルテに登録 → 提案 → 承認 → 搬送中 → 受領", ()
   });
 });
 
-describe("前回から変わったこと（件数だけ。Issue #107 の追加）", () => {
+describe("直近1時間で変わったこと（件数だけ。Issue #107 の追加。2026-11-06 オーナー決定で「前回から」をやめた）", () => {
   it("最初の記録は空で、最初の提案は数えない", () => {
     const s = initialDemo();
     expect(s.log).toEqual([]);
-    expect(changesSince(s.log)).toEqual({ 登録: 0, 到着: 0, 未交付: 0, 提案: 0, 承認: 0, 受領: 0, 在庫切れ: 0 });
+    expect(changesSince(s.log, s.minutes)).toEqual({ 登録: 0, 到着: 0, 未交付: 0, 提案: 0, 承認: 0, 受領: 0, 在庫切れ: 0 });
   });
 
   it("登録・未交付・提案・承認を数え、救護所で絞れる。却下は承認に数えない", () => {
     const s1 = run(initialDemo(), recordB);
-    expect(changesSince(s1.log)).toMatchObject({ 登録: 1, 未交付: 1, 提案: 1, 承認: 0 });
-    expect(changesSince(s1.log, "救護所A")).toMatchObject({ 登録: 0, 未交付: 0, 提案: 0 });
+    expect(changesSince(s1.log, s1.minutes)).toMatchObject({ 登録: 1, 未交付: 1, 提案: 1, 承認: 0 });
+    expect(changesSince(s1.log, s1.minutes, "救護所A")).toMatchObject({ 登録: 0, 未交付: 0, 提案: 0 });
     const approved = run(s1, { type: "approve_proposal", id: "P-03" });
-    expect(changesSince(approved.log, "救護所B").承認).toBe(1);
+    expect(changesSince(approved.log, approved.minutes, "救護所B").承認).toBe(1);
     const rejected = run(s1, { type: "reject_proposal", id: "P-03" });
-    expect(changesSince(rejected.log).承認).toBe(0);
+    expect(changesSince(rejected.log, rejected.minutes).承認).toBe(0);
   });
 
-  it("承認した搬送が届くと受領を数える。記録は上限で切らないので、件数はデモの開始からのまま", () => {
+  it("デモの時計の直前1時間だけを数える（ちょうど60分前は数えず、59分前は数える）", () => {
+    const log = [
+      { at: 100, text: "", kind: "登録" as const, site: "救護所A" as const },
+      { at: 41, text: "", kind: "登録" as const, site: "救護所A" as const },
+      { at: 40, text: "", kind: "登録" as const, site: "救護所A" as const },
+      { at: 101, text: "", kind: "登録" as const, site: "救護所A" as const },
+      { at: -1, text: "", kind: "登録" as const, site: "救護所A" as const },
+    ];
+    expect(changesSince(log, 100).登録).toBe(2);
+    expect(changesSince(log, 100, undefined, Infinity).登録).toBe(3);
+  });
+
+  it("承認した搬送が届くと受領を数える。1時間を過ぎた出来事は数えない", () => {
     const s = run(initialDemo(), recordB, { type: "approve_proposal", id: "P-03" }, { type: "tick", hours: 3 });
-    expect(changesSince(s.log, "救護所B").受領).toBeGreaterThanOrEqual(1);
+    expect(changesSince(s.log, s.minutes, "救護所B", Infinity).受領).toBeGreaterThanOrEqual(1);
     const long = run(s, ...Array.from({ length: 48 }, () => ({ type: "tick", hours: 1 }) as DemoAction));
-    expect(changesSince(long.log).登録).toBe(1);
+    expect(changesSince(long.log, long.minutes).登録).toBe(0);
+    // 記録は上限で切らないので、幅を広げればデモの開始からの件数も数えられる
+    expect(changesSince(long.log, long.minutes, undefined, Infinity).登録).toBe(1);
   });
 });
 

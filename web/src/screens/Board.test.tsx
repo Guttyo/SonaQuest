@@ -13,7 +13,7 @@ import {
   BOARD_LEAD_TILE,
   BOARD_MOCK_BADGE,
   BOARD_ORDERS,
-  BOARD_SUBTITLE,
+  BOARD_DISASTER_NAME,
   BOARD_SUPPLY_LINK,
   BOARD_TITLE,
   INTAKE_IMAGE,
@@ -38,11 +38,28 @@ const cases = caseRows(STOCK, INBOUND, NEEDS, SITES, SYNC);
 const panel = (h: string) => h.slice(h.indexOf('id="board-panel"'));
 const pane = (h: string) => h.slice(h.indexOf('class="board-pane"'), h.indexOf('class="board-main"'));
 
+describe("2026-11-06 オーナー決定の色（Issue #143、計画書 9章）", () => {
+  it("記録の未着・転記待ちは1件以上なら黄（本部の数字の札・左の一覧の印）", () => {
+    expect(html).toMatch(/class="board-tile check"><span class="board-tile-label">記録の未着・転記待ち/);
+    expect(pane(html)).toMatch(/class="board-pane-mark warn">記録の未着・転記待ち \d+件/);
+    expect(pane(html)).not.toMatch(/class="board-pane-mark none">記録の未着・転記待ち/);
+  });
+
+  it("在庫の表の凡例：赤は「切れ」だけ。目安の2日先までは黄", () => {
+    const stock = render(HQ, "stock");
+    expect(stock).toContain('<span class="cell bad">切れ</span>');
+    expect(stock).toContain('<span class="cell warn">5日未満</span>');
+    expect(stock).not.toContain("3日未満");
+  });
+});
+
 describe("ボードの題とレイアウト（Issue #107）", () => {
-  it("題は SonaQuest と副題。App の画面遷移の焦点の目印（[data-scroll-target]）で、架空データの印と集計時点と架空の時刻が並ぶ", () => {
+  it("題は SonaQuest と架空の災害名（副題は外した。2026-11-06 オーナー決定）。App の画面遷移の焦点の目印（[data-scroll-target]）で、架空データの印と集計時点と架空の時刻が並ぶ", () => {
     expect(BOARD_TITLE).toBe("SonaQuest");
     expect(html).toContain(`<h1 id="board-title" data-scroll-target="true" tabindex="-1">SonaQuest</h1>`);
-    expect(html).toContain(`<span class="board-subtitle">${BOARD_SUBTITLE}</span>`);
+    expect(BOARD_DISASTER_NAME).toBe("架空の巨大地震災害");
+    expect(html).toContain(`<span class="board-disaster" data-testid="board-disaster">${BOARD_DISASTER_NAME}</span>`);
+    expect(html).not.toContain("各救護所の状況");
     const head = html.slice(html.indexOf('class="board-head"'), html.indexOf('class="board-body"'));
     expect(head).toContain(BOARD_MOCK_BADGE);
     // 集計時点と架空の時刻は1つにまとめる（Issue #113）
@@ -386,7 +403,7 @@ describe("デザインの見直し（Issue #143）", () => {
   });
 });
 
-describe("前回から変わったこと・最終報告・一番大きな数（Issue #107 の追加）", () => {
+describe("直近1時間で変わったこと・最終報告・一番大きな数（Issue #107 の追加）", () => {
   const changes = (h: string) => h.slice(h.indexOf('data-testid="board-changes"'), h.indexOf('id="board-panel"'));
   const record: DemoAction = {
     type: "add_record",
@@ -396,24 +413,25 @@ describe("前回から変わったこと・最終報告・一番大きな数（I
     prescription: { item: "抗凝固薬F", qty: 60, days: 7 },
   };
 
-  it("記録が空のときは固定文。タブの下（パネルの外）にあり、本部でも救護所でも出る", () => {
-    expect(changes(html)).toContain(`${BOARD_CHANGES.label}</span><span>${BOARD_CHANGES.none("09:30")}</span>`);
-    // 空のときは小さな補助表示（更新が無いことと、問題が無いことを分ける文）
+  it("記録が空のときも常に出し「ありません」。タブの下（パネルの外）にあり、本部でも救護所でも出る", () => {
+    expect(BOARD_CHANGES.label).toBe("直近1時間で変わったこと");
+    expect(BOARD_CHANGES.none).toBe("ありません");
+    expect(changes(html)).toContain(`${BOARD_CHANGES.label}</span><span>${BOARD_CHANGES.none}</span>`);
     expect(html).toContain('class="board-changes empty"');
-    expect(BOARD_CHANGES.none("09:30")).toContain("問題が無いという意味ではありません");
-    expect(changes(render("救護所C"))).toContain(BOARD_CHANGES.none("09:30"));
+    expect(changes(render("救護所C"))).toContain(BOARD_CHANGES.none);
     expect(html.indexOf('data-testid="board-changes"')).toBeGreaterThan(html.indexOf('class="board-tabs"'));
   });
 
   it("登録 → 承認 → 受領で件数が増える。救護所を選ぶとその救護所の分だけ。氏名・品目名・数量は1行に出ない", () => {
     const s1 = demoReducer(initialDemo(), record);
-    expect(changes(render(HQ, "overview", s1))).toContain("09:30 以降：登録 1 件、未交付 +1 件、提案 1 件");
-    expect(changes(render("救護所A", "overview", s1))).toContain(BOARD_CHANGES.none("09:30"));
+    expect(changes(render(HQ, "overview", s1))).toContain("<span>登録 1 件、未交付 +1 件、提案 1 件</span>");
+    expect(changes(render("救護所A", "overview", s1))).toContain(BOARD_CHANGES.none);
     const s2 = demoReducer(s1, { type: "approve_proposal", id: "P-03" });
-    expect(changes(render("救護所B", "overview", s2))).toContain("09:30 以降：登録 1 件、未交付 +1 件、提案 1 件、承認 1 件");
+    expect(changes(render("救護所B", "overview", s2))).toContain("<span>登録 1 件、未交付 +1 件、提案 1 件、承認 1 件</span>");
+    // 3時間進めると、登録・承認は1時間より前になり数えない
     const s3 = demoReducer(s2, { type: "tick", hours: 3 });
     const line = changes(render("救護所B", "overview", s3));
-    expect(line).toMatch(/承認 1 件、受領 \d+ 件/);
+    expect(line).not.toMatch(/登録|承認/);
     for (const h of [changes(render(HQ, "overview", s3)), line]) {
       expect(h).not.toMatch(/架空 太郎|抗凝固薬F|白い錠剤|60|68/);
     }

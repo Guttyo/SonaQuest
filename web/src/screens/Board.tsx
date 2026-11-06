@@ -72,7 +72,8 @@ import {
   BOARD_OVERVIEW,
   BOARD_RECORDS,
   BOARD_SECTIONS,
-  BOARD_SUBTITLE,
+  BOARD_DISASTER_NAME,
+  BOARD_HEAT_LEGEND,
   BOARD_SUPPLY_LINK,
   BOARD_TILES,
   BOARD_TITLE,
@@ -899,12 +900,11 @@ function StaleMark({ state, site }: { state: DemoState; site: SiteId }) {
 
 /** 「前回から変わったこと」の1行（Issue #107）。デモの記録の件数をルールで並べるだけ（氏名・品目名・数量は入れない） */
 export function changeLineText(state: DemoState, site?: SiteId): string {
-  const counts = changesSince(state.log, site);
-  const since = clockText(0).slice(6);
+  const counts = changesSince(state.log, state.minutes, site, BOARD_CHANGES.windowMinutes);
   const parts = BOARD_CHANGES.kinds
     .filter((k) => counts[k.kind] > 0)
     .map((k) => `${k.name} ${k.kind === "未交付" ? "+" : ""}${fmt.format(counts[k.kind])} 件`);
-  return parts.length === 0 ? BOARD_CHANGES.none(since) : `${BOARD_CHANGES.since(since)}${parts.join(BOARD_CHANGES.sep)}`;
+  return parts.length === 0 ? BOARD_CHANGES.none : parts.join(BOARD_CHANGES.sep);
 }
 
 /** カルテの処方の累計の表（Issue #114）。人が入れた数量を足しただけで、量の妥当性は判断しない */
@@ -1369,8 +1369,8 @@ export function Board({
     if (!o) return m;
     if (o.outOfStock > 0) m.push({ text: `${BOARD_LAYOUT.marks.outOfStock} ${fmt.format(o.outOfStock)}`, level: "bad" });
     if (charts.some((c) => c.site === site && c.undelivered > 0)) m.push({ text: BOARD_LAYOUT.marks.undelivered, level: "bad" });
-    // 記録の未着・転記待ちは、どの救護所にもふつうにある数なので色を付けない（Issue #143、計画書 2.2）
-    if (o.pending !== null && o.pending > 0) m.push({ text: BOARD_LAYOUT.marks.pending(o.pending), level: "none" });
+    // 記録の未着・転記待ちは「やらないと物事が進まないもの」として黄（2026-11-06 オーナー決定、計画書 2.2・9章）
+    if (o.pending !== null && o.pending > 0) m.push({ text: BOARD_LAYOUT.marks.pending(o.pending), level: "warn" });
     if (o.pharmacistsShort > 0) m.push({ text: BOARD_LAYOUT.marks.pharmacistsShort(o.pharmacistsShort), level: "none" });
     const max = BOARD_LAYOUT.marks.max;
     return m.length <= max ? m : [...m.slice(0, max), { text: BOARD_LAYOUT.marks.more(m.length - max), level: "none" as const }];
@@ -1384,9 +1384,9 @@ export function Board({
 
   // 救護所の「詳細」のタブでは、題の横に同じ「詳細」を重ねない（Issue #113）
   const showPanelTab = tab !== "overview";
-  // 「前回から変わったこと」が空のときは小さな補助表示にする（更新が無いことと、問題が無いことを分ける。Issue #113）
+  // 「直近1時間で変わったこと」は常に出す。無いときは「ありません」を灰で（2026-11-06 オーナー決定）
   const changeLine = changeLineText(state, isHq ? undefined : selected);
-  const changesEmpty = changeLine === BOARD_CHANGES.none(clockText(0).slice(6));
+  const changesEmpty = changeLine === BOARD_CHANGES.none;
   const tabLabel = (t: BoardTab) => (t === "overview" && !isHq ? BOARD_LAYOUT.siteTabs.overview : BOARD_LAYOUT.tabs[t]);
 
   const siteStock = state.stock.filter((r) => r.site === selected);
@@ -1451,7 +1451,7 @@ export function Board({
           <h1 id="board-title" data-scroll-target tabIndex={-1}>
             {BOARD_TITLE}
           </h1>
-          <span className="board-subtitle">{BOARD_SUBTITLE}</span>
+          <span className="board-disaster" data-testid="board-disaster">{BOARD_DISASTER_NAME}</span>
         </div>
         {/* 集計時点と架空の時刻は1つにまとめる（Issue #113）。デモの時計の表示と「架空データ」の印は常に見せる */}
         <p className="board-asof">
@@ -1635,7 +1635,7 @@ export function Board({
                       </span>
                       <span className="board-tile-sub">{BOARD_TILES.proposalsSub(state.proposals.length - pendingProposals.length)}</span>
                     </div>
-                    <div className={`board-tile${pending.pending === 0 ? " zero" : ""}`}>
+                    <div className={`board-tile ${pending.pending > 0 ? "check" : "zero"}`}>
                       <span className="board-tile-label">{BOARD_TILES.pending}</span>
                       <span className="board-tile-big">
                         <span data-testid="pending-count">{fmt.format(pending.pending)}</span>
@@ -1742,7 +1742,7 @@ export function Board({
                             </td>
                             <td>{r.critical.length === 0 ? "なし" : r.critical.join("、")}</td>
                             <td>{r.mode}</td>
-                            <td className="num">{r.pending === null ? "—" : fmt.format(r.pending)}</td>
+                            <td className="num">{r.pending === null ? "—" : r.pending > 0 ? <Pill level="warn">{fmt.format(r.pending)}</Pill> : fmt.format(r.pending)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1823,18 +1823,16 @@ export function Board({
                 <p className="board-note">{BOARD_SECTIONS.heatNote}</p>
                 <div className="board-legend">
                   <span>
-                    <span className="cell bad">{COVER_GUIDE_DAYS}日未満・切れ</span>
+                    <span className="cell bad">{BOARD_HEAT_LEGEND.out}</span>
                   </span>
                   <span>
-                    <span className="cell warn">
-                      {COVER_GUIDE_DAYS}日以上{COVER_GUIDE_DAYS + 2}日未満
-                    </span>
+                    <span className="cell warn">{BOARD_HEAT_LEGEND.short(COVER_GUIDE_DAYS + 2)}</span>
                   </span>
                   <span>
-                    <span className="cell ok">{COVER_GUIDE_DAYS + 2}日以上</span>
+                    <span className="cell ok">{BOARD_HEAT_LEGEND.enough(COVER_GUIDE_DAYS + 2)}</span>
                   </span>
                   <span>
-                    <span className="cell none">未確認・算出不可</span>
+                    <span className="cell none">{BOARD_HEAT_LEGEND.none}</span>
                   </span>
                 </div>
                 <div className="board-tablebox board-heat">
@@ -1888,7 +1886,7 @@ export function Board({
                       <div key={d.site} className="board-bar-row">
                         <span>{d.site}</span>
                         <span className="board-bar-track" title={`避難者 ${fmt.format(d.evacuees)} 人、1日に要る量の見込み ${fmt.format(d.dailyNeed)}`}>
-                          <span className={`board-bar-fill ${d.daysCovered < COVER_GUIDE_DAYS ? "bad" : ""}`} style={{ width: `${(d.daysCovered / maxDays) * 100}%` }} />
+                          <span className={`board-bar-fill ${d.daysCovered < COVER_GUIDE_DAYS ? "warn" : ""}`} style={{ width: `${(d.daysCovered / maxDays) * 100}%` }} />
                           <span className="board-bar-guide" style={{ left: `${(COVER_GUIDE_DAYS / maxDays) * 100}%` }} />
                         </span>
                         <span className="board-bar-value">{d.daysCovered} 日</span>

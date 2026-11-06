@@ -1026,7 +1026,7 @@
   font-size: var(--fs-title);
   line-height: 1.2;
 }
-.board-subtitle {
+.board-disaster {
   font-size: var(--fs-emphasis);
   font-weight: var(--fw-bold);
   color: var(--ink-soft);
@@ -2814,7 +2814,7 @@
   font-size: 1.25rem;
   white-space: nowrap;
 }
-.board-subtitle {
+.board-disaster {
   font-size: var(--fs-caption);
   font-weight: var(--fw-regular);
   white-space: nowrap;
@@ -3021,27 +3021,18 @@
   box-shadow: inset 0 -1px 0 var(--b-rule);
 }
 
-/* 「前回から変わったこと」：更新があるときだけ見せる。無いときの文は読み上げにだけ残す（計画書 4.2） */
+/* 「直近1時間で変わったこと」：常に見せる。無いときは「ありません」を灰で（2026-11-06 オーナー決定。計画書 9章） */
 .board-changes {
   border: 1px solid var(--b-rule);
   background: var(--b-surface);
 }
 .board-changes.empty {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-  border: 0;
+  border: 1px solid var(--b-rule);
+  background: var(--b-surface);
+  color: var(--b-ink-soft);
 }
 .board-main {
   position: relative;
-  grid-template-rows: auto minmax(0, 1fr);
-}
-.board-main:has(.board-changes:not(.empty)) {
   grid-template-rows: auto auto minmax(0, 1fr);
 }
 
@@ -3330,17 +3321,16 @@
   white-space: nowrap;
 }
 
-/* 1180 幅より狭いときは、帯の副題「各救護所の状況」を見た目から外し、ログイン中の表示を切らずに1行目に入れる。
-   読み上げには残す（帯から副題を外すことはオーナーの確認待ち。計画書 9章） */
+/* 帯の副題「各救護所の状況」は外し、架空の災害名を出す（2026-11-06 オーナー決定。計画書 9章）。
+   1180 幅より狭いときは、災害名を題の下に重ね、ログイン中の表示を1行目に残す（帯を2行に保つ） */
 @media (max-width: 1179px) {
-  .board-head .board-subtitle {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
+  .board-head-title {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+  .board-head .board-disaster {
+    line-height: 1.2;
   }
 }
 
@@ -3382,4 +3372,10 @@
 .board-intake-head .board-access-log {
   justify-self: start;
   width: 100%;
+}
+
+/* 需要の棒：目安の日数より短い棒は黄（赤は在庫切れなど止まっているものだけ。2026-11-06 オーナー決定、計画書 9章） */
+.board-bar-fill.warn {
+  background: var(--b-check);
+  opacity: 1;
 }

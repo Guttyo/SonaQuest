@@ -296,8 +296,8 @@ describe("架空の患者の到着（Issue #122）", () => {
       const n = now.filter((p) => p.site === site).length;
       expect(on.extraPatients[site]?.patients ?? 0).toBe(n);
     }
-    // 「前回から変わったこと」は到着として数え、記録の文に氏名を入れない
-    expect(changesSince(on.log).到着).toBe(now.length);
+    // 「直近1時間で変わったこと」は到着として数え（ここでは幅を広げてデモの開始から数える）、記録の文に氏名を入れない
+    expect(changesSince(on.log, on.minutes, undefined, Infinity).到着).toBe(now.length);
     for (const p of SIM_PATIENTS) expect(on.log.some((l) => l.text.includes(p.name))).toBe(false);
   });
 
