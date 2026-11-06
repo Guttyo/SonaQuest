@@ -341,7 +341,7 @@ export const ROUTES: readonly RouteRow[] = [
   { to: "救護所A", status: "通行可", via: "幹線道路（東回り）", minutes: 25, checkedAt: "2026-11-05 07:00" },
   { to: "救護所B", status: "迂回", via: "川沿いの道が通行止め。山側の道で迂回（搬送便は往復2時間）", minutes: 70, checkedAt: "2026-11-05 06:30" },
   { to: "救護所C", status: "通行可", via: "幹線道路（西回り）。橋は片側交互通行", minutes: 40, checkedAt: "2026-11-05 08:00" },
-  { to: "救護所D", status: "通行止め", via: "土砂で車が通れない。連絡員が徒歩で往復（片道1時間）", minutes: null, checkedAt: "2026-11-04 15:00" },
+  { to: "救護所D", status: "迂回", via: "山すその道が土砂で通行止め。南の幹線から回って迂回", minutes: 45, checkedAt: "2026-11-05 08:30" },
 ];
 
 export function routeTo(site: SiteId): RouteRow | undefined {

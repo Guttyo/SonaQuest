@@ -135,6 +135,8 @@ export interface OrderProposal {
     onHand: number;
     /** この救護所に向かっている搬送・入荷（確定・引当済み・搬送中・卸に照会中） */
     incoming: number;
+    /** 算数の結果（切り上げ）。発注単位に切り上げる前の数（Issue #167） */
+    raw: number;
   };
   status: "提案" | "承認済み";
   /** 作られた操作の番号（画面で「新」の印に使う） */
@@ -274,6 +276,21 @@ export function initialDemo(seed: number = DEFAULT_ARRIVAL_SEED): DemoState {
   return { ...start, log: [] };
 }
 
+/**
+ * 発注単位（Issue #167）。2026-11-06 オーナー決定（チャット）：錠の品目は 10錠＝1シート、100錠＝1箱。
+ * 数量は 10錠単位に切り上げ、画面では少なければシート、多ければ箱で示す（text.ts の orderQtyText）。本・枚の品目は 1単位のまま
+ */
+export const TABLETS_PER_SHEET = 10;
+export const TABLETS_PER_BOX = 100;
+
+/** その単位の品目を発注・搬送する最小の数（錠は 1シート＝10錠、ほかは 1） */
+export function orderStep(unit: string): number {
+  return unit === "錠" ? TABLETS_PER_SHEET : 1;
+}
+
+const roundUpTo = (q: number, step: number) => Math.ceil(q / step) * step;
+const roundDownTo = (q: number, step: number) => Math.floor(q / step) * step;
+
 /** 承認した搬送が本部を出るまでの時間（分。デモの仮の値） */
 export const DISPATCH_DELAY_MINUTES = 60;
 /** 通行止めで所要時間の目安が無い拠点へ、連絡員が運ぶときの時間（分。デモの仮の値） */
@@ -320,12 +337,14 @@ export function suggestOrders(
       const incoming = inbound
         .filter((x) => x.item === r.item && (x.to === r.site || x.forSite === r.site) && INCOMING.has(x.status))
         .reduce((a, x) => a + x.qty, 0);
-      const qty = Math.ceil(need + (cover ?? 0) - onHand - incoming);
+      const raw = Math.ceil(need + (cover ?? 0) - onHand - incoming);
+      // 発注単位に切り上げる（錠は 10錠＝1シート単位。Issue #167）
+      const qty = raw > 0 ? roundUpTo(raw, orderStep(r.unit)) : raw;
       const days = r.dailyUse && r.dailyUse > 0 ? onHand / r.dailyUse : Number.POSITIVE_INFINITY;
-      return { r, onHand, need, cover, incoming, qty, days };
+      return { r, onHand, need, cover, incoming, raw, qty, days };
     })
     // 未交付・必要な数があるか、目安の日数分より1日分以上足りないときだけ出す（時計で少し減るたびに小さな提案が並ばないように）
-    .filter((x) => x.qty > 0 && (x.need > 0 || (x.r.dailyUse !== null && x.qty >= x.r.dailyUse)))
+    .filter((x) => x.raw > 0 && (x.need > 0 || (x.r.dailyUse !== null && x.raw >= x.r.dailyUse)))
     .filter((x) => !skip(`${x.r.site}|${x.r.item}`, x.need))
     .sort((a, b) => a.days - b.days || SHELTERS.indexOf(a.r.site) - SHELTERS.indexOf(b.r.site));
   const hqLeft = new Map<string, number>();
@@ -338,7 +357,8 @@ export function suggestOrders(
   }
   return rows.map((x) => {
     const left = hqLeft.get(x.r.item) ?? 0;
-    const fromHq = Math.min(x.qty, left);
+    // 本部備蓄から出すのも発注単位で（端数のシートは出さない）
+    const fromHq = Math.min(x.qty, roundDownTo(left, orderStep(x.r.unit)));
     hqLeft.set(x.r.item, left - fromHq);
     return {
       key: `${x.r.site}|${x.r.item}`,
@@ -348,7 +368,7 @@ export function suggestOrders(
       qty: x.qty,
       fromHq,
       fromVendor: x.qty - fromHq,
-      basis: { need: x.need, cover: x.cover, onHand: x.onHand, incoming: x.incoming },
+      basis: { need: x.need, cover: x.cover, onHand: x.onHand, incoming: x.incoming, raw: x.raw },
     };
   });
 }
@@ -408,7 +428,7 @@ function approve(state: DemoState, id: string): DemoState {
   const stock = state.stock.map((r) => ({ ...r }));
   const hq = stock.find((r) => r.site === HQ && r.item === p.item);
   // 画面に出した内訳（本部備蓄から・卸へ）のとおりに承認する。ほかの提案に割り当てた本部の在庫は使わない（PR #108 のレビュー）
-  const fromHq = Math.min(p.fromHq, Math.max(0, Math.floor(hq?.onHand ?? 0)));
+  const fromHq = Math.min(p.fromHq, roundDownTo(Math.max(0, Math.floor(hq?.onHand ?? 0)), orderStep(p.unit)));
   const fromVendor = p.qty - fromHq;
   if (hq && fromHq > 0) hq.onHand = (hq.onHand ?? 0) - fromHq;
   let seq = state.seq;

@@ -144,7 +144,11 @@ describe("本部（HQ）の全体", () => {
     const b = p.slice(p.indexOf('data-proposal="P-02"'));
     expect(b).toContain("救護所B");
     expect(b).toContain("未交付・必要な数 24 ＋ 目安の日数分の出庫 24 − 現地の在庫 8 − 向かっている搬送・入荷 0 ＝ 40");
-    expect(b).toContain("本部備蓄から 0錠・卸へ頼む 40錠");
+    expect(b).toContain("本部備蓄から 0錠・卸へ頼む 4シート（40錠）");
+    // 救護所ごとの開閉できる欄にまとまる（Issue #167）。見出しに件数を出し、ふだんは閉じる
+    expect(p).toContain('<details class="board-order-group" data-order-group="救護所B"><summary><b>救護所B</b><span class="board-pill warn">提案中 1 件</span>');
+    expect(p).toContain('data-order-group="救護所C"');
+    expect(p).not.toContain('data-order-group="救護所A"');
     // 根拠の算数は開閉の中（承認の前に開いて読める）
     expect(b).toContain(`<details class="board-order-basis-box"><summary>${BOARD_ORDERS.basisToggle}</summary>`);
   });
@@ -203,10 +207,10 @@ describe("救護所の詳細（左のペインか図で選ぶ）", () => {
     expect(panel(c)).toContain("記録はまだない");
   });
 
-  it("通信なしの救護所D：代わりの手段と通行止めが出る。外部の地図は使わない", () => {
+  it("通信なしの救護所D：代わりの手段と迂回が出る。外部の地図は使わない", () => {
     const d = panel(render("救護所D"));
     expect(d).toContain("連絡員が本部へ持ち帰る（午後）");
-    expect(d).toContain(">通行止め</span>");
+    expect(d).toContain(">迂回</span>");
     expect(d).toContain(">未確認</span>");
     expect(html).not.toMatch(/<iframe|tile\.|openstreetmap|google\.com\/maps/i);
   });
