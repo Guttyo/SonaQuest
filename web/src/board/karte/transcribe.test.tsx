@@ -5,7 +5,11 @@ import { sessionFor } from "../access";
 import { Board } from "../../screens/Board";
 import { KarteTranscribe } from "./Transcribe";
 import { TRANSCRIPT_MAX_LENGTH, appendTranscript } from "./transcript";
-import { TRANSCRIBE_NOTICES, TRANSCRIBE_TEXT } from "./transcribeText";
+import { TRANSCRIBE_NOTICES, TRANSCRIBE_TEXT, TRANSCRIPT_SUMMARY_TEXT } from "./transcribeText";
+import { TranscriptSummary } from "./TranscriptSummary";
+import { requestTranscriptSummary } from "./client";
+import { CODE_FINDING_LABELS } from "./codeCheck";
+import type { KarteSummary } from "./contract";
 
 const g = globalThis as unknown as Record<string, unknown>;
 afterEach(() => {
@@ -49,7 +53,7 @@ describe("HQ のカルテ画面の文字起こし（Issue #202、ADR-0061）", (
     const h = renderToStaticMarkup(<KarteTranscribe />);
     expect(h).toContain(TRANSCRIBE_NOTICES.unsupported);
     expect(h).not.toContain("talk-button");
-    expect(h).not.toContain('type="checkbox"');
+    expect(h).not.toContain(TRANSCRIBE_TEXT.ack);
     expect(h).toContain("<textarea");
   });
 
@@ -63,5 +67,64 @@ describe("HQ のカルテ画面の文字起こし（Issue #202、ADR-0061）", (
     expect(h).toContain(TRANSCRIBE_TEXT.ack);
     expect(h).toContain(TRANSCRIBE_TEXT.ackFirst);
     expect(h).not.toContain("talk-button");
+  });
+});
+
+// 架空の試験用の文字起こし
+const TX = ["お薬手帳はかばんに入れています", "スマホにも写真があります"].join("\n");
+const SUMMARY: KarteSummary = {
+  items: [{ aspect: "location", text: "お薬手帳はかばん", quote: "お薬手帳はかばんに入れています" }],
+  not_covered: ["alternative", "current", "unrecorded", "proxy"],
+};
+
+describe("文字起こしの要約（Issue #202 の2つめ、ADR-0061 の追記）", () => {
+  it("送る前に送り先（Workers を通して Claude）と「架空の内容だけ」を出し、確かめの欄に印を付けるまで送れない", () => {
+    const h = renderToStaticMarkup(<TranscriptSummary transcript={TX} />);
+    for (const line of TRANSCRIPT_SUMMARY_TEXT.beforeSend) expect(h).toContain(line);
+    expect(h).toContain("Anthropic の Claude に送られます");
+    expect(h).toContain("架空の内容だけ");
+    expect(h).toMatch(/<button type="button" class="board-approve" disabled="">要約を作る（Claude に送る）<\/button>/);
+    const acked = renderToStaticMarkup(<TranscriptSummary transcript={TX} initialAcked />);
+    expect(acked).toMatch(/<button type="button" class="board-approve">要約を作る/);
+    // 短すぎると押せない
+    expect(renderToStaticMarkup(<TranscriptSummary transcript="短い" initialAcked />)).toContain(TRANSCRIPT_SUMMARY_TEXT.tooShort);
+  });
+
+  it("要約は観点・短い文・原文の引用を並べ、指摘が無ければそう出す。確定は人であることを出す", () => {
+    const h = renderToStaticMarkup(<TranscriptSummary transcript={TX} initialResult={{ transcript: TX, outcome: { ok: true, summary: SUMMARY, findings: [] } }} />);
+    expect(h).toContain("お薬手帳はかばん");
+    expect(h).toContain("「お薬手帳はかばんに入れています」");
+    expect(h).toContain(TRANSCRIPT_SUMMARY_TEXT.noFindings);
+    expect(h).toContain(TRANSCRIPT_SUMMARY_TEXT.confirmNote);
+    expect(h).toContain(TRANSCRIPT_SUMMARY_TEXT.notCovered);
+  });
+
+  it("コードでの確認の指摘を項目ごとに出す。文字起こしを直したら、前の文の要約は出さない", () => {
+    const withFinding = { ok: true as const, summary: SUMMARY, findings: [{ kind: "quote_not_found" as const, itemIndex: 0, aspect: "location" as const }] };
+    const h = renderToStaticMarkup(<TranscriptSummary transcript={TX} initialResult={{ transcript: TX, outcome: withFinding }} />);
+    expect(h).toContain(CODE_FINDING_LABELS.quote_not_found);
+    const edited = renderToStaticMarkup(<TranscriptSummary transcript={`${TX}\n追加の一行です`} initialResult={{ transcript: TX, outcome: withFinding }} />);
+    expect(edited).not.toContain("「お薬手帳はかばんに入れています」");
+  });
+
+  it("使えないときは理由の文を出す（キーが無い）", () => {
+    const h = renderToStaticMarkup(<TranscriptSummary transcript={TX} initialResult={{ transcript: TX, outcome: { ok: false, failure: "not_configured" } }} />);
+    expect(h).toContain(TRANSCRIPT_SUMMARY_TEXT.failures.not_configured);
+  });
+
+  it("送るのは文字起こしだけで、宛先は /api/karte/transcript-summary。返事の形を確かめる", async () => {
+    const calls: { url: string; body: string }[] = [];
+    const reply = (status: number, json: unknown) => async (url: string, init: { body: string }) => {
+      calls.push({ url, body: init.body });
+      return { status, headers: { get: () => "application/json" }, json: async () => json };
+    };
+    const ok = await requestTranscriptSummary(TX, reply(200, { source: "model", summary: SUMMARY, findings: [] }));
+    expect(ok).toEqual({ ok: true, summary: SUMMARY, findings: [] });
+    expect(calls[0].url).toBe("/api/karte/transcript-summary");
+    expect(JSON.parse(calls[0].body)).toEqual({ transcript: TX });
+    expect(await requestTranscriptSummary(TX, reply(503, { error: "not_configured" }))).toEqual({ ok: false, failure: "not_configured" });
+    expect(await requestTranscriptSummary(TX, reply(429, { error: "rate_limited" }))).toEqual({ ok: false, failure: "rate_limited" });
+    expect(await requestTranscriptSummary(TX, reply(200, { source: "model", summary: { items: "x" }, findings: [] }))).toEqual({ ok: false, failure: "invalid" });
+    expect(await requestTranscriptSummary(TX, undefined)).toEqual({ ok: false, failure: "network" });
   });
 });
