@@ -360,10 +360,24 @@ function IntakeForm({
   const unit = STOCK.find((s) => s.site === site && s.item === item)?.unit ?? "";
 
   const writable = canWrite(site);
+  // 権限の確認を待つ間は、同じ入力を二度送らない（PR #146 のレビュー）
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!writable) return;
+    if (!writable || submittingRef.current) return;
+    submittingRef.current = true;
+    setSubmitting(true);
+    try {
+      await submitOnce();
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
+  }
+
+  async function submitOnce() {
     const n = Number(count);
     const d = Number(days);
     const prescription = item !== "" && n > 0 ? { item, qty: Math.floor(n), days: d > 0 ? Math.floor(d) : 0 } : null;
@@ -452,7 +466,7 @@ function IntakeForm({
           </label>
         </div>
       </fieldset>
-      <button type="submit" className="secondary" disabled={!writable} aria-describedby={writable ? undefined : "board-intake-readonly"}>
+      <button type="submit" className="secondary" disabled={!writable || submitting} aria-describedby={writable ? undefined : "board-intake-readonly"}>
         {BOARD_INTAKE_FORM.submit}
       </button>
       {!writable && (
@@ -1199,32 +1213,34 @@ export function Board({
    * 書き込みの前の権限の確認。画面の判定に加えて Worker（/api/board/authorize）に確かめ、許されたときだけ true。
    * 拒まれたら「権限がなく書き込みを拒否した」を残す。Worker に接続できないときは画面側の判定だけで進める
    */
-  async function guarded(target: SiteId, kind: AuthorizeKind, targetLabel: string): Promise<boolean> {
+  async function guarded(target: SiteId, kind: AuthorizeKind, targetLabel: string): Promise<DemoSession | null> {
     const who = live.current.session;
-    if (who === null) return false;
+    if (who === null) return null;
     setBusy(true);
     try {
       const r = await authorizeWrite(who, target, kind);
+      // 応答を待つ間にログアウト・別の救護所でのログインがあったら、前のログインの許可では書き込まない（PR #146 のレビュー）
+      if (live.current.session !== who) return null;
       setNotice({ site: target, allowed: r.allowed, via: r.via });
       if (!r.allowed) logAccess("write_denied", targetLabel, who);
-      return r.allowed;
+      return r.allowed ? who : null;
     } finally {
       setBusy(false);
     }
   }
   async function addRecord(a: Extract<DemoAction, { type: "add_record" }>): Promise<boolean> {
     const id = nextRecordId(state, a.site);
-    if (!(await guarded(a.site, "chart_add", id))) return false;
+    const who = await guarded(a.site, "chart_add", id);
+    if (who === null) return false;
     dispatch(a);
-    logAccess("chart_edit", id);
+    logAccess("chart_edit", id, who);
     return true;
   }
   async function chartOp(chart: PatientChart, op: ChartOp) {
-    const who = live.current.session;
+    const kind: AuthorizeKind = op === "draft" ? "chart_summary" : op === "audit" ? "chart_audit" : "chart_confirm";
+    const who = await guarded(chart.site, kind, chart.id);
     if (who === null) return;
     const actor = { site: who.site, staff: who.staff };
-    const kind: AuthorizeKind = op === "draft" ? "chart_summary" : op === "audit" ? "chart_audit" : "chart_confirm";
-    if (!(await guarded(chart.site, kind, chart.id))) return;
     if (op === "draft") {
       dispatch({ type: "chart_draft", key: chart.key, actor });
       logAccess("ai_summary", chart.id, who);
