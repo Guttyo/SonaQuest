@@ -141,7 +141,7 @@ export function nextAction(
 ): string {
   const via = offline && info ? `（通信なし。${info.altMeans}）` : "";
   if (status === "未確認") return `現地の在庫を確認する${via}`;
-  if (status === "見込み算出不可") return `現地の出庫のペースを確認する${via}`;
+  if (status === "見込み算出不可") return `現地の1日あたりの出庫量を確認${via}`;
   if (siteInbound.length > 0) {
     // 到着の見込みは「入荷・融通」の文に出ているので、ここでは繰り返さない（Issue #159）
     const r = siteInbound[0];
@@ -149,7 +149,7 @@ export function nextAction(
   }
   if (hqOnHand !== null && hqOnHand > 0) return "本部備蓄からの搬送を確認する";
   if (hqInbound.some((r) => r.status === "卸に照会中・到着未定")) return "卸の回答を確認する";
-  if (hqInbound.length > 0) return `本部向けの入荷の到着を確認する（${fmtEta(hqInbound[0].eta)}）`;
+  if (hqInbound.length > 0) return `本部への入荷を確認（${fmtEta(hqInbound[0].eta)}）`;
   return "融通できる救護所を確認する";
 }
 

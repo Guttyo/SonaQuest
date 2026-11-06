@@ -132,13 +132,13 @@ describe("ボードの題とレイアウト（Issue #107）", () => {
 describe("本部（HQ）の全体", () => {
   it("数字は架空データから計算したもの", () => {
     const today = todaySummary(PATIENTS);
-    expect(html).toContain(`今日の患者（延べ・4か所）${today.patients}人`);
+    expect(html).toContain(`本日の延べ患者数（4か所）${today.patients}人`);
     expect(html).toContain(`data-testid="critical-count">${criticalItems(STOCK).length}</span>`);
     expect(html).toContain(`data-testid="pending-count">${pendingSummary(SYNC).pending}</span>`);
     expect(html).toContain(`data-testid="proposal-count">2</span>`);
     expect(html).toContain("未着 97・転記待ち 6");
     // 在庫の10件と確認・手配の12件の関係を同じ札で読める
-    expect(html).toContain(`${criticalItems(STOCK).length}件 ＋ 未確認 1件 ＋ 見込み算出不可 1件 ＝ 確認・手配が必要な事項 ${cases.length}件`);
+    expect(html).toContain(`${criticalItems(STOCK).length}件 ＋ 未確認 1件 ＋ 算出不可 1件 ＝ 確認・手配が必要な事項 ${cases.length}件`);
     expect(html).toContain('data-testid="stale-count">2</span>');
   });
 
@@ -177,7 +177,7 @@ describe("本部（HQ）の全体", () => {
     expect(more).toContain("3錠（11/08 09:00 まで）");
     // 在庫切れ・未確認・見込み算出不可の区別は、状態の文字で残す
     expect(t).toContain('<span class="board-pill warn">未確認</span>');
-    expect(t).toContain('<span class="board-pill warn">見込み算出不可</span>');
+    expect(t).toContain('<span class="board-pill warn">算出不可</span>');
     // 狭い幅で見出し行の代わりに見せる列名が、各セルにある（Issue #113 の PR レビュー）
     for (const h of heads) expect(first).toContain(`<span class="board-action-k" aria-hidden="true">${h}</span>`);
     // 在庫切れ見込みの札は「あと N 日」だけ（読み上げには状態の名前を添える）
@@ -195,7 +195,7 @@ describe("本部（HQ）の全体", () => {
     const b = p.slice(p.indexOf('data-proposal="P-02"'));
     expect(b).toContain("救護所B");
     expect(b).toContain("未交付・必要な数 24 ＋ 目安の日数分の出庫 24 − 現地の在庫 8 − 向かっている搬送・入荷 0 ＝ 40");
-    expect(b).toContain("本部備蓄から 0錠・卸へ頼む 4シート（40錠）");
+    expect(b).toContain("本部備蓄から 0錠・卸への発注分 4シート（40錠）");
     // 救護所ごとの開閉できる欄にまとまる（Issue #167）。見出しに件数を出し、ふだんは閉じる
     expect(p).toContain('<details class="board-order-group" data-order-group="救護所B"><summary><b>救護所B</b><span class="board-pill warn">提案中 1 件</span>');
     expect(p).toContain('data-order-group="救護所C"');
@@ -735,5 +735,43 @@ describe("デモ用ログイン・救護所ごとの権限・カルテの確認�
     expect(open.match(/<th>/g)).toHaveLength(5);
     // 8種類の出来事の名前がそろっている
     expect(Object.keys(ACCESS_LOG_TEXT.kinds)).toHaveLength(8);
+  });
+});
+
+describe("画面の言葉をそろえる（Issue #160。2026-11-06 オーナー決定「2つを除きすべて採る」）", () => {
+  const tabs: BoardTab[] = ["overview", "stock", "supply", "records", "demo", "chat"];
+  const all = [HQ, "救護所A" as SiteId, "救護所B" as SiteId].flatMap((s) => tabs.map((t) => render(s, t))).join("");
+  const login = render(HQ, "overview", initialDemo(), null);
+
+  it("言い換える前の言い方が、ボードとログインの画面に残っていない", () => {
+    for (const old of [
+      "この拠点で入る",
+      "記録の形になっていない",
+      ">切れる見込み",
+      "見込み算出不可</span>",
+      "数量の根拠（算数）を見る",
+      "卸へ頼む",
+      "本部向けの入荷の到着を確認する",
+      "現地の出庫のペースを確認する",
+      "今日の患者（延べ",
+      "カルテの処方の累計",
+      "共通の欄",
+      "すべての欄",
+      "光っている救護所",
+      "動いているもの",
+    ]) {
+      expect(all + login, old).not.toContain(old);
+    }
+  });
+
+  it("新しい言い方が出る", () => {
+    expect(login).toContain(BOARD_LOGIN.submit);
+    expect(BOARD_LOGIN.submit).toBe("救護所に入る");
+    expect(all).toContain("本部未反映の記録");
+    expect(all).toContain("在庫切れ見込み");
+    expect(all).toContain("本日の延べ患者数");
+    expect(all).toContain("要確認の救護所");
+    expect(all).toContain("搬送便・医療チーム（模擬）");
+    expect(all).toContain("数量の算出根拠");
   });
 });

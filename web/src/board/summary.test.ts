@@ -196,7 +196,7 @@ describe("確認・手配が必要な品目（Issue #101）", () => {
     expect(unconfirmed?.next).toContain("連絡員");
     const noPace = cases.find((c) => c.status === "見込み算出不可");
     expect(noPace).toMatchObject({ site: "救護所A", item: "骨粗鬆症薬G（週1）", onHand: 12, days: null });
-    expect(noPace?.next).toBe("現地の出庫のペースを確認する");
+    expect(noPace?.next).toBe("現地の1日あたりの出庫量を確認");
   });
 
   it("現地向けの搬送があれば到着の確認、本部に在庫があれば搬送の確認。照会中の数量は現地の在庫に足さない", () => {

@@ -111,7 +111,7 @@ export function sessionBudget() {
 }
 
 const CHANNEL_NAMES: Readonly<Record<ChatChannel, string>> = {
-  common: "共通の欄（本部と救護所A〜Dの全員が見る）",
+  common: "全体連絡の欄（本部と救護所A〜Dの全員が見る）",
   A: "本部と救護所Aだけの欄",
   B: "本部と救護所Bだけの欄",
   C: "本部と救護所Cだけの欄",

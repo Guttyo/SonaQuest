@@ -167,7 +167,12 @@ function StatusText({ c }: { c: CaseRow }) {
       </>
     );
   }
-  return <>{c.status}</>;
+  return <>{stockStatusLabel(c.status)}</>;
+}
+
+/** 一覧の状態の札では「見込み算出不可」を「算出不可」と短く出す。理由（1日あたりの出庫量が分からない）は「次の確認」と行の中で示す（Issue #160） */
+function stockStatusLabel(status: string): string {
+  return status === "見込み算出不可" ? BOARD_OVERVIEW.noPace : status;
 }
 
 /**
@@ -1736,10 +1741,10 @@ export function Board({
                       <thead>
                         <tr>
                           <th>救護所</th>
-                          <th className="num">今日の患者（延べ）</th>
+                          <th className="num">{BOARD_OVERVIEW.patients}</th>
                           <th className="num">避難者数</th>
                           <th className="num">在庫でまかなえる日数</th>
-                          <th>在庫切れ・切れる見込みの薬</th>
+                          <th>在庫切れ・在庫切れ見込みの薬</th>
                           <th>記録の届き方</th>
                           <th className="num">記録の未着・転記待ち（件）</th>
                         </tr>
@@ -1941,7 +1946,7 @@ export function Board({
                             <td className="num">{r.dailyUse === null ? "不明" : `${fmt.format(r.dailyUse)}${r.unit}`}</td>
                             <td className="num">{d === null ? "—" : `${roundDays(d)} 日`}</td>
                             <td>
-                              <Pill level={st === "在庫切れ" ? "bad" : st === "余裕あり" ? "ok" : "warn"}>{st}</Pill>
+                              <Pill level={st === "在庫切れ" ? "bad" : st === "余裕あり" ? "ok" : "warn"}>{stockStatusLabel(st)}</Pill>
                             </td>
                             <td className="num">{hq ? qty(hq.onHand, hq.unit) : "—"}</td>
                           </tr>
@@ -2028,7 +2033,7 @@ export function Board({
                           <th>拠点</th>
                           <th>記録と通信</th>
                           <th>最後に記録が届いた時刻</th>
-                          <th className="num">記録の形になっていないもの</th>
+                          <th className="num">{BOARD_OVERVIEW.pending}</th>
                           <th>内訳</th>
                           <th>次の予定</th>
                         </tr>
