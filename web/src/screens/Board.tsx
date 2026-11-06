@@ -2035,7 +2035,7 @@ export function Board({
                           <th>最後に記録が届いた時刻</th>
                           <th className="num">{BOARD_OVERVIEW.pending}</th>
                           <th>内訳</th>
-                          <th>次の予定</th>
+                          <th>受領状況・次の予定</th>
                         </tr>
                       </thead>
                       <tbody>

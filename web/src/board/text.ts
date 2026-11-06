@@ -60,7 +60,7 @@ export const BOARD_LAYOUT = {
     shortageNote: "並び順は業務のルール（在庫切れ → 未確認 → 在庫切れの見込みが近い順 → 算出不可）。臨床の緊急度は表さない。行を開くと入荷・融通と必要な数。",
     stats: "今日の様子",
     patients: "本日の延べ患者数",
-    chronic: "うち普段の薬の継続",
+    chronic: "うち処方のあった人",
     evacuees: "避難者数（見込み）",
     contact: "連絡先・受け取り",
     route: "本部からの経路",
@@ -209,7 +209,7 @@ export const BOARD_TILES = {
   staleNone: "なし",
   activity: "今日の活動",
   activityLine: (patients: number, chronic: number, evacuees: number) =>
-    `本日の延べ患者数（4か所）${patients}人、うち普段の薬の継続で来た人 ${chronic}人。避難者数（見込み）${evacuees}人`,
+    `本日の延べ患者数（4か所）${patients}人、うち処方のあった人 ${chronic}人。避難者数（見込み）${evacuees}人`,
 } as const;
 export const BOARD_LEAD =
   "救護所4か所の情報を本部に集める、ホワイトボードの代わりになる1枚です。実際の災害で使う形ではなく、訓練と同じ記録の項目で何が見えるかを示すデモです。";

@@ -773,5 +773,8 @@ describe("画面の言葉をそろえる（Issue #160。2026-11-06 オーナー�
     expect(all).toContain("要確認の救護所");
     expect(all).toContain("搬送便・医療チーム（模擬）");
     expect(all).toContain("数量の算出根拠");
+    expect(all).toContain("うち処方のあった人");
+    expect(all).toContain("<th>受領状況・次の予定</th>");
+    expect(all).not.toContain("普段の薬の継続");
   });
 });

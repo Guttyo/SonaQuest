@@ -154,7 +154,7 @@ export interface PatientRow {
   site: SiteId;
   /** 延べ人数 */
   patients: number;
-  /** うち、普段の薬の継続で来た人 */
+  /** うち、処方のあった人（Issue #160。2026-11-06 オーナー決定で見出しを「うち処方のあった人」に。デモで足す分は処方が1つ以上ある記録を数える） */
   chronic: number;
 }
 
