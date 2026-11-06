@@ -1,6 +1,6 @@
 // 訓練の状態と遷移。状態はメモリにだけ持ち、保存しない（ADR-0007）。
 
-import { ACK_TEXT, AI_CONNECTED, ALL_QUESTIONS, CLARIFY_TEXTS, REDIRECT_TEXTS, ackFor } from "./content";
+import { ACK_TEXT, AI_CONNECTED, ALL_QUESTIONS, CLARIFY_TEXTS, RECHECK_CLOSING, REDIRECT_TEXTS, ackFor } from "./content";
 import { SYMPTOM_CHECK_TEXT, detectDistress, isAffirmative, type StopReason } from "./emergency";
 import type { TrainingMode } from "./mode";
 import {
@@ -186,9 +186,15 @@ function advance(
     ...state,
     stage: half === "first" ? { name: "confirm" } : { name: "review" },
     prompt: null,
-    closingAck: text ?? ACK_TEXT,
+    closingAck: closingAckOf(half, text),
     closingRemark: half === "second" ? remark : null,
   };
+}
+
+/** 半分の最後の受け止め。後半の終わりは、受け止めの後に固定文 RECHECK_CLOSING を続ける（2026-11-07） */
+function closingAckOf(half: Half, text: string | null): string {
+  const ack = text ?? ACK_TEXT;
+  return half === "second" ? ack + RECHECK_CLOSING : ack;
 }
 
 /** 固定の順番での次の質問のID。この回答で半分が終わるなら null */
@@ -275,7 +281,7 @@ function applyTurn(state: TrainingState, result: TurnResponse): TrainingState {
       ...judged,
       stage: stage.name === "first" ? { name: "confirm" } : { name: "review" },
       prompt: null,
-      closingAck: text ?? ACK_TEXT,
+      closingAck: closingAckOf(stage.name, text),
       closingRemark: stage.name === "second" ? result.remark : null,
     };
   }

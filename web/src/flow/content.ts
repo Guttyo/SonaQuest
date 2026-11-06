@@ -258,6 +258,13 @@ export const PROXY_QUESTION_AFTER_FAMILY: Question = {
  * 後半の4問目（Issue #41 で足した問い）。思い出せなかったことと、あとで何で確かめられるかを聞く。
  * 候補は出さず、確かめた内容の入力も求めない（ADR-0022）。回答は最大5回で、残りの1回は聞き返しの余裕
  */
+/**
+ * 後半の終わりに、受け止めの後に言う固定文（2026-11-07 のオーナーの言葉「今回思い出せなかった薬がないか、お薬手帳で
+ * しっかりと確認しておきましょう。という感じの応答で会話終了でいい」）。RECHECK_QUESTION は聞かなくなった
+ */
+export const RECHECK_CLOSING = "今回思い出せなかった薬がないか、お薬手帳でしっかりと確認しておきましょう。";
+
+/** 2026-11-07 から聞かない（後半の問いの一覧から外した）。以前の記録の項目と試験のために残す */
 export const RECHECK_QUESTION: Question = {
   id: "second_recheck",
   viewpoint: "location",
@@ -689,9 +696,10 @@ export const DONE_NOTE =
  */
 // [TODO-OWNER: 「メモに写す」の文言と、写す内容の形（Claude Code の下書き。ADR-0051 追記10）]
 export const DONE_MEMO_TITLE = "お薬の避難訓練の、次の準備";
-export const DONE_MEMO_COPY = "メモに写す";
-export const DONE_MEMO_COPIED = "写しました。メモや予定表に貼ってください。";
-export const DONE_MEMO_FAILED = "写せませんでした。下の文を選んで写してください。";
+// 2026-11-07 のオーナーの言葉（チャット）「メモに移すって、コピーってこと？…コピーするというボタンがよいのでは？」で、ボタンの文を「コピーする」にした
+export const DONE_MEMO_COPY = "コピーする";
+export const DONE_MEMO_COPIED = "コピーしました。メモや予定表に貼り付けてください。";
+export const DONE_MEMO_FAILED = "コピーできませんでした。下の文を選んでコピーしてください。";
 export const DONE_MEMO_SHARE = "共有する";
 
 // --- 中断 -----------------------------------------------------------------

@@ -12,7 +12,6 @@ import {
   PROXY_QUESTION_AFTER_FAMILY,
   RECENT_QUESTION_WITHOUT_NOTEBOOK,
   RECENT_QUESTION,
-  RECHECK_QUESTION,
   RECOVERY_QUESTION,
   VIEWPOINT_ORDER,
 } from "./content";
@@ -69,7 +68,8 @@ export function secondHalfQuestions(event: EventId): readonly Question[] {
     event === "family_unreachable" ? PROXY_QUESTION_AFTER_FAMILY : PROXY_QUESTION;
   // お薬手帳が自宅のときは、お薬手帳を前提にしない問いにする（2026-11-07）
   const recent = event === "notebook_home" ? RECENT_QUESTION_WITHOUT_NOTEBOOK : RECENT_QUESTION;
-  return [opening, recent, proxy, RECHECK_QUESTION].slice(0, MAX_SECOND_HALF_ANSWERS);
+  // 「思い出せなかったことを、あとで何で確かめるか」は聞かず、後半の終わりに固定文で促す（2026-11-07 のオーナーの指摘。content.ts の RECHECK_CLOSING）
+  return [opening, recent, proxy].slice(0, MAX_SECOND_HALF_ANSWERS);
 }
 
 /**
@@ -110,15 +110,11 @@ export function planGoals(asked: readonly string[], half: Half, event: EventId |
   const done = new Set(asked);
   const order = (half === "first" ? firstHalfQuestions() : secondHalfQuestions(event ?? "handover")).map((q) => q.id);
   const fallback = order.find((id) => !done.has(id)) ?? null;
-  const required = (half === "first" ? order : order.filter((id) => id !== RECHECK_QUESTION.id)).filter(
-    (id) => !done.has(id),
-  );
+  const required = order.filter((id) => !done.has(id));
   const optional: string[] = [];
   if (half === "first") {
     const followups = asked.filter((id) => id === MEDICINES_FOLLOWUP_QUESTION.id).length;
     if (done.has(FIRST_HALF_QUESTIONS[0].id) && followups < FOLLOWUP_LIMIT) optional.push(MEDICINES_FOLLOWUP_QUESTION.id);
-  } else if (!done.has(RECHECK_QUESTION.id)) {
-    optional.push(RECHECK_QUESTION.id);
   }
   const slack = remaining - required.length;
   return {

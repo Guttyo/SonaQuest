@@ -1,3 +1,4 @@
+import { RECHECK_CLOSING } from "./content";
 import { SYMPTOM_CHECK_TEXT } from "./emergency";
 import { describe, expect, it } from "vitest";
 import { MAX_ANSWERS } from "./rules";
@@ -63,11 +64,11 @@ describe("訓練の流れ", () => {
         answer("紙のメモがあります"),
         answer("妻が知っています"),
         answer("ありません"),
-        answer("思い出せなかったことはありません"),
       ]);
       expect(state.stage).toEqual({ name: "review" });
-      // 固定の質問は8問。聞き返しが無ければ、上限の10回より少なく終わる
-      expect(state.answers).toHaveLength(8);
+      // 固定の質問は7問（2026-11-07 に後半の「思い出せなかったこと」を外した）。聞き返しが無ければ、上限の10回より少なく終わる
+      expect(state.answers).toHaveLength(7);
+      expect(state.closingAck).toContain(RECHECK_CLOSING);
       expect(state.answers.length).toBeLessThan(MAX_ANSWERS);
     },
   );

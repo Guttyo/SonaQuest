@@ -1,3 +1,4 @@
+import { RECHECK_CLOSING } from "./content";
 // 聞き取りのゴールの決まり（Issue #200、ADR-0025 の B）。ブラウザと Workers が同じ planGoals を使う
 
 import { describe, expect, it } from "vitest";
@@ -39,9 +40,9 @@ describe("planGoals（前半）", () => {
 });
 
 describe("planGoals（後半）", () => {
-  it("立て直しの後は、記録の新しさと代わりに伝えられる人が必ず聞くゴール。思い出せなかったことは余裕があれば選べる", () => {
+  it("立て直しの後は、記録の新しさと代わりに伝えられる人が必ず聞くゴール。思い出せなかったことは聞かない（2026-11-07）", () => {
     expect(planGoals(["second_recovery"], "second", "battery")).toEqual({
-      choices: ["second_recent", "second_proxy", "second_recheck"],
+      choices: ["second_recent", "second_proxy"],
       fallback: "second_recent",
       canFinish: false,
     });
@@ -51,10 +52,10 @@ describe("planGoals（後半）", () => {
     expect(planGoals(["second_recovery"], "second", "family_unreachable").choices).toContain("second_proxy_other");
   });
 
-  it("必ず聞くゴールを聞き終えたら、後半を終えてよい。固定の進行は今までどおり最後に思い出せなかったことを聞く", () => {
+  it("必ず聞くゴールを聞き終えたら、後半を終える（思い出せなかったことは聞かず、終わりの固定文で促す。2026-11-07）", () => {
     expect(planGoals(["second_recovery", "second_recent", "second_proxy"], "second", "battery")).toEqual({
-      choices: ["second_recheck"],
-      fallback: "second_recheck",
+      choices: [],
+      fallback: null,
       canFinish: true,
     });
   });
@@ -133,7 +134,7 @@ describe("Claude が選んだゴールで進む（Issue #200）", () => {
     }
     s = answerWith(s, reply({ type: "finish", question_id: null, text: null }, "代わりに伝える人は、まだ考える余地がありそうです。"));
     expect(s.stage.name).toBe("review");
-    expect(s.closingAck).toBe(ACK_TEXT);
+    expect(s.closingAck).toBe(ACK_TEXT + RECHECK_CLOSING);
     expect(s.closingRemark).toBe("代わりに伝える人は、まだ考える余地がありそうです。");
   });
 

@@ -31,7 +31,7 @@ const secondDone: TurnRequest = {
   ],
   event: "battery",
   source: "smartphone",
-  next_question_id: "second_recheck",
+  next_question_id: null,
   allow_clarify: true,
   allow_redirect: true,
 };

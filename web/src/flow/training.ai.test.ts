@@ -1,3 +1,4 @@
+import { RECHECK_CLOSING } from "./content";
 // Claude を使う進行の試験（Issue #15、docs/phase2-decisions.md、ADR-0025）。Claude の返事は作った値で渡す。
 
 import { describe, expect, it } from "vitest";
@@ -287,7 +288,7 @@ describe("Claude を使う進行", () => {
     expect(state.stage).toEqual({ name: "confirm" });
   });
 
-  it("後半の最後の問いは、思い出せなかったことを聞く（Issue #41）", () => {
+  it("後半は、代わりに伝えられる人の後に終わり、思い出せなかったことは聞かずに固定文で促す（2026-11-07）", () => {
     let state = run([{ type: "start" }]);
     const steps: [string, TurnResponse["next"]][] = [
       ["A薬", ask("first_location")],
@@ -303,18 +304,19 @@ describe("Claude を使う進行", () => {
     for (const [text, next] of [
       ["スマホの写真", ask("second_recent")],
       ["飲めています", ask("second_proxy")],
-      ["妻が知っています", ask("second_recheck")],
     ] as const) {
       state = trainingReducer(state, answer(text));
       state = trainingReducer(state, result(state, reply(next)));
     }
-    expect(currentQuestion(state)?.id).toBe("second_recheck");
-    state = trainingReducer(state, answer("量が思い出せなかった。手帳で確かめる"));
-    // 聞き返しを使っていないので、最後の問いの後も1回だけ聞き返せる
+    expect(currentQuestion(state)?.id).toBe("second_proxy");
+    state = trainingReducer(state, answer("妻が知っています"));
+    // 必ず聞くゴールを聞き終えたので、次の固定の質問は無い。聞き返しは使っていないので、1回だけ聞き返せる
     expect(buildTurnRequest(state)?.next_question_id).toBeNull();
     expect(buildTurnRequest(state)?.allow_clarify).toBe(true);
-    state = trainingReducer(state, result(state, reply({ type: "finish", question_id: null, text: null })));
+    // Claude が second_recheck を選んでも使わず、後半を終える
+    state = trainingReducer(state, result(state, reply(ask("second_recheck"))));
     expect(state.stage).toEqual({ name: "review" });
+    expect(state.closingAck).toContain(RECHECK_CLOSING);
   });
 
   it("思い出せないという回答に印を付け、③確認の初期選択の候補を持つ", () => {
