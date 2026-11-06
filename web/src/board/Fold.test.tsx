@@ -47,6 +47,10 @@ describe("開閉できる欄（Issue #159）", () => {
     // 地図の下の一覧：移動中の車両と地図の注意はふだん閉じる
     expect(foldOpen(html, "board-map-movers")).toBe(false);
     expect(foldOpen(html, "board-map-notes")).toBe(false);
+    // 図の印を押したときの説明の欄は、閉じた一覧の中に入れない（押した結果が見えなくなるため）
+    const info = html.indexOf('class="board-map-mover-info"');
+    expect(info).toBeGreaterThanOrEqual(0);
+    expect(info).toBeLessThan(html.indexOf('<section aria-labelledby="board-map-movers"'));
     const active = demoReducer(state, { type: "arrivals", active: true });
     expect(foldOpen(render(HQ, "overview", active), "board-arrivals")).toBe(true);
   });

@@ -528,11 +528,12 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                 <p className="board-note">{BOARD_MAP_LIVE.staleNote(STALE_REPORT_HOURS)}</p>
               </Help>
             </Fold>
-            {/* ふだんは閉じておく（Issue #159） */}
+            {/* 図の印を押したときの行き先と到着見込みは、一覧を閉じていても見えるよう欄の外に出す（Issue #159） */}
+            <p className="board-map-mover-info" aria-live="polite">
+              {moverText ?? BOARD_MAP_LIVE.pressHint}
+            </p>
+            {/* 一覧はふだん閉じておく（Issue #159） */}
             <Fold id="board-map-movers" title={BOARD_MAP_LIVE.moversTitle} count={`${moverRows.length} 件`} open={false}>
-              <p className="board-map-mover-info" aria-live="polite">
-                {moverText ?? BOARD_MAP_LIVE.pressHint}
-              </p>
               {/* 一覧の行は SVG の外の本物のボタン。押すと図の印を太くし、上の欄に行き先と到着見込みを出す（もう一度押すと戻す） */}
               <ul className="board-map-mover-list">
                 {moverRows.map((r) => (
