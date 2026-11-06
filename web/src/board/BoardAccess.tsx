@@ -6,9 +6,12 @@ import { SHELTERS, type SiteId } from "./data";
 import { clockText, type PatientChart } from "./demo";
 import { LOGIN_SITES, staffFor, type AccessEntry, type DemoSession } from "./access";
 import { ACCESS_LOG_TEXT, BOARD_LOGIN, BOARD_PERMISSION, CHART_REVIEW_TEXT } from "./accessText";
-import { confirmable, type ChartReview } from "./review";
+import { confirmable, type AuditFinding, type ChartReview, type ChartSummaryDraft } from "./review";
+import { PLANTED_NOTICE, SAMPLE_NOTICE } from "./karte/contract";
+import { findSample } from "./karte/samples";
+import { AUDIT_SESSION_LABELS, KARTE_ASPECT_LABELS, KARTE_PANEL_TEXT } from "./karte/text";
 
-export type ChartOp = "draft" | "audit" | "confirm";
+export type ChartOp = "draft" | "draft_planted" | "audit" | "confirm";
 
 /** 権限の確認の最後の結果（画面に文字で出す） */
 export interface PermissionNotice {
@@ -21,6 +24,8 @@ export interface BoardAccessValue {
   session: DemoSession;
   canEdit: (site: SiteId) => boolean;
   reviews: Readonly<Record<string, ChartReview>>;
+  /** AI 要約を待っているカルテの key（Issue #148。省くと無し） */
+  drafting?: ReadonlySet<string>;
   aiStopped: boolean;
   /** 権限の確認を待っている操作があるか（二重に押さないため） */
   busy: boolean;
@@ -161,6 +166,109 @@ function statusText(review: ChartReview | undefined): string {
 }
 
 /** カルテの中の、AI 下書き・監査・人の確認の欄 */
+function FindingList({ title, findings }: { title: string; findings: readonly AuditFinding[] }) {
+  return (
+    <div className="board-review-findings">
+      <h5>{title}</h5>
+      <ul>
+        {findings.map((f, i) => (
+          <li key={`${f.where}-${i}`}>
+            <span>
+              {CHART_REVIEW_TEXT.findingWhere}：{f.where}
+            </span>
+            <span>
+              {CHART_REVIEW_TEXT.findingKind}：{f.kind}
+            </span>
+            <span>
+              {CHART_REVIEW_TEXT.findingReason}：{f.reason}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * 下書きの表示。抽出型の要約（Issue #148）は、行ごとに原文（quote）を添え、1段目（コード）と2段目（監査役）の指摘を
+ * 該当する行の下に出す。行に結びつかない指摘（抜けている観点など）は下にまとめる。誤りを混ぜた例は必ず明示する
+ */
+function DraftView({ draft, findings }: { draft: ChartSummaryDraft; findings: readonly AuditFinding[] }) {
+  if (draft.source !== "extractive") {
+    return (
+      <>
+        {draft.source === "sample_fallback" && <p className="board-note">{KARTE_PANEL_TEXT.summaryFallback}</p>}
+        <p className="board-note">{CHART_REVIEW_TEXT.sampleNote}</p>
+        <dl className="board-review-draft">
+          {draft.lines.map((l) => (
+            <div key={l.label}>
+              <dt>{l.label}</dt>
+              <dd>{l.text}</dd>
+            </div>
+          ))}
+        </dl>
+      </>
+    );
+  }
+  const code = draft.codeFindings ?? [];
+  const onLine = (list: readonly AuditFinding[], i: number) => list.filter((f) => f.line === i);
+  const sample = draft.sampleId === undefined ? undefined : findSample(draft.sampleId);
+  return (
+    <>
+      {draft.planted && (
+        <p className="board-review-planted" data-planted-notice>
+          {PLANTED_NOTICE}
+        </p>
+      )}
+      <p className="board-note">{SAMPLE_NOTICE}</p>
+      <ol className="board-review-draft board-review-lines">
+        {draft.lines.map((l, i) => {
+          const hits = [...onLine(code, i), ...onLine(findings, i)];
+          // 会話に見つからなかった引用は「原文」と呼ばない（モデルが作った文かもしれない。safety-review）
+          const unsupported = (draft.unsupportedLines ?? []).includes(i);
+          return (
+            <li key={`${l.label}-${i}`} className={hits.length > 0 ? "has-finding" : undefined} data-line={i} data-finding={hits.length > 0 ? "" : undefined}>
+              <span className="board-review-label">{l.label}</span>
+              <span>{l.text}</span>
+              {l.quote !== undefined && (
+                <span className="board-note">
+                  {unsupported ? KARTE_PANEL_TEXT.quoteUnsupported : KARTE_PANEL_TEXT.quote}：「{l.quote}」
+                </span>
+              )}
+              {hits.map((f, j) => (
+                <span key={j} className="board-review-hit">
+                  {f.kind}：{f.reason}
+                </span>
+              ))}
+            </li>
+          );
+        })}
+      </ol>
+      {draft.summary !== undefined && draft.summary.not_covered.length > 0 && (
+        <p className="board-note">
+          {KARTE_PANEL_TEXT.notCovered}：{draft.summary.not_covered.map((v) => KARTE_ASPECT_LABELS[v]).join("・")}
+        </p>
+      )}
+      {code.length > 0 && <FindingList title={KARTE_PANEL_TEXT.codeFindings} findings={code} />}
+      {findings.length > 0 && <FindingList title={KARTE_PANEL_TEXT.auditFindings} findings={findings} />}
+      {sample !== undefined && (
+        <details className="board-review-conversation">
+          <summary>{KARTE_PANEL_TEXT.conversation}</summary>
+          <p className="board-note">{sample.title}</p>
+          <ul>
+            {sample.turns.map((t, i) => (
+              <li key={i}>
+                <span className="board-review-label">{t.speaker === "staff" ? KARTE_PANEL_TEXT.staff : KARTE_PANEL_TEXT.patient}</span>
+                {t.text}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </>
+  );
+}
+
 export function ChartReviewPanel({ chart }: { chart: PatientChart }) {
   const a = useBoardAccess();
   if (a === null) return null;
@@ -175,40 +283,26 @@ export function ChartReviewPanel({ chart }: { chart: PatientChart }) {
           {statusText(review)}
         </span>
       </h4>
-      {review !== undefined && (
-        <>
-          <p className="board-note">{CHART_REVIEW_TEXT.sampleNote}</p>
-          <dl className="board-review-draft">
-            {review.draft.lines.map((l) => (
-              <div key={l.label}>
-                <dt>{l.label}</dt>
-                <dd>{l.text}</dd>
-              </div>
-            ))}
-          </dl>
-        </>
+      {review !== undefined && <DraftView draft={review.draft} findings={review.findings} />}
+      {review !== undefined && review.draft.source !== "extractive" && review.findings.length > 0 && (
+        <FindingList title={CHART_REVIEW_TEXT.findings} findings={review.findings} />
       )}
-      {review !== undefined && review.findings.length > 0 && (
-        <div className="board-review-findings">
-          <h5>{CHART_REVIEW_TEXT.findings}</h5>
-          <ul>
-            {review.findings.map((f, i) => (
-              <li key={`${f.where}-${i}`}>
-                <span>
-                  {CHART_REVIEW_TEXT.findingWhere}：{f.where}
-                </span>
-                <span>
-                  {CHART_REVIEW_TEXT.findingKind}：{f.kind}
-                </span>
-                <span>
-                  {CHART_REVIEW_TEXT.findingReason}：{f.reason}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
+      {a.drafting?.has(chart.key) && (
+        <p className="board-note" role="status">
+          {KARTE_PANEL_TEXT.drafting}
+        </p>
       )}
       {status === "ai_auditing" && <p className="board-note" role="status">{CHART_REVIEW_TEXT.auditing}</p>}
+      {review?.auditFailure && KARTE_PANEL_TEXT.failure[review.auditFailure] && (
+        <p className="board-note" data-testid="audit-failure">
+          {KARTE_PANEL_TEXT.failure[review.auditFailure]}
+        </p>
+      )}
+      {review?.session && (
+        <p className="board-note" data-testid="audit-session" data-session={review.session}>
+          {AUDIT_SESSION_LABELS[review.session]}
+        </p>
+      )}
       {(status === "audit_unavailable" || (review?.auditedAs === "audit_unavailable" && status === "human_confirmed")) && (
         <p className="board-note">{CHART_REVIEW_TEXT.unavailable}</p>
       )}
@@ -220,10 +314,15 @@ export function ChartReviewPanel({ chart }: { chart: PatientChart }) {
       {status !== "human_confirmed" && review !== undefined && <p className="board-note">{CHART_REVIEW_TEXT.waiting}</p>}
       {editable ? (
         <div className="board-review-actions">
-          {status === undefined && (
-            <button type="button" className="secondary" disabled={a.busy} onClick={() => a.chartOp(chart, "draft")}>
-              {CHART_REVIEW_TEXT.makeDraft}
-            </button>
+          {status === undefined && !a.drafting?.has(chart.key) && (
+            <>
+              <button type="button" className="secondary" disabled={a.busy} onClick={() => a.chartOp(chart, "draft")}>
+                {a.aiStopped ? CHART_REVIEW_TEXT.makeDraft : KARTE_PANEL_TEXT.makeSummary}
+              </button>
+              <button type="button" className="secondary" disabled={a.busy} data-planted-draft onClick={() => a.chartOp(chart, "draft_planted")}>
+                {KARTE_PANEL_TEXT.makePlanted}
+              </button>
+            </>
           )}
           {status === "ai_draft" && (
             <button type="button" className="secondary" disabled={a.busy} onClick={() => a.chartOp(chart, "audit")}>

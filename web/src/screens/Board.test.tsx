@@ -21,6 +21,11 @@ import { Board, type BoardTab } from "./Board";
 import { sessionFor, type DemoSession } from "../board/access";
 import { ACCESS_LOG_TEXT, BOARD_LOGIN, BOARD_PERMISSION, CHART_REVIEW_TEXT } from "../board/accessText";
 import { AccessLogPanel } from "../board/BoardAccess";
+import { PLANTED_NOTICE, SAMPLE_NOTICE } from "../board/karte/contract";
+import { auditToResult, summaryToDraft } from "../board/karte/client";
+import { checkSummary, maskForbidden } from "../board/karte/codeCheck";
+import { findSample, patientUtterances, plantedSummary } from "../board/karte/samples";
+import { AUDIT_SESSION_LABELS, KARTE_PANEL_TEXT } from "../board/karte/text";
 
 /** 試験は DOM の無い環境で動くので、拠点とタブを最初の値で渡して文字列に描き、画面の切り替えを確かめる */
 const render = (site: SiteId = HQ, tab: BoardTab = "overview", state = initialDemo(), session: DemoSession | null = sessionFor(site)) =>
@@ -496,7 +501,8 @@ describe("デモ用ログイン・救護所ごとの権限・カルテの確認�
     let s = added();
     let h = panel(render("救護所B", "records", s, a));
     expect(h).toContain(CHART_REVIEW_TEXT.status.none);
-    expect(h).toContain(CHART_REVIEW_TEXT.makeDraft);
+    expect(h).toContain(KARTE_PANEL_TEXT.makeSummary);
+    expect(h).toContain(KARTE_PANEL_TEXT.makePlanted);
     s = demoReducer(s, { type: "chart_draft", key: keyB, actor: a });
     s = demoReducer(s, { type: "chart_audit_start", key: keyB, actor: a });
     h = panel(render("救護所B", "records", s, a));
@@ -510,6 +516,51 @@ describe("デモ用ログイン・救護所ごとの権限・カルテの確認�
     h = panel(render("救護所B", "records", s, a));
     expect(h).toContain(CHART_REVIEW_TEXT.confirmedBy(a.staff, "救護所B", clockText(0)));
     expect(h).not.toContain(CHART_REVIEW_TEXT.confirm);
+  });
+
+  it("抽出型の要約（Issue #148）：誤りを混ぜた例を明示し、コードと監査役の指摘を該当する行に出し、セッションの削除を文字で出す", () => {
+    const b = sessionFor("救護所B");
+    const sample = findSample("karte-01")!;
+    const summary = plantedSummary(sample);
+    const findings = checkSummary(summary, patientUtterances(sample));
+    const draft = summaryToDraft({ sampleId: sample.id, source: "planted", summary: maskForbidden(summary, findings), findings }, true)!;
+    expect(draft.source).toBe("extractive");
+    const plantedLine = summary.items.length - 1;
+    expect(draft.codeFindings?.some((f) => f.line === plantedLine)).toBe(true);
+    let s = demoReducer(added(), { type: "chart_draft", key: keyB, actor: b, draft });
+    let h = panel(render("救護所B", "records", s, b));
+    expect(h).toContain(PLANTED_NOTICE);
+    expect(h).toContain(SAMPLE_NOTICE);
+    expect(h).toContain(`data-line="${plantedLine}" data-finding=""`);
+    expect(h).toContain(KARTE_PANEL_TEXT.codeFindings);
+    expect(h).toContain(`${KARTE_PANEL_TEXT.quoteUnsupported}：「${summary.items[plantedLine].quote}」`);
+    s = demoReducer(s, { type: "chart_audit_start", key: keyB, actor: b });
+    const result = auditToResult(
+      { status: "audited", findings: [{ kind: "not_in_conversation", aspect: summary.items[plantedLine].aspect, itemIndex: plantedLine, reason: "会話にありません" }], session: "deleted", ms: 3000 },
+      summary,
+    );
+    s = demoReducer(s, { type: "chart_audit_result", key: keyB, result });
+    h = panel(render("救護所B", "records", s, b));
+    expect(h).toContain(CHART_REVIEW_TEXT.status.audited_findings(1));
+    expect(h).toContain(KARTE_PANEL_TEXT.auditFindings);
+    expect(h).toContain(AUDIT_SESSION_LABELS.deleted);
+    expect(h).toContain(CHART_REVIEW_TEXT.confirm);
+  });
+
+  it("監査役が時間切れなら「監査できず」と理由とセッションの後片付けを出し、人の確認に進める", () => {
+    const b = sessionFor("救護所B");
+    const sample = findSample("karte-02")!;
+    const draft = summaryToDraft({ sampleId: sample.id, source: "model", summary: sample.expected, findings: [] }, false)!;
+    let s = demoReducer(added(), { type: "chart_draft", key: keyB, actor: b, draft });
+    s = demoReducer(s, { type: "chart_audit_start", key: keyB, actor: b });
+    s = demoReducer(s, { type: "chart_audit_result", key: keyB, result: auditToResult({ status: "unavailable", reason: "timeout", session: "pending", ms: 45000 }, sample.expected) });
+    const h = panel(render("救護所B", "records", s, b));
+    expect(h).toContain(CHART_REVIEW_TEXT.status.audit_unavailable);
+    expect(h).toContain(KARTE_PANEL_TEXT.failure.timeout);
+    expect(h).toContain(AUDIT_SESSION_LABELS.pending);
+    expect(h).not.toContain(PLANTED_NOTICE);
+    s = demoReducer(s, { type: "chart_confirm", key: keyB, actor: b });
+    expect(s.chartReview[keyB].status).toBe("human_confirmed");
   });
 
   it("監査できず・監査の指摘ありを文字で出す。ほかの救護所の人には操作のボタンを出さない", () => {

@@ -91,7 +91,7 @@ export const CHART_REVIEW_TEXT = {
   findingWhere: "箇所",
   findingKind: "種類",
   findingReason: "理由",
-  sampleNote: "見本の下書きです。この患者の記録から作ったものではありません（AI 要約の本体は別の作業で組み込みます）。",
+  sampleNote: "固定の見本の下書きです。この患者の記録から作ったものではありません。",
   aiStop: "AI を止めた状態にする（デモ）",
   aiStopNote: "止めると、監査は「監査できず」になります。下書きから人の確認済みまでは進めます。",
   readOnly: "このカルテの救護所でログインしている人だけが、下書き・監査・確認の操作をできます。",
