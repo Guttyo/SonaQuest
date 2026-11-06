@@ -10,6 +10,7 @@ import {
   PUBLIC_SOURCES,
   type PublicSourceId,
   PROXY_QUESTION_AFTER_FAMILY,
+  RECENT_QUESTION_WITHOUT_NOTEBOOK,
   RECENT_QUESTION,
   RECHECK_QUESTION,
   RECOVERY_QUESTION,
@@ -66,7 +67,9 @@ export function secondHalfQuestions(event: EventId): readonly Question[] {
   const opening = event === "handover" ? HANDOVER_QUESTION : RECOVERY_QUESTION;
   const proxy =
     event === "family_unreachable" ? PROXY_QUESTION_AFTER_FAMILY : PROXY_QUESTION;
-  return [opening, RECENT_QUESTION, proxy, RECHECK_QUESTION].slice(0, MAX_SECOND_HALF_ANSWERS);
+  // お薬手帳が自宅のときは、お薬手帳を前提にしない問いにする（2026-11-07）
+  const recent = event === "notebook_home" ? RECENT_QUESTION_WITHOUT_NOTEBOOK : RECENT_QUESTION;
+  return [opening, recent, proxy, RECHECK_QUESTION].slice(0, MAX_SECOND_HALF_ANSWERS);
 }
 
 /**

@@ -21,7 +21,7 @@ export const RECORD_ITEMS: readonly RecordItem[] = [
   // Issue #110：アレルギー・合わなかった薬は first_unrecorded で聞く
   { id: "unrecorded", label: "アレルギー・合わなかった薬など、記録に載っていないこと（架空）", questionIds: ["first_unrecorded"] },
   { id: "alternative", label: "ほかの伝え方", questionIds: ["second_recovery", "second_handover"] },
-  { id: "current", label: "最近の変化と、記録に載っているか（変化は架空）", questionIds: ["second_recent"] },
+  { id: "current", label: "最近の変化と、記録に載っているか（変化は架空）", questionIds: ["second_recent", "second_recent_other"] },
   { id: "proxy", label: "代わりに伝えられる人（続柄・連絡の手段）", questionIds: ["second_proxy", "second_proxy_other"] },
   { id: "recheck", label: "思い出せなかったこと・あとで確かめるもの", questionIds: ["second_recheck"] },
 ];

@@ -220,6 +220,18 @@ export const RECENT_QUESTION: Question = {
 };
 
 /**
+ * 出来事が「お薬手帳は自宅」のときの後半の2問目。使えなくなったお薬手帳を前提にしない
+ * （2026-11-07 のオーナーの指摘「お薬手帳がないシナリオなのに、こんなこと聞いてくる」）
+ */
+// [TODO-OWNER: お薬手帳が自宅のときの、最近の変化と記録の問い（Claude Code の下書き）]
+export const RECENT_QUESTION_WITHOUT_NOTEBOOK: Question = {
+  id: "second_recent_other",
+  viewpoint: "current",
+  answerAs: "both",
+  text: "最近変わった薬は、お薬手帳のほかに、記録に残っているものはありますか？",
+};
+
+/**
  * 後半の3問目（薬を知っている人）。連絡先そのもの（電話番号など）は尋ねない（ADR-0022）。
  * Issue #110 で1問1問いにし、連絡の手段は回答欄の上の選択肢（CONTACT_CHOICES）で補う
  * （2026-11-05 オーナー決定「画面の選択肢で補う」。判定の基準は変えない）。
@@ -262,6 +274,7 @@ export const ALL_QUESTIONS: readonly Question[] = [
   RECENT_QUESTION,
   PROXY_QUESTION,
   PROXY_QUESTION_AFTER_FAMILY,
+  RECENT_QUESTION_WITHOUT_NOTEBOOK,
   RECHECK_QUESTION,
 ];
 
@@ -286,6 +299,8 @@ export const CLARIFY_TEXTS: Record<string, string> = {
     "もう少し教えてください。交代したわたしに、どうやって薬のことを伝えますか？",
   second_recent:
     "もう少し教えてください。最近変わった薬があれば、それはいつも見ている記録に載っていますか？",
+  second_recent_other:
+    "もう少し教えてください。最近変わった薬があれば、お薬手帳のほかに、記録に残っているものはありますか？",
   second_proxy:
     "もう少し教えてください。家族や近所の人など、薬のことを伝えられる人はいますか？続柄で教えてください。",
   second_proxy_other:
@@ -311,6 +326,8 @@ export const REDIRECT_TEXTS: Record<string, string> = {
     "お話しくださってありがとうございます。いまは薬のことの伝え方を伺っています。交代したわたしに、どうやって薬のことを伝えますか？",
   second_recent:
     "お話しくださってありがとうございます。いまは普段の薬のことを伺っています。最近変わった薬は、記録にも載っていますか？",
+  second_recent_other:
+    "お話しくださってありがとうございます。いまは普段の薬のことを伺っています。最近変わった薬は、お薬手帳のほかの記録にも残っていますか？",
   second_proxy:
     "お話しくださってありがとうございます。いまは普段の薬のことを伺っています。薬のことを伝えられる人はいますか？",
   second_proxy_other:
@@ -455,6 +472,13 @@ export const EVENTS: Record<
     unavailable: null,
   },
 };
+
+/**
+ * 3D の振り返りの読み上げの最後に言う文（固定文）。「次の準備を1つ決める」へ促す。
+ * 2026-11-07 のオーナーの言葉（チャット）：「準備行動を読んで、簡単にできるところから今から取り掛かってみてくださいね」
+ */
+export const PREP_SPEECH =
+  "次の準備を1つ決めましょう。準備行動を読んで、簡単にできるところから、今から取り掛かってみてくださいね。";
 
 /**
  * 3D で出来事を読み上げる文（固定文。画面の表示は EVENTS のまま）。2026-11-07 のオーナーの言葉（チャット）で、

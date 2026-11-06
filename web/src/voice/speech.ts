@@ -10,6 +10,7 @@ import {
   NEXT_STEPS_HEADING,
   NEXT_STEP_LABEL,
   NO_WEAK_POINTS_NOTE,
+  PREP_SPEECH,
   PREP_ACTIONS,
   RECALL_NOW,
   UNDETERMINED_NOTE,
@@ -26,6 +27,12 @@ import { currentQuestion, type TrainingState } from "../flow/training";
  * 2つ目からの一言は読まない（長くなるので画面で読む）。判定が無い回はその知らせ、全部確認できた回はその一言
  */
 export function reviewSpeech(state: TrainingState): string | null {
+  const body = reviewSpeechBody(state);
+  // 最後に「次の準備を1つ決める」へ促す固定文を言う（2026-11-07 のオーナーの言葉）
+  return body === null ? null : body + PREP_SPEECH;
+}
+
+function reviewSpeechBody(state: TrainingState): string | null {
   if (state.stage.name !== "review") return null;
   // 受け止めの後に、Claude の一言（Issue #200。検査と監査役を通ったもの）を続ける
   const ack = (state.closingAck ?? "") + (state.closingRemark ?? "");

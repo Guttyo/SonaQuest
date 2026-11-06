@@ -4,6 +4,7 @@ import {
   JUDGMENT_LABELS,
   NEXT_STEPS_HEADING,
   NO_WEAK_POINTS_NOTE,
+  PREP_SPEECH,
   PREP_ACTIONS,
   UNDETERMINED_NOTE,
   VIEWPOINT_SHORT_LABELS,
@@ -52,10 +53,10 @@ describe("振り返りの読み上げ（3D。ADR-0054）：固定文だけで、
   });
 
   it("全部「確認できた」はその一言、判定が無い回は知らせだけ、振り返り以外は null", () => {
-    expect(reviewSpeech(review({ judgments: J({}) }))).toBe("試験の受け止め。" + NO_WEAK_POINTS_NOTE);
-    expect(reviewSpeech(review({ ai: "off", judgments: null }))).toBe("試験の受け止め。" + UNDETERMINED_NOTE);
+    expect(reviewSpeech(review({ judgments: J({}) }))).toBe("試験の受け止め。" + NO_WEAK_POINTS_NOTE + PREP_SPEECH);
+    expect(reviewSpeech(review({ ai: "off", judgments: null }))).toBe("試験の受け止め。" + UNDETERMINED_NOTE + PREP_SPEECH);
     expect(reviewSpeech(review({ ai: "failed", judgments: J({ proxy: "not_mentioned" }) }))).toBe(
-      "試験の受け止め。" + AI_FAILED_NOTE,
+      "試験の受け止め。" + AI_FAILED_NOTE + PREP_SPEECH,
     );
     expect(reviewSpeech(review({ stage: { name: "intro" } }))).toBeNull();
   });

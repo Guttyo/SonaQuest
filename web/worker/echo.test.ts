@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { isAffirmative } from "../src/flow/emergency";
 import { maskEchoed, promptTextProblem } from "./checks";
+import { echoableAnswer } from "./turn";
+import { secondHalfQuestions } from "../src/flow/rules";
 
 // 復唱（2026-11-07 のオーナーの答え。親のセッション経由）：直前の回答の言葉だけは、そのまま繰り返してよい
 const check = (text: string, lastAnswer: string, earlier: string[] = []) =>
@@ -49,5 +51,30 @@ describe("確かめの問いへの答え（ADR-0011 の追記）", () => {
     for (const no of ["いいえ", "違います", "そうではないです", "薬の説明です", "", "はいらない"]) {
       expect(isAffirmative(no), no).toBe(false);
     }
+  });
+});
+
+describe("復唱は薬についての問いへの回答だけ（2026-11-07）", () => {
+  const req = (questionId: string, text: string) => ({
+    inputs: [{ question_id: questionId, half: "first" as const, asked: "問い", text }],
+    event: null,
+    source: null,
+    next_question_id: null,
+    allow_clarify: true,
+    allow_redirect: true,
+  });
+  it("薬の問いの回答は復唱してよく、手段・人の問いの回答は復唱しない", () => {
+    expect(echoableAnswer(req("first_medicines", "頭痛薬を飲んでいます"))).toBe("頭痛薬を飲んでいます");
+    expect(echoableAnswer(req("first_medicines_more", "目薬"))).toBe("目薬");
+    expect(echoableAnswer(req("second_recovery", "スマホのアプリ"))).toBeUndefined();
+    expect(echoableAnswer(req("second_proxy", "妻"))).toBeUndefined();
+  });
+});
+
+describe("お薬手帳が自宅のときの後半の問い（2026-11-07）", () => {
+  it("お薬手帳を前提にしない問いに替わり、ほかの出来事では今までの問い", () => {
+    expect(secondHalfQuestions("notebook_home").map((q) => q.id)).toContain("second_recent_other");
+    expect(secondHalfQuestions("notebook_home").map((q) => q.text).join("")).not.toContain("お薬手帳などの記録");
+    expect(secondHalfQuestions("battery").map((q) => q.id)).toContain("second_recent");
   });
 });

@@ -199,8 +199,9 @@ export function chooseNext(
       ? null
       : promptTextProblem(text, {
           userTexts: request.inputs.map((i) => i.text),
-          // 直前の回答の言葉は、そのまま復唱してよい（2026-11-07 のオーナーの答え。親のセッション経由）
-          lastAnswer: request.inputs[request.inputs.length - 1]?.text,
+          // 直前の回答の言葉は、そのまま復唱してよい（2026-11-07 のオーナーの答え。親のセッション経由）。
+          // 薬についての問いへの回答だけ（同日、オーナーの指摘「スマホのアプリですね」は微妙）
+          lastAnswer: echoableAnswer(request),
           allowed: [
             QUESTION_TEXT.get(current) ?? "",
             questionId === null ? "" : QUESTION_TEXT.get(questionId) ?? "",
@@ -283,6 +284,20 @@ export function auditedQuestion(request: TurnRequest, next: TurnResponse["next"]
   const text = QUESTION_TEXT.get(id) ?? "";
   const examples = next.type === "clarify" ? QUESTION_EXAMPLES.get(id) : undefined;
   return examples === undefined ? text : `${text}（聞き返しで添えてよい例：${examples}）`;
+}
+
+/** 復唱してよい回答の問い：薬についての問い（2026-11-07。情報源・手段・人・記録の答えは復唱しない） */
+export const ECHO_QUESTION_IDS: ReadonlySet<string> = new Set([
+  "first_medicines",
+  "first_medicines_more",
+  "first_other",
+  "first_unrecorded",
+]);
+
+/** 復唱してよい直前の回答。薬についての問いへの回答でなければ undefined */
+export function echoableAnswer(request: TurnRequest): string | undefined {
+  const last = request.inputs[request.inputs.length - 1];
+  return last !== undefined && ECHO_QUESTION_IDS.has(last.question_id) ? last.text : undefined;
 }
 
 /**
