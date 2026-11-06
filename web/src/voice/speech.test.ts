@@ -145,7 +145,7 @@ describe("認識した文にも、送る前に緊急の照合がかかる（docs
 
   it("3D では、確かめの問いをそれだけ読み上げ、読み上げの切り替えの鍵も変わる（ADR-0011 の追記）", () => {
     const started = run([{ type: "start", mode: "3d" }]);
-    const checking = trainingReducer(started, { type: "answer", text: "頭が痛いときに飲む薬があります" });
+    const checking = trainingReducer(started, { type: "answer", text: "頭が痛いので薬を飲んでいます" });
     expect(listenerSpeech(checking)).toBe(SYMPTOM_CHECK_TEXT);
     expect(speechKey(checking, listenerSpeech(checking) ?? "")).not.toBe(speechKey(started, listenerSpeech(started) ?? ""));
   });

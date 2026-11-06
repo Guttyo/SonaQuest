@@ -188,15 +188,21 @@ describe("体調の訴えらしい入力での中断（ADR-0011）", () => {
   });
 
   it("薬の説明に体調の語があっても、確かめの問いに「いいえ」なら、その答えを回答として受け取って続ける（回数に数えない）", () => {
-    const checking = run([{ type: "start" }, answer("頭が痛いときに飲む薬があります")]);
+    const checking = run([{ type: "start" }, answer("頭が痛いので薬を飲んでいます")]);
     expect(checking.prompt?.type).toBe("symptom_check");
     expect(checking.answers).toHaveLength(0);
     const resumed = trainingReducer(checking, answer("いいえ、違います"));
     expect(resumed.stage).toEqual({ name: "first", index: 1 });
-    expect(resumed.answers.map((a) => a.text)).toEqual(["頭が痛いときに飲む薬があります"]);
+    expect(resumed.answers.map((a) => a.text)).toEqual(["頭が痛いので薬を飲んでいます"]);
     expect(resumed.answers[0].prompt).toBe(checking.symptomCheck?.resume?.text);
     expect(resumed.prompt?.type).toBe("ask");
     expect(resumed.symptomCheck).toBeNull();
+  });
+
+  it("何の薬かの説明（「頭が痛いときに飲む薬」。Issue #206）は、確かめの問いを出さずにそのまま回答として受け取る", () => {
+    const state = run([{ type: "start" }, answer("頭が痛いときに飲む薬があります")]);
+    expect(state.symptomCheck).toBeNull();
+    expect(state.answers.map((a) => a.text)).toEqual(["頭が痛いときに飲む薬があります"]);
   });
 
   it("確かめの問いへの答えが自傷のほのめかしなら、自傷用の案内で中断する", () => {
