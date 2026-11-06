@@ -66,6 +66,7 @@ import {
   BOARD_LEAD,
   BOARD_MOCK_BADGE,
   BOARD_ORDERS,
+  orderQtyText,
   BOARD_CHANGES,
   BOARD_LEAD_TILE,
   BOARD_OVERVIEW,
@@ -79,9 +80,9 @@ import {
 } from "../board/text";
 import { BoardMap } from "./BoardMap";
 import { BoardChat } from "../board/chat/BoardChat";
-import { PatientArrivals } from "../board/PatientArrivals";
+import { ArrivalControls, PatientArrivals } from "../board/PatientArrivals";
 import { Fold, Help } from "../board/Fold";
-import { appendAccess, authorizeWrite, canEdit as canEditSite, makeSession, type AccessEntry, type AccessEventKind, type DemoSession } from "../board/access";
+import { appendAccess, authorizeWrite, canDecideOrders, canEdit as canEditSite, makeSession, type AccessEntry, type AccessEventKind, type DemoSession } from "../board/access";
 import type { AuthorizeKind } from "../board/authorizeContract";
 import { BOARD_LOGIN, BOARD_PERMISSION, CHART_REVIEW_TEXT } from "../board/accessText";
 import {
@@ -499,7 +500,7 @@ function IntakeForm({
 function ChartCard({ chart, open }: { chart: PatientChart; open: boolean }) {
   const access = useBoardAccess();
   const latest = chart.visits[0];
-  const title = chart.name === null ? `番号 ${chart.id}` : `${chart.name}（架空）`;
+  const title = chart.name === null ? `番号 ${chart.id}` : `${chart.name}`;
   const review = access?.reviews[chart.key];
   return (
     <li className={`board-chart-card ${chart.added ? "board-chart-added" : ""}`} data-chart={chart.id}>
@@ -688,6 +689,58 @@ function inboundLevel(r: DemoInbound): "bad" | "warn" | "ok" {
   return r.eta === "未定" ? "bad" : "warn";
 }
 
+/** 「新」の印を付ける提案（この操作で出たもの） */
+const isNewProposal = (p: OrderProposal, state: DemoState) => p.status === "提案" && p.createdRev > 0 && p.createdRev === state.rev;
+
+/**
+ * 発注の提案を救護所ごとの開閉できる欄にまとめる（Issue #167）。承認待ちがたまっても画面が長くならないように、
+ * 見出しに救護所名と件数（提案中・承認済み・新）だけを出し、ふだんは閉じておく。承認・却下は今までどおり1件ずつ（一括承認は無い）。
+ * 開閉はブラウザの details だけで、状態を保存しない
+ */
+function ProposalGroups(props: {
+  state: DemoState;
+  proposals: readonly OrderProposal[];
+  canDecide: boolean;
+  dispatch: (a: DemoAction) => void;
+}) {
+  const { state, proposals } = props;
+  if (proposals.length === 0) return <p className="board-note">{BOARD_ORDERS.empty}</p>;
+  return (
+    <div className="board-order-groups">
+      {SHELTERS.map((site) => {
+        const rows = proposals.filter((p) => p.site === site);
+        if (rows.length === 0) return null;
+        const pending = rows.filter((p) => p.status === "提案").length;
+        const approved = rows.length - pending;
+        const fresh = rows.filter((p) => isNewProposal(p, state)).length;
+        return (
+          <details key={site} className="board-order-group" data-order-group={site}>
+            <summary>
+              <b>{site}</b>
+              {pending > 0 && (
+                <span className="board-pill warn">
+                  {BOARD_ORDERS.groupPending} {fmt.format(pending)} {BOARD_ORDERS.count}
+                </span>
+              )}
+              {approved > 0 && (
+                <span className="board-count">
+                  {BOARD_ORDERS.groupApproved} {fmt.format(approved)} {BOARD_ORDERS.count}
+                </span>
+              )}
+              {fresh > 0 && (
+                <span className="board-new">
+                  {BOARD_ORDERS.groupNew} {fmt.format(fresh)}
+                </span>
+              )}
+            </summary>
+            <ProposalList {...props} proposals={rows} showSite={false} />
+          </details>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
  * 発注の提案の一覧（Issue #107）。数量の算数の内訳を並べ、承認・却下は本部の画面だけで押せる。
  * 承認済みは、搬送の状態（引当済み → 搬送中 → 受領）を出す
@@ -710,7 +763,7 @@ function ProposalList({
     <ol className="board-orders">
       {proposals.map((p) => {
         const stage = proposalStage(p, state.inbound);
-        const isNew = p.status === "提案" && p.createdRev > 0 && p.createdRev === state.rev;
+        const isNew = isNewProposal(p, state);
         const isUpdated = !isNew && p.status === "提案" && p.rev > 0 && p.rev === state.rev;
         const b = p.basis;
         const fromCharts = chartUndelivered(state.records, p.site, p.item);
@@ -725,24 +778,20 @@ function ProposalList({
                 {p.item}
                 <span className="board-case-form">（{ITEM_FORMS[p.item] ?? "—"}）</span>
               </span>
-              <span className="board-order-qty">
-                {fmt.format(p.qty)}
-                {p.unit}
-              </span>
+              <span className="board-order-qty">{orderQtyText(p.qty, p.unit)}</span>
               <Pill level={stageLevel(stage)}>{stage}</Pill>
             </div>
             <p className="board-order-split">
-              {BOARD_ORDERS.fromHq} {fmt.format(p.fromHq)}
-              {p.unit}・{BOARD_ORDERS.fromVendor} {fmt.format(p.fromVendor)}
-              {p.unit}
+              {BOARD_ORDERS.fromHq} {orderQtyText(p.fromHq, p.unit)}・{BOARD_ORDERS.fromVendor} {orderQtyText(p.fromVendor, p.unit)}
             </p>
             <details className="board-order-basis-box">
               <summary>{BOARD_ORDERS.basisToggle}</summary>
             <p className="board-order-basis">
               {BOARD_ORDERS.basisNeed} {fmt.format(b.need)}
               {fromCharts > 0 && `（${BOARD_INTAKE_MODE.basisFromCharts} ${fmt.format(fromCharts)}）`} ＋ {b.cover === null ? BOARD_ORDERS.basisCoverUnknown : `${BOARD_ORDERS.basisCover} ${fmt.format(b.cover)}`} −{" "}
-              {BOARD_ORDERS.basisOnHand} {fmt.format(Math.floor(b.onHand))} − {BOARD_ORDERS.basisIncoming} {fmt.format(b.incoming)} ＝ {fmt.format(p.qty)}
+              {BOARD_ORDERS.basisOnHand} {fmt.format(Math.floor(b.onHand))} − {BOARD_ORDERS.basisIncoming} {fmt.format(b.incoming)} ＝ {fmt.format(b.raw)}
               {p.unit}
+              {b.raw !== p.qty && ` → ${BOARD_ORDERS.roundedUp} ${orderQtyText(p.qty, p.unit)}`}
             </p>
             </details>
             {p.status === "提案" && canDecide && (
@@ -1306,6 +1355,8 @@ export function Board({
     await guarded(site, "chart_add", `${site}のカルテ`);
   }
   const canEdit = (site: SiteId) => canEditSite(session, site);
+  // 発注の提案の承認・却下は HQ でログインしたときだけ（Issue #169。2026-11-06 オーナー決定）
+  const canDecide = canDecideOrders(session);
   const access: BoardAccessValue | null =
     session === null
       ? null
@@ -1437,6 +1488,8 @@ export function Board({
           <button type="button" className="secondary" onClick={() => dispatch({ type: "reset" })}>
             {BOARD_DEMO.reset}
           </button>
+          {/* 患者の受け入れも時計の操作と同じ所に置く（Issue #170） */}
+          <ArrivalControls state={state} dispatch={dispatch} />
           {/* AI を止めた状態の確認（Issue #141）。止めると監査は「監査できず」になり、人の確認で進める */}
           <label className="board-ai-stop">
             <input type="checkbox" checked={aiStopped} onChange={(e) => setAiStopped(e.target.checked)} />
@@ -1472,7 +1525,10 @@ export function Board({
             data-pane={HQ}
             onClick={() => select(HQ)}
           >
-            <span className="board-pane-name">{BOARD_LAYOUT.hq}</span>
+            <span className="board-pane-name">
+              {BOARD_LAYOUT.hq}
+              {session?.site === HQ && <span className="board-pane-login">{BOARD_LOGIN.paneMark}</span>}
+            </span>
             <span className="board-pane-sub">{BOARD_LAYOUT.hqSub}</span>
             <PaneMarks
               marks={pendingProposals.length > 0 ? [{ text: `${BOARD_LAYOUT.marks.proposals} ${fmt.format(pendingProposals.length)}`, level: "warn" }] : []}
@@ -1645,10 +1701,11 @@ export function Board({
                   count={`${fmt.format(pendingProposals.length)} ${BOARD_ORDERS.count}`}
                   open={pendingProposals.length > 0}
                 >
-                  <ProposalList state={state} proposals={pendingProposals} canDecide dispatch={dispatch} />
+                  <ProposalGroups state={state} proposals={pendingProposals} canDecide={canDecide} dispatch={dispatch} />
+                  {!canDecide && pendingProposals.length > 0 && <p className="board-note">{BOARD_ORDERS.approveOnlyHq}</p>}
                 </Fold>
 
-                <PatientArrivals state={state} dispatch={dispatch} />
+                <PatientArrivals state={state} />
 
                 <div className="board-overview-map">
                   <BoardMap overview={overview} onSelect={select} selected={selected} live={state} reducedMotion={noAuto} />
@@ -1701,7 +1758,7 @@ export function Board({
                           <th>拠点</th>
                           <th>稼働</th>
                           <th className="num">薬剤師</th>
-                          <th>連絡先（架空）</th>
+                          <th>連絡先</th>
                           <th>受け取りの窓口</th>
                           <th>代わりの手段</th>
                           <th>本部からの経路</th>
@@ -1837,7 +1894,7 @@ export function Board({
                         <span className="board-bar-value">{d.daysCovered} 日</span>
                       </div>
                     ))}
-                    <p className="board-note">点線：{COVER_GUIDE_DAYS}日の目安（仮に置いた値）。この見込みは架空データの開始時の値で、デモでは動かない。</p>
+                    <p className="board-note">点線：{COVER_GUIDE_DAYS}日の目安（仮に置いた値）。この見込みはデータの開始時の値で、デモでは動かない。</p>
                   </div>
                 </More>
               </>
@@ -1895,14 +1952,18 @@ export function Board({
                     </span>
                   </h3>
                   <p className="board-note">{BOARD_ORDERS.note}</p>
-                  <ProposalList
-                    state={state}
-                    proposals={isHq ? state.proposals : state.proposals.filter((p) => p.site === selected)}
-                    canDecide={isHq}
-                    dispatch={dispatch}
-                    showSite={isHq}
-                  />
-                  {!isHq && <p className="board-note">{BOARD_ORDERS.approveOnlyHq}</p>}
+                  {isHq ? (
+                    <ProposalGroups state={state} proposals={state.proposals} canDecide={canDecide} dispatch={dispatch} />
+                  ) : (
+                    <ProposalList
+                      state={state}
+                      proposals={state.proposals.filter((p) => p.site === selected)}
+                      canDecide={false}
+                      dispatch={dispatch}
+                      showSite={false}
+                    />
+                  )}
+                  {!canDecide && <p className="board-note">{BOARD_ORDERS.approveOnlyHq}</p>}
                   <p className="board-note">{BOARD_ORDERS.stageNote}</p>
                 </section>
                 <section aria-labelledby="board-inbound">
@@ -2042,7 +2103,7 @@ export function Board({
                     ))}
                   </div>
                 </section>
-                <PatientArrivals state={state} dispatch={dispatch} />
+                <PatientArrivals state={state} />
                 <section aria-labelledby="board-log">
                   <h3 id="board-log">
                     {BOARD_DEMO.logTitle} <span className="board-count">{fmt.format(state.log.length)} 件</span>

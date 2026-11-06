@@ -37,13 +37,18 @@ describe("架空の町の模式図（Issue #105）", () => {
     const b = html.slice(html.indexOf('class="board-map-route 迂回"'), html.indexOf('class="board-map-route 通行可"', html.indexOf('class="board-map-route 迂回"')));
     expect(b).toContain('stroke-dasharray="14 10"');
     expect(b).toContain("川沿いの道：土砂で通れない");
-    const d = html.slice(html.indexOf('class="board-map-route 通行止め"'));
-    expect(d).toContain("土砂：車は通れない");
+    // 救護所D も迂回（Issue #167）：土砂の場所に × を置き、南の幹線から回る迂回の道を点線で出す
+    const d = html.slice(html.lastIndexOf('class="board-map-route 迂回"'));
+    expect(d).toContain("山すその道：土砂で通れない");
+    expect(d).toContain('d="M760,130 V440 H880 V540"');
     expect(d).toContain('stroke="#c62828"');
-    // 状態を変えると色も変わる
+    // 状態を変えると色も変わる。通行止めは赤の × だけ
+    const closed: RouteRow[] = ROUTES.map((r) => (r.to === "救護所D" ? { ...r, status: "通行止め", minutes: null } : r));
+    const html1 = renderToStaticMarkup(<BoardMap overview={overview} routes={closed} />);
+    expect(html1.slice(html1.indexOf('class="board-map-route 通行止め"'))).toContain("山すその道：土砂で通れない");
     const changed: RouteRow[] = ROUTES.map((r) => (r.to === "救護所D" ? { ...r, status: "通行可" } : r));
     const html2 = renderToStaticMarkup(<BoardMap overview={overview} routes={changed} />);
-    expect(html2).not.toContain("土砂：車は通れない");
+    expect(html2).not.toContain("山すその道：土砂で通れない");
     expect(html2.match(/data-status="通行可"/g)).toHaveLength(3);
   });
 
@@ -55,7 +60,7 @@ describe("架空の町の模式図（Issue #105）", () => {
   });
 
   it("凡例・架空の明記・状況の欄・最新情報があり、外部の地図や画像を使わない", () => {
-    expect(html).toContain("架空の町・模式図");
+    expect(html).toContain("デモの町・模式図");
     expect(html).toContain("実在の地名・道路・施設ではない");
     expect(html).toContain(">通行可<");
     expect(html).toContain("気温");
@@ -90,10 +95,14 @@ describe("動く地図（Issue #128）", () => {
     expect(b).toContain('d="M760,92 L760,130 L235,130 L70,130 L70,320 L140,320"');
     const route = ROUTES.find((r) => r.to === "救護所B")!;
     expect(h).toContain(BOARD_MAP_LIVE.routeLine("救護所B", route.status, route.via, route.minutes));
-    // 通行止めの救護所D は流さない
+    // 救護所D は土砂を避けた迂回の道の上を流す（Issue #167）
     const d = renderToStaticMarkup(<BoardMap overview={overview} selected="救護所D" />);
-    expect(d).toContain('class="board-map-path"');
-    expect(d).not.toContain('class="board-map-flow"');
+    expect(d).toContain('d="M760,92 L760,130 L760,440 L880,440 L880,540"');
+    // 通行止めの救護所は流さない
+    const closed: RouteRow[] = ROUTES.map((r) => (r.to === "救護所D" ? { ...r, status: "通行止め", minutes: null } : r));
+    const dc = renderToStaticMarkup(<BoardMap overview={overview} routes={closed} selected="救護所D" />);
+    expect(dc).toContain('class="board-map-path"');
+    expect(dc).not.toContain('class="board-map-flow"');
   });
 
   it("経路の行は押せるボタンで、タッチでも道筋を出せる", () => {
@@ -111,7 +120,7 @@ describe("動く地図（Issue #128）", () => {
     expect(html.match(/<button type="button" class="board-map-mover-btn" aria-pressed="false">/g)).toHaveLength(3);
     expect(html).toContain(BOARD_MAP_LIVE.legendVehicle);
     expect(html).toContain(BOARD_MAP_LIVE.moversTitle);
-    expect(html).toContain("医療チームの車（架空・模擬）：本部で停車中。次の行き先 救護所A（到着見込み 11/05 10:15）");
+    expect(html).toContain("医療チームの車（模擬）：本部で停車中。次の行き先 救護所A（到着見込み 11/05 10:15）");
     expect(html).toContain("搬送便：血糖降下薬B 300 → 救護所A（到着見込み 11/06 10:00）");
   });
 

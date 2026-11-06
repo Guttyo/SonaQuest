@@ -4,7 +4,7 @@
 
 import { DEMAND, type RouteRow, type SiteId } from "./data";
 
-export const TOWN_NAME = "架空の町";
+export const TOWN_NAME = "デモの町";
 
 /** 図の大きさ（viewBox） */
 export const MAP_W = 1000;
@@ -70,17 +70,18 @@ export const MAP_ROUTES: readonly MapRoute[] = [
     d: "M760,92 V440 H330 V520",
     caution: { x: 420, y: 440, label: "橋：片側交互通行", dx: 18, dy: 34, anchor: "start" },
   },
-  // D：東の道が山すその土砂で車が通れない。連絡員が徒歩
+  // D：東の道が山すその土砂で通れない。中央の幹線を南へ下り、南の幹線から東へ回って入る（Issue #167。2026-11-06 オーナー決定で迂回）
   {
     to: "救護所D",
     d: "M760,92 V130 H880 V540",
-    blocked: { x: 880, y: 400, label: "土砂：車は通れない", dx: -24, dy: 5, anchor: "end" },
+    detour: "M760,130 V440 H880 V540",
+    blocked: { x: 880, y: 400, label: "山すその道：土砂で通れない", dx: -24, dy: 5, anchor: "end" },
   },
 ];
 
 /** 碁盤目の生活道路の位置（この線の間が街区になる） */
-const STREETS_H = [0, 60, 130, 200, 260, 320, 380, 440, 510, 570, MAP_NOTE_Y] as const;
-const STREETS_V = [56, 70, 140, 210, 330, 400, 470, 540, 610, 680, 760, 830, 880, 920, 952] as const;
+export const STREETS_H = [0, 60, 130, 200, 260, 320, 380, 440, 510, 570, MAP_NOTE_Y] as const;
+export const STREETS_V = [56, 70, 140, 210, 330, 400, 470, 540, 610, 680, 760, 830, 880, 920, 952] as const;
 
 export interface Rect {
   x: number;

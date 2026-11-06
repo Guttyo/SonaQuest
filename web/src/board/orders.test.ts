@@ -11,6 +11,7 @@ import {
   type DemoAction,
   type DemoState,
 } from "./demo";
+import { orderQtyText } from "./text";
 
 const run = (s: DemoState, ...actions: DemoAction[]) => actions.reduce(demoReducer, s);
 const onHand = (s: DemoState, site: string, item: string) => s.stock.find((r) => r.site === site && r.item === item)!.onHand;
@@ -40,14 +41,15 @@ describe("発注の提案の算数", () => {
   it("必要な数量 ＝ 未交付・必要な数 ＋ 目安3日分の出庫 − 現地の在庫 − 向かっている搬送・入荷", () => {
     // 救護所B の抗てんかん薬C：必要24 ＋ 8×3 − 8 − 0 ＝ 40。本部備蓄は 0 なので全部が卸へ
     const b = s.find((x) => x.key === "救護所B|抗てんかん薬C")!;
-    expect(b.basis).toEqual({ need: 24, cover: 24, onHand: 8, incoming: 0 });
+    expect(b.basis).toEqual({ need: 24, cover: 24, onHand: 8, incoming: 0, raw: 40 });
     expect(b.qty).toBe(40);
     expect(b.fromHq).toBe(0);
     expect(b.fromVendor).toBe(40);
-    // 救護所B の抗凝固薬F に必要な数 1 が届くと：1 ＋ 16×3 − 40 ＝ 9。本部備蓄から出せる
+    // 救護所B の抗凝固薬F に必要な数 1 が届くと：1 ＋ 16×3 − 40 ＝ 9 → 10錠（1シート）単位に切り上げて 10。本部備蓄から出せる（Issue #167）
     const f = suggestOrders(STOCK, [...NEEDS, { site: "救護所B", item: "抗凝固薬F", qty: 1, by: "" }], INBOUND).find((x) => x.key === "救護所B|抗凝固薬F")!;
-    expect(f.qty).toBe(9);
-    expect(f.fromHq).toBe(9);
+    expect(f.basis.raw).toBe(9);
+    expect(f.qty).toBe(10);
+    expect(f.fromHq).toBe(10);
     expect(f.fromVendor).toBe(0);
   });
 
@@ -64,9 +66,9 @@ describe("発注の提案の算数", () => {
   it("未交付・必要な数が無いときは、1日の出庫分以上足りないときだけ出す", () => {
     // 救護所A の抗てんかん薬C：36 − 30 ＝ 6 は 1日の出庫 12 より少ないので出さない
     expect(s.find((x) => x.key === "救護所A|抗てんかん薬C")).toBeUndefined();
-    // 在庫が 24 まで減ると 36 − 24 ＝ 12（1日分）で出す
+    // 在庫が 24 まで減ると 36 − 24 ＝ 12（1日分）で出す。10錠単位に切り上げて 20（出すかの判定は切り上げる前の 12 で行う）
     const stock = STOCK.map((r) => (r.site === "救護所A" && r.item === "抗てんかん薬C" ? { ...r, onHand: 24 } : r));
-    expect(suggestOrders(stock, NEEDS, INBOUND).find((x) => x.key === "救護所A|抗てんかん薬C")?.qty).toBe(12);
+    expect(suggestOrders(stock, NEEDS, INBOUND).find((x) => x.key === "救護所A|抗てんかん薬C")).toMatchObject({ qty: 20, basis: { raw: 12 } });
   });
 
   it("在庫が未確認のものは出さない。本部備蓄は行にしない。並びは残り日数が短い順（在庫0が先）", () => {
@@ -83,8 +85,34 @@ describe("発注の提案の算数", () => {
     const t = suggestOrders(stock, needs, INBOUND);
     const b = t.find((x) => x.key === "救護所B|抗凝固薬F")!;
     const d = t.find((x) => x.key === "救護所D|抗凝固薬F")!;
-    expect([b.fromHq, b.fromVendor]).toEqual([9, 0]);
-    expect([d.fromHq, d.fromVendor]).toEqual([1, 6]);
+    // 9 → 10錠、7 → 10錠に切り上げ。本部の 10錠は先の救護所B に出し、救護所D は全部を卸へ
+    expect([b.fromHq, b.fromVendor]).toEqual([10, 0]);
+    expect([d.fromHq, d.fromVendor]).toEqual([0, 10]);
+  });
+
+  it("錠の品目は 10錠単位（1シート）、本部備蓄から出す分も 10錠単位。本・枚の品目は 1単位のまま（Issue #167）", () => {
+    // 本部の抗凝固薬F が 25錠のとき、出せるのは 20錠（2シート）まで
+    const stock = STOCK.map((r) => (r.site === HQ && r.item === "抗凝固薬F" ? { ...r, onHand: 25 } : r));
+    const needs = [...NEEDS, { site: "救護所B" as const, item: "抗凝固薬F", qty: 25, by: "" }];
+    const b = suggestOrders(stock, needs, INBOUND).find((x) => x.key === "救護所B|抗凝固薬F")!;
+    expect(b.basis.raw).toBe(33);
+    expect([b.qty, b.fromHq, b.fromVendor]).toEqual([40, 20, 20]);
+    for (const x of suggestOrders(STOCK, needs, INBOUND)) {
+      if (x.unit === "錠") expect(x.qty % 10).toBe(0);
+      if (x.unit === "錠") expect(x.fromHq % 10).toBe(0);
+    }
+    // 枚の品目は切り上げない
+    const e = suggestOrders(STOCK, [...NEEDS, { site: "救護所C", item: "貼付鎮痛薬E", qty: 1, by: "" }], INBOUND);
+    expect(e.find((x) => x.key === "救護所C|貼付鎮痛薬E")?.qty).toBe(7);
+  });
+
+  it("数量は少なければシート、多ければ箱で示す（100錠＝1箱、10錠＝1シート）", () => {
+    expect(orderQtyText(230, "錠")).toBe("2箱＋3シート（230錠）");
+    expect(orderQtyText(30, "錠")).toBe("3シート（30錠）");
+    expect(orderQtyText(200, "錠")).toBe("2箱（200錠）");
+    expect(orderQtyText(1200, "錠")).toBe("12箱（1,200錠）");
+    expect(orderQtyText(0, "錠")).toBe("0錠");
+    expect(orderQtyText(12, "本")).toBe("12本");
   });
 
   it("最初の状態に提案が載っていて、どれも「提案」", () => {
@@ -100,15 +128,16 @@ describe("カルテに登録 → 提案 → 承認 → 搬送中 → 受領", ()
     const s0 = initialDemo();
     expect(prop(s0, "救護所B", "抗凝固薬F")).toBeUndefined();
     const s1 = run(s0, recordB);
-    // 在庫 40 を出庫し、未交付 20。提案は 20 ＋ 48 − 0 ＝ 68
+    // 在庫 40 を出庫し、未交付 20。提案は 20 ＋ 48 − 0 ＝ 68 → 10錠単位に切り上げて 70
     expect(onHand(s1, "救護所B", "抗凝固薬F")).toBe(0);
     const after = prop(s1, "救護所B", "抗凝固薬F")!;
     expect(after.id).toBe("P-03");
     expect(after.basis.need).toBe(20);
-    expect(after.qty).toBe(68);
-    expect(after.fromHq).toBe(68);
+    expect(after.basis.raw).toBe(68);
+    expect(after.qty).toBe(70);
+    expect(after.fromHq).toBe(70);
     const s2 = run(s1, recordB);
-    expect(prop(s2, "救護所B", "抗凝固薬F")).toMatchObject({ id: "P-03", qty: 128 });
+    expect(prop(s2, "救護所B", "抗凝固薬F")).toMatchObject({ id: "P-03", qty: 130 });
   });
 
   it("新しい提案は作った操作の番号（createdRev）、未交付が増えた提案は更新の番号（rev）を持つ。時計では印を付けない", () => {
@@ -133,9 +162,9 @@ describe("カルテに登録 → 提案 → 承認 → 搬送中 → 受領", ()
     const s2 = run(s1, { type: "approve_proposal", id });
     const p = s2.proposals.find((x) => x.id === id)!;
     expect(p.status).toBe("承認済み");
-    expect(onHand(s2, HQ, "抗凝固薬F")).toBe(hqBefore - 68);
+    expect(onHand(s2, HQ, "抗凝固薬F")).toBe(hqBefore - 70);
     const ship = s2.inbound.find((r) => r.id === p.shipmentId)!;
-    expect(ship).toMatchObject({ from: HQ, to: "救護所B", item: "抗凝固薬F", qty: 68, status: "引当済み" });
+    expect(ship).toMatchObject({ from: HQ, to: "救護所B", item: "抗凝固薬F", qty: 70, status: "引当済み" });
     expect(ship.departAt).toBe(DISPATCH_DELAY_MINUTES);
     expect(ship.arriveAt).toBe(DISPATCH_DELAY_MINUTES + 70); // 救護所B は迂回で約70分
     expect(proposalStage(p, s2.inbound)).toBe("承認済み（引当済み）");
@@ -151,8 +180,8 @@ describe("カルテに登録 → 提案 → 承認 → 搬送中 → 受領", ()
     expect(proposalStage(run(s3, { type: "tick", hours: 1 }).proposals.find((x) => x.id === id)!, run(s3, { type: "tick", hours: 1 }).inbound)).toBe("搬送中");
     const s4 = run(s3, { type: "tick", hours: 2 });
     expect(proposalStage(s4.proposals.find((x) => x.id === id)!, s4.inbound)).toBe("受領");
-    expect(onHand(s4, "救護所B", "抗凝固薬F")).toBe(68);
-    expect(s4.log.some((l) => l.text.includes("救護所B：抗凝固薬F 68錠 を受領"))).toBe(true);
+    expect(onHand(s4, "救護所B", "抗凝固薬F")).toBe(70);
+    expect(s4.log.some((l) => l.text.includes("救護所B：抗凝固薬F 70錠 を受領"))).toBe(true);
   });
 
   it("本部に無い分は卸への照会（本部向け・到着未定）として載り、その救護所の提案から差し引かれる", () => {
