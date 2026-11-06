@@ -1264,15 +1264,45 @@
 - 影響：`web/src/board/live.ts`（新規）、`web/src/board/vehicles.ts`（新規）、`web/src/board/live.test.ts`（新規）、`web/src/screens/BoardMap.tsx`、`web/src/screens/BoardMap.test.tsx`、`web/src/board/text.ts`（末尾の `BOARD_MAP_LIVE`）、`web/src/board/board.css`（末尾）、`web/src/screens/Board.tsx`（1行）。残るリスク：07:00・10:00 を `demo.ts` から写して持つので、`demo.ts` の時刻を変えたら `live.ts` も直す（試験が落ちて気づく）。便と車が時計の1時間の進みの間に角を曲がるとき、滑らかに移る間は角を斜めに横切って見える。
 - 追記（PR #130 のレビュー）：図は `role="img"` で、その中の操作要素は読み上げに出ないので、便と車の印はマウス・タッチで押せるだけにし、キーボード・読み上げでは図の下の「動いているもの（架空・模擬）」の一覧の各行（`<button>`、`aria-pressed`）で同じ操作をする。
 
-## ADR-0050 提出動画を Remotion の独立パッケージ（`video/`）で組み、ナレーションは手元のスクリプトで合成する
-- 状態：採用（Remotion で組むことと依存の追加は 2026-11-06 にオーナーがチャットで承認。ナレーションを API で合成し、キーを env ファイルに置くことは Issue #28 のコメントの 2026-11-04 のオーナー決定）　日付：2026-11-06（Issue #28、SUB-01）
+## ADR-0050 機能凍結後の例外：救護所ごとの権限・アクセス記録・カルテ要約の監査・カルテの確認状態・HQ デザインの見直し
+- 状態：提案（Issue #141。凍結の前の例外として足すことは 2026-11-06 にオーナーがチャットで指示した。採用はこの ADR を含む PR のマージで）　日付：2026-11-06
+- 背景：
+  - 機能凍結は 2026-11-07 24:00 JST（Issue #123）。オーナーは 2026-11-06 に、凍結の前の例外として Issue #141（この ADR の実装）、#142（抽出型要約と Managed Agents 監査）、#143（HQ デザインの計画書）の3件だけを承認した。
+  - 狙いは、3分のデモ動画で「救護所ごとの権限」と「AI の要約を別のモデルとコードが確かめ、最後は人が確定する流れ」が動いて見えること。本番運用の完成は対象外。
+- 決定：
+  1. **凍結後の例外**として、救護所ごとの権限、アクセス記録、カルテ要約の監査、カルテの確認状態、HQ デザインの見直しを追加する。これ以外は足さない。
+  2. **これは「ボードは Claude・API・送信を使わない」（ADR-0042・0043）の2つ目の例外になる**（1つ目は B-07 の掲示板チャット、ADR-0047）。この Issue で Worker へ送るのは、権限の確認に要る3つの値（ログイン中の救護所・書き込み先の救護所・出来事の種類）だけで、カルテと問診の中身・氏名・担当者名は送らない。Claude はこの Issue では呼ばない（カルテ要約と監査は Issue #142）。
+  3. **デモ用ログイン**（`web/src/board/access.ts`・`BoardAccess.tsx`）：救護所A〜Dと、救護所ごとの架空の担当者（`accessText.ts` の `DEMO_STAFF`。患者の架空の氏名とは分ける）を選ぶだけ。パスワード・本人確認なし。「デモ用のログインです」と表示する。状態はブラウザのメモリだけ（sessionStorage にも置かない）で、読み込み直すと消える。右上に常に「救護所A／担当：○○（架空）」とログアウトを出す（ボードとカルテ入力の専用画面）。本部（HQ）のログインと、本部がすべてを編集する役割は作らない。
+  4. **権限**：自分の救護所のカルテ（入力・AI 下書き・監査・人の確認）だけを書き込める。ほかの救護所は閲覧のみで、ボタンを無効にし、「閲覧のみ（救護所Bの記録）」と理由を文字で出す（色だけにしない）。URL（`?view=intake&site=B`）でほかの救護所の入力画面を開いても、登録のボタンは無効。在庫の数を人が直す操作はもともとボードに無いので、在庫は表示の区別だけ。
+  5. **Worker での確認**（`web/worker/boardAuthorize.ts`、`POST /api/board/authorize`。形は `web/src/board/authorizeContract.ts` で画面と共有）：3つのキーだけを受け、一覧にない値・余計なキーは 400、救護所が違えば 403、同じなら 200。ブラウザは許可が返ってから状態を変える。ログは `board_authorize: denied`・`bad_request` の種類だけ。外部を呼ばず費用がかからないので、`/api/turn` の公開の切り替えと回数制限はかけない。
+  6. **Worker が使えないとき**（`npm run dev` だけで動かすとき、通信の失敗、3秒の時間切れ、JSON でない応答、5xx）は、画面側の判定（同じ救護所か）だけで進め、画面に「Worker に接続できないため、画面側の判定だけで進めました」（拒むときは「画面側の判定で拒否しました」）と出す。403 は「使えない」と扱わない。
+  7. **拒否の確認のボタン**：ほかの救護所の画面の「ほかの救護所への書き込みを試す（拒否の確認）」で、そのカルテに記録を加える要求を Worker へ送り、403 で拒まれ、アクセス記録に残ることを見せる。中身は送らない。Worker の確認を見せるためだけのデモ用のボタン。
+  8. **カルテの確認状態**（`web/src/board/review.ts`、`demo.ts` の `chartReview`）：AI下書き → AI監査中 → 監査済み（指摘あり／指摘なし）または監査できず → 人が確認済み。「人が確認済み」にできるのは、そのカルテの救護所でログインしている人だけで、誰がいつ（デモの時計）確認したかを出す。監査で指摘が無くても、人が確認するまで「確認待ち」。AI が止まっていても、監査できず → 人が確認済み と進める（デモ操作の「AI を止めた状態にする」で確かめられる）。同じカルテに記録が加わると、前の下書き・確認は外す。reducer でもカルテの救護所とログイン中の救護所が違う操作は無視する（画面・Worker の後ろの守り）。
+  9. **見本の下書きと監査**：AI 要約と監査の本体は Issue #142 が作る。この Issue では、状態と、結果を受け取る型（`ChartSummaryDraft`・`ChartAuditResult`・`AuditFinding`）と受け口（`demo.ts` の action `chart_audit_result`・関数 `applyAuditResult`）だけを用意し、固定の見本（`accessText.ts` の `SAMPLE_DRAFTS`・`SAMPLE_FINDINGS`）で動かす。見本の下書きは患者の記録から作らない固定の文で、画面に「見本の下書きです。この患者の記録から作ったものではありません」と出す（ADR-0042 は問診の要約を却下しているので、見本でも記録の要約を作らない）。
+  10. **アクセス記録**：8つの出来事（ログイン・ログアウト・カルテを開いた・カルテを編集した・AI要約を作った・監査の結果が出た・人が確認した・権限がなく書き込みを拒否した）。行は時刻（デモの時計）・救護所・担当者・出来事・対象（カルテの番号など）だけで、カルテの中身・患者の氏名は入れない。メモリだけに置き（200行まで）、画面右下の開閉できる一覧に「デモ用の記録です。保存していません」と出す。console.log・Workers のログに出さない。
+- 理由：AI の出力をそのまま記録にしない設計（別の確認と、人の確定）と、救護所ごとの責任の分け方を、説明だけでなくデモで動く形で示せる。Worker に送る値を3つに絞れば、ADR-0043 の「送信しない」を最小限しか崩さない。
+- 却下案：
+  - 凍結を守り、説明だけで示す：動画で「動いて見える」というオーナーの狙いに届かない。
+  - ログインの状態を sessionStorage に置く：読み込み直しても残るが、保存の範囲を広げる。メモリで足りる。
+  - Worker に担当者名・カルテの番号も送る：権限の確認に要らない。送る値を増やさない。
+  - ほかの救護所の編集ボタンを押せるままにし、押すと Worker が拒む：Issue の「ボタンを出さないか無効にする」に反する。拒否は専用のデモ用のボタンで見せる。
+  - 見本の下書きを患者の記録の項目から組み立てる：記録の要約になる（ADR-0042 で却下）。
+- 影響：`web/src/board/access.ts`・`accessText.ts`・`authorizeContract.ts`・`review.ts`・`BoardAccess.tsx`（新規）と試験、`web/src/board/demo.ts`（`chartReview`、`chart_*` の action、`applyAuditResult`、`nextRecordId`）、`web/src/screens/Board.tsx`（ログインの入口、右上の表示、閲覧のみ、カルテの確認の欄、アクセス記録の一覧、デモ操作の「AI を止めた状態にする」）、`board.css`、`web/worker/boardAuthorize.ts`（新規）と試験・`app.ts`、`.claude/rules/scope.md`、README、`docs/STATUS.md`。訓練の流れ、Claude への送信、保存、依存は変えない。動画と提出物の準備の時間が減る。
+- 限界：デモ用で偽装は簡単（画面が送る救護所の値を Worker がそのまま信じる）。本人確認・本番の権限の仕組みではない。Worker が無いときは画面側の判定だけ。アクセス記録は画面のメモリだけで、改ざんの防止も無い。
+- オーナーが判断する点：
+  - [TODO-OWNER: 本部（HQ）のログインを作るか。いまは本部のログインが無く、発注の提案の承認・却下は、どの救護所でログインしていても本部の画面で押せる（権限で止めていない）]
+  - [TODO-OWNER: デモ用ログイン・閲覧のみ・アクセス記録・カルテの確認状態の文言と、架空の担当者名・見本の下書きと指摘の文（`web/src/board/accessText.ts`。Claude Code の下書き）]
+  - [TODO-OWNER: 「人が確認済み」にする前に監査（監査済みか監査できず）を必ず通すこと（いまは下書きのままでは確認済みにできない）と、記録が加わったら確認を外すこと（Claude Code の下書き）]
+
+## ADR-0051 提出動画を Remotion の独立パッケージ（`video/`）で組み、ナレーションは手元のスクリプトで合成する
+- 状態：採用（Remotion で組むことと依存の追加は 2026-11-06 にオーナーがチャットで承認。ナレーションを API で合成し、キーを env ファイルに置くことは Issue #28 のコメントの 2026-11-04 のオーナー決定）　日付：2026-11-06（Issue #28、SUB-01。番号は PR #136 で main の ADR-0050（Issue #141）と重なったので 0051 に送った）
 - 背景：
   - Issue #28 のコメント（2026-11-04）の「オーナーの決定」：ナレーションは ElevenLabs の API で合成する。キーは安全な env ファイルに入れる。まずはローカルで動くことを目標にする。長さは 20秒×9＝180秒でよい。
   - 2026-11-06 の決定（`docs/demo-script.md`）：動画は Remotion で組む。アプリ画面の録画は Cowork が操作して撮る。冒頭は本人の実写と生声、2〜9番の解説は本人のクローン音声、アプリの聞き取り係の声は録画の音声をそのまま使う。
   - CLAUDE.md 絶対ルール6 は「API キーは Workers の secrets だけで扱い、ブラウザに出さない」。動画のナレーションの合成はアプリの外で、Workers を通らない。
 - 決定：
   1. **独立したパッケージ**：`video/` に `package.json`（`private: true`）を置き、アプリ（`web/`）とは依存も設定も分ける。足した依存は `remotion`・`@remotion/cli`（4.0.541。`@remotion/*` は同じ版にそろえる）、`react`・`react-dom`（19.3.1）、`typescript`（7.0.2）、`@types/react`・`@types/react-dom`（19.3.0）だけで、版は固定する（`web/` と同じ版）。
-  2. **構成**：1920×1080・30fps・180秒（5400フレーム）の Composition を1つ。9ビート（各 600フレーム）の表を `video/src/sections.ts` に持ち、`docs/demo-script.md` の「場面ごとの台本」から写す。各ビートは、素材が `video/public/` にあれば映し・鳴らし、無ければ仮の画面（番号・時間・見出し語・場面の説明）のまま描く。素材の有無は Remotion の `getStaticFiles()` で確かめる（無い素材を描くと書き出しが落ちるため）。
+  2. **構成**：1920×1080・30fps・180秒（5400フレーム）の Composition を1つ。9ビート（各 600フレーム）の表を `video/src/sections.ts` に持ち、`docs/demo-script.md` の「場面ごとの台本」から写す。各ビートは、素材が `video/public/` にあれば映し・鳴らし、無ければ仮の画面（番号・時間・見出し語・場面の説明）のまま描く。素材の有無は Remotion の `getStaticFiles()` で確かめる（無い素材を描くと書き出しが落ちるため）。4番は、録画のアプリの声（頭の約4秒）の後にナレーションを鳴らし、ナレーションが始まるところで録画の音を消す（PR #136 のレビュー）。
   3. **素材はリポジトリに入れない**：写真・本人の映像・音声・画面の録画・合成したナレーション・書き出した動画は `video/public/`・`video/out/`（どちらも `.gitignore`）に置き、正本は BWJ2026_Docs。Git で管理するのは、コードと、読み上げに渡す最終の原稿（`video/narration/NN.txt`。2〜9番）だけ。
   4. **日本語の書体**：外部のフォント配信も、フォントファイルも使わず、端末のゴシックの並び（`web/src/styles.css` と同じ考え）を指定する。書き出す端末に入っている書体で描かれる。
   5. **ナレーションの合成**：`video/scripts/synthesize-narration.mjs` を、オーナーが手元で実行する（`npm --prefix video run narration`）。`video/.env` を Node.js 標準の `process.loadEnvFile()` で読み、ElevenLabs の text-to-speech を `fetch` で呼んで `video/public/narration/NN.mp3` に書く。既にある mp3 は上書きしない（`--force` で上書き）。呼ぶ口はアプリと同じ `POST /v1/text-to-speech/{voice_id}`（`model_id`・`language_code: "ja"`・`voice_settings`。Text to Dialogue の口は使わない）。モデルは `ELEVENLABS_MODEL_ID` で替えられ、無ければ **`eleven_v4`**。ElevenLabs の文書（elevenlabs.io/docs/models）が、ナレーション・動画の収録には品質重視の v4、低遅延が要るときだけ v4 turbo を勧めているため（2026-11-06、オーナーの指示で v4 の文書を確かめた別のセッションの依頼）。アプリの `/api/tts` は会話の待ち時間を優先して `eleven_v4_turbo` のまま（ADR-0045）。声の設定はアプリの値（stability 0.65・similarity_boost 0.75）を写した下書き（v4 の推奨値は文書に見当たらなかった。マーカー付き）。値は写して持ち、`web/` を import しない。v4 では SSML の `<break>` が効かないので、間は原稿に `[pause]`・`[long pause]` のようなオーディオタグで書き、そのまま渡す。1回に送るのは 10,000 文字まで（各ビートは約100字なので分けない。超える原稿は送らずに止める）。発音辞書は使わない。
@@ -1286,4 +1316,4 @@
   - dotenv で `.env` を読む：Node.js 標準の `process.loadEnvFile()` で足り、依存を増やさない（Issue #28 のコメント、2026-11-04）。
   - `web/` に Remotion を足す：アプリのビルドと依存に動画の道具が混ざる。
   - ナレーションを Workers の `/api/tts` 経由で合成する：アプリの声の ID（聞き取り係）と動画のナレーターの声の ID を分ける決定（2026-11-06）と合わず、公開の宛先に動画用の口を開けることになる。
-- 影響：`video/`（新規。`package.json`・`package-lock.json`・`remotion.config.ts`・`tsconfig.json`・`README.md`・`src/`・`scripts/`・`narration/`）、`.claude/launch.json`（Remotion Studio の起動の設定）、`docs/STATUS.md`。残るリスク：書体は書き出す端末に依存する（Windows では Yu Gothic UI、macOS ではヒラギノ）。`process.loadEnvFile()` は、同じ名前の環境変数がシェルに既にあると上書きしない（README に書いた）。台本を直したときに `sections.ts` と `narration/NN.txt` を直し忘れると食い違う（`docs/demo-script.md` との照合は手作業）。文書には、既存のクローン音声（IVC・PVC）は v4 で作り直さないと十分に使えないことがあるとある。ナレーターの声が v4 で期待どおりに鳴らなければ、オーナーが ElevenLabs 側で v4 用に作り直す（それまでは `ELEVENLABS_MODEL_ID=eleven_v4_turbo` で合成できる）。v4 では本物の合成をまだしていない。
+- 影響：`video/`（新規。`package.json`・`package-lock.json`・`remotion.config.ts`・`tsconfig.json`・`README.md`・`src/`・`scripts/`・`narration/`）、`.claude/launch.json`（Remotion Studio の起動の設定）、`docs/STATUS.md`。残るリスク：書体は書き出す端末に依存する（Windows では Yu Gothic UI、macOS ではヒラギノ）。`process.loadEnvFile()` は、同じ名前の環境変数がシェルに既にあると上書きしない（README に書いた）。台本を直したときに `sections.ts` と `narration/NN.txt` を直し忘れると食い違う（ナレーションの原稿と台本の表の一致は試験で確かめる）。文書には、既存のクローン音声（IVC・PVC）は v4 で作り直さないと十分に使えないことがあるとある。ナレーターの声が v4 で期待どおりに鳴らなければ、オーナーが ElevenLabs 側で v4 用に作り直す（それまでは `ELEVENLABS_MODEL_ID=eleven_v4_turbo` で合成できる）。v4 では本物の合成をまだしていない。

@@ -1,4 +1,4 @@
-// 提出動画のナレーションを ElevenLabs で合成する（Issue #28、ADR-0050）。
+// 提出動画のナレーションを ElevenLabs で合成する（Issue #28、ADR-0051）。
 // 使い方（リポジトリの直下から）：
 //   npm --prefix video run narration                 … 2〜9番のうち、まだ mp3 が無いものを合成
 //   npm --prefix video run narration -- --force      … 既にある mp3 も上書き

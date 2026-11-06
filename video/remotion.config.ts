@@ -1,4 +1,4 @@
-// Remotion の設定（Issue #28、ADR-0050）。書き出しの形だけを決める。
+// Remotion の設定（Issue #28、ADR-0051）。書き出しの形だけを決める。
 // 大きさ・fps・長さは src/Root.tsx の Composition で決める。
 import { Config } from "@remotion/cli/config";
 

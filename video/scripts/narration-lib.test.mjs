@@ -1,4 +1,4 @@
-// ナレーション合成の部品の試験（Issue #28、ADR-0050）。node:test だけを使う（依存を足さない）。
+// ナレーション合成の部品の試験（Issue #28、ADR-0051）。node:test だけを使う（依存を足さない）。
 // 本物の ElevenLabs は呼ばない。video/.env も読まない。
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";

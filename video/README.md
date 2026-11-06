@@ -1,6 +1,6 @@
 # 提出動画（Remotion）
 
-SonaQuest の提出動画（3分。Issue #28、SUB-01）を組み立てる、アプリ（`web/`）とは別の npm パッケージです。決定の記録は `docs/decisions.md` の ADR-0050、台本は `docs/demo-script.md` の「場面ごとの台本（2026-11-06 改訂）」です。
+SonaQuest の提出動画（3分。Issue #28、SUB-01）を組み立てる、アプリ（`web/`）とは別の npm パッケージです。決定の記録は `docs/decisions.md` の ADR-0051、台本は `docs/demo-script.md` の「場面ごとの台本（2026-11-06 改訂）」です。
 
 - 1920×1080・30fps・180秒（5400フレーム）。9ビート×20秒。
 - 素材（本人の実写・震源の地図・画面の録画・合成したナレーション）は `video/public/` に置きます。書き出した動画は `video/out/` に出ます。**どちらも Git の対象外**で、素材の正本は BWJ2026_Docs です。

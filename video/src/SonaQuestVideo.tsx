@@ -1,4 +1,4 @@
-// 提出動画の本体（Issue #28、ADR-0050）。sections.ts の9ビートを <Sequence> で並べる。
+// 提出動画の本体（Issue #28、ADR-0051）。sections.ts の9ビートを <Sequence> で並べる。
 // 素材（実写・地図・録画・ナレーション）は video/public/ に置く（Git の対象外）。
 // 置かれていない素材は描かず・鳴らさず、仮の画面（番号・時間・見出し語）のまま書き出せるようにする。
 import type { CSSProperties, FC, ReactNode } from "react";

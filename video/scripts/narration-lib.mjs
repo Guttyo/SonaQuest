@@ -1,4 +1,4 @@
-// ナレーション合成の部品（Issue #28、ADR-0050）。副作用の無い関数だけを置き、試験から読む。
+// ナレーション合成の部品（Issue #28、ADR-0051）。副作用の無い関数だけを置き、試験から読む。
 // 実行の入口は synthesize-narration.mjs。
 //
 // 守ること：API キー・声の ID・ナレーションの本文をログに出さない。
@@ -10,7 +10,7 @@ export const NARRATION_BEATS = [2, 3, 4, 5, 6, 7, 8, 9];
 
 /**
  * 既定のモデル：eleven_v4。ElevenLabs の文書（elevenlabs.io/docs/models）が、ナレーション・動画の収録には
- * 品質重視の v4、低遅延が要るときだけ v4 turbo を勧めているため（2026-11-06、ADR-0050）。
+ * 品質重視の v4、低遅延が要るときだけ v4 turbo を勧めているため（2026-11-06、ADR-0051）。
  * アプリの /api/tts は会話の待ち時間を優先して eleven_v4_turbo（ADR-0045）。ELEVENLABS_MODEL_ID で上書きできる。
  * 呼ぶ口はアプリと同じ POST /v1/text-to-speech/{voice_id}（Text to Dialogue の口は使わない）。
  */

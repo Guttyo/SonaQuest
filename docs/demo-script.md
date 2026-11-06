@@ -213,9 +213,9 @@ Cowork（Claude がアプリを操作する）に渡す手順。目的は「操�
 
 ## Remotion の依存（着手の承認とは別に確かめる。ADR-0026）
 `video/` だけに足す。`web/` には足さない。版はインストール時点の最新の 4.x を確かめて固定する。
-- 2026-11-06 にオーナーが承認し、Issue #28 の PR で `video/` に足した（ADR-0050。版は `video/package.json`。使い方は `video/README.md`）。
+- 2026-11-06 にオーナーが承認し、Issue #28 の PR で `video/` に足した（ADR-0051。版は `video/package.json`。使い方は `video/README.md`）。
 - `remotion`、`@remotion/cli`、`react`、`react-dom`、`typescript`、`@types/react`、`@types/react-dom`
-- 日本語フォント：外部のフォント配信もフォントファイルも使わず、端末のゴシックの並びを指定した（ADR-0050。`@remotion/google-fonts` は足さない）
+- 日本語フォント：外部のフォント配信もフォントファイルも使わず、端末のゴシックの並びを指定した（ADR-0051。`@remotion/google-fonts` は足さない）
 - ナレーションの合成：Node.js 標準の `process.loadEnvFile()` で `video/` の環境変数ファイルを読み、ElevenLabs の API を `fetch` で呼ぶ。dotenv などの依存は足さない（Issue #28 のコメント、2026-11-04）
 - Remotion 4 は ffmpeg を同梱し、初回の書き出しで描画用の Chrome（Headless Shell）を取得する
 - Remotion のライセンス（個人の利用は無料の範囲）はオーナーが確かめる
@@ -235,4 +235,4 @@ Cowork（Claude がアプリを操作する）に渡す手順。目的は「操�
 
 決まったこと（この一覧から外した）：ナレーションの声（クローン音声）、組み立て方（Remotion）、Cowork での録画、字幕は今は無し。
 
-この下書きで作っていないもの：ナレーションの合成、画面の録画、本人の撮影、組み立てと書き出し。`video/` の Remotion の骨組みと合成のスクリプトは ADR-0050 で作った（合成の実行はオーナー）。
+この下書きで作っていないもの：ナレーションの合成、画面の録画、本人の撮影、組み立てと書き出し。`video/` の Remotion の骨組みと合成のスクリプトは ADR-0051 で作った（合成の実行はオーナー）。
