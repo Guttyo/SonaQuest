@@ -36,6 +36,10 @@
     "BOARD_CHAT_AGENT_A": "agent_01GCfgzvnPLemZt3dgUD7uPG",
     "BOARD_CHAT_AGENT_B": "agent_01W9z1ZEp3T5oULzQS2xMx1j",
     "BOARD_CHAT_AGENT_C": "agent_01V3XQChcCB4ZUjFB6ve1MNo",
-    "BOARD_CHAT_AGENT_D": "agent_01RazAsv5c4YUTDtxuQFWp57"
+    "BOARD_CHAT_AGENT_D": "agent_01RazAsv5c4YUTDtxuQFWp57",
+    // カルテの要約の監査役（B-10、Issue #142）の Agent の ID。オーナーが setup スクリプト（npm --prefix web run setup:karte-audit）で
+    // 作って入れる（手順は docs/karte-audit-setup.md）。Environment は上の BOARD_CHAT_ENVIRONMENT_ID を使い回す。
+    // 空のままなら、監査は「監査できず（設定なし）」を返し、コードでの確認だけが動く。課金の注意は上の掲示板チャットと同じ
+    "KARTE_AUDIT_AGENT_ID": ""
   }
 }
