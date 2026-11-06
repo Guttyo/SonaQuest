@@ -56,7 +56,7 @@ import {
 } from "../board/summary";
 import {
   BOARD_ABOUT,
-  BOARD_BACK_LABEL,
+  BOARD_BAND,
   BOARD_CASES,
   BOARD_DEMO,
   BOARD_GROUPS,
@@ -69,6 +69,7 @@ import {
   orderQtyText,
   BOARD_CHANGES,
   BOARD_LEAD_TILE,
+  BOARD_TILE_SHORT,
   BOARD_OVERVIEW,
   BOARD_RECORDS,
   BOARD_SECTIONS,
@@ -852,6 +853,22 @@ function InboundTable({ rows }: { rows: readonly DemoInbound[] }) {
   );
 }
 
+/**
+ * 本部の数字の列の見出し。1180 幅より狭いときは短い見出しを見せ、読み上げには全文を残す（Issue #143、2026-11-06 オーナー決定）
+ */
+function TileLabel({ full, short }: { full: string; short: string }) {
+  return (
+    <span className="board-tile-label">
+      <span className="board-label-full">{full}</span>
+      {short !== full && (
+        <span className="board-label-short" aria-hidden="true">
+          {short}
+        </span>
+      )}
+    </span>
+  );
+}
+
 /** 左のペインの1行に付ける短い印 */
 function PaneMarks({ marks }: { marks: { text: string; level: "bad" | "warn" | "none" }[] }) {
   if (marks.length === 0) return null;
@@ -1378,7 +1395,9 @@ export function Board({
   const staleSites = SHELTERS.filter((s) => isStaleReport(state, s));
 
   // 不足が出ている救護所の数（在庫切れ・切れる見込み・薬剤師の不足のどれかがある。siteOverview からの算数だけ）
-  const sitesShort = overview.filter((o) => o.outOfStock > 0 || o.forecast > 0 || o.pharmacistsShort > 0).length;
+  // 救護所の不足状況（2026-11-06 オーナー決定）：在庫（在庫切れ・切れる見込み）と薬剤師の不足を別に数える
+  const stockShortSites = overview.filter((o) => o.outOfStock > 0 || o.forecast > 0).length;
+  const pharmacistShortSites = overview.filter((o) => o.pharmacistsShort > 0).length;
   // 数字の列の記号（Issue #143、計画書 4.2）：在庫切れがあれば赤、見込みだけなら黄。0 は灰
   const anyOutOfStock = overview.some((o) => o.outOfStock > 0);
 
@@ -1456,15 +1475,17 @@ export function Board({
         {/* 集計時点と架空の時刻は1つにまとめる（Issue #113）。デモの時計の表示と「架空データ」の印は常に見せる */}
         <p className="board-asof">
           <span className="board-badge">{BOARD_MOCK_BADGE}</span>
+          {/* 帯では「集計 11/05 09:30」と短く出し、読み上げには全文を残す（2026-11-06 オーナー決定） */}
           <span>
-            {BOARD_DEMO.asOf} <b data-testid="demo-clock">{clockText(state.minutes)}</b>
+            <span aria-hidden="true">{BOARD_BAND.asOf}</span>
+            <span className="visually-hidden">{BOARD_DEMO.asOf}</span> <b data-testid="demo-clock">{clockText(state.minutes)}</b>
           </span>
         </p>
         <button type="button" className="secondary board-back" onClick={onBack}>
-          {BOARD_BACK_LABEL}
+          {BOARD_BAND.back}
         </button>
-        {/* アクセス記録は右下に浮かせず、帯の「記録」から帯の下に開く（Issue #143、計画書 4.5） */}
-        <AccessLogPanel log={accessLog} />
+        {/* アクセス記録は右下に浮かせず、帯の「アクセス記録」から帯の下に開く（Issue #143、計画書 4.5） */}
+        <AccessLogPanel log={accessLog} compact />
         {/* 時間を進める操作は消さずに「デモ操作」にたたむ。ふだんは閉じておく（2026-11-05 オーナー決定） */}
         <details className="board-demo-box">
           <summary>
@@ -1609,16 +1630,23 @@ export function Board({
               <>
                 <section aria-label={BOARD_LAYOUT.hqSideLabel} className="board-kpis">
                   <div className="board-tiles board-kpi-row">
-                    <div className={`board-tile board-tile-lead ${sitesShort > 0 ? "check" : "zero"}`}>
-                      <span className="board-tile-label">{BOARD_LEAD_TILE.label}</span>
-                      <span className="board-tile-big" data-testid="sites-short">
-                        {fmt.format(sitesShort)}
-                        <span className="board-tile-of"> / {fmt.format(SHELTERS.length)} か所</span>
+                    {/* 救護所の不足状況（2026-11-06 オーナー決定）：在庫と薬剤師に分ける。在庫は在庫切れがあれば赤、見込みだけなら黄、0 は灰。薬剤師は色なし */}
+                    <div className="board-tile board-tile-lead">
+                      <TileLabel full={BOARD_LEAD_TILE.label} short={BOARD_LEAD_TILE.short} />
+                      <span className="board-tile-big board-lead-split">
+                        <span className={`board-lead-part ${stockShortSites === 0 ? "zero" : anyOutOfStock ? "stop" : "check"}`} data-testid="sites-short-stock">
+                          {BOARD_LEAD_TILE.stock(stockShortSites)}
+                        </span>
+                        <span className="board-lead-sep">
+                          {BOARD_LEAD_TILE.sep}
+                        </span>
+                        <span className={`board-lead-part${pharmacistShortSites === 0 ? " zero" : ""}`} data-testid="sites-short-pharmacists">
+                          {BOARD_LEAD_TILE.pharmacists(pharmacistShortSites)}
+                        </span>
                       </span>
-                      <span className="board-tile-sub">{BOARD_LEAD_TILE.sub}</span>
                     </div>
                     <div className={`board-tile board-tile-major ${anyOutOfStock ? "stop" : critical.length > 0 ? "check" : "zero"}`}>
-                      <span className="board-tile-label">{BOARD_TILES.critical}</span>
+                      <TileLabel full={BOARD_TILES.critical} short={BOARD_TILE_SHORT.critical} />
                       <span className="board-tile-big">
                         <span data-testid="critical-count">{fmt.format(critical.length)}</span>
                         <span className="board-tile-of"> {BOARD_TILES.criticalUnit}</span>
@@ -1628,7 +1656,7 @@ export function Board({
                       </span>
                     </div>
                     <div className={`board-tile ${pendingProposals.length > 0 ? "check" : "zero"}`}>
-                      <span className="board-tile-label">{BOARD_TILES.proposals}</span>
+                      <TileLabel full={BOARD_TILES.proposals} short={BOARD_TILE_SHORT.proposals} />
                       <span className="board-tile-big">
                         <span data-testid="proposal-count">{fmt.format(pendingProposals.length)}</span>
                         <span className="board-tile-of"> {BOARD_TILES.proposalsUnit}</span>
@@ -1636,7 +1664,7 @@ export function Board({
                       <span className="board-tile-sub">{BOARD_TILES.proposalsSub(state.proposals.length - pendingProposals.length)}</span>
                     </div>
                     <div className={`board-tile ${pending.pending > 0 ? "check" : "zero"}`}>
-                      <span className="board-tile-label">{BOARD_TILES.pending}</span>
+                      <TileLabel full={BOARD_TILES.pending} short={BOARD_TILE_SHORT.pending} />
                       <span className="board-tile-big">
                         <span data-testid="pending-count">{fmt.format(pending.pending)}</span>
                         <span className="board-tile-of"> {BOARD_TILES.pendingUnit}</span>
@@ -1644,7 +1672,7 @@ export function Board({
                       <span className="board-tile-sub">{BOARD_TILES.pendingSub(pending.undelivered, pending.awaiting)}</span>
                     </div>
                     <div className={`board-tile${staleSites.length > 0 ? " stale check" : " zero"}`}>
-                      <span className="board-tile-label">{BOARD_TILES.stale(BOARD_CHANGES.staleHours)}</span>
+                      <TileLabel full={BOARD_TILES.stale(BOARD_CHANGES.staleHours)} short={BOARD_TILE_SHORT.stale} />
                       <span className="board-tile-big">
                         <span data-testid="stale-count">{fmt.format(staleSites.length)}</span>
                         <span className="board-tile-of"> {BOARD_TILES.staleUnit}</span>
