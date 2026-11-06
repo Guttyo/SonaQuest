@@ -150,3 +150,18 @@ describe("Claude が選んだゴールで進む（Issue #200）", () => {
     expect(s.stage.name).toBe("confirm");
   });
 });
+
+describe("振り返りの一言の読み上げ（3D）", () => {
+  it("受け止めの後に一言を続けて読み上げる", async () => {
+    const { reviewSpeech } = await import("../voice/speech");
+    const text = reviewSpeech({
+      ...initialState,
+      ai: "on",
+      stage: { name: "review" },
+      judgments: judged,
+      closingAck: "ありがとうございます。",
+      closingRemark: "代わりに伝える人は、まだ考える余地がありそうです。",
+    });
+    expect(text?.startsWith("ありがとうございます。代わりに伝える人は、まだ考える余地がありそうです。")).toBe(true);
+  });
+});

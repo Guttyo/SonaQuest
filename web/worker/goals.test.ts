@@ -184,3 +184,47 @@ describe("振り返りの一言（案A：観点と判定の名前だけ。繰り
     expect(payload(afterFirst).remark_vocabulary).toBeUndefined();
   });
 });
+
+describe("画面が作る問い合わせは、どの回でも Workers の確かめを通る（ブラウザと Workers が同じ planGoals）", () => {
+  it("Claude が掘り下げ・順番の入れ替え・聞き返しを選ぶ回でも、最後まで 400 にならない", async () => {
+    const { initialState, trainingReducer, buildTurnRequest } = await import("../src/flow/training");
+    const judged = output.viewpoints;
+    const reply = (next: { type: "ask" | "clarify" | "finish"; question_id: string | null }) => ({
+      emergency: "none" as const,
+      viewpoints: judged,
+      next: { ...next, text: null },
+      recall: false,
+      source_guess: null,
+      remark: null,
+    });
+    const script = [
+      reply({ type: "ask", question_id: "first_medicines_more" }),
+      reply({ type: "clarify", question_id: "first_medicines_more" }),
+      reply({ type: "ask", question_id: "first_unrecorded" }),
+      reply({ type: "ask", question_id: "first_location" }),
+      reply({ type: "ask", question_id: "first_other" }),
+      // 後半
+      reply({ type: "ask", question_id: "second_recheck" }),
+      reply({ type: "ask", question_id: "second_proxy" }),
+      reply({ type: "ask", question_id: "second_recent" }),
+      reply({ type: "finish", question_id: null }),
+    ];
+    let s = trainingReducer({ ...initialState, ai: "on" }, { type: "start" });
+    let checked = 0;
+    for (const r of script) {
+      if (s.stage.name === "confirm") {
+        s = trainingReducer(s, { type: "confirm", source: "notebook" });
+        s = trainingReducer(s, { type: "continue_after_event" });
+      }
+      s = trainingReducer(s, { type: "answer", text: "架空の回答です" });
+      const req = buildTurnRequest(s);
+      expect(req).not.toBeNull();
+      expect(followsGoalRules(req!), JSON.stringify(req!.inputs.map((i) => i.question_id))).toBe(true);
+      checked += 1;
+      s = trainingReducer(s, { type: "turn_result", session: s.session, seq: s.answers.length, result: r });
+    }
+    expect(checked).toBe(script.length);
+    expect(s.stage.name).toBe("review");
+    expect(s.ai).toBe("on");
+  });
+});
