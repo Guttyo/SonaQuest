@@ -81,7 +81,7 @@ export function BoardLogin({ onLogin, onBack }: { onLogin: (site: SiteId, staff:
           <select value={staff} onChange={(e) => setStaff(e.target.value)}>
             {staffFor(site).map((n) => (
               <option key={n} value={n}>
-                {n}（架空）
+                {n}
               </option>
             ))}
           </select>

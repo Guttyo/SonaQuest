@@ -80,7 +80,7 @@ import {
 } from "../board/text";
 import { BoardMap } from "./BoardMap";
 import { BoardChat } from "../board/chat/BoardChat";
-import { PatientArrivals } from "../board/PatientArrivals";
+import { ArrivalControls, PatientArrivals } from "../board/PatientArrivals";
 import { Fold, Help } from "../board/Fold";
 import { appendAccess, authorizeWrite, canDecideOrders, canEdit as canEditSite, makeSession, type AccessEntry, type AccessEventKind, type DemoSession } from "../board/access";
 import type { AuthorizeKind } from "../board/authorizeContract";
@@ -500,7 +500,7 @@ function IntakeForm({
 function ChartCard({ chart, open }: { chart: PatientChart; open: boolean }) {
   const access = useBoardAccess();
   const latest = chart.visits[0];
-  const title = chart.name === null ? `番号 ${chart.id}` : `${chart.name}（架空）`;
+  const title = chart.name === null ? `番号 ${chart.id}` : `${chart.name}`;
   const review = access?.reviews[chart.key];
   return (
     <li className={`board-chart-card ${chart.added ? "board-chart-added" : ""}`} data-chart={chart.id}>
@@ -1488,6 +1488,8 @@ export function Board({
           <button type="button" className="secondary" onClick={() => dispatch({ type: "reset" })}>
             {BOARD_DEMO.reset}
           </button>
+          {/* 患者の受け入れも時計の操作と同じ所に置く（Issue #170） */}
+          <ArrivalControls state={state} dispatch={dispatch} />
           {/* AI を止めた状態の確認（Issue #141）。止めると監査は「監査できず」になり、人の確認で進める */}
           <label className="board-ai-stop">
             <input type="checkbox" checked={aiStopped} onChange={(e) => setAiStopped(e.target.checked)} />
@@ -1703,7 +1705,7 @@ export function Board({
                   {!canDecide && pendingProposals.length > 0 && <p className="board-note">{BOARD_ORDERS.approveOnlyHq}</p>}
                 </Fold>
 
-                <PatientArrivals state={state} dispatch={dispatch} />
+                <PatientArrivals state={state} />
 
                 <div className="board-overview-map">
                   <BoardMap overview={overview} onSelect={select} selected={selected} live={state} reducedMotion={noAuto} />
@@ -1756,7 +1758,7 @@ export function Board({
                           <th>拠点</th>
                           <th>稼働</th>
                           <th className="num">薬剤師</th>
-                          <th>連絡先（架空）</th>
+                          <th>連絡先</th>
                           <th>受け取りの窓口</th>
                           <th>代わりの手段</th>
                           <th>本部からの経路</th>
@@ -1892,7 +1894,7 @@ export function Board({
                         <span className="board-bar-value">{d.daysCovered} 日</span>
                       </div>
                     ))}
-                    <p className="board-note">点線：{COVER_GUIDE_DAYS}日の目安（仮に置いた値）。この見込みは架空データの開始時の値で、デモでは動かない。</p>
+                    <p className="board-note">点線：{COVER_GUIDE_DAYS}日の目安（仮に置いた値）。この見込みはデータの開始時の値で、デモでは動かない。</p>
                   </div>
                 </More>
               </>
@@ -2101,7 +2103,7 @@ export function Board({
                     ))}
                   </div>
                 </section>
-                <PatientArrivals state={state} dispatch={dispatch} />
+                <PatientArrivals state={state} />
                 <section aria-labelledby="board-log">
                   <h3 id="board-log">
                     {BOARD_DEMO.logTitle} <span className="board-count">{fmt.format(state.log.length)} 件</span>

@@ -596,7 +596,7 @@ function admit(
   const log: DemoLog[] = [
     {
       at: a.at,
-      text: a.kind === "到着" ? `${a.site}：架空の患者 No.${a.patientNo} が到着（記録 ${id}）` : `${a.site}：問診の記録 ${id} を追加（架空）`,
+      text: a.kind === "到着" ? `${a.site}：患者 No.${a.patientNo} が到着（記録 ${id}）` : `${a.site}：問診の記録 ${id} を追加（架空）`,
       kind: a.kind,
       site: a.site,
     },
@@ -663,10 +663,10 @@ function addRecord(state: DemoState, a: Extract<DemoAction, { type: "add_record"
 /** 到着した架空の患者の記録の項目（固定の見出しと、架空のデータの文。要約・判断をしない） */
 // [TODO-OWNER: 到着した架空の患者の記録の項目の見出し（Claude Code の下書き。性別・年齢・けが・体調・服薬）]
 export const ARRIVAL_ITEM_LABELS = {
-  sex: "性別（架空）",
-  age: "年齢（架空）",
-  condition: "けが・体調（架空。アプリは重さを判断しない）",
-  meds: "服薬（架空・品目と1日の量）",
+  sex: "性別",
+  age: "年齢",
+  condition: "けが・体調（アプリは重さを判断しない）",
+  meds: "服薬（品目と1日の量）",
 } as const;
 
 /**
@@ -713,7 +713,11 @@ export function demoReducer(state: DemoState, action: DemoAction): DemoState {
     case "tick":
       return refreshProposals(arrive(tick({ ...state, rev: state.rev + 1 }, action.hours), state.minutes, action.hours));
     case "run":
-      return { ...state, running: action.running };
+      // 自動で進め始めると、患者の受け入れも始まる（Issue #170。2026-11-06 オーナー、チャット：デモの開始と受け入れが離れていて手が付かない）。
+      // 止めても受け入れは止めない（受け入れの停止は「受け入れを止める」で行う）
+      return action.running
+        ? { ...state, running: true, arrivals: { ...state.arrivals, active: state.arrivals.arrived.length < state.arrivals.plan.length } }
+        : { ...state, running: false };
     case "reset":
       // 同じ種のまま最初に戻す（同じ並びをもう一度見せられる）
       return initialDemo(state.arrivals.seed);
@@ -817,7 +821,7 @@ export function chartsFor(
     const visit: ChartVisit = {
       id: r.id,
       at: clockText(r.at),
-      source: r.patientNo !== undefined ? `到着（架空の患者 No.${r.patientNo}）` : "画面で入力（デモ）",
+      source: r.patientNo !== undefined ? `到着（患者 No.${r.patientNo}）` : "画面で入力（デモ）",
       items: r.items,
       prescription: r.prescriptions.map((p) => `${p.item} ${p.qty}${p.unit}・${p.days}日分`).join("、"),
       undelivered: r.undelivered,

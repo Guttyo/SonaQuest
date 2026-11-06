@@ -60,7 +60,7 @@ describe("架空の町の模式図（Issue #105）", () => {
   });
 
   it("凡例・架空の明記・状況の欄・最新情報があり、外部の地図や画像を使わない", () => {
-    expect(html).toContain("架空の町・模式図");
+    expect(html).toContain("デモの町・模式図");
     expect(html).toContain("実在の地名・道路・施設ではない");
     expect(html).toContain(">通行可<");
     expect(html).toContain("気温");
@@ -120,7 +120,7 @@ describe("動く地図（Issue #128）", () => {
     expect(html.match(/<button type="button" class="board-map-mover-btn" aria-pressed="false">/g)).toHaveLength(3);
     expect(html).toContain(BOARD_MAP_LIVE.legendVehicle);
     expect(html).toContain(BOARD_MAP_LIVE.moversTitle);
-    expect(html).toContain("医療チームの車（架空・模擬）：本部で停車中。次の行き先 救護所A（到着見込み 11/05 10:15）");
+    expect(html).toContain("医療チームの車（模擬）：本部で停車中。次の行き先 救護所A（到着見込み 11/05 10:15）");
     expect(html).toContain("搬送便：血糖降下薬B 300 → 救護所A（到着見込み 11/06 10:00）");
   });
 

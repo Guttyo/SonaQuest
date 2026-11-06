@@ -12,22 +12,42 @@ const fmt = new Intl.NumberFormat("ja-JP");
 
 interface Props {
   state: DemoState;
-  /** 渡すと、本部の表示（累計・人数・種と操作）。省くとその救護所の一覧 */
-  dispatch?: (a: DemoAction) => void;
-  /** 救護所を渡すと、その救護所に到着した患者の一覧 */
+  /** 救護所を渡すと、その救護所に到着した患者の一覧。省くと本部の表示（累計・人数・種）。操作は ArrivalControls（デモ操作の中） */
   site?: SiteId;
 }
 
-export function PatientArrivals({ state, dispatch, site }: Props) {
+export function PatientArrivals({ state, site }: Props) {
   if (site !== undefined) return <ArrivalList state={state} site={site} />;
-  return <ArrivalSummary state={state} dispatch={dispatch} />;
+  return <ArrivalSummary state={state} />;
 }
 
-function ArrivalSummary({ state, dispatch }: { state: DemoState; dispatch?: (a: DemoAction) => void }) {
+/**
+ * 受け入れの開始・停止と、別のパターンでやり直すボタン（Issue #170）。時計を進める操作と同じ「デモ操作」の中に置く。
+ * 「自動で進める」を押すと受け入れも始まる（demo.ts の run）
+ */
+export function ArrivalControls({ state, dispatch }: { state: DemoState; dispatch: (a: DemoAction) => void }) {
+  const a = state.arrivals;
+  const done = a.arrived.length >= a.plan.length;
+  return (
+    <>
+      {done ? (
+        <span className="board-note">{BOARD_ARRIVALS.allArrived}</span>
+      ) : (
+        <button type="button" className="secondary" data-arrivals="toggle" onClick={() => dispatch({ type: "arrivals", active: !a.active })}>
+          {a.active ? BOARD_ARRIVALS.stop : BOARD_ARRIVALS.start}
+        </button>
+      )}
+      <button type="button" className="secondary" data-arrivals="reseed" onClick={() => dispatch({ type: "reseed", seed: nextSeed(a.seed) })}>
+        {BOARD_ARRIVALS.reseed}
+      </button>
+    </>
+  );
+}
+
+function ArrivalSummary({ state }: { state: DemoState }) {
   const a = state.arrivals;
   const rows = arrivalRows(state);
   const withCondition = rows.filter((r) => r.hasCondition).length;
-  const done = a.arrived.length >= a.plan.length;
   return (
     // 受け入れの最中だけ開いておく（Issue #159）。閉じた見出しにも到着の人数を出す
     <Fold
@@ -60,20 +80,7 @@ function ArrivalSummary({ state, dispatch }: { state: DemoState; dispatch?: (a: 
         {BOARD_ARRIVALS.bySite}：
         {SHELTERS.map((s) => `${s} ${fmt.format(a.arrived.filter((x) => x.site === s).length)}`).join("、")}
       </p>
-      {dispatch && (
-        <div className="board-demo-controls" role="group" aria-label={BOARD_ARRIVALS.title}>
-          {done ? (
-            <span className="board-note">{BOARD_ARRIVALS.allArrived}</span>
-          ) : (
-            <button type="button" className="secondary" data-arrivals="toggle" onClick={() => dispatch({ type: "arrivals", active: !a.active })}>
-              {a.active ? BOARD_ARRIVALS.stop : BOARD_ARRIVALS.start}
-            </button>
-          )}
-          <button type="button" className="secondary" data-arrivals="reseed" onClick={() => dispatch({ type: "reseed", seed: nextSeed(a.seed) })}>
-            {BOARD_ARRIVALS.reseed}
-          </button>
-        </div>
-      )}
+      <p className="board-note">{BOARD_ARRIVALS.controlsNote}</p>
       <p className="board-note">{BOARD_ARRIVALS.nameNote}</p>
       <Help>
         <p className="board-note">{BOARD_ARRIVALS.note}</p>

@@ -27,7 +27,7 @@ export const AUDIT_SESSION_LABELS: Readonly<Record<AuditSessionState, string>> =
 };
 
 export const KARTE_PANEL_TEXT = {
-  makeSummary: "AI 要約を作る（架空の会話の見本）",
+  makeSummary: "AI 要約を作る（会話の見本）",
   makePlanted: "誤りを混ぜた例を作る（デモ）",
   drafting: "AI 要約を作っています。",
   summaryFallback: "AI 要約が使えなかったため、固定の見本の下書きにしました。",
@@ -35,9 +35,9 @@ export const KARTE_PANEL_TEXT = {
   quoteUnsupported: "引用とされた文（会話に見つからない）",
   codeFindings: "コードでの確認の指摘（1段目）",
   auditFindings: "監査役の指摘（2段目）",
-  conversation: "もとにした架空の会話を見る",
+  conversation: "もとにした会話の見本を見る",
   staff: "聞き手",
-  patient: "本人（架空）",
+  patient: "本人",
   notCovered: "会話で触れていない観点",
   failure: {
     timeout: "時間内に監査が終わりませんでした。",

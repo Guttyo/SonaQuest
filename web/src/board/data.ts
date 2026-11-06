@@ -9,7 +9,7 @@ export const SHELTERS: readonly SiteId[] = ["救護所A", "救護所B", "救護�
 export const HQ: SiteId = "本部備蓄";
 
 /**
- * 地区（架空。Issue #107）。左のペインで、本部の下に地区ごとの見出しを置き、その地区の救護所を並べる。
+ * 地区（Issue #107）。左のペインで、本部の下に地区ごとの見出しを置き、その地区の救護所を並べる。
  * 模式図の位置（map.ts）に合わせ、東側に救護所A・D、西側に救護所B・C を置いた
  */
 // [TODO-OWNER: 地区の名前と分け方（Claude Code の下書き。東地区＝救護所A・D、西地区＝救護所B・C）]
@@ -20,8 +20,8 @@ export interface District {
 }
 
 export const DISTRICTS: readonly District[] = [
-  { id: "east", name: "東地区（架空）", sites: ["救護所A", "救護所D"] },
-  { id: "west", name: "西地区（架空）", sites: ["救護所B", "救護所C"] },
+  { id: "east", name: "東地区", sites: ["救護所A", "救護所D"] },
+  { id: "west", name: "西地区", sites: ["救護所B", "救護所C"] },
 ];
 
 export function districtOf(site: SiteId): District | undefined {
@@ -272,7 +272,7 @@ export const SITES: readonly SiteInfo[] = [
     status: "稼働中",
     pharmacists: 2,
     pharmacistsNeeded: 3,
-    phone: "000-0000-0001（架空）",
+    phone: "000-0000-0001",
     pickup: "体育館入口の受付",
     altMeans: "朝夕の搬送便（本部発 07:00・16:00）",
     stockCheckedAt: "2026-11-05 07:30",
@@ -282,7 +282,7 @@ export const SITES: readonly SiteInfo[] = [
     status: "稼働中",
     pharmacists: 1,
     pharmacistsNeeded: 2,
-    phone: "000-0000-0002（架空。通信なしのため不通）",
+    phone: "000-0000-0002（通信なしのため不通）",
     pickup: "公民館の事務室",
     altMeans: "夕方の搬送便（本部発 16:00）で紙を回収・物を届ける",
     stockCheckedAt: "2026-11-04 18:00",
@@ -292,7 +292,7 @@ export const SITES: readonly SiteInfo[] = [
     status: "稼働中",
     pharmacists: 2,
     pharmacistsNeeded: 2,
-    phone: "000-0000-0003（架空。携帯が断続的）",
+    phone: "000-0000-0003（携帯が断続的）",
     pickup: "校舎1階の保健室",
     altMeans: "連絡員が午前と午後に本部へ往復",
     stockCheckedAt: "2026-11-05 08:10",
@@ -302,7 +302,7 @@ export const SITES: readonly SiteInfo[] = [
     status: "縮小して稼働",
     pharmacists: 1,
     pharmacistsNeeded: 2,
-    phone: "000-0000-0004（架空。通信なしのため不通）",
+    phone: "000-0000-0004（通信なしのため不通）",
     pickup: "集会所の玄関",
     altMeans: "連絡員が本部へ持ち帰る（午後）",
     stockCheckedAt: "2026-11-04 12:00",
@@ -312,7 +312,7 @@ export const SITES: readonly SiteInfo[] = [
     status: "本部",
     pharmacists: 3,
     pharmacistsNeeded: 3,
-    phone: "000-0000-0000（架空）",
+    phone: "000-0000-0000",
     pickup: "本部の集積所",
     altMeans: "—",
     stockCheckedAt: "2026-11-05 09:30",
@@ -420,7 +420,7 @@ export const INTAKE_RECORDS: readonly IntakeRecord[] = [
       { label: "アレルギー・副作用の経験", value: "なし" },
       { label: "代わりに伝えられる人", value: "妻。電話はつながらない" },
     ],
-    prescription: "医師が入力：本部備蓄の降圧薬A を7日分（架空）",
+    prescription: "医師が入力：本部備蓄の降圧薬A を7日分",
   },
   {
     id: "B-007",
@@ -450,6 +450,6 @@ export const INTAKE_RECORDS: readonly IntakeRecord[] = [
       { label: "アレルギー・副作用の経験", value: "分からない" },
       { label: "代わりに伝えられる人", value: "いない" },
     ],
-    prescription: "医師が入力：貼付鎮痛薬E を5日分。週1回の薬は供給元に照会中（架空）",
+    prescription: "医師が入力：貼付鎮痛薬E を5日分。週1回の薬は供給元に照会中",
   },
 ];
