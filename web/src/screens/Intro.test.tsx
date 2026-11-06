@@ -3,9 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   AI_CONNECTED,
   COMING_SOON_C01,
+  INTRO_ANSWER_GROUPS,
+  INTRO_FLOW_STEPS,
   INTRO_LEAD,
+  INTRO_POINT_TAGS,
   INTRO_POINTS,
   PRIVACY_EXTERNAL,
+  PRIVACY_HEADS,
   PRIVACY_OWN,
   PRIVACY_VOICE,
   PROTOTYPE_LEAD,
@@ -127,10 +131,14 @@ describe("はじめにの2画面目「はじめる前に」：必ず見せる説
 
   it("3D を選んだときは声の送信先（PRIVACY_VOICE）を先頭の目立つ位置に、2D のときは会話の扱いの中に出す（ADR-0033）", () => {
     const voice = escapeHtml(PRIVACY_VOICE);
-    expect(notes3d).toContain(`<p class="notice" id="privacy-voice">${voice}</p>`);
+    expect(notes3d).toContain(
+      `<div class="notice privacy-voice-notice" id="privacy-voice"><p class="privacy-head">`,
+    );
+    expect(notes3d).toContain(`</span></p><p>${voice}</p></div>`);
     expect(notes3d.indexOf(voice)).toBeLessThan(notes3d.indexOf(escapeHtml(lead)));
     expect(notes3d.match(new RegExp(voice.slice(0, 20), "g"))).toHaveLength(1);
-    expect(notes2d).toContain(`<li id="privacy-voice">${voice}</li>`);
+    expect(notes2d).toContain(`<li class="privacy-item" id="privacy-voice"><p class="privacy-head">`);
+    expect(notes2d).toContain(`</span></p><p>${voice}</p></li>`);
     expect(notes2d.indexOf(voice)).toBeGreaterThan(notes2d.indexOf(escapeHtml(PRIVACY_EXTERNAL)));
     expect(notes2d.match(new RegExp(voice.slice(0, 20), "g"))).toHaveLength(1);
   });
@@ -149,6 +157,65 @@ describe("はじめにの2画面目「はじめる前に」：必ず見せる説
     ].map((needle) => notes2d.indexOf(needle));
     for (const index of order) expect(index).toBeGreaterThanOrEqual(0);
     for (let i = 1; i < order.length; i++) expect(order[i]).toBeGreaterThan(order[i - 1]);
+  });
+});
+
+describe("「はじめる前に」の図と札（Issue #212。畳まず図で整理）", () => {
+  it("訓練の流れの図を、順番のあるリスト（ol）で、5つの段階を並びどおりに出す", () => {
+    for (const html of [notes2d, notes3d]) {
+      expect(html).toContain('<ol class="intro-flow">');
+      const indexes = INTRO_FLOW_STEPS.map((step) =>
+        html.indexOf(`<span class="intro-flow-label">${escapeHtml(step.label)}</span>`),
+      );
+      for (const index of indexes) expect(index).toBeGreaterThanOrEqual(0);
+      for (let i = 1; i < indexes.length; i++) expect(indexes[i]).toBeGreaterThan(indexes[i - 1]);
+      for (const step of INTRO_FLOW_STEPS) expect(html).toContain(escapeHtml(step.note));
+    }
+  });
+
+  it("入れないもの／架空で答えるもの／自分のこととして答えるもの の3つの札を、見出しと項目の文字で出す", () => {
+    expect(INTRO_ANSWER_GROUPS.map((group) => group.id)).toEqual(["never", "fictional", "own"]);
+    for (const html of [notes2d, notes3d]) {
+      for (const group of INTRO_ANSWER_GROUPS) {
+        expect(html).toContain(`<span>${escapeHtml(group.label)}</span></h3>`);
+        for (const item of group.items) expect(html).toContain(`<li>${escapeHtml(item)}</li>`);
+      }
+    }
+  });
+
+  it("注意の各項目に短い札を1つずつ、会話の扱いの各項目に要点の1行を添える（全文はそのまま続ける）", () => {
+    expect(INTRO_POINT_TAGS).toHaveLength(INTRO_POINTS.length);
+    for (const html of [notes2d, notes3d]) {
+      INTRO_POINTS.forEach((point, index) => {
+        expect(html).toContain(
+          `<li><span class="point-tag">${escapeHtml(INTRO_POINT_TAGS[index])}</span><span>${escapeHtml(point)}</span></li>`,
+        );
+      });
+      expect(html).toContain(`<span>${escapeHtml(PRIVACY_HEADS.own)}</span></p><p>${escapeHtml(PRIVACY_OWN)}</p>`);
+      expect(html).toContain(`<span>${escapeHtml(PRIVACY_HEADS.external)}</span></p><p>${escapeHtml(PRIVACY_EXTERNAL)}</p>`);
+      expect(html).toContain(`<span>${escapeHtml(PRIVACY_HEADS.voice)}</span></p><p>${escapeHtml(PRIVACY_VOICE)}</p>`);
+    }
+  });
+
+  it("3D では声の送信先が図より前（先頭の目立つ位置。ADR-0033）、2D では会話の扱いの中", () => {
+    expect(notes3d.indexOf('id="privacy-voice"')).toBeLessThan(notes3d.indexOf('<ol class="intro-flow">'));
+    expect(notes2d.indexOf('id="privacy-voice"')).toBeGreaterThan(notes2d.indexOf(escapeHtml(PRIVACY_EXTERNAL)));
+  });
+
+  it("2画面目の絵はすべて飾りで、読み上げない（意味は隣の文字で示す）", () => {
+    for (const html of [notes2d, notes3d]) {
+      const svgs = html.match(/<svg[^>]*>/g) ?? [];
+      expect(svgs.length).toBeGreaterThan(0);
+      for (const svg of svgs) {
+        expect(svg).toContain('aria-hidden="true"');
+        expect(svg).toContain('focusable="false"');
+      }
+    }
+  });
+
+  it("図と札の短い文は、1画面目には出さない", () => {
+    for (const step of INTRO_FLOW_STEPS) expect(choose).not.toContain(escapeHtml(step.note));
+    expect(choose).not.toContain(escapeHtml(PRIVACY_HEADS.external));
   });
 });
 

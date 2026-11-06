@@ -57,6 +57,72 @@ export const PRIVACY_EXTERNAL =
 export const PRIVACY_VOICE =
   "「自分の声で答える」を選んだとき：声で答えると、あなたの声は、文字にするためにブラウザが使う音声認識のサービスへ送られます（ブラウザによって送り先が違います。Microsoft Edge は Microsoft、Safari は Apple です。Google Chrome は Google と見られますが、送り先と保持方針は確かめられていません）。Microsoft は録音を保存しないと、Apple は音声入力の改善に同意していなければ音声を保存しないと公表しています。また、話し相手（ソナ）の文を読み上げるため、画面に出した話し相手の文と固定の文を ElevenLabs へ送ります（あなたの回答や声は送りません）。ElevenLabs は、読み上げた文と音声を既定で履歴に残し、AIの学習に使うことがあると公表しています。「文字で答える」を選んだときは、どちらにも送りません。";
 
+/*
+ * 「はじめる前に」を目で追いやすくする図と見出し（Issue #212。2026-11-07 オーナー「図とかフローとか使って認知負荷下げてよ」、
+ * 同日「畳まず図で整理」）。上の必ず見せる説明の文は変えず、畳まずに全文を出したまま、その上と各項目に添える。
+ * 文言は Claude Code の下書き（Issue #212 の PR の説明に一覧で書く）。説明の全文の書き出しを写さず、短い言い方にする
+ */
+export interface IntroFlowStep {
+  id: "arrive" | "tell" | "event" | "recover" | "review";
+  label: string;
+  note: string;
+}
+
+export const INTRO_FLOW_TITLE = "訓練の流れ";
+
+export const INTRO_FLOW_STEPS: readonly IntroFlowStep[] = [
+  { id: "arrive", label: "救護所に着く", note: "発災翌日の避難所（架空）" },
+  { id: "tell", label: "薬のことを伝える", note: "ソナの質問に答えます" },
+  { id: "event", label: "想定外の出来事", note: "思いがけないことが起きます" },
+  { id: "recover", label: "それでも伝えられる？", note: "ほかの伝え方を考えます" },
+  { id: "review", label: "振り返り", note: "準備を1つ選んで終わります" },
+];
+
+export interface IntroAnswerGroup {
+  id: "never" | "fictional" | "own";
+  label: string;
+  items: readonly string[];
+  /** 札の下に小さく添える一言 */
+  note?: string;
+}
+
+export const INTRO_ANSWER_TITLE = "答え方のきまり";
+
+export const INTRO_ANSWER_GROUPS: readonly IntroAnswerGroup[] = [
+  { id: "never", label: "入れないもの", items: ["氏名・住所・電話番号", "あなたやほかの人の実際の服薬情報"] },
+  {
+    id: "fictional",
+    label: "架空で答えるもの",
+    items: ["薬があるか", "薬の名前・量", "飲めているか"],
+    note: "例：「Aという薬を朝に1錠」",
+  },
+  {
+    id: "own",
+    label: "自分のこととして答えるもの",
+    items: ["記録がどこにあるか", "ほかの伝え方", "薬のことを知っている人"],
+    note: "名前や電話番号は書きません",
+  },
+];
+
+/** 注意の見出しと、INTRO_POINTS の各項目の前に置く短い札（INTRO_POINTS と同じ数・同じ順） */
+export const INTRO_POINTS_TITLE = "気をつけること";
+export const INTRO_POINT_TAGS: readonly string[] = [
+  "場面",
+  "入れないもの",
+  "架空で答える",
+  "自分のことを答える",
+  "判定しない",
+  "体調のこと",
+];
+
+/** 会話の扱いの各項目の前に置く要点の1行。全文は続けてそのまま出す */
+export const PRIVACY_TITLE = "会話の扱い";
+export const PRIVACY_HEADS = {
+  own: "保存しません",
+  external: "回答は Anthropic（Claude）へ送ります",
+  voice: "声で答えるときだけ：声は音声認識へ、ソナの文は ElevenLabs へ",
+} as const;
+
 /** はじめにの 2D／3D のモード選択（A-14、ADR-0031、ADR-0036）。文言は Claude Code の下書き（Issue #51 の PR の説明で確認） */
 export const MODE_LEGEND = "答え方を選ぶ";
 
