@@ -3255,3 +3255,14 @@
     overflow: visible;
   }
 }
+
+/* カルテの入力の専用画面（Issue #114）も、同じ帯の見た目（白い面と灰の線）にする。アクセス記録は帯の中で開く */
+.board-intake-head {
+  padding: 12px 16px;
+  border: 1px solid var(--b-rule);
+  background: var(--b-surface);
+}
+.board-intake-head .board-access-log {
+  justify-self: start;
+  width: 100%;
+}
