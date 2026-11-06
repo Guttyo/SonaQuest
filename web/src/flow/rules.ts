@@ -74,6 +74,7 @@ export function secondHalfQuestions(event: EventId): readonly Question[] {
  * 掘り下げへの聞き返しの回答も数える（数えすぎる側。回答の上限は別に守られる）
  */
 // [TODO-OWNER: 掘り下げの上限（Claude Code の下書き：前半で2回まで。content.ts の MEDICINES_FOLLOWUP_QUESTION のマーカーと同じ判断）]
+// → オーナー決定（2026-11-07、チャット）：「2回まで」。
 export const FOLLOWUP_LIMIT = 2;
 
 /** 聞き取りのゴールに向かって、次に何を聞いてよいか（Issue #200、ADR-0025 の B） */

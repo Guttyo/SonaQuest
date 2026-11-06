@@ -180,6 +180,7 @@ export const FIRST_HALF_QUESTIONS: readonly Question[] = [
  * 固定の進行（Claude を使わない・失敗した）では出さない。Claude の言い回しが使えないときは、この固定文に戻す
  */
 // [TODO-OWNER: 「ほかには？」の掘り下げの固定文と、同じ半分で掘り下げてよい回数（Claude Code の下書き：「ほかにも、使っている薬はありますか？」、2回まで。rules.ts の FOLLOWUP_LIMIT）]
+// → オーナー決定（2026-11-07、チャット）：文は「内服薬、貼り薬、注射薬、目薬などがあげられる。他に普段使っているお薬はありますか？症状が出た時だけ使っているお薬なども教えてください。という感じで。」の後、整えた文に「整えた文で」、60字の上限と「症状」の語の問題を聞いた後に「縮めて言い換える」（「貼り薬や目薬、注射薬なども含めて、ほかに使っているお薬はありますか？必要なときだけ使うお薬も教えてください。」）。回数は「2回まで」。
 export const MEDICINES_FOLLOWUP_QUESTION: Question = {
   id: "first_medicines_more",
   viewpoint: "current",
