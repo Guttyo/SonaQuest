@@ -2,7 +2,7 @@
 // 状態はブラウザのメモリだけ（Board の useState・useReducer）。保存・ログ出力をしない。
 
 import { createContext, useContext, useState, type FormEvent } from "react";
-import type { SiteId } from "./data";
+import { HQ, type SiteId } from "./data";
 import { clockText, type PatientChart } from "./demo";
 import { LOGIN_SITES, siteLabel, staffFor, type AccessEntry, type DemoSession } from "./access";
 import { ACCESS_LOG_TEXT, BOARD_LOGIN, BOARD_PERMISSION, CHART_REVIEW_TEXT } from "./accessText";
@@ -40,6 +40,11 @@ const BoardAccessContext = createContext<BoardAccessValue | null>(null);
 export const BoardAccessProvider = BoardAccessContext.Provider;
 export function useBoardAccess(): BoardAccessValue | null {
   return useContext(BoardAccessContext);
+}
+
+/** ログインのボタンの文言。本部（HQ）を選んでいるときは「本部に入る」、救護所なら「救護所に入る」（Issue #160） */
+export function loginSubmitLabel(site: SiteId): string {
+  return site === HQ ? BOARD_LOGIN.submitHq : BOARD_LOGIN.submit;
 }
 
 export function BoardLogin({ onLogin, onBack }: { onLogin: (site: SiteId, staff: string) => void; onBack: () => void }) {
@@ -88,7 +93,7 @@ export function BoardLogin({ onLogin, onBack }: { onLogin: (site: SiteId, staff:
           </select>
         </label>
         <button type="submit" className="board-approve board-login-submit">
-          {BOARD_LOGIN.submit}
+          {loginSubmitLabel(site)}
         </button>
         <p className="board-note">{BOARD_LOGIN.memory}</p>
         <button type="button" className="secondary" onClick={onBack}>
