@@ -357,13 +357,13 @@
   max-width: 100%;
   box-sizing: border-box;
 }
-/* 吹き出しの角：救護所は左上、本部は右上を尖らせる */
+/* 吹き出しの角：救護所は左上、本部は右上を尖らせる。ほかの角は Issue #143 の決まり（4px まで）に合わせる */
 .board-chat-post.side-site .board-chat-bubble {
-  border-radius: 0 12px 12px 12px;
+  border-radius: 0 4px 4px 4px;
   background: var(--surface);
 }
 .board-chat-post.side-hq .board-chat-bubble {
-  border-radius: 12px 0 12px 12px;
+  border-radius: 4px 0 4px 4px;
   background: var(--cream);
 }
 .board-chat-post.side-hq.mine .board-chat-bubble {
