@@ -1263,3 +1263,42 @@
   - 車の印に赤十字や赤い色を使う：赤は状態だけに使う（ADR-0043 の追記8）。
 - 影響：`web/src/board/live.ts`（新規）、`web/src/board/vehicles.ts`（新規）、`web/src/board/live.test.ts`（新規）、`web/src/screens/BoardMap.tsx`、`web/src/screens/BoardMap.test.tsx`、`web/src/board/text.ts`（末尾の `BOARD_MAP_LIVE`）、`web/src/board/board.css`（末尾）、`web/src/screens/Board.tsx`（1行）。残るリスク：07:00・10:00 を `demo.ts` から写して持つので、`demo.ts` の時刻を変えたら `live.ts` も直す（試験が落ちて気づく）。便と車が時計の1時間の進みの間に角を曲がるとき、滑らかに移る間は角を斜めに横切って見える。
 - 追記（PR #130 のレビュー）：図は `role="img"` で、その中の操作要素は読み上げに出ないので、便と車の印はマウス・タッチで押せるだけにし、キーボード・読み上げでは図の下の「動いているもの（架空・模擬）」の一覧の各行（`<button>`、`aria-pressed`）で同じ操作をする。
+
+## ADR-0052 カルテの要約を抽出型にし、コードでの確認を必ず通す（架空の会話の見本だけ）
+- 状態：提案（2026-11-06。Issue #142 の実装は Claude Code の下書き。抽出型にすることと、既存の決定との関係は、オーナーがまだ決めていない）　日付：2026-11-06（Issue #142）。番号は、開いている PR #136 が ADR-0050、PR #138 が ADR-0051 を使うので 0052 にした。並行する Issue #141・#143 と重なったら振り直す。
+- 背景：
+  - 2026-11-06、オーナーはチャットで、機能凍結（2026-11-07 24:00 JST）の前の例外として Issue #141・#142・#143 の3件を承認した。#142 の意図は、3分のデモ動画で「AI の要約を別のモデルとコードが確かめ、最後は人が確定する流れ」が動いて見えること。
+  - 既存の決定との関係：safety.md と ADR-0009・ADR-0042 は、利用者の発言の要約・言い換え・創作をしないと決めている。ADR-0042 は問診の要約を却下した。訓練（患者向け）の会話は Managed Agents に送らない（privacy.md）。
+- 提案：
+  1. **入力は架空の会話の見本だけ**（`web/src/board/karte/samples.ts` の10本）。訓練の会話・ボードのカルテの入力は使わない。ブラウザから会話の本文を受け取らず、Worker は見本の ID だけを受け取る。
+  2. **要約は抽出型**（`web/src/board/karte/contract.ts`）：`{ items: [{ aspect, text, quote }], not_covered: [aspect] }`。aspect は訓練の5観点の識別子（`location`・`alternative`・`current`・`unrecorded`・`proxy`）。quote は本人の発言を1文字も変えずに写し、text は quote を60字以内に短くしたもの。要約を作るモデルは Workers から Messages API を1回呼ぶ（`web/worker/karteSummary.ts`。json_schema で形を決める）。
+  3. **1段目：コードでの確認**（`web/src/board/karte/codeCheck.ts`。AI を使わず、要約を出すたびに必ず通す）：
+     - quote が、本人の発言のどれか1つに文字どおり含まれるか（含まなければ「根拠なし」）。照合の前に NFKC などでそろえない。聞き手の質問から写した quote と、2つの発言をまたいだ quote は根拠にしない。4文字より短い quote は根拠にしない。
+     - text に出る数字・カタカナ（2文字以上）・英字が quote にもあるか（量や名前が足された・変わったのを拾う）。
+     - text が禁止表現（服薬の指示・量の指示・診断めいた言い方・安心させる判断・受診や確認の指示。下書き）に当たらないか。当たった項目の text は、画面に返す前に伏せる。
+     - 5観点が items か not_covered のどちらかにちょうど現れるか。
+  4. **デモ用に誤りを混ぜた例**：どの見本にも、会話にない項目（`planted`）を1つ持たせる。`/api/karte/summary` に `planted: true` を付けると、AI を呼ばずに正解の要約にその項目を足したものを返し、コードでの確認が「根拠なし」を出す。画面と動画では「デモ用に、会話にない内容をわざと1つ混ぜた例」と必ず添える（`PLANTED_NOTICE`）。
+  5. **最後は人が確定する**：要約と指摘は確定ではない。確定の操作は、Issue #141 のカルテの確認状態に組み込む（別の PR）。
+- 理由：抽出型は、既存の「要約・言い換え・創作しない」と、カルテの整理の両立のため。text が quote の範囲を出ないことと quote が原文にあることを、コードで機械的に確かめられる。
+- 却下案：自由な言い換えの要約。読みやすいが、会話にない言葉や意味の変化をコードで確かめられず、既存の決定に正面から当たる。
+- 影響：読みにくさ（本人の言葉の切れ端が並ぶ）。コードでの確認は意味の変化と抜けを見られないので、2段目（ADR-0053）と人の確認に頼る。禁止表現の一覧と試験（`codeCheck.test.ts`、docs/safety-test-plan.md H13）を一緒に直す。新しいファイル：`web/src/board/karte/`（`contract.ts`・`samples.ts`・`codeCheck.ts`・`codeCheck.test.ts`）、`web/worker/karteSummary.ts`・`karte.ts`・`karte.test.ts`、`web/worker/app.ts` の組み込み。`Board.tsx`・`demo.ts` は変えていない。
+- オーナーが判断する点：
+  - [TODO-OWNER: カルテの要約を抽出型にすること、既存の決定（利用者の発言を要約・言い換えしない、ADR-0042 の問診の要約の却下）との関係、safety.md に例外を足すか]
+  - [TODO-OWNER: 架空の会話の見本10本と正解の要約、誤りを混ぜた項目（`samples.ts`）、禁止表現の一覧（`codeCheck.ts`）、指摘の文（`CODE_FINDING_LABELS`）、画面に添える文（`contract.ts`）、要約のモデルと system prompt（`karteSummary.ts`）。どれも Claude Code の下書き]
+
+## ADR-0053 カルテの要約の監査に Managed Agents を使う（要約と別のモデル、ツールなし、毎回セッションを削除）
+- 状態：提案（2026-11-06。Issue #142 の実装は Claude Code の下書き。Managed Agents を監査に使うことは、オーナーがまだ決めていない）　日付：2026-11-06（Issue #142）。
+- 背景：ADR-0052 の抽出型の要約を、コードでの確認の後に、別のモデルでも確かめる。Managed Agents はすでに掲示板チャット（B-07、ADR-0047）で使っている。
+- 提案：
+  1. **監査役は Managed Agents の Agent 1つ**（`web/worker/karteAuditAgent.ts`）。要約と別のモデル（下書き：要約は claude-sonnet-5-5、監査役は claude-opus-5-5）。要約のモデルは vars の `KARTE_SUMMARY_MODEL` で変えられる。監査役のモデルは Agent の作成で固定されるので、変えたら setup スクリプトで作り直す。
+  2. **見るのは4つだけ**：本人が言ったのに落ちていること（`omitted`）、意味が変わっていること（`meaning_changed`）、会話にない言葉や事実（`not_in_conversation`）、助言や診断に見える書き方（`advice_or_diagnosis`）。医学的な正しさや薬の適否は判断させないと system prompt に書く。出力は指摘の JSON（種類・観点・項目の位置・理由）だけ。
+  3. **ツールを持たせない**：Agent の作成で `tools` を渡さない（SDK 1.3.0 の型で省略できる）。公式ドキュメントに「省略するとツールなし」とは書かれていないので、setup スクリプトが作った Agent の `tools` の数を確かめ、0 でなければ止める。Environment は掲示板チャットのもの（limited で許す宛先なし）を使い回す。
+  4. **監査1回ごとにセッションを作り、毎回削除する**（`web/worker/karteAudit.ts`）。budget を必ず付ける。SSE を先に開いてから送り、止まるまで読む（掲示板チャットの `collectTurn`）。45秒で終わらなければ「監査できず」。止まった後はその場で削除して、画面に「削除済み」を返す。時間切れなどで動いているかもしれないときは、user.interrupt を送り、止まるのを待ってから削除する（応答の後に waitUntil で続ける。画面には「後片付け中」）。
+  5. **Workers で確かめる**：JSON として読めなければ「監査できず」。知らない種類・観点・範囲外の位置の指摘は捨てる。理由の文が長すぎるか禁止表現に当たれば、種類ごとの固定文に替える。
+  6. 送るのは架空の会話の見本と要約だけ。ログに出すのは失敗の種類・件数・所要時間・セッションの後片付けの状態だけで、会話・要約・指摘の本文は出さない（ADR-0007）。
+- 理由：役割の分離（要約する役と確かめる役を、別のモデル・別の仕組みに分ける）と、セッションの状態の変化（作成、動作、停止、削除）をデモで見せるため。
+- 却下案：Worker から Messages API を2回目に呼ぶ（既存の監査役 ADR-0030 と同じ形）。速く、ベータに頼らないが、役割の分離と状態の変化が見えにくい。
+- 影響：ベータ（`managed-agents-2026-04-01`）への依存。セッションの削除の処理（動いている間は削除できない）。時間（掲示板チャットの実測では、セッションの作成と応答で合わせて約3〜7秒）。架空の見本と要約が、削除するまで Anthropic 側のセッションに残る。承認されたら privacy.md に、B-07 と並ぶ例外の1行が要る。新しいファイル：`web/worker/karteAuditAgent.ts`・`karteAudit.ts`、`web/scripts/setup-karte-audit.ts`、`docs/karte-audit-setup.md`、`web/wrangler.jsonc` の `vars` の `KARTE_AUDIT_AGENT_ID`（空）、`web/package.json` の `setup:karte-audit`。
+- オーナーが判断する点：
+  - [TODO-OWNER: 監査に Managed Agents を使うこと、privacy.md に例外を足すか]
+  - [TODO-OWNER: 監査役のモデルと system prompt・指摘の固定文・セッションの budget・待つ時間（`karteAuditAgent.ts`・`karteAudit.ts`。Claude Code の下書き）]
