@@ -14,6 +14,7 @@ import { createTtsApp, type TtsEnv } from "./tts";
 import { createTtsLabApp } from "./ttsLab";
 import { createBoardChatApp, makeChatBackend, type BoardChatEnv } from "./boardChat";
 import { createKarteApp, type KarteEnv } from "./karte";
+import { createBoardAuthorizeApp } from "./boardAuthorize";
 
 /** 読み上げの中継の設定（TtsEnv）は tts.ts、ボードの掲示板チャットの設定（BoardChatEnv）は boardChat.ts、カルテの要約と監査（KarteEnv）は karte.ts */
 export interface Env extends TtsEnv, BoardChatEnv, KarteEnv {
@@ -206,6 +207,8 @@ export function createApp(
   app.route("/", createBoardChatApp({ readBody: readLimitedText, makeBackend: makeChat }));
   // カルテの抽出型の要約と2段構えの監査（B-10、Issue #142）。入力は架空の会話の見本の ID だけ。/api/turn と同じ条件で通す
   app.route("/", createKarteApp({ readBody: readLimitedText, ...karteDeps }));
+  // ボードの書き込みの権限の確認（B-09、ADR-0050）。救護所の記号と出来事の種類だけを受け、違う救護所への書き込みは 403
+  app.route("/", createBoardAuthorizeApp({ readBody: readLimitedText }));
 
   app.all("/api/*", (c) => c.json({ error: "not_found" }, 404));
   return app;

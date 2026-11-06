@@ -7,9 +7,12 @@ import { arrivalRows, demoReducer, initialDemo, type DemoState } from "./demo";
 import { DEFAULT_ARRIVAL_SEED, SIM_PATIENTS } from "./patients";
 import { PatientArrivals } from "./PatientArrivals";
 import { BOARD_ARRIVALS } from "./text";
+import { sessionFor } from "./access";
 
 const render = (site: SiteId, tab: BoardTab, state: DemoState) =>
-  renderToStaticMarkup(<Board onBack={() => {}} reducedMotion={false} initialSite={site} initialTab={tab} initialState={state} />);
+  renderToStaticMarkup(
+    <Board onBack={() => {}} reducedMotion={false} initialSite={site} initialTab={tab} initialState={state} initialSession={sessionFor(site)} />,
+  );
 
 let arrived = demoReducer(initialDemo(), { type: "arrivals", active: true });
 for (let i = 0; i < 30; i += 1) arrived = demoReducer(arrived, { type: "tick", hours: 1 });
