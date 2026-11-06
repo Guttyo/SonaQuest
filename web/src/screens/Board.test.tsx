@@ -353,10 +353,28 @@ describe("デザインの見直し（Issue #143）", () => {
   });
 
   it("左の一覧で、ログイン中の救護所の名前の後ろに「（ログイン中）」を添える", () => {
-    const p = pane(render(HQ));
+    const p = pane(render(HQ, "overview", initialDemo(), sessionFor("救護所A")));
     const a = p.slice(p.indexOf('data-pane="救護所A"'), p.indexOf('data-pane="救護所D"'));
     expect(a).toContain(`<span class="board-pane-login">${BOARD_LOGIN.paneMark}</span>`);
     expect(p.match(/board-pane-login/g)).toHaveLength(1);
+    // HQ でログインしているときは本部の行に添える（Issue #169）
+    const h = pane(render(HQ));
+    const hq = h.slice(h.indexOf(`data-pane="${HQ}"`), h.indexOf('data-pane="救護所A"'));
+    expect(hq).toContain(`<span class="board-pane-login">${BOARD_LOGIN.paneMark}</span>`);
+    expect(h.match(/board-pane-login/g)).toHaveLength(1);
+  });
+
+  it("発注の提案の承認・却下は HQ でログインしたときだけ押せる。救護所でログインすると押せず、理由を文で出す（Issue #169）", () => {
+    const hq = panel(render(HQ));
+    expect(hq.match(new RegExp(`>${BOARD_ORDERS.approve}</button>`, "g"))).toHaveLength(2);
+    const a = panel(render(HQ, "overview", initialDemo(), sessionFor("救護所A")));
+    expect(a).not.toContain(`>${BOARD_ORDERS.approve}</button>`);
+    expect(a).not.toContain(`>${BOARD_ORDERS.reject}</button>`);
+    expect(a).toContain(BOARD_ORDERS.approveOnlyHq);
+    // HQ でログインしてもカルテは編集できない
+    const rec = panel(render("救護所B", "records", initialDemo(), sessionFor(HQ)));
+    expect(rec).toContain('data-permission="read"');
+    expect(rec).toContain("本部（HQ）でログインしているため");
   });
 
   it("アクセス記録の、対象の無い行は横線の記号でなく「なし」と出す", () => {
@@ -502,7 +520,8 @@ describe("デモ用ログイン・救護所ごとの権限・カルテの確認�
     expect(h).not.toContain('type="password"');
     expect(h).not.toContain('class="board-pane"');
     for (const s of ["救護所A", "救護所B", "救護所C", "救護所D"]) expect(h).toContain(`value="${s}"`);
-    expect(h).not.toContain('value="本部備蓄"');
+    // 本部（HQ）でも入れる（Issue #169）
+    expect(h).toContain('value="本部備蓄"/>本部（HQ）</label>');
   });
 
   it("右上に「救護所A／担当：○○（架空）」とログアウトを常に出す（ボードとカルテ入力の専用画面）", () => {

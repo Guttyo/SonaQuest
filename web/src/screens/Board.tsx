@@ -82,7 +82,7 @@ import { BoardMap } from "./BoardMap";
 import { BoardChat } from "../board/chat/BoardChat";
 import { PatientArrivals } from "../board/PatientArrivals";
 import { Fold, Help } from "../board/Fold";
-import { appendAccess, authorizeWrite, canEdit as canEditSite, makeSession, type AccessEntry, type AccessEventKind, type DemoSession } from "../board/access";
+import { appendAccess, authorizeWrite, canDecideOrders, canEdit as canEditSite, makeSession, type AccessEntry, type AccessEventKind, type DemoSession } from "../board/access";
 import type { AuthorizeKind } from "../board/authorizeContract";
 import { BOARD_LOGIN, BOARD_PERMISSION, CHART_REVIEW_TEXT } from "../board/accessText";
 import {
@@ -1355,6 +1355,8 @@ export function Board({
     await guarded(site, "chart_add", `${site}のカルテ`);
   }
   const canEdit = (site: SiteId) => canEditSite(session, site);
+  // 発注の提案の承認・却下は HQ でログインしたときだけ（Issue #169。2026-11-06 オーナー決定）
+  const canDecide = canDecideOrders(session);
   const access: BoardAccessValue | null =
     session === null
       ? null
@@ -1521,7 +1523,10 @@ export function Board({
             data-pane={HQ}
             onClick={() => select(HQ)}
           >
-            <span className="board-pane-name">{BOARD_LAYOUT.hq}</span>
+            <span className="board-pane-name">
+              {BOARD_LAYOUT.hq}
+              {session?.site === HQ && <span className="board-pane-login">{BOARD_LOGIN.paneMark}</span>}
+            </span>
             <span className="board-pane-sub">{BOARD_LAYOUT.hqSub}</span>
             <PaneMarks
               marks={pendingProposals.length > 0 ? [{ text: `${BOARD_LAYOUT.marks.proposals} ${fmt.format(pendingProposals.length)}`, level: "warn" }] : []}
@@ -1694,7 +1699,8 @@ export function Board({
                   count={`${fmt.format(pendingProposals.length)} ${BOARD_ORDERS.count}`}
                   open={pendingProposals.length > 0}
                 >
-                  <ProposalGroups state={state} proposals={pendingProposals} canDecide dispatch={dispatch} />
+                  <ProposalGroups state={state} proposals={pendingProposals} canDecide={canDecide} dispatch={dispatch} />
+                  {!canDecide && pendingProposals.length > 0 && <p className="board-note">{BOARD_ORDERS.approveOnlyHq}</p>}
                 </Fold>
 
                 <PatientArrivals state={state} dispatch={dispatch} />
@@ -1945,7 +1951,7 @@ export function Board({
                   </h3>
                   <p className="board-note">{BOARD_ORDERS.note}</p>
                   {isHq ? (
-                    <ProposalGroups state={state} proposals={state.proposals} canDecide dispatch={dispatch} />
+                    <ProposalGroups state={state} proposals={state.proposals} canDecide={canDecide} dispatch={dispatch} />
                   ) : (
                     <ProposalList
                       state={state}
@@ -1955,7 +1961,7 @@ export function Board({
                       showSite={false}
                     />
                   )}
-                  {!isHq && <p className="board-note">{BOARD_ORDERS.approveOnlyHq}</p>}
+                  {!canDecide && <p className="board-note">{BOARD_ORDERS.approveOnlyHq}</p>}
                   <p className="board-note">{BOARD_ORDERS.stageNote}</p>
                 </section>
                 <section aria-labelledby="board-inbound">

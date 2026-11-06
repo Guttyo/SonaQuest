@@ -82,7 +82,7 @@ export const BOARD_ORDERS = {
   basisToggle: "数量の根拠（算数）を見る",
   approve: "承認",
   reject: "却下",
-  approveOnlyHq: "承認・却下は本部（HQ）の画面で行う。",
+  approveOnlyHq: "承認・却下は、本部（HQ）でログインした担当者が本部の画面で行う。",
   fromHq: "本部備蓄から",
   fromVendor: "卸へ頼む",
   basisNeed: "未交付・必要な数",
