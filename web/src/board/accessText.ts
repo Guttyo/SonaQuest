@@ -24,6 +24,8 @@ export const BOARD_LOGIN = {
   /** 右上の表示 */
   who: (site: string, staff: string) => `${site}／担当：${staff}（架空）`,
   logout: "ログアウト",
+  /** 左の一覧で、ログイン中の救護所の名前の後ろに灰で添える（Issue #143、計画書 4.2） */
+  paneMark: "（ログイン中）",
 } as const;
 
 export const BOARD_PERMISSION = {
@@ -54,6 +56,8 @@ export const ACCESS_LOG_TEXT = {
   open: "アクセス記録を開く",
   close: "アクセス記録を閉じる",
   head: { at: "時刻", site: "救護所", staff: "担当者（架空）", kind: "出来事", target: "対象" },
+  /** 対象の無い行（ログイン・ログアウト）。横線の記号の代わりに文字で出す（Issue #143、計画書 4.5） */
+  noTarget: "なし",
   kinds: {
     login: "ログイン",
     logout: "ログアウト",

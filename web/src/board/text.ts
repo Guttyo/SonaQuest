@@ -452,3 +452,17 @@ export const BOARD_ARRIVALS = {
   },
   undelivered: "未交付",
 } as const;
+
+/**
+ * 本部の在庫タブの、国の医薬品供給状況への外部リンク（Issue #143、計画書 4.6）。
+ * 2026-11-06 オーナーの指示の文言のまま（言い換えない）。データの取得・取り込みはしない。押したときに利用者のブラウザが開くだけ。
+ * 確認済みの出典を、発行元・題・URL・確認日とともに固定で持つ（ADR-0044 と同じ考え）。新しい情報提供サイトへのリンクは足さない
+ */
+export const BOARD_SUPPLY_LINK = {
+  label: "国の医薬品供給状況（厚生労働省）",
+  url: "https://www.mhlw.go.jp/stf/seisakunitsuite/bunya/kenkou_iryou/iryou/kouhatu-iyaku/04_00003.html",
+  note: "メーカーの出荷状況です。救護所の在庫ではありません",
+  newTab: "（新しいタブで開く）",
+  checkedOn: "2026-11-06",
+  checkedLabel: "確認日",
+} as const;

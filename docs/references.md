@@ -56,3 +56,10 @@ README の「参考にした公式資料」に一覧とリンクを置いた（�
 - Cloudflare Workers Logs：https://developers.cloudflare.com/workers/observability/logs/workers-logs/
 - Cloudflare リアルタイムログ（wrangler tail）：https://developers.cloudflare.com/workers/observability/logs/real-time-logs/
 - Claude Code メモリ：https://code.claude.com/docs/en/memory
+
+## ボードの外部リンク（Issue #143、計画書 docs/board-design-plan.md 4.6）
+2026-11-06 にオーナーがチャットで指示したリンク。本部の「在庫」タブにだけ置き、押したときに新しいタブで開く。データの取得・取り込みはしない。新しい情報提供サイトへのリンクは、オーナーが URL を確かめるまで足さない。
+
+| 内容 | 発行元 | URL | 確認日 |
+|---|---|---|---|
+| 国の医薬品供給状況（メーカーの出荷状況。救護所の在庫ではない） | 厚生労働省 | https://www.mhlw.go.jp/stf/seisakunitsuite/bunya/kenkou_iryou/iryou/kouhatu-iyaku/04_00003.html | 2026-11-06（オーナーの確認日） |
