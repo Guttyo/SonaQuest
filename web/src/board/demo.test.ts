@@ -199,12 +199,16 @@ describe("カルテの処方の累計（Issue #114）", () => {
 });
 
 describe("架空の患者 100 人（Issue #122）", () => {
-  it("番号は 1〜100。氏名は架空と分かる姓だけで重ならず、入力の下書きの名前とも重ならない", () => {
+  it("番号は 1〜100。氏名は北海道の地名由来の架空の名前（Issue #151）で重ならず、入力の下書きの名前とも重ならない", () => {
     expect(SIM_PATIENTS).toHaveLength(100);
     expect(SIM_PATIENTS.map((p) => p.no)).toEqual(Array.from({ length: 100 }, (_, i) => i + 1));
     const names = SIM_PATIENTS.map((p) => p.name);
     expect(new Set(names).size).toBe(100);
-    for (const n of names) expect(n).toMatch(/^(架空|仮名|例示|見本|模擬) /);
+    // 北海道の地名由来の架空の氏名（Issue #151）。表の先頭と、姓と名の間の空白
+    expect(names.slice(0, 6)).toEqual(["北海 太郎", "石狩 花子", "札幌 清二郎", "幌加内 そば太郎", "石狩 鮭太郎", "小樽 ルタ夫"]);
+    expect(names[99]).toBe("弟子屈 湯太");
+    for (const n of names) expect(n).toMatch(/^\S+ \S+$/);
+    for (const n of names) expect(n.replace(" ", "").length).toBeLessThanOrEqual(8);
     for (const n of FICTIONAL_NAMES) expect(names).not.toContain(n);
   });
 
