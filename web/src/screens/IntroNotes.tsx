@@ -14,6 +14,10 @@ import {
   PRIVACY_TITLE,
   PRIVACY_VOICE,
   PROTOTYPE_LEAD,
+  SEND_MAP_KEEP,
+  SEND_MAP_TEXT_ONLY,
+  SEND_MAP_TITLE,
+  SEND_ROUTES,
   type IntroAnswerGroup,
   type IntroFlowStep,
 } from "../flow/content";
@@ -24,20 +28,13 @@ import {
  * `<details>` に入れず、開く操作なしで全文を出す（Issue #212 でも、2026-11-07 オーナー回答「畳まず図で整理」）。
  * Issue #212：上に訓練の流れの図と答え方の3つの札を置き、各項目にアイコンと短い札・要点の1行を添えて、目で追いやすくする。
  * 図は文字の部品（リスト）で作り、絵は飾り（aria-hidden）なので、読み上げでもすべての文に届く。
- * voiceProminent：3D を選んだときは、声の送信先（PRIVACY_VOICE）を先頭の目立つ位置に出す（ADR-0033）
+ * voiceProminent：3D を選んだときは、声と読み上げの送り先を足した「どこへ送るか」の図を先頭の目立つ位置に出す（ADR-0033。
+ * Issue #212 の2つめ：それまで先頭に出していた PRIVACY_VOICE の全文は、2D と同じく「会話の扱い」の中に出す）
  */
 export function IntroNotes({ voiceProminent }: { voiceProminent: boolean }) {
   return (
     <div className="intro-notes">
-      {voiceProminent && (
-        <div className="notice privacy-voice-notice" id="privacy-voice">
-          <p className="privacy-head">
-            <NotesIcon id="voice" />
-            <span>{PRIVACY_HEADS.voice}</span>
-          </p>
-          <p>{PRIVACY_VOICE}</p>
-        </div>
-      )}
+      {voiceProminent && <SendMap voice />}
 
       <section className="intro-visual" aria-labelledby="intro-flow-title">
         <h2 id="intro-flow-title">{INTRO_FLOW_TITLE}</h2>
@@ -74,6 +71,8 @@ export function IntroNotes({ voiceProminent }: { voiceProminent: boolean }) {
         </div>
       </section>
 
+      {!voiceProminent && <SendMap voice={false} />}
+
       <h2>{INTRO_POINTS_TITLE}</h2>
       {/* 送信の説明は実際の動作に合わせて一方だけを出す */}
       {AI_CONNECTED ? (
@@ -109,21 +108,57 @@ export function IntroNotes({ voiceProminent }: { voiceProminent: boolean }) {
           <p>{PRIVACY_EXTERNAL}</p>
         </li>
         {/* 2D のときも、3D の声の送信先の説明は全文を出す（ADR-0033） */}
-        {!voiceProminent && (
-          <li className="privacy-item" id="privacy-voice">
-            <p className="privacy-head">
-              <NotesIcon id="voice" />
-              <span>{PRIVACY_HEADS.voice}</span>
-            </p>
-            <p>{PRIVACY_VOICE}</p>
-          </li>
-        )}
+        <li className="privacy-item" id="privacy-voice">
+          <p className="privacy-head">
+            <NotesIcon id="voice" />
+            <span>{PRIVACY_HEADS.voice}</span>
+          </p>
+          <p>{PRIVACY_VOICE}</p>
+        </li>
       </ul>
     </div>
   );
 }
 
-type NotesIconId = IntroFlowStep["id"] | IntroAnswerGroup["id"] | "app" | "send" | "voice";
+/**
+ * どこへ送るかの図。何を → どこへ を矢印でつなぎ、何のためかを下に添える。矢印は飾りで、読み上げでは「から」「へ」の文字で伝える。
+ * voice：3D のとき。声と読み上げの2本を足し、目立つ枠にする
+ */
+function SendMap({ voice }: { voice: boolean }) {
+  const routes = SEND_ROUTES.filter((route) => voice || !route.voiceOnly);
+  return (
+    <section className={voice ? "intro-visual send-map send-map-voice" : "intro-visual send-map"} aria-labelledby="send-map-title">
+      <h2 id="send-map-title">{SEND_MAP_TITLE}</h2>
+      <ul className="send-routes">
+        {routes.map((route) => (
+          <li key={route.id} className={`send-route send-route-${route.id}`}>
+            <span className="send-ends">
+              <span className="send-end">
+                <NotesIcon id={route.id === "answer" ? "tell" : route.id === "voice" ? "voice" : "speaker"} />
+                <span>{route.from}</span>
+              </span>
+              <span className="visually-hidden">から</span>
+              <span className="send-arrow" aria-hidden="true" />
+              <span className="send-end send-to">
+                <NotesIcon id="send" />
+                <span>{route.to}</span>
+              </span>
+              <span className="visually-hidden">へ</span>
+            </span>
+            <span className="send-why">{route.why}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="send-note">
+        <NotesIcon id="app" />
+        <span>{SEND_MAP_KEEP}</span>
+      </p>
+      {!voice && <p className="send-note send-note-plain">{SEND_MAP_TEXT_ONLY}</p>}
+    </section>
+  );
+}
+
+type NotesIconId = IntroFlowStep["id"] | IntroAnswerGroup["id"] | "app" | "send" | "voice" | "speaker";
 
 /** 「はじめる前に」の絵（Issue #212。期間中に描いた SVG）。飾りで、意味は隣の文字で示す */
 function NotesIcon({ id }: { id: NotesIconId }) {
@@ -209,6 +244,13 @@ function NotesIcon({ id }: { id: NotesIconId }) {
           {/* 送る：紙飛行機 */}
           <path d="M4 15 28 5l-8 22-5-9z" />
           <path d="m15 18 13-13" />
+        </>
+      )}
+      {id === "speaker" && (
+        <>
+          {/* 読み上げ：スピーカーと音の波 */}
+          <path d="M5 12h5l7-6v20l-7-6H5z" />
+          <path d="M21 11a6 6 0 0 1 0 10M25 7a11 11 0 0 1 0 18" />
         </>
       )}
       {id === "voice" && (

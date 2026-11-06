@@ -115,6 +115,44 @@ export const INTRO_POINT_TAGS: readonly string[] = [
   "体調のこと",
 ];
 
+/**
+ * 送り先の図（Issue #212 の2つめ。2026-11-07 オーナー「３D版も同じように図とフローチャートで表現しておいてほしい」）。
+ * 何を・どこへ・何のために送るかを矢印でつなぐ。3D は声と読み上げの2本を足し、図を先頭に置く（ADR-0033 の「先頭の目立つ位置」）。
+ * 2D は声を使わないことを1行で添える。全文（PRIVACY_*）は下の「会話の扱い」にそのまま出す
+ */
+export interface SendRoute {
+  id: "answer" | "voice" | "speech";
+  from: string;
+  to: string;
+  why: string;
+  /** true のものは「自分の声で答える」を選んだときだけ出す */
+  voiceOnly?: boolean;
+}
+
+export const SEND_MAP_TITLE = "どこへ送るか";
+
+export const SEND_ROUTES: readonly SendRoute[] = [
+  { id: "answer", from: "あなたの回答", to: "Anthropic（Claude）", why: "会話を進めるため" },
+  {
+    id: "voice",
+    from: "あなたの声",
+    to: "ブラウザの音声認識",
+    why: "文字にするため（送り先はブラウザによって違います）",
+    voiceOnly: true,
+  },
+  {
+    id: "speech",
+    from: "ソナの文",
+    to: "ElevenLabs",
+    why: "読み上げるため（あなたの回答や声は送りません）",
+    voiceOnly: true,
+  },
+];
+
+/** 送り先の図の下に添える1行 */
+export const SEND_MAP_KEEP = "このアプリには残りません。タブを閉じると消えます。";
+export const SEND_MAP_TEXT_ONLY = "「文字で答える」では声を使わず、音声認識と ElevenLabs には送りません。";
+
 /** 会話の扱いの各項目の前に置く要点の1行。全文は続けてそのまま出す */
 export const PRIVACY_TITLE = "会話の扱い";
 export const PRIVACY_HEADS = {

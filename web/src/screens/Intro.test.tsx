@@ -13,6 +13,9 @@ import {
   PRIVACY_OWN,
   PRIVACY_VOICE,
   PROTOTYPE_LEAD,
+  SEND_MAP_KEEP,
+  SEND_MAP_TEXT_ONLY,
+  SEND_ROUTES,
 } from "../flow/content";
 import { BOARD_ENTRY_LABEL, COMING_SOON_INTAKE } from "../board/text";
 import { Intro } from "./Intro";
@@ -129,18 +132,14 @@ describe("はじめにの2画面目「はじめる前に」：必ず見せる説
     }
   });
 
-  it("3D を選んだときは声の送信先（PRIVACY_VOICE）を先頭の目立つ位置に、2D のときは会話の扱いの中に出す（ADR-0033）", () => {
+  it("声の送信先（PRIVACY_VOICE）の全文は、2D・3D とも会話の扱いの中に1回だけ出す（ADR-0033。Issue #212 の2つめ）", () => {
     const voice = escapeHtml(PRIVACY_VOICE);
-    expect(notes3d).toContain(
-      `<div class="notice privacy-voice-notice" id="privacy-voice"><p class="privacy-head">`,
-    );
-    expect(notes3d).toContain(`</span></p><p>${voice}</p></div>`);
-    expect(notes3d.indexOf(voice)).toBeLessThan(notes3d.indexOf(escapeHtml(lead)));
-    expect(notes3d.match(new RegExp(voice.slice(0, 20), "g"))).toHaveLength(1);
-    expect(notes2d).toContain(`<li class="privacy-item" id="privacy-voice"><p class="privacy-head">`);
-    expect(notes2d).toContain(`</span></p><p>${voice}</p></li>`);
-    expect(notes2d.indexOf(voice)).toBeGreaterThan(notes2d.indexOf(escapeHtml(PRIVACY_EXTERNAL)));
-    expect(notes2d.match(new RegExp(voice.slice(0, 20), "g"))).toHaveLength(1);
+    for (const html of [notes2d, notes3d]) {
+      expect(html).toContain(`<li class="privacy-item" id="privacy-voice"><p class="privacy-head">`);
+      expect(html).toContain(`</span></p><p>${voice}</p></li>`);
+      expect(html.indexOf(voice)).toBeGreaterThan(html.indexOf(escapeHtml(PRIVACY_EXTERNAL)));
+      expect(html.match(new RegExp(voice.slice(0, 20), "g"))).toHaveLength(1);
+    }
   });
 
   it("並び：題 → 選んだ答え方 → 必須の説明 → 会話の扱い → 訓練をはじめる → 選び直す", () => {
@@ -197,9 +196,39 @@ describe("「はじめる前に」の図と札（Issue #212。畳まず図で整
     }
   });
 
-  it("3D では声の送信先が図より前（先頭の目立つ位置。ADR-0033）、2D では会話の扱いの中", () => {
-    expect(notes3d.indexOf('id="privacy-voice"')).toBeLessThan(notes3d.indexOf('<ol class="intro-flow">'));
-    expect(notes2d.indexOf('id="privacy-voice"')).toBeGreaterThan(notes2d.indexOf(escapeHtml(PRIVACY_EXTERNAL)));
+  it("3D は「どこへ送るか」の図を先頭の目立つ枠に、声と読み上げの送り先を足して出す（ADR-0033）", () => {
+    const map3d = notes3d.indexOf('<section class="intro-visual send-map send-map-voice"');
+    expect(map3d).toBeGreaterThanOrEqual(0);
+    expect(map3d).toBeLessThan(notes3d.indexOf('<ol class="intro-flow">'));
+    expect(map3d).toBeLessThan(notes3d.indexOf(escapeHtml(lead)));
+    for (const route of SEND_ROUTES) {
+      expect(notes3d).toContain(`<span>${escapeHtml(route.from)}</span>`);
+      expect(notes3d).toContain(`<span>${escapeHtml(route.to)}</span>`);
+      expect(notes3d).toContain(escapeHtml(route.why));
+    }
+    expect(notes3d).toContain(escapeHtml(SEND_MAP_KEEP));
+    expect(notes3d).not.toContain(escapeHtml(SEND_MAP_TEXT_ONLY));
+  });
+
+  it("2D の「どこへ送るか」は回答の送り先だけで、声を使わないことを添える。図と札の後に置く", () => {
+    const map2d = notes2d.indexOf('<section class="intro-visual send-map"');
+    expect(map2d).toBeGreaterThan(notes2d.indexOf('<ol class="intro-flow">'));
+    expect(map2d).toBeLessThan(notes2d.indexOf(escapeHtml(lead)));
+    expect(notes2d).not.toContain("send-map-voice");
+    for (const route of SEND_ROUTES) {
+      const shown = notes2d.includes(`<span>${escapeHtml(route.from)}</span>`);
+      expect(shown).toBe(!route.voiceOnly);
+    }
+    expect(notes2d).toContain(escapeHtml(SEND_MAP_KEEP));
+    expect(notes2d).toContain(escapeHtml(SEND_MAP_TEXT_ONLY));
+  });
+
+  it("送り先の矢印は読み上げず、「から」「へ」の文字で伝える", () => {
+    for (const html of [notes2d, notes3d]) {
+      expect(html).toContain('<span class="send-arrow" aria-hidden="true"></span>');
+      expect(html).toContain('<span class="visually-hidden">から</span>');
+      expect(html).toContain('<span class="visually-hidden">へ</span>');
+    }
   });
 
   it("2画面目の絵はすべて飾りで、読み上げない（意味は隣の文字で示す）", () => {
