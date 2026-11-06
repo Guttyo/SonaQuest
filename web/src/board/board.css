@@ -3445,3 +3445,200 @@
     font-weight: var(--fw-bold);
   }
 }
+
+/* ===== Issue #159 第2段：画面を短くする ===== */
+/* 本部の数字の列：救護所の不足状況を補助の1行に下げたので、列は4つ */
+.board-kpi-row {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@container board-panel (min-width: 900px) {
+  .board-kpi-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .board-kpi-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+/* 救護所の不足状況（補助）：数字の列の下に灰の小さな1行。在庫の赤・黄の記号はそのまま */
+.board-kpi-aux {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  margin: 6px 0 0;
+  font-size: var(--fs-sub);
+}
+.board-kpi-aux-label {
+  margin-right: 4px;
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-bold);
+  color: var(--b-ink-soft);
+}
+.board-kpi-aux .board-lead-part:not(.zero):not(.stop) {
+  color: var(--b-ink);
+}
+.board-kpi-aux-sep {
+  color: var(--b-ink-soft);
+}
+
+/* 確認・手配が必要な事項の表：4列。数量と根拠は行を開いて見せる */
+.board-action-table .board-action-item {
+  display: block;
+}
+.board-action-site {
+  white-space: normal;
+}
+.board-action-site .board-link {
+  white-space: nowrap;
+}
+.board-action-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  margin-top: 2px;
+  padding: 0 8px 0 4px;
+  border: 1px solid var(--b-rule);
+  border-radius: 4px;
+  background: var(--b-surface);
+  color: var(--b-ink);
+  font: inherit;
+  font-size: var(--fs-caption);
+  cursor: pointer;
+}
+.board-action-toggle::before {
+  content: "▸";
+  font-size: 0.85em;
+}
+.board-action-toggle[aria-expanded="true"]::before {
+  content: "▾";
+}
+.board-action-toggle:focus-visible {
+  outline: 3px solid var(--b-ink);
+  outline-offset: 2px;
+}
+.board-action-table tr.open > td {
+  border-bottom: 0;
+}
+.board-action-detail > td {
+  background: var(--b-ground);
+}
+.board-action-detail dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr));
+  gap: 4px 16px;
+  margin: 0;
+}
+.board-action-detail dl > div {
+  display: grid;
+  gap: 0;
+}
+.board-action-detail dt {
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-bold);
+  color: var(--b-ink-soft);
+}
+.board-action-detail dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+/* 狭い幅で行を grid にしても、閉じた根拠の行は隠したまま */
+.board-action-table tr[hidden] {
+  display: none;
+}
+@media (max-width: 640px) {
+  .board-action-site .board-link,
+  .board-action-site .board-stale,
+  .board-action-site .board-action-item {
+    display: inline-block;
+    margin-right: 6px;
+  }
+}
+
+/* 左の救護所の一覧：いちばん大事な状態1つと「ほか N 件」。札の中の文字は折り返さない */
+.board-pane-item .board-pane-mark {
+  white-space: nowrap;
+}
+/* 見出し行を出す幅では、セルごとの列名を出さない（.board-action-now span の display: block より強くする） */
+.board-action-table .board-action-k {
+  display: none;
+}
+.board-action-table th:nth-child(1) {
+  width: 31%;
+}
+.board-action-table th:nth-child(2) {
+  width: 15%;
+}
+.board-action-table th:nth-child(3) {
+  width: 27%;
+}
+@media (max-width: 640px) {
+  .board-action-table .board-action-k {
+    display: block;
+  }
+  .board-action-table th {
+    width: auto;
+  }
+}
+/* 1列目は「救護所名＋報告の注意」「品目」の2行。開くボタンは状態の札の下 */
+.board-action-table .board-action-where {
+  display: block;
+}
+.board-action-table .board-action-site .board-stale {
+  display: inline-block;
+  margin: 0 0 0 6px;
+}
+.board-action-table .board-action-item {
+  display: block;
+}
+.board-action-table .board-action-status .board-pill {
+  display: inline-block;
+}
+.board-action-table .board-action-toggle {
+  display: flex;
+  min-height: 28px;
+  margin-top: 4px;
+  white-space: nowrap;
+}
+/* 列の幅は見出しの割合で固定し、1列目も折り返してよい（品目名は語の途中で切らない） */
+.board-action-table {
+  table-layout: fixed;
+}
+.board-action-table td:first-child {
+  white-space: normal;
+}
+.board-action-table .board-action-item {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  .board-action-table {
+    table-layout: auto;
+  }
+}
+/* 狭い幅：1行目に「救護所・品目」と「状態＋開く」を左右に並べ、入荷・融通と次の確認はその下に。列名は下の2つだけに付ける */
+@media (max-width: 640px) {
+  .board-action-table tr[data-case] {
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 8px;
+  }
+  .board-action-table tr[data-case] > td:nth-child(3),
+  .board-action-table tr[data-case] > td:nth-child(4) {
+    grid-column: 1 / -1;
+  }
+  .board-action-table .board-action-site .board-action-k,
+  .board-action-table .board-action-status .board-action-k {
+    display: none;
+  }
+  .board-action-table .board-action-status {
+    text-align: right;
+  }
+  .board-action-table .board-action-toggle {
+    margin-left: auto;
+  }
+  .board-action-table .board-action-detail > td {
+    padding: 8px 10px;
+  }
+}
