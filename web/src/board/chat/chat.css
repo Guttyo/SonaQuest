@@ -399,3 +399,42 @@
     padding: 10px 12px 10px 8px;
   }
 }
+
+/* 役の丸い印（Issue #161、2026-11-06 オーナー「●の中にAとかにしてもいいかもね。色分けしてさ」）。
+   ボードの色は赤・黄を状態だけに使う（Issue #143）ので、救護所の色は赤・黄から離した青・紫・青緑・茶にし、本部は墨。
+   色だけに頼らず、丸の中の文字と横の名前で区別できる。白い文字との明るさの差は 4.5:1 以上 */
+.board-chat-mark {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #ffffff;
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-bold);
+  line-height: 1;
+  align-self: center;
+}
+.board-chat-mark.role-A {
+  background: #2b5aa0;
+}
+.board-chat-mark.role-B {
+  background: #6b4a9b;
+}
+.board-chat-mark.role-C {
+  background: #1d6e64;
+}
+.board-chat-mark.role-D {
+  background: #8a5223;
+}
+.board-chat-meta {
+  align-items: center;
+}
+.board-chat-view-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

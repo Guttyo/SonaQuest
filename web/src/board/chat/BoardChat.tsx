@@ -5,7 +5,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import type { DemoState } from "../demo";
-import { MAX_HUMAN_TEXT_LENGTH, type ChatChannel } from "./contract";
+import { MAX_HUMAN_TEXT_LENGTH, type ChatChannel, type ChatRole } from "./contract";
 import {
   AUTO_INTERVAL_MS,
   boardChatController,
@@ -16,7 +16,7 @@ import {
   type ChatViewMemory,
 } from "./controller";
 import { chatStatus } from "./status";
-import { CHAT_BUBBLE_TEXT, CHAT_ROLE_NAMES, CHAT_SEND_NOTICE, CHAT_TEXT, CHAT_VIEWS, type ChatView } from "./text";
+import { CHAT_BUBBLE_TEXT, CHAT_ROLE_MARKS, CHAT_ROLE_NAMES, CHAT_SEND_NOTICE, CHAT_TEXT, CHAT_VIEWS, type ChatView } from "./text";
 import "./chat.css";
 
 interface Props {
@@ -43,6 +43,18 @@ function badgeOf(post: ChatPost): string {
   return post.by === "agent" ? CHAT_BUBBLE_TEXT.aiBadge : CHAT_TEXT.badges[post.by];
 }
 
+/**
+ * 役の丸い印（●の中に A〜D、本部は「本」）。救護所ごとに色を分ける（2026-11-06 オーナー、チャット）。
+ * 色だけに頼らず文字を入れ、名前も横に書くので、読み上げでは印を読まない
+ */
+function RoleMark({ role }: { role: ChatRole }) {
+  return (
+    <span className={`board-chat-mark role-${role}`} aria-hidden="true" data-role={role}>
+      {CHAT_ROLE_MARKS[role]}
+    </span>
+  );
+}
+
 function Post({ post, showChannel }: { post: ChatPost; showChannel: boolean }) {
   // 本部（人・エージェント・固定の掲示）は右、救護所は左
   const side = post.role === "HQ" ? "hq" : "site";
@@ -50,6 +62,7 @@ function Post({ post, showChannel }: { post: ChatPost; showChannel: boolean }) {
   return (
     <li className={`board-chat-post ${post.by} side-${side}${mine ? " mine" : ""}`} data-by={post.by} data-side={side}>
       <div className="board-chat-meta">
+        <RoleMark role={post.role} />
         <span className="board-chat-name">{CHAT_ROLE_NAMES[post.role]}</span>
         <span className={`board-chat-badge ${post.by}`}>{badgeOf(post)}</span>
         {showChannel && <span className="board-chat-channel">{CHAT_TEXT.views[post.channel]}</span>}
@@ -185,7 +198,10 @@ export function BoardChat({ state, controller = boardChatController, memory = bo
               data-view={v}
               onClick={() => setView(v)}
             >
-              <span>{CHAT_TEXT.views[v]}</span>
+              <span className="board-chat-view-name">
+                {v !== "all" && v !== "common" && <RoleMark role={v} />}
+                {CHAT_TEXT.views[v]}
+              </span>
               <span className="board-chat-count">{counts(v)}</span>
             </button>
           ))}

@@ -56,6 +56,12 @@ describe("連絡（掲示板チャット）の画面", () => {
     expect(html.match(/data-side="site"/g)).toHaveLength(OPENING_JOBS.length - hq);
   });
 
+  it("書き込みごとに役の丸い印（救護所は A〜D、本部は「本」）を付け、救護所の DM の欄のボタンにも付ける", () => {
+    expect(html.match(/class="board-chat-mark role-/g)!.length).toBe(OPENING_JOBS.length + 4);
+    for (const r of ["A", "B", "C", "D"]) expect(html).toContain(`class="board-chat-mark role-${r}" aria-hidden="true" data-role="${r}">${r}<`);
+    expect(html).toContain('class="board-chat-mark role-HQ" aria-hidden="true" data-role="HQ">本<');
+  });
+
   it("エージェントの書き込みには「AI・訓練上の発言」の印を付ける", async () => {
     const controller = new ChatController(async (url) =>
       url.endsWith("/session")

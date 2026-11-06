@@ -11,6 +11,9 @@ export const CHAT_ROLE_NAMES: Readonly<Record<ChatRole, string>> = {
   D: "救護所D",
 };
 
+/** 吹き出しと欄のボタンに付ける丸い印の文字（Issue #161。2026-11-06 オーナー、チャット：「●の中にAとかにしてもいいかもね。色分けしてさ」） */
+export const CHAT_ROLE_MARKS: Readonly<Record<ChatRole, string>> = { HQ: "本", A: "A", B: "B", C: "C", D: "D" };
+
 /** 左の欄の並び。all は本部が見るすべての欄（読むだけ） */
 export type ChatView = "all" | ChatChannel;
 export const CHAT_VIEWS: readonly ChatView[] = ["all", "common", "A", "B", "C", "D"];
@@ -85,7 +88,7 @@ export const CHAT_BUBBLE_TEXT = {
   operatingRole: "本部（HQ）",
   operatingRoleNote: "救護所でログインしていても、ここでは本部として書き込みます。",
   aiBadge: "AI・訓練上の発言",
-  boardUnchanged: "AI の発言で「送ります」「手配します」とあっても、ボードの搬送・発注の状態は変わりません。",
+  boardUnchanged:"AI の発言で「送ります」「手配します」とあっても、ボードの搬送・発注の状態は変わりません。",
 } as const;
 
 /**
