@@ -130,10 +130,63 @@ export interface TextCheckContext {
   userTexts: readonly string[];
   /** 文に含まれてよいアプリの固定の文（質問、情報源の分類、出来事など） */
   allowed: readonly string[];
+  /**
+   * 直前の回答（復唱してよい言葉の出どころ。2026-11-07 のオーナーの答え、親のセッション経由）。
+   * この答えに文字どおりある言葉だけは、繰り返し・固定の文に無い言葉・名前の直後の「ですね」・病名らしい語の照合で捨てない
+   */
+  lastAnswer?: string;
 }
 
 /** 文を捨てた理由の種類。本文を含まないので、公開する版でもログに出してよい（ADR-0029 の1） */
 export type RejectReason = "length" | "forbidden" | "unknown_term" | "repeat";
+
+/**
+ * 復唱なら許す禁止表現：名前の直後の「ですね」など（推測の確かめの形）、「〜の薬ですね」、病名らしい語、よくある病気の言葉。
+ * 直前の回答から写した言葉を伏せた文で照合する。量・薬効・用法・助言・診断・緊急度などは、伏せずに照合する（復唱でも捨てる）
+ */
+// [TODO-OWNER: 復唱で許す範囲（Claude Code の下書き：直前の回答に文字どおりある、漢字・カタカナ・英数字で始まり終わる2文字以上の言葉。許す禁止表現は、名前の直後の「ですね」等・「〜の薬ですね」等・病名らしい語・よくある病気の言葉の4つ）]
+const ECHOABLE_PATTERNS: ReadonlySet<RegExp> = new Set([
+  FORBIDDEN_PATTERNS[2],
+  FORBIDDEN_PATTERNS[3],
+  FORBIDDEN_PATTERNS[6],
+  FORBIDDEN_PATTERNS[7],
+]);
+
+const WORD_CHAR = new RegExp(`${KANJI}|${KATAKANA}|[A-Za-z0-9]`, "u");
+
+/**
+ * 文の中で、直前の回答から文字どおり写した言葉を「〇」に替える。言葉は、漢字・カタカナ・英数字で始まって終わり、
+ * その文字が2つ以上あり、前後が語の切れ目（漢字・カタカナ・英数字が続かない）のもの。長いものを先に取る。
+ * 引数はどちらも NFKC にそろえ、空白を除いたもの
+ */
+export function maskEchoed(text: string, answer: string): string {
+  const chars = [...text];
+  const isWord = (c: string | undefined) => c !== undefined && WORD_CHAR.test(c);
+  let out = "";
+  let i = 0;
+  while (i < chars.length) {
+    let taken = 0;
+    if (isWord(chars[i]) && !isWord(chars[i - 1])) {
+      for (let end = chars.length; end >= i + 2; end--) {
+        if (!isWord(chars[end - 1]) || isWord(chars[end])) continue;
+        const span = chars.slice(i, end);
+        if (span.filter((c) => isWord(c)).length < 2) continue;
+        if (answer.includes(span.join(""))) {
+          taken = end - i;
+          break;
+        }
+      }
+    }
+    if (taken > 0) {
+      out += "〇";
+      i += taken;
+    } else {
+      out += chars[i];
+      i += 1;
+    }
+  }
+  return out;
+}
 
 /** 文の問題を1つ返す。画面に出してよければ null。長さ・禁止表現・固定の文に無い薬らしい言葉・繰り返しの順に見る */
 export function promptTextProblem(text: string, context: TextCheckContext): RejectReason | null {
@@ -141,9 +194,13 @@ export function promptTextProblem(text: string, context: TextCheckContext): Reje
   if (trimmed.length === 0 || text.length > MAX_PROMPT_LENGTH) return "length";
   // 語の間に空白や改行をはさんで禁止表現をすり抜けないよう、空白を除いた文で照合する（表示は元の文のまま）
   const nfkc = text.normalize("NFKC").replace(/\s+/g, "");
-  if (FORBIDDEN_PATTERNS.some((p) => p.test(nfkc))) return "forbidden";
-  if (unknownTerms(text, context.allowed).length > 0) return "unknown_term";
-  if (repeatsUserWords(text, context.userTexts, context.allowed)) return "repeat";
+  const answer = (context.lastAnswer ?? "").normalize("NFKC").replace(/\s+/g, "");
+  const masked = answer.length === 0 ? nfkc : maskEchoed(nfkc, answer);
+  if (FORBIDDEN_PATTERNS.some((p) => p.test(ECHOABLE_PATTERNS.has(p) ? masked : nfkc))) return "forbidden";
+  // 直前の回答の言葉は、固定の文と同じく許す（復唱）
+  const allowed = answer.length === 0 ? context.allowed : [...context.allowed, answer];
+  if (unknownTerms(text, allowed).length > 0) return "unknown_term";
+  if (repeatsUserWords(text, context.userTexts, allowed)) return "repeat";
   return null;
 }
 

@@ -110,11 +110,13 @@ describe("認識した文にも、送る前に緊急の照合がかかる（docs
     return results;
   }
 
-  it("体調の訴えらしい認識文は、送ると回答として受け取らずに中断する", () => {
+  it("体調の訴えらしい認識文は、送ると回答として受け取らずに確かめ、「はい」で中断する", () => {
     const [heard] = recognize("いま胸が苦しいです");
     const draft = appendRecognized("", heard);
     const started = run([{ type: "start" }]);
-    const sent = trainingReducer(started, { type: "answer", text: draft });
+    const checking = trainingReducer(started, { type: "answer", text: draft });
+    expect(checking.prompt?.type).toBe("symptom_check");
+    const sent = trainingReducer(checking, { type: "answer", text: "はい" });
     expect(sent.stage).toEqual({ name: "stopped", reason: "symptom" });
     expect(sent.answers).toHaveLength(0);
     expect(sent.waiting).toBe(false);
@@ -130,7 +132,7 @@ describe("認識した文にも、送る前に緊急の照合がかかる（docs
     const [heard] = recognize("苦しい");
     const draft = appendRecognized("Aという薬", heard);
     const sent = trainingReducer(run([{ type: "start" }]), { type: "answer", text: draft });
-    expect(sent.stage.name).toBe("stopped");
+    expect(sent.prompt?.type).toBe("symptom_check");
   });
 });
 

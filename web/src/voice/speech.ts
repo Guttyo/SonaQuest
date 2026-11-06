@@ -54,6 +54,8 @@ export function listenerSpeech(state: TrainingState): string | null {
     if (state.waiting) return null;
     const question = currentQuestion(state);
     if (question === null) return null;
+    // 体調の確かめの問い（ADR-0011 の追記）は、それだけを読み上げる
+    if (state.prompt?.type === "symptom_check") return state.prompt.text;
     // 思い出せないという回答の直後は、その場の固定文を先に言う（Transcript の表示と同じ）
     const recall = last !== undefined && last.half === stage.name && last.recall ? RECALL_NOW : "";
     return recall + (state.prompt?.text ?? question.text);

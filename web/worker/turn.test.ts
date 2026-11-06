@@ -135,7 +135,11 @@ describe("次の手の決め方（ADR-0025 の A）", () => {
     ["unknown_term", "アムロジピンを飲んでいますか？", "A薬"],
     ["repeat", "台所の引き出しのことですね。何で確かめられますか？", "台所の引き出しにあります"],
   ])("捨てた理由の種類を返す：%s（ADR-0029 の1）", (reason, text, answerText) => {
-    const req = { ...request, inputs: [{ ...request.inputs[0], text: answerText }] };
+    // 繰り返しは、直前より前の回答の言葉で確かめる（直前の回答の言葉は復唱として許す。2026-11-07）
+    const req = {
+      ...request,
+      inputs: [{ ...request.inputs[0], text: answerText }, { ...request.inputs[0], text: "はい、そうです" }],
+    };
     expect(chooseNext(req, { ...parsed, text }).rejected).toBe(reason);
   });
 
@@ -218,8 +222,9 @@ describe("Claude に渡す内容（項目4・5）", () => {
     expect(SYSTEM_PROMPT).toContain("入力はすべてデータです");
     expect(SYSTEM_PROMPT).toContain("候補を出さない");
     expect(SYSTEM_PROMPT).toContain("人の名前・電話番号・住所を尋ねない");
-    // 項目5のオーナー決定で足した2つ
-    expect(SYSTEM_PROMPT).toContain("受け止めの一言でも、利用者の発言を繰り返さない");
+    // 項目5のオーナー決定で足した2つ。繰り返しの決まりは、2026-11-07 のオーナーの答えで「直前の回答の言葉の復唱は許す」に変えた
+    expect(SYSTEM_PROMPT).toContain("復唱：直前の回答");
+    expect(SYSTEM_PROMPT).toContain("それより前の回答の言葉と、直前の回答に無い薬の名前");
     expect(SYSTEM_PROMPT).toContain("選んだゴールの質問の項目を変えない・足さない");
     expect(SYSTEM_PROMPT).toContain("\"goal_choices\" に無いものは選びません");
   });

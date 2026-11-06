@@ -1,7 +1,7 @@
 // 訓練の状態と遷移。状態はメモリにだけ持ち、保存しない（ADR-0007）。
 
 import { ACK_TEXT, AI_CONNECTED, ALL_QUESTIONS, CLARIFY_TEXTS, REDIRECT_TEXTS, ackFor } from "./content";
-import { detectDistress, type StopReason } from "./emergency";
+import { SYMPTOM_CHECK_TEXT, detectDistress, isAffirmative, type StopReason } from "./emergency";
 import type { TrainingMode } from "./mode";
 import {
   MAX_FIRST_HALF_ANSWERS,
@@ -75,6 +75,18 @@ export interface TrainingState {
   closingRemark: string | null;
   /** 固定の進行に切り替えたときの入力の件数。その回答の後に1回だけ知らせを出す（ADR-0029 の4） */
   failedAfter: number | null;
+  /** 体調の訴えらしい入力の後、確かめの問いを出している間だけ値がある（ADR-0011 の追記）。保存しない */
+  symptomCheck: SymptomCheck | null;
+}
+
+/**
+ * 確かめの問いの間に持つもの。resume は元の問い。pendingText は語の照合で止めた回答（まだ送っていない）、
+ * pendingResult は Claude が symptom と判定したやり取りの返事。「はい」でなければ、どちらかで元の流れに戻る
+ */
+export interface SymptomCheck {
+  resume: Prompt | null;
+  pendingText: string | null;
+  pendingResult: TurnResponse | null;
 }
 
 export type TrainingAction =
@@ -104,6 +116,7 @@ export const initialState: TrainingState = {
   closingAck: null,
   closingRemark: null,
   failedAfter: null,
+  symptomCheck: null,
 };
 
 const QUESTION_BY_ID: ReadonlyMap<string, Question> = new Map(ALL_QUESTIONS.map((q) => [q.id, q]));
@@ -269,6 +282,61 @@ function applyTurn(state: TrainingState, result: TurnResponse): TrainingState {
   return advance(judged, null);
 }
 
+/** 回答を受け取る（体調の照合の後）。Claude を使うときは返事を待ち、使わないときは固定の順番で進める */
+function acceptAnswer(state: TrainingState, question: Question, half: Half, text: string): TrainingState {
+  if (!isAcceptableAnswer(text)) return state;
+  const answers: Answer[] = [
+    ...state.answers,
+    {
+      questionId: question.id,
+      half,
+      text,
+      prompt: state.prompt?.text ?? question.text,
+      kind: "answer",
+      recall: false,
+    },
+  ];
+  if (state.ai === "on") {
+    return { ...state, answers, waiting: true };
+  }
+  return advance({ ...state, answers }, null);
+}
+
+/** 確かめの問い「現在の体調の訴えでしょうか？」を出す。元の問いは resume に残す */
+function startSymptomCheck(
+  state: TrainingState,
+  pending: Pick<SymptomCheck, "pendingText" | "pendingResult">,
+): TrainingState {
+  const questionId = state.prompt?.questionId ?? currentQuestion(state)?.id ?? "";
+  return {
+    ...state,
+    symptomCheck: { resume: state.prompt, ...pending },
+    prompt: { questionId, text: SYMPTOM_CHECK_TEXT, type: "symptom_check" },
+  };
+}
+
+/**
+ * 確かめの問いへの答え。自傷のほのめかしと「はい」は中断する。それ以外は元の流れに戻る。
+ * 確かめの1回は回答の回数に数えず、答えも記録しない
+ */
+// [TODO-OWNER: 確かめの問いの扱い（Claude Code の下書き：確かめの1回は回答の回数に数えず、答えも記録しない。答えにまた体調の語があり「はい」でもないときは、安全な側に倒して中断する）]
+function answerSymptomCheck(state: TrainingState, check: SymptomCheck, text: string): TrainingState {
+  if (text.trim().length === 0) return state;
+  const distress = detectDistress(text);
+  if (distress === "self_harm") return { ...state, symptomCheck: null, stage: { name: "stopped", reason: "self_harm" } };
+  if (isAffirmative(text) || distress === "symptom") {
+    return { ...state, symptomCheck: null, stage: { name: "stopped", reason: "symptom" } };
+  }
+  const resumed: TrainingState = { ...state, symptomCheck: null, prompt: check.resume };
+  if (check.pendingResult !== null) return applyTurn(resumed, check.pendingResult);
+  const { stage } = resumed;
+  const question = currentQuestion(resumed);
+  if (check.pendingText === null || question === null || (stage.name !== "first" && stage.name !== "second")) {
+    return resumed;
+  }
+  return acceptAnswer(resumed, question, stage.name, check.pendingText);
+}
+
 export function trainingReducer(
   state: TrainingState,
   action: TrainingAction,
@@ -299,28 +367,17 @@ export function trainingReducer(
       const question = currentQuestion(state);
       if (question === null || state.waiting) return state;
       if (stage.name !== "first" && stage.name !== "second") return state;
-      // 体調の訴えらしい入力では、回答として受け取らずに中断する。Claude に送る前に照合する（ADR-0011、項目10）
+      if (state.symptomCheck !== null) return answerSymptomCheck(state, state.symptomCheck, action.text);
+      // Claude に送る前に照合する（ADR-0011、項目10）。自傷のほのめかしはすぐ中断する。
+      // 体調の訴えらしい入力は、すぐには中断せず、回答として送らずに確かめの問いを出す（ADR-0011 の追記）
       const distress = detectDistress(action.text);
-      if (distress !== null) {
-        return { ...state, stage: { name: "stopped", reason: distress } };
+      if (distress === "self_harm") {
+        return { ...state, stage: { name: "stopped", reason: "self_harm" } };
       }
-      if (!isAcceptableAnswer(action.text)) return state;
-
-      const answers: Answer[] = [
-        ...state.answers,
-        {
-          questionId: question.id,
-          half: stage.name,
-          text: action.text,
-          prompt: state.prompt?.text ?? question.text,
-          kind: "answer",
-          recall: false,
-        },
-      ];
-      if (state.ai === "on") {
-        return { ...state, answers, waiting: true };
+      if (distress === "symptom") {
+        return startSymptomCheck(state, { pendingText: action.text, pendingResult: null });
       }
-      return advance({ ...state, answers }, null);
+      return acceptAnswer(state, question, stage.name, action.text);
     }
 
     case "turn_result": {
@@ -345,9 +402,13 @@ export function trainingReducer(
           null,
         );
       }
-      // Claude の緊急の判定は補助。自傷のほのめかしには自傷用の案内を出す（ADR-0011）
-      if (action.result.emergency !== "none") {
-        return { ...settled, stage: { name: "stopped", reason: action.result.emergency } };
+      // Claude の緊急の判定は補助。自傷のほのめかしには自傷用の案内を出す（ADR-0011）。
+      // 体調の訴えは、確かめの問いを出し、「はい」でなければこの返事で続ける（ADR-0011 の追記）
+      if (action.result.emergency === "self_harm") {
+        return { ...settled, stage: { name: "stopped", reason: "self_harm" } };
+      }
+      if (action.result.emergency === "symptom") {
+        return startSymptomCheck(settled, { pendingText: null, pendingResult: { ...action.result, emergency: "none" } });
       }
       return applyTurn(settled, action.result);
     }

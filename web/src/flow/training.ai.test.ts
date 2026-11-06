@@ -158,13 +158,26 @@ describe("Claude を使う進行", () => {
     expect(trainingReducer(again, result(waiting, null))).toBe(again);
   });
 
-  it("Claude が体調の訴えを見つけたら中断する（補助。ADR-0011）", () => {
+  it("Claude が体調の訴えを見つけたら確かめの問いを出し、「はい」で中断する（補助。ADR-0011 の追記）", () => {
     const waiting = run([{ type: "start" }, answer("ちょっと待って")]);
-    const next = trainingReducer(
+    const checking = trainingReducer(
       waiting,
       result(waiting, reply(ask("first_location"), { emergency: "symptom" })),
     );
-    expect(next.stage).toEqual({ name: "stopped", reason: "symptom" });
+    expect(checking.prompt?.type).toBe("symptom_check");
+    expect(trainingReducer(checking, answer("はい")).stage).toEqual({ name: "stopped", reason: "symptom" });
+  });
+
+  it("Claude が体調の訴えと見た後、確かめの問いに「いいえ」なら、その返事のまま続ける（送り直さない）", () => {
+    const waiting = run([{ type: "start" }, answer("頭痛薬を飲んでいます")]);
+    const checking = trainingReducer(
+      waiting,
+      result(waiting, reply(ask("first_location"), { emergency: "symptom" })),
+    );
+    const resumed = trainingReducer(checking, answer("いいえ"));
+    expect(resumed.waiting).toBe(false);
+    expect(resumed.prompt?.questionId).toBe("first_location");
+    expect(resumed.answers).toHaveLength(1);
   });
 
   it("Claude が自傷のほのめかしを見つけたら、自傷用の案内で中断する（ADR-0011）", () => {
@@ -177,7 +190,7 @@ describe("Claude を使う進行", () => {
   });
 
   it("語の照合で中断するときは、Claude に送らない（項目10）", () => {
-    const state = run([{ type: "start" }, answer("今、胸が苦しい")]);
+    const state = run([{ type: "start" }, answer("今、胸が苦しい"), answer("はい")]);
     expect(state.stage).toEqual({ name: "stopped", reason: "symptom" });
     expect(state.waiting).toBe(false);
     expect(state.answers).toHaveLength(0);

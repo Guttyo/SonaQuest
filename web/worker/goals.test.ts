@@ -114,9 +114,19 @@ describe("chooseNext（ゴールの確かめ）", () => {
     expect(next).toEqual({ type: "clarify", question_id: "first_medicines", text: "もう少し教えてください。" });
   });
 
-  it("選んだゴールの言い直しにも、利用者の言葉の繰り返しの検査をそのまま通す", () => {
-    const repeat = { ...output, text: "胃腸の薬のほかにも、使っている薬はありますか？" };
-    expect(chooseNext(afterFirst, repeat).rejected).toBe("repeat");
+  it("選んだゴールの言い直しにも、利用者の言葉の繰り返しの検査を通す（直前より前の回答の言葉は捨てる）", () => {
+    const later: TurnRequest = {
+      ...afterFirst,
+      inputs: [...afterFirst.inputs, input("first_location", "first", "お薬手帳にあります")],
+      next_question_id: "first_other",
+    };
+    const repeat = { ...output, next_goal_id: "first_other", text: "胃腸の薬のほかにも、使っている薬はありますか？" };
+    expect(chooseNext(later, repeat).rejected).toBe("repeat");
+  });
+
+  it("直前の回答の言葉の復唱は通る（2026-11-07 のオーナーの答え）", () => {
+    const echo = { ...output, text: "胃腸の薬ですね。その情報は、どこで確かめられますか？" };
+    expect(chooseNext(afterFirst, echo).rejected).toBeNull();
   });
 });
 

@@ -199,6 +199,8 @@ export function chooseNext(
       ? null
       : promptTextProblem(text, {
           userTexts: request.inputs.map((i) => i.text),
+          // 直前の回答の言葉は、そのまま復唱してよい（2026-11-07 のオーナーの答え。親のセッション経由）
+          lastAnswer: request.inputs[request.inputs.length - 1]?.text,
           allowed: [
             QUESTION_TEXT.get(current) ?? "",
             questionId === null ? "" : QUESTION_TEXT.get(questionId) ?? "",
@@ -307,8 +309,11 @@ export async function runTurn(
   let remarkReport: AuditReport | null = null;
 
   // 緊急（症状・自傷）のときは、画面は文を使わずに中断の案内を出す（ADR-0011）。監査役を待たせず、すぐ返す
+  // 体調の訴えでは、画面は確かめの問いの後に、この返事で続けることがある（ADR-0011 の追記）。
+  // 監査役を通していない文を出さないよう、文も捨てて固定文にする
   if (output.emergency !== "none") {
     remark = null;
+    next = { ...next, text: null };
   } else if (audit !== null) {
     // 質問の文と振り返りの一言は、別々に監査役へ送り、並べて待つ（待ち時間を延ばさない）
     const [textAudit, remarkAudit] = await Promise.all([

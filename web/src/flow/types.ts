@@ -78,7 +78,8 @@ export interface Answer {
 export interface Prompt {
   questionId: string;
   text: string;
-  type: "ask" | "clarify" | "redirect";
+  /** symptom_check は、体調の訴えらしい入力の後の確かめの問い（ADR-0011 の追記） */
+  type: "ask" | "clarify" | "redirect" | "symptom_check";
 }
 
 export type PrepActionId =
