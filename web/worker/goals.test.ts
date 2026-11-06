@@ -1,6 +1,7 @@
 // Workers でのゴールの確かめと、振り返りの一言の検査（Issue #200、ADR-0025 の B）
 
 import { describe, expect, it, vi } from "vitest";
+import { MEDICINES_FOLLOWUP_QUESTION } from "../src/flow/content";
 import type { TurnRequest } from "../src/flow/turnContract";
 import type { Audit, AuditResult } from "./audit";
 import type { CallClaude, ClaudeResult } from "./claude";
@@ -101,6 +102,13 @@ describe("chooseNext（ゴールの確かめ）", () => {
     });
   });
 
+  it("掘り下げの固定文（2026-11-07）を言い直した文は、「〜薬」の言葉も固定の文として通る。固定文は60字以内で、症状の語を含まない", () => {
+    const reword = { ...output, text: "はい。貼り薬や目薬、注射薬なども含めて、ほかに使っているお薬はありますか？" };
+    expect(chooseNext(afterFirst, reword).rejected).toBeNull();
+    expect([...MEDICINES_FOLLOWUP_QUESTION.text].length).toBeLessThanOrEqual(60);
+    expect(MEDICINES_FOLLOWUP_QUESTION.text).not.toContain("症状");
+  });
+
   it("聞き返しは、ゴールに関係なくいまの質問を聞き直す", () => {
     const next = chooseNext(afterFirst, { ...output, next_type: "clarify", next_goal_id: null, text: "もう少し教えてください。" }).next;
     expect(next).toEqual({ type: "clarify", question_id: "first_medicines", text: "もう少し教えてください。" });
@@ -127,7 +135,7 @@ describe("followsGoalRules（問い合わせの確かめ。ADR-0028 の12）", (
   });
 });
 
-describe("振り返りの一言（案A：観点と判定の名前だけ。繰り返しの検査は緩めない）", () => {
+describe("振り返りの一言（案B：一言用の検査。監査役は必ず通す）", () => {
   const finish = { ...output, next_goal_id: null, text: null };
   const remark = "お話しくださってありがとうございました。自分のお薬情報がどこに記録されているのか把握できていましたね。代わりに伝える人は、話せていました。";
 
@@ -139,26 +147,6 @@ describe("振り返りの一言（案A：観点と判定の名前だけ。繰り
     expect(outcome.response.remark).toBe(remark);
     expect(audit).toHaveBeenCalledWith(remark, REMARK_PURPOSE);
     for (const args of audit.mock.calls) expect(JSON.stringify(args)).not.toContain("美香");
-  });
-
-  it("利用者の言葉を繰り返した一言は捨てる（漢字2文字の繰り返し）", async () => {
-    const outcome = await runTurn(secondDone, fake({ ...finish, closing_remark: "美香さんのことは話せていました。" }), null);
-    if (!outcome.ok) throw new Error("ok のはず");
-    expect(outcome.response.remark).toBeNull();
-    expect(outcome.remarkRejectReason).toBe("repeat");
-  });
-
-  it("利用者が挙げた情報源の名前を言い直す一言は捨てる（固定の言葉でも、一言では観点と判定の名前だけを許す）", async () => {
-    const req = { ...secondDone, inputs: [...secondDone.inputs.slice(0, -1), input("second_proxy", "second", "お薬手帳を家族が持っています")] };
-    for (const [bad, reason] of [
-      ["お薬手帳のことは話せていました。", "repeat"],
-      ["スマホのことは話せていました。", "unknown_term"],
-    ] as const) {
-      const outcome = await runTurn(req, fake({ ...finish, closing_remark: bad }), null);
-      if (!outcome.ok) throw new Error("ok のはず");
-      expect(outcome.response.remark).toBeNull();
-      expect(outcome.remarkRejectReason).toBe(reason);
-    }
   });
 
   it("よくある回答の言い回し（〜いました、そうです）があっても、決まった言い回しで書いた一言は通る", async () => {
@@ -173,14 +161,48 @@ describe("振り返りの一言（案A：観点と判定の名前だけ。繰り
     expect(outcome.response.remark).toBe(remark);
   });
 
-  it("（オーナーに確かめること）「まだどこかにお薬の情報があるかもしれませんね」は、推測の禁止表現（かもしれません）に当たって捨てられる", async () => {
-    const outcome = await runTurn(
-      secondDone,
-      fake({ ...finish, closing_remark: "記録に無い情報は、まだどこかにお薬の情報があるかもしれませんね。今のうちに確かめておくと安心です。" }),
-      null,
-    );
+  it("利用者が挙げた情報源・手段・人の続柄の言葉には触れてよい（案B）", async () => {
+    const req = { ...secondDone, inputs: [...secondDone.inputs.slice(0, -1), input("second_proxy", "second", "お薬手帳を家族が持っています")] };
+    for (const ok of [
+      "お薬手帳のことは話せていました。",
+      "家族に頼めることも話せていました。",
+      "スマホのほかにもお薬の情報の置き場所があるか、今のうちに確かめておくと安心です。",
+    ]) {
+      const outcome = await runTurn(req, fake({ ...finish, closing_remark: ok }), null);
+      if (!outcome.ok) throw new Error("ok のはず");
+      expect(outcome.remarkRejectReason, ok).toBeNull();
+      expect(outcome.response.remark).toBe(ok);
+    }
+  });
+
+  it("薬の名前・病名・固定の文に無いカタカナと「〜薬」の言葉は、案B でも捨てる", async () => {
+    for (const [bad, reason] of [
+      ["ロキソニンのことは話せていました。", "unknown_term"],
+      ["胃腸薬のことは話せていました。", "unknown_term"],
+      ["血圧のお話は話せていました。", "forbidden"],
+      ["お薬手帳を見て1日2錠と言えていました。", "forbidden"],
+    ] as const) {
+      const outcome = await runTurn(secondDone, fake({ ...finish, closing_remark: bad }), null);
+      if (!outcome.ok) throw new Error("ok のはず");
+      expect(outcome.response.remark, bad).toBeNull();
+      expect(outcome.remarkRejectReason, bad).toBe(reason);
+    }
+  });
+
+  it("人の名前は語の照合では止まらないので、監査役が止めたら捨てる（案B の限界。監査役は必ず通す）", async () => {
+    const audit = vi.fn<Audit>(async () => ({ ...passed, pass: false, category: "personal_info" }));
+    const outcome = await runTurn(secondDone, fake({ ...finish, closing_remark: "美香さんのことは話せていました。" }), audit);
     if (!outcome.ok) throw new Error("ok のはず");
-    expect(outcome.remarkRejectReason).toBe("forbidden");
+    expect(audit).toHaveBeenCalledWith("美香さんのことは話せていました。", REMARK_PURPOSE);
+    expect(outcome.response.remark).toBeNull();
+    expect(outcome.remarkRejectReason).toBe("audit_personal_info");
+  });
+
+  it("言い換えた言い回し「ほかにもお薬の情報の置き場所があるか」は、禁止表現に当たらずに通る", async () => {
+    const text = "記録に無い情報は、ほかにもお薬の情報の置き場所があるか、今のうちに確かめておくと安心です。";
+    const outcome = await runTurn(secondDone, fake({ ...finish, closing_remark: text }), null);
+    if (!outcome.ok) throw new Error("ok のはず");
+    expect(outcome.remarkRejectReason).toBeNull();
   });
 
   it("準備の助言・安心させる言い方の一言は捨てる", async () => {

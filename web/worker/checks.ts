@@ -151,3 +151,20 @@ export function promptTextProblem(text: string, context: TextCheckContext): Reje
 export function isAcceptablePromptText(text: string, context: TextCheckContext): boolean {
   return promptTextProblem(text, context) === null;
 }
+
+/**
+ * 振り返りの一言だけの検査（Issue #200 の案B。2026-11-07 オーナーが「B を作る」を選んだ。親のセッション経由）。
+ * 質問文の検査（promptTextProblem）から、利用者の言葉の繰り返しの照合だけを外したもの。一言では、利用者が挙げた
+ * 情報源・手段・人（続柄）の言葉に触れてよいため。長さ・禁止表現（薬の名前の推測、量、病名、薬効、助言、診断、緊急度）・
+ * 固定の文に無いカタカナと英字の言葉・「〜薬」「〜剤」の言葉は、質問文と同じに捨てる。
+ * 繰り返しの照合が捕まえていた、ひらがな・漢字で書いた薬の名前や人の名前は、ここでは止まらない。監査役（ADR-0030）を必ず通す
+ */
+// [TODO-OWNER: 振り返りの一言だけの検査（Claude Code の下書き。繰り返しの照合を外し、ほかは質問文と同じ。監査役は必ず通す）]
+export function remarkTextProblem(text: string, allowed: readonly string[]): RejectReason | null {
+  const trimmed = text.trim();
+  if (trimmed.length === 0 || text.length > MAX_PROMPT_LENGTH) return "length";
+  const nfkc = text.normalize("NFKC").replace(/\s+/g, "");
+  if (FORBIDDEN_PATTERNS.some((p) => p.test(nfkc))) return "forbidden";
+  if (unknownTerms(text, allowed).length > 0) return "unknown_term";
+  return null;
+}

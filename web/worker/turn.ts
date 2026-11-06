@@ -28,7 +28,7 @@ import {
   type TurnResponse,
 } from "../src/flow/turnContract";
 import type { Audit, AuditCategory, AuditResult } from "./audit";
-import { promptTextProblem, type RejectReason } from "./checks";
+import { promptTextProblem, remarkTextProblem, type RejectReason } from "./checks";
 import type { CallClaude, ClaudeFailure, Usage } from "./claude";
 import { REMARK_PHRASES, SYSTEM_PROMPT, buildUserMessage } from "./prompt";
 
@@ -119,7 +119,7 @@ export const REMARK_VOCABULARY: readonly string[] = [
 
 /** 監査役に、振り返りの一言の役目として渡す固定の文（利用者の回答は含まない。ADR-0030 の2） */
 export const REMARK_PURPOSE =
-  "（振り返りの一言）訓練の最後に、5つの観点の名前だけを使って、話せたことと、まだ考える余地があることを短く伝える文。準備行動や医療的な中身には触れない";
+  "（振り返りの一言）訓練の最後に、5つの観点の名前と決まった言い回しを使って、話せたことと、まだ考える余地があることを短く伝える文。利用者が挙げた情報源・手段・人の続柄には触れてよいが、薬・病気・人の名前などの医療的な中身や個人の情報には触れない";
 
 /** その半分の、回数に数える回答の質問ID（いま答えたものを含む） */
 function askedIn(request: TurnRequest, half: Half): string[] {
@@ -219,8 +219,7 @@ export function decideNext(request: TurnRequest, output: ClaudeOutput): TurnResp
 }
 
 /**
- * 振り返りの一言の検査（Issue #200 の案A）。後半を終えるときだけ受け付け、質問文と同じ検査（長さ・禁止表現・
- * 固定の文に無い言葉・利用者の言葉の繰り返し）を、そのまま通す。許す固定の言葉は、観点と判定の名前だけ
+ * 振り返りの一言の検査（Issue #200 の案B）。後半を終えるときだけ受け付け、一言用の検査（checks.ts の remarkTextProblem）を通す
  */
 export function checkRemark(
   request: TurnRequest,
@@ -229,12 +228,9 @@ export function checkRemark(
 ): { remark: string | null; rejected: RejectReason | null } {
   const half = request.inputs[request.inputs.length - 1].half;
   if (remark === null || next.type !== "finish" || half !== "second") return { remark: null, rejected: null };
-  const rejected = promptTextProblem(remark, {
-    userTexts: request.inputs.map((i) => i.text),
-    // 許すのは観点と判定の名前だけ。情報源の分類や質問文の言葉（お薬手帳、スマホなど）は許さない。
-    // 許すと、利用者が挙げた情報源を一言で言い直せてしまう（safety-review、2026-11-07）
-    allowed: [...REMARK_VOCABULARY, ...REMARK_PHRASES],
-  });
+  // 案B（2026-11-07 オーナー「B を作る」）：一言用の検査。利用者が挙げた情報源・手段・人（続柄）の言葉に触れてよいので、
+  // 繰り返しの照合は外し、固定の文（情報源の分類・質問文・出来事）の言葉も許す。監査役は必ず通す（runTurn）
+  const rejected = remarkTextProblem(remark, [...REMARK_VOCABULARY, ...REMARK_PHRASES, ...ALLOWED_VOCABULARY]);
   return { remark: rejected === null ? remark : null, rejected };
 }
 
