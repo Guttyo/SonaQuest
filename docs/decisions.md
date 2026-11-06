@@ -1266,7 +1266,7 @@
 - 追記（PR #130 のレビュー）：図は `role="img"` で、その中の操作要素は読み上げに出ないので、便と車の印はマウス・タッチで押せるだけにし、キーボード・読み上げでは図の下の「動いているもの（架空・模擬）」の一覧の各行（`<button>`、`aria-pressed`）で同じ操作をする。
 
 ## ADR-0052 カルテの要約を抽出型にし、コードでの確認を必ず通す（架空の会話の見本だけ）
-- 状態：提案（2026-11-06。Issue #142 の実装は Claude Code の下書き。抽出型にすることと、既存の決定との関係は、オーナーがまだ決めていない）　日付：2026-11-06（Issue #142）。番号は、開いている PR #136 が ADR-0050、PR #138 が ADR-0051 を使うので 0052 にした。並行する Issue #141・#143 と重なったら振り直す。
+- 状態：採用（2026-11-06、オーナーがチャットで「採用する」と決定。Issue #148。下のマーカーの細部は Claude Code の下書きのまま）　日付：2026-11-06（Issue #142）。番号は、開いている PR #136 が ADR-0050、PR #138 が ADR-0051 を使うので 0052 にした。並行する Issue #141・#143 と重なったら振り直す。
 - 背景：
   - 2026-11-06、オーナーはチャットで、機能凍結（2026-11-07 24:00 JST）の前の例外として Issue #141・#142・#143 の3件を承認した。#142 の意図は、3分のデモ動画で「AI の要約を別のモデルとコードが確かめ、最後は人が確定する流れ」が動いて見えること。
   - 既存の決定との関係：safety.md と ADR-0009・ADR-0042 は、利用者の発言の要約・言い換え・創作をしないと決めている。ADR-0042 は問診の要約を却下した。訓練（患者向け）の会話は Managed Agents に送らない（privacy.md）。
@@ -1285,10 +1285,11 @@
 - 影響：読みにくさ（本人の言葉の切れ端が並ぶ）。コードでの確認は意味の変化と抜けを見られないので、2段目（ADR-0053）と人の確認に頼る。禁止表現の一覧と試験（`codeCheck.test.ts`、docs/safety-test-plan.md H13）を一緒に直す。新しいファイル：`web/src/board/karte/`（`contract.ts`・`samples.ts`・`codeCheck.ts`・`codeCheck.test.ts`）、`web/worker/karteSummary.ts`・`karte.ts`・`karte.test.ts`、`web/worker/app.ts` の組み込み。`Board.tsx`・`demo.ts` は変えていない。
 - オーナーが判断する点：
   - [TODO-OWNER: カルテの要約を抽出型にすること、既存の決定（利用者の発言を要約・言い換えしない、ADR-0042 の問診の要約の却下）との関係、safety.md に例外を足すか]
+    → オーナー決定（2026-11-06、チャット）：採用する
   - [TODO-OWNER: 架空の会話の見本10本と正解の要約、誤りを混ぜた項目（`samples.ts`）、禁止表現の一覧（`codeCheck.ts`）、指摘の文（`CODE_FINDING_LABELS`）、画面に添える文（`contract.ts`）、要約のモデルと system prompt（`karteSummary.ts`）。どれも Claude Code の下書き]
 
 ## ADR-0053 カルテの要約の監査に Managed Agents を使う（要約と別のモデル、ツールなし、毎回セッションを削除）
-- 状態：提案（2026-11-06。Issue #142 の実装は Claude Code の下書き。Managed Agents を監査に使うことは、オーナーがまだ決めていない）　日付：2026-11-06（Issue #142）。
+- 状態：採用（2026-11-06、オーナーがチャットで「採用する」と決定。Issue #148。下のマーカーの細部は Claude Code の下書きのまま）　日付：2026-11-06（Issue #142）。
 - 背景：ADR-0052 の抽出型の要約を、コードでの確認の後に、別のモデルでも確かめる。Managed Agents はすでに掲示板チャット（B-07、ADR-0047）で使っている。
 - 提案：
   1. **監査役は Managed Agents の Agent 1つ**（`web/worker/karteAuditAgent.ts`）。要約と別のモデル（下書き：要約は claude-sonnet-5-5、監査役は claude-opus-5-5）。要約のモデルは vars の `KARTE_SUMMARY_MODEL` で変えられる。監査役のモデルは Agent の作成で固定されるので、変えたら setup スクリプトで作り直す。
@@ -1302,6 +1303,7 @@
 - 影響：ベータ（`managed-agents-2026-04-01`）への依存。セッションの削除の処理（動いている間は削除できない）。時間（掲示板チャットの実測では、セッションの作成と応答で合わせて約3〜7秒）。架空の見本と要約が、削除するまで Anthropic 側のセッションに残る。承認されたら privacy.md に、B-07 と並ぶ例外の1行が要る。新しいファイル：`web/worker/karteAuditAgent.ts`・`karteAudit.ts`、`web/scripts/setup-karte-audit.ts`、`docs/karte-audit-setup.md`、`web/wrangler.jsonc` の `vars` の `KARTE_AUDIT_AGENT_ID`（空）、`web/package.json` の `setup:karte-audit`。
 - オーナーが判断する点：
   - [TODO-OWNER: 監査に Managed Agents を使うこと、privacy.md に例外を足すか]
+    → オーナー決定（2026-11-06、チャット）：採用する
   - [TODO-OWNER: 監査役のモデルと system prompt・指摘の固定文・セッションの budget・待つ時間（`karteAuditAgent.ts`・`karteAudit.ts`。Claude Code の下書き）]
 
 ## ADR-0050 機能凍結後の例外：救護所ごとの権限・アクセス記録・カルテ要約の監査・カルテの確認状態・HQ デザインの見直し
