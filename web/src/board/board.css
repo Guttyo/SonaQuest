@@ -1102,7 +1102,7 @@
 .board-pane-report {
   font-variant-numeric: tabular-nums;
 }
-/* 「前回から変わったこと」の1行（Issue #107）。件数だけ。色は使わない */
+/* 「直近1時間で変わったこと」の1行（Issue #107）。件数だけ。色は使わない */
 .board-changes {
   display: flex;
   flex-wrap: wrap;
@@ -2242,7 +2242,7 @@
   margin-top: 6px;
 }
 
-/* 「前回から変わったこと」が空のときは小さな補助表示 */
+/* 「直近1時間で変わったこと」が空のときは小さな補助表示 */
 .board-changes.empty {
   padding: 2px 0;
   border: 0;

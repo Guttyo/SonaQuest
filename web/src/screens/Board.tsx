@@ -898,7 +898,7 @@ function StaleMark({ state, site }: { state: DemoState; site: SiteId }) {
   return <span className="board-stale">{BOARD_CHANGES.stale(BOARD_CHANGES.staleHours)}</span>;
 }
 
-/** 「前回から変わったこと」の1行（Issue #107）。デモの記録の件数をルールで並べるだけ（氏名・品目名・数量は入れない） */
+/** 「直近1時間で変わったこと」の1行（Issue #107）。デモの記録の件数をルールで並べるだけ（氏名・品目名・数量は入れない） */
 export function changeLineText(state: DemoState, site?: SiteId): string {
   const counts = changesSince(state.log, state.minutes, site, BOARD_CHANGES.windowMinutes);
   const parts = BOARD_CHANGES.kinds
