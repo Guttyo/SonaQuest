@@ -2,9 +2,9 @@
 // 状態はブラウザのメモリだけ（Board の useState・useReducer）。保存・ログ出力をしない。
 
 import { createContext, useContext, useState, type FormEvent } from "react";
-import { SHELTERS, type SiteId } from "./data";
+import type { SiteId } from "./data";
 import { clockText, type PatientChart } from "./demo";
-import { LOGIN_SITES, staffFor, type AccessEntry, type DemoSession } from "./access";
+import { LOGIN_SITES, siteLabel, staffFor, type AccessEntry, type DemoSession } from "./access";
 import { ACCESS_LOG_TEXT, BOARD_LOGIN, BOARD_PERMISSION, CHART_REVIEW_TEXT } from "./accessText";
 import { confirmable, type AuditFinding, type ChartReview, type ChartSummaryDraft } from "./review";
 import { PLANTED_NOTICE, SAMPLE_NOTICE } from "./karte/contract";
@@ -60,7 +60,7 @@ export function BoardLogin({ onLogin, onBack }: { onLogin: (site: SiteId, staff:
         <p className="board-note">{BOARD_LOGIN.lead}</p>
         <fieldset className="board-login-sites">
           <legend>{BOARD_LOGIN.site}</legend>
-          {SHELTERS.map((s) => (
+          {LOGIN_SITES.map((s) => (
             <label key={s} className={`board-login-site${site === s ? " current" : ""}`}>
               <input
                 type="radio"
@@ -72,7 +72,7 @@ export function BoardLogin({ onLogin, onBack }: { onLogin: (site: SiteId, staff:
                   setStaff(staffFor(s)[0]);
                 }}
               />
-              {s}
+              {siteLabel(s)}
             </label>
           ))}
         </fieldset>
@@ -102,7 +102,7 @@ export function BoardLogin({ onLogin, onBack }: { onLogin: (site: SiteId, staff:
 export function SessionBar({ session, onLogout }: { session: DemoSession; onLogout: () => void }) {
   return (
     <div className="board-session" data-testid="board-session">
-      <span className="board-session-who">{BOARD_LOGIN.who(session.site, session.staff)}</span>
+      <span className="board-session-who">{BOARD_LOGIN.who(siteLabel(session.site), session.staff)}</span>
       <button type="button" className="secondary board-session-logout" onClick={onLogout}>
         {BOARD_LOGIN.logout}
       </button>
@@ -384,7 +384,7 @@ export function AccessLogPanel({ log, defaultOpen = false }: { log: readonly Acc
                   {log.map((l, i) => (
                     <tr key={`${l.at}-${i}`} data-kind={l.kind}>
                       <td>{clockText(l.at)}</td>
-                      <td>{l.site}</td>
+                      <td>{siteLabel(l.site)}</td>
                       <td>{l.staff}</td>
                       <td>{ACCESS_LOG_TEXT.kinds[l.kind]}</td>
                       <td>{l.target === "" ? ACCESS_LOG_TEXT.noTarget : l.target}</td>
