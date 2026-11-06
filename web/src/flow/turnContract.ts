@@ -71,7 +71,10 @@ export interface TurnRequest {
   inputs: TurnInput[];
   event: EventId | null;
   source: SourceId | null;
-  /** 次の固定の質問。前半・後半の終わりで次が無いときは null */
+  /**
+   * 固定の順番での次の質問（rules.ts の planGoals の fallback）。前半・後半の終わりで次が無いときは null。
+   * Claude が選んでよいゴールは、Workers が inputs から planGoals で求め直す（Issue #200）
+   */
   next_question_id: string | null;
   /** 聞き返し（回数に数える）をしてよいか */
   allow_clarify: boolean;
@@ -87,12 +90,18 @@ export interface TurnResponse {
   viewpoints: Record<ViewpointId, JudgmentValue>;
   next: {
     type: "ask" | "clarify" | "redirect" | "finish";
+    /** ask のときは、Claude が選び Workers が確かめた次の質問（ゴール）。ゴールが使えなければ固定の順番の次の質問 */
     question_id: string | null;
     /** 検査を通った Claude の文。無ければ固定文を使う */
     text: string | null;
   };
   recall: boolean;
   source_guess: Exclude<SourceId, "none"> | null;
+  /**
+   * 振り返りの冒頭に添える Claude の一言（Issue #200）。後半を終えるとき（finish）だけで、
+   * 文の検査と監査役を通ったものだけ。無ければ null（振り返りは固定文だけで出す）
+   */
+  remark: string | null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -168,10 +177,10 @@ export function parseTurnRequest(body: unknown): TurnRequest | null {
 /** ブラウザが受け取る応答の検査。Workers の検査を通ったものでも、形が違えば使わない */
 export function parseTurnResponse(body: unknown): TurnResponse | null {
   if (!isRecord(body)) return null;
-  if (!hasExactKeys(body, ["emergency", "viewpoints", "next", "recall", "source_guess"])) {
+  if (!hasExactKeys(body, ["emergency", "viewpoints", "next", "recall", "source_guess", "remark"])) {
     return null;
   }
-  const { emergency, viewpoints, next, recall, source_guess } = body;
+  const { emergency, viewpoints, next, recall, source_guess, remark } = body;
   if (typeof emergency !== "string" || !EMERGENCY_KINDS.has(emergency)) return null;
   if (typeof recall !== "boolean") return null;
 
@@ -201,6 +210,12 @@ export function parseTurnResponse(body: unknown): TurnResponse | null {
   ) {
     return null;
   }
+  if (
+    remark !== null &&
+    (typeof remark !== "string" || remark.trim().length === 0 || remark.length > MAX_PROMPT_LENGTH || type !== "finish")
+  ) {
+    return null;
+  }
 
   return {
     emergency: emergency as TurnResponse["emergency"],
@@ -212,5 +227,6 @@ export function parseTurnResponse(body: unknown): TurnResponse | null {
     },
     recall,
     source_guess: source_guess as TurnResponse["source_guess"],
+    remark: remark as string | null,
   };
 }

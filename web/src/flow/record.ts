@@ -14,13 +14,14 @@ export interface RecordItem {
 
 // [TODO-OWNER: 記録の項目の名前と、質問との対応（Claude Code の下書き）]
 export const RECORD_ITEMS: readonly RecordItem[] = [
-  { id: "medicines", label: "薬の名前・量・何の薬か（架空）", questionIds: ["first_medicines"] },
+  // Issue #200：「ほかには？」の掘り下げの回答も、同じ項目に順に並べる
+  { id: "medicines", label: "薬の名前・量・何の薬か（架空）", questionIds: ["first_medicines", "first_medicines_more"] },
   { id: "location", label: "記録の在りか（何を見れば確かめられるか）", questionIds: ["first_location"] },
   { id: "other", label: "ほかの薬・市販薬・サプリ（架空）", questionIds: ["first_other"] },
   // Issue #110：アレルギー・合わなかった薬は first_unrecorded で聞く
   { id: "unrecorded", label: "アレルギー・合わなかった薬など、記録に載っていないこと（架空）", questionIds: ["first_unrecorded"] },
   { id: "alternative", label: "ほかの伝え方", questionIds: ["second_recovery", "second_handover"] },
-  { id: "current", label: "最近の変化と、記録に載っているか（変化は架空）", questionIds: ["second_recent"] },
+  { id: "current", label: "最近の変化と、記録に載っているか（変化は架空）", questionIds: ["second_recent", "second_recent_other"] },
   { id: "proxy", label: "代わりに伝えられる人（続柄・連絡の手段）", questionIds: ["second_proxy", "second_proxy_other"] },
   { id: "recheck", label: "思い出せなかったこと・あとで確かめるもの", questionIds: ["second_recheck"] },
 ];

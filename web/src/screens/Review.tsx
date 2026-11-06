@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  REVIEW_CONTACT_NOTE,
   AI_FAILED_NOTE,
   DETAILS_SUMMARY,
   EVENTS,
@@ -109,6 +110,12 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
       {state.closingAck !== null && (
         <ListenerLine relief={state.event === "handover"}>{state.closingAck}</ListenerLine>
       )}
+      {/* 振り返りに添える Claude の一言（Issue #200）。文の検査と監査役を通ったものだけ。利用者の回答の要約ではない */}
+      {state.closingRemark !== null && (
+        <ListenerLine relief={state.event === "handover"}>{state.closingRemark}</ListenerLine>
+      )}
+      {/* 一言の近くに、固定の案内を出す（Issue #200。2D・3D の両方。Claude の文ではない） */}
+      <p className="review-contact-note">{REVIEW_CONTACT_NOTE}</p>
       {voiceOn && (
         <SpeakerControls
           snapshot={speech}

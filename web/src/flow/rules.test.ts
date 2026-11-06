@@ -63,7 +63,7 @@ describe("質問の数", () => {
     );
   });
 
-  it("回答の上限は前半5回・後半5回で、固定の質問は半分ごとに4問（残りの1回は聞き返しの余裕。Issue #41）", () => {
+  it("回答の上限は前半5回・後半5回で、固定の質問は前半4問・後半3問（残りは聞き返しの余裕。Issue #41、2026-11-07）", () => {
     expect(MAX_FIRST_HALF_ANSWERS).toBe(5);
     expect(MAX_SECOND_HALF_ANSWERS).toBe(5);
     expect(firstHalfQuestions().map((q) => q.id)).toEqual([
@@ -73,8 +73,9 @@ describe("質問の数", () => {
       "first_unrecorded",
     ]);
     for (const event of ["battery", "family_unreachable", "handover"] as const) {
-      expect(secondHalfQuestions(event)).toHaveLength(4);
-      expect(secondHalfQuestions(event)[3].id).toBe("second_recheck");
+      // 後半は3問（2026-11-07 に「思い出せなかったこと」を外し、終わりの固定文で促す）
+      expect(secondHalfQuestions(event)).toHaveLength(3);
+      expect(secondHalfQuestions(event).map((q) => q.id)).not.toContain("second_recheck");
     }
   });
 

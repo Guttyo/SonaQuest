@@ -4,12 +4,17 @@
 
 import {
   AI_FAILED_NOTE,
+  CLOSING_SPEECH,
   CONFIRM_PROMPT,
-  EVENTS,
+  EVENT_PREP_INTRO,
+  EVENT_SPEECH,
   JUDGMENT_LABELS,
   NEXT_STEPS_HEADING,
   NEXT_STEP_LABEL,
   NO_WEAK_POINTS_NOTE,
+  OPENING_SPEECH,
+  ORDINALS,
+  PREP_SPEECH,
   PREP_ACTIONS,
   RECALL_NOW,
   UNDETERMINED_NOTE,
@@ -17,17 +22,44 @@ import {
   VIEWPOINT_SHORT_LABELS,
   WEAK_POINT_LINES,
 } from "../flow/content";
-import { nextSteps, undeterminedJudgments } from "../flow/rules";
+import { EVENT_PREP_PRIORITY, nextSteps, undeterminedJudgments } from "../flow/rules";
 import { currentQuestion, type TrainingState } from "../flow/training";
 
 /**
- * 振り返りの先頭で読み上げる文（3D のとき。ADR-0054）。固定文だけで、利用者の回答は使わない。
+ * 振り返りの先頭で読み上げる文（3D のとき。ADR-0054）。固定文と、検査を通った Claude の受け止め・一言だけで、利用者の回答は使わない。
  * 受け止め → 見出し → 弱い観点の短い名前と判定（全部）→ 最初の1つの一言と次の一手。
  * 2つ目からの一言は読まない（長くなるので画面で読む）。判定が無い回はその知らせ、全部確認できた回はその一言
  */
 export function reviewSpeech(state: TrainingState): string | null {
+  const tail = eventPrepSpeech(state) + PREP_SPEECH + CLOSING_SPEECH;
+  // 出来事に合わせて優先する準備行動を3つ読み、最後に「次の準備を1つ決める」へ促す固定文を言う（2026-11-07 のオーナーの言葉）。
+  // 読み上げの中継の上限（500字）を超えると、その回の残りがブラウザの読み上げになるので、超えるときは最初の一言と次の一手を省く
+  const full = reviewSpeechBody(state, true);
+  if (full === null) return null;
+  if ((full + tail).length <= REVIEW_SPEECH_MAX) return full + tail;
+  const short = reviewSpeechBody(state, false) + tail;
+  if (short.length <= REVIEW_SPEECH_MAX) return short;
+  // それでも長いときは、Claude の一言を読まない（画面には出ている）
+  return reviewSpeechBody({ ...state, closingRemark: null }, false) + tail;
+}
+
+/** 振り返りの読み上げの長さの上限（読み上げの中継 /api/tts の 500字より少し短く） */
+export const REVIEW_SPEECH_MAX = 480;
+
+/** 出来事に合わせた準備行動3つの読み上げ。出来事が無い回は空 */
+export function eventPrepSpeech(state: TrainingState): string {
+  if (state.event === null) return "";
+  const items = EVENT_PREP_PRIORITY[state.event].map((id, i) => {
+    const label = PREP_ACTIONS.find((a) => a.id === id)!.label;
+    return `${ORDINALS[i]}、${label}。`;
+  });
+  return EVENT_PREP_INTRO + items.join("");
+}
+
+function reviewSpeechBody(state: TrainingState, withFirstStep: boolean): string | null {
   if (state.stage.name !== "review") return null;
-  const ack = state.closingAck ?? "";
+  // 受け止めの後に、Claude の一言（Issue #200。検査と監査役を通ったもの）を続ける
+  const ack = (state.closingAck ?? "") + (state.closingRemark ?? "");
   const judgments =
     state.ai === "on" && state.judgments !== null ? state.judgments : undeterminedJudgments();
   if (VIEWPOINT_ORDER.every((v) => judgments[v] === "undetermined")) {
@@ -38,6 +70,7 @@ export function reviewSpeech(state: TrainingState): string | null {
   const names = steps
     .map((s) => `${VIEWPOINT_SHORT_LABELS[s.viewpoint]}は${JUDGMENT_LABELS[s.judgment]}。`)
     .join("");
+  if (!withFirstStep) return `${ack}${NEXT_STEPS_HEADING}。${names}`;
   const first = steps[0];
   const line = WEAK_POINT_LINES[first.viewpoint][first.judgment as "not_mentioned" | "aware_unconfirmed"];
   const action = PREP_ACTIONS.find((a) => a.id === first.action)!.label;
@@ -53,20 +86,20 @@ export function listenerSpeech(state: TrainingState): string | null {
     if (state.waiting) return null;
     const question = currentQuestion(state);
     if (question === null) return null;
+    // 体調の確かめの問い（ADR-0011 の追記）は、それだけを読み上げる
+    if (state.prompt?.type === "symptom_check") return state.prompt.text;
     // 思い出せないという回答の直後は、その場の固定文を先に言う（Transcript の表示と同じ）
     const recall = last !== undefined && last.half === stage.name && last.recall ? RECALL_NOW : "";
-    return recall + (state.prompt?.text ?? question.text);
+    // 最初の質問の前に、デモであることと実際の服薬情報を入れないことを言う（2026-11-07 のオーナーの言葉）
+    const opening = stage.name === "first" && state.answers.length === 0 ? OPENING_SPEECH : "";
+    return opening + recall + (state.prompt?.text ?? question.text);
   }
   if (stage.name === "confirm") {
     const recall = last !== undefined && last.half === "first" && last.recall ? RECALL_NOW : "";
     return recall + (state.closingAck ?? "") + CONFIRM_PROMPT;
   }
-  if (stage.name === "event" && state.event !== null) {
-    const event = EVENTS[state.event];
-    return event.unavailable === null
-      ? event.text
-      : `${event.text}使えなくなったもの：${event.unavailable}`;
-  }
+  // 出来事は、画面の一覧ではなく場面を語る固定文を読み上げる（2026-11-07 のオーナーの言葉）
+  if (stage.name === "event" && state.event !== null) return EVENT_SPEECH[state.event];
   return null;
 }
 
