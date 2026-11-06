@@ -1,7 +1,7 @@
 import type { TrainingMode } from "../flow/mode";
 
 /** モードのカードの絵。locked は将来構想（C-01）の押せないカードの鍵の印 */
-export type ModeIconId = TrainingMode | "locked";
+export type ModeIconId = TrainingMode | "locked" | "board";
 
 /**
  * はじめにのモード選択のカードの絵（A-14。期間中に描いた SVG。実在の製品・サービスのロゴや、医療者の記号は使わない）。
@@ -36,6 +36,15 @@ export function ModeIcon({ id, className }: { id: ModeIconId; className?: string
           <ellipse cx="19" cy="27" rx="4" ry="2.5" />
           <path d="M36 15a10 10 0 0 1 0 14M40 10a16 16 0 0 1 0 24" />
           <path d="M10 44c2-5 5-8 9-8s7 3 9 8" />
+        </>
+      )}
+      {id === "board" && (
+        <>
+          {/* 地域本部のボード（Issue #162）：一覧の表と、拠点を結ぶ線。薬の形・医療者の記号は使わない */}
+          <rect x="6" y="8" width="36" height="28" rx="3" />
+          <path d="M6 16h36M18 16v20" />
+          <path d="M24 23h12M24 29h8" />
+          <path d="M16 42h16M24 36v6" />
         </>
       )}
       {id === "locked" && (
