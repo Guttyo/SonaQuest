@@ -72,6 +72,7 @@ import {
   BOARD_RECORDS,
   BOARD_SECTIONS,
   BOARD_SUBTITLE,
+  BOARD_SUPPLY_LINK,
   BOARD_TILES,
   BOARD_TITLE,
   INTAKE_IMAGE,
@@ -81,7 +82,7 @@ import { BoardChat } from "../board/chat/BoardChat";
 import { PatientArrivals } from "../board/PatientArrivals";
 import { appendAccess, authorizeWrite, canEdit as canEditSite, makeSession, type AccessEntry, type AccessEventKind, type DemoSession } from "../board/access";
 import type { AuthorizeKind } from "../board/authorizeContract";
-import { BOARD_PERMISSION, CHART_REVIEW_TEXT } from "../board/accessText";
+import { BOARD_LOGIN, BOARD_PERMISSION, CHART_REVIEW_TEXT } from "../board/accessText";
 import {
   AccessLogPanel,
   BoardAccessProvider,
@@ -122,7 +123,9 @@ interface Props {
 }
 
 const fmt = new Intl.NumberFormat("ja-JP");
-const SITE_COLORS = ["#2f7d63", "#b5541a", "#4a6fa5", "#8a5a9b"];
+// 推移の線は無彩色（Issue #143、計画書 2.3）。色の代わりに濃さと線の形で分け、線の端に救護所名を直接書く
+const SITE_COLORS = ["#222222", "#555555", "#555555", "#222222"];
+const SITE_DASHES = ["", "6 4", "2 4", "10 4 2 4"];
 const short = (site: SiteId) => site.replace("救護所", "");
 const md = (date: string) => date.slice(5).replace("-", "/");
 const mdhm = (dt: string) => `${md(dt.slice(0, 10))} ${dt.slice(11)}`;
@@ -138,7 +141,8 @@ function Pill({ level, children }: { level: "bad" | "warn" | "ok" | "none"; chil
 
 function statusLevel(status: CaseRow["status"]): "bad" | "warn" | "none" {
   if (status === "在庫切れ") return "bad";
-  if (status === "在庫切れ見込み") return "warn";
+  // 未確認・見込み算出不可も「人が確かめる」の黄（Issue #143、計画書 2.2）。余裕ありは色なし
+  if (status === "在庫切れ見込み" || status === "未確認" || status === "見込み算出不可") return "warn";
   return "none";
 }
 
@@ -507,7 +511,7 @@ function ChartCard({ chart, open }: { chart: PatientChart; open: boolean }) {
               <Pill level={chart.hasPrescription ? "ok" : "none"}>{chart.hasPrescription ? BOARD_RECORDS.flagPrescribed : BOARD_RECORDS.flagNone}</Pill>
               {chart.undelivered > 0 && <Pill level="bad">{BOARD_RECORDS.flagUndelivered}</Pill>}
               {review !== undefined && (
-                <Pill level={review.status === "human_confirmed" ? "ok" : "warn"}>
+                <Pill level={review.status === "human_confirmed" ? "ok" : review.status === "audited" && review.findings.length > 0 ? "bad" : "warn"}>
                   {review.status === "human_confirmed" ? CHART_REVIEW_TEXT.status.human_confirmed : CHART_REVIEW_TEXT.pendingFlag}
                 </Pill>
               )}
@@ -586,7 +590,7 @@ function Trend({ state }: { state: DemoState }) {
       <svg viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
         {ticks.map((v) => (
           <g key={v}>
-            <line x1={m.l} x2={W - m.r} y1={y(v)} y2={y(v)} stroke="#e6dccb" />
+            <line x1={m.l} x2={W - m.r} y1={y(v)} y2={y(v)} stroke="#c8c8c8" />
             <text x={m.l - 6} y={y(v) + 4} textAnchor="end" fontSize="11" fill="#5d5a55">
               {v === 0 ? "" : v}
             </text>
@@ -602,6 +606,7 @@ function Trend({ state }: { state: DemoState }) {
             key={s.site}
             fill="none"
             stroke={SITE_COLORS[i]}
+            strokeDasharray={SITE_DASHES[i] || undefined}
             strokeWidth="2"
             strokeLinejoin="round"
             strokeLinecap="round"
@@ -1273,7 +1278,8 @@ export function Board({
     if (!o) return m;
     if (o.outOfStock > 0) m.push({ text: `${BOARD_LAYOUT.marks.outOfStock} ${fmt.format(o.outOfStock)}`, level: "bad" });
     if (charts.some((c) => c.site === site && c.undelivered > 0)) m.push({ text: BOARD_LAYOUT.marks.undelivered, level: "bad" });
-    if (o.pending !== null && o.pending > 0) m.push({ text: BOARD_LAYOUT.marks.pending(o.pending), level: "warn" });
+    // 記録の未着・転記待ちは、どの救護所にもふつうにある数なので色を付けない（Issue #143、計画書 2.2）
+    if (o.pending !== null && o.pending > 0) m.push({ text: BOARD_LAYOUT.marks.pending(o.pending), level: "none" });
     if (o.pharmacistsShort > 0) m.push({ text: BOARD_LAYOUT.marks.pharmacistsShort(o.pharmacistsShort), level: "none" });
     const max = BOARD_LAYOUT.marks.max;
     return m.length <= max ? m : [...m.slice(0, max), { text: BOARD_LAYOUT.marks.more(m.length - max), level: "none" as const }];
@@ -1282,6 +1288,8 @@ export function Board({
 
   // 不足が出ている救護所の数（在庫切れ・切れる見込み・薬剤師の不足のどれかがある。siteOverview からの算数だけ）
   const sitesShort = overview.filter((o) => o.outOfStock > 0 || o.forecast > 0 || o.pharmacistsShort > 0).length;
+  // 数字の列の記号（Issue #143、計画書 4.2）：在庫切れがあれば赤、見込みだけなら黄。0 は灰
+  const anyOutOfStock = overview.some((o) => o.outOfStock > 0);
 
   // 救護所の「詳細」のタブでは、題の横に同じ「詳細」を重ねない（Issue #113）
   const showPanelTab = tab !== "overview";
@@ -1327,6 +1335,7 @@ export function Board({
               {BOARD_DEMO.clock} <b data-testid="demo-clock">{clockText(state.minutes)}</b>
             </span>
           </p>
+          <AccessLogPanel log={accessLog} />
         </header>
         <div className="board-intake-body">
           <PermissionNote site={intake} />
@@ -1338,7 +1347,6 @@ export function Board({
           {back}
         </div>
       </section>
-      <AccessLogPanel log={accessLog} />
       </BoardAccessProvider>
     );
   }
@@ -1364,6 +1372,8 @@ export function Board({
         <button type="button" className="secondary board-back" onClick={onBack}>
           {BOARD_BACK_LABEL}
         </button>
+        {/* アクセス記録は右下に浮かせず、帯の「記録」から帯の下に開く（Issue #143、計画書 4.5） */}
+        <AccessLogPanel log={accessLog} />
         {/* 時間を進める操作は消さずに「デモ操作」にたたむ。ふだんは閉じておく（2026-11-05 オーナー決定） */}
         <details className="board-demo-box">
           <summary>
@@ -1444,7 +1454,10 @@ export function Board({
                       data-pane={s}
                       onClick={() => select(s)}
                     >
-                      <span className="board-pane-name">{s}</span>
+                      <span className="board-pane-name">
+                        {s}
+                        {session.site === s && <span className="board-pane-login">{BOARD_LOGIN.paneMark}</span>}
+                      </span>
                       <span className="board-pane-sub board-pane-report" data-report={s}>
                         {BOARD_CHANGES.lastReport} {lastReportText(state, s)}
                         <StaleMark state={state} site={s} />
@@ -1500,7 +1513,7 @@ export function Board({
               <>
                 <section aria-label={BOARD_LAYOUT.hqSideLabel} className="board-kpis">
                   <div className="board-tiles board-kpi-row">
-                    <div className="board-tile board-tile-lead">
+                    <div className={`board-tile board-tile-lead ${sitesShort > 0 ? "check" : "zero"}`}>
                       <span className="board-tile-label">{BOARD_LEAD_TILE.label}</span>
                       <span className="board-tile-big" data-testid="sites-short">
                         {fmt.format(sitesShort)}
@@ -1508,7 +1521,7 @@ export function Board({
                       </span>
                       <span className="board-tile-sub">{BOARD_LEAD_TILE.sub}</span>
                     </div>
-                    <div className="board-tile board-tile-major">
+                    <div className={`board-tile board-tile-major ${anyOutOfStock ? "stop" : critical.length > 0 ? "check" : "zero"}`}>
                       <span className="board-tile-label">{BOARD_TILES.critical}</span>
                       <span className="board-tile-big">
                         <span data-testid="critical-count">{fmt.format(critical.length)}</span>
@@ -1518,7 +1531,7 @@ export function Board({
                         {BOARD_TILES.criticalSum(critical.length, unknown.unconfirmed, unknown.noPace, cases.length)}
                       </span>
                     </div>
-                    <div className="board-tile">
+                    <div className={`board-tile ${pendingProposals.length > 0 ? "check" : "zero"}`}>
                       <span className="board-tile-label">{BOARD_TILES.proposals}</span>
                       <span className="board-tile-big">
                         <span data-testid="proposal-count">{fmt.format(pendingProposals.length)}</span>
@@ -1526,7 +1539,7 @@ export function Board({
                       </span>
                       <span className="board-tile-sub">{BOARD_TILES.proposalsSub(state.proposals.length - pendingProposals.length)}</span>
                     </div>
-                    <div className="board-tile">
+                    <div className={`board-tile${pending.pending === 0 ? " zero" : ""}`}>
                       <span className="board-tile-label">{BOARD_TILES.pending}</span>
                       <span className="board-tile-big">
                         <span data-testid="pending-count">{fmt.format(pending.pending)}</span>
@@ -1534,7 +1547,7 @@ export function Board({
                       </span>
                       <span className="board-tile-sub">{BOARD_TILES.pendingSub(pending.undelivered, pending.awaiting)}</span>
                     </div>
-                    <div className={`board-tile${staleSites.length > 0 ? " stale" : ""}`}>
+                    <div className={`board-tile${staleSites.length > 0 ? " stale check" : " zero"}`}>
                       <span className="board-tile-label">{BOARD_TILES.stale(BOARD_CHANGES.staleHours)}</span>
                       <span className="board-tile-big">
                         <span data-testid="stale-count">{fmt.format(staleSites.length)}</span>
@@ -1755,6 +1768,16 @@ export function Board({
                     </tbody>
                   </table>
                 </div>
+                {/* 国の医薬品供給状況への外部リンク（Issue #143、計画書 4.6）。押したときに新しいタブで開くだけで、データは取り込まない */}
+                <div className="board-external" data-testid="supply-link">
+                  <a href={BOARD_SUPPLY_LINK.url} target="_blank" rel="noopener noreferrer">
+                    {BOARD_SUPPLY_LINK.label}
+                    <span className="board-external-newtab">{BOARD_SUPPLY_LINK.newTab}</span>
+                  </a>
+                  <p className="board-external-note">
+                    {BOARD_SUPPLY_LINK.note}（{BOARD_SUPPLY_LINK.checkedLabel} {BOARD_SUPPLY_LINK.checkedOn}）
+                  </p>
+                </div>
                 <More id="board-demand" title={BOARD_SECTIONS.demand} note={BOARD_SECTIONS.demandNote}>
                   <div className="board-chart board-bars">
                     {DEMAND.map((d) => (
@@ -1802,7 +1825,7 @@ export function Board({
                             <td className="num">{r.dailyUse === null ? "不明" : `${fmt.format(r.dailyUse)}${r.unit}`}</td>
                             <td className="num">{d === null ? "—" : `${roundDays(d)} 日`}</td>
                             <td>
-                              <Pill level={st === "在庫切れ" ? "bad" : st === "在庫切れ見込み" ? "warn" : st === "余裕あり" ? "ok" : "none"}>{st}</Pill>
+                              <Pill level={st === "在庫切れ" ? "bad" : st === "余裕あり" ? "ok" : "warn"}>{st}</Pill>
                             </td>
                             <td className="num">{hq ? qty(hq.onHand, hq.unit) : "—"}</td>
                           </tr>
@@ -2011,7 +2034,6 @@ export function Board({
         </div>
       </div>
     </section>
-    <AccessLogPanel log={accessLog} />
     </BoardAccessProvider>
   );
 }

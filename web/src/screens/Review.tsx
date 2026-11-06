@@ -1,25 +1,36 @@
 import { useState } from "react";
 import {
   AI_FAILED_NOTE,
+  DETAILS_SUMMARY,
   EVENTS,
   HANDOVER_QUESTION,
   INTERRUPTION_NOTE,
   JUDGMENT_LABELS,
   JUDGMENT_NOTE,
+  NEXT_STEPS_HEADING,
+  NEXT_STEP_FIRST_TAG,
+  NEXT_STEP_LABEL,
+  NEXT_STEP_PICK,
+  NEXT_STEP_PICKED,
+  NO_WEAK_POINTS_NOTE,
   PREP_ACTIONS,
+  PREP_ACTION_EFFECTS,
   RECALL_FEEDBACK,
   RECOVERY_QUESTION,
   REVIEW_EVENT_HEADING,
   REVIEW_RECOVERY_LABEL,
   REVIEW_SOURCES_HEADING,
   REVIEW_SOURCES_NOTE,
+  STRONG_POINTS_LABEL,
   TIMINGS,
   UNDETERMINED_NOTE,
   VIEWPOINT_LABELS,
   VIEWPOINT_ORDER,
+  VIEWPOINT_SHORT_LABELS,
+  WEAK_POINT_LINES,
 } from "../flow/content";
 import {
-  isWeak,
+  nextSteps,
   orderPrepActions,
   undeterminedJudgments,
   verifiedSourcesFor,
@@ -27,6 +38,9 @@ import {
 } from "../flow/rules";
 import type { TrainingState } from "../flow/training";
 import type { EventId, PrepActionId, TimingId } from "../flow/types";
+import { SpeakerControls } from "../voice/SpeakerControls";
+import { useSpeakWhenChanged, useSpeaker } from "../voice/hooks";
+import { reviewSpeech, speechKey } from "../voice/speech";
 import { SceneBar } from "./ListenerStage";
 import { RecordCard } from "./RecordCard";
 import { LostSources, PREP_ICON, SourceIcon, VIEWPOINT_ICON } from "./SourceIcon";
@@ -42,9 +56,15 @@ interface Props {
 /** 出来事の立て直しの問い（係の交代のときは説明し直しの問い）。振り返りの「出来事と立て直し」で原文を出す */
 const RECOVERY_IDS: readonly string[] = [RECOVERY_QUESTION.id, HANDOVER_QUESTION.id];
 
+/** 準備行動のカードの置き場所。「次の一手」のボタンからここへ送る */
+const PREP_CARDS_ID = "prep-cards";
+
 /**
- * ⑥振り返り（A-05 の⑥、Issue #49）。並びは、受け止め → 手薄なところ → 出来事と立て直しの回答 →
- * 5つの観点の判定 → 回答の原文 → 今ここで確かめましょう → 次の準備。
+ * ⑥振り返り（A-05 の⑥、Issue #49、ADR-0054）。
+ * 先に見せるのは「まだ弱いところ → 次の一手」だけ：手薄な観点ごとに、短い名前・判定・一言・準備行動1つ。
+ * 「これを準備する」で準備行動のカードが選ばれ、いつやるかを選んで決める。
+ * 出来事と立て直し、5つの観点の一覧、回答の原文、記録の形は「くわしく見る」（details）に畳む。消さない。
+ * 文はすべて固定文で、利用者の回答は原文のまま出すだけ（要約・言い換えなし）。
  * 絵はすべて飾り（aria-hidden）で、意味は必ず隣の文字で示す。色だけで区別しない（✓・「（使えない）」・判定の文字）
  */
 export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Props) {
@@ -52,17 +72,34 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
   const judgments =
     state.ai === "on" && state.judgments !== null ? state.judgments : undeterminedJudgments();
   const allUndetermined = VIEWPOINT_ORDER.every((v) => judgments[v] === "undetermined");
-  // 判定が無い回は「手薄なところ」を出さない（判定できていないものを手薄とは言わない）
-  const weak = allUndetermined ? [] : VIEWPOINT_ORDER.filter((v) => isWeak(judgments[v]));
+  // 判定が無い回は「まだ弱いところ」を出さない（判定できていないものを手薄とは言わない）
+  const steps = allUndetermined ? [] : nextSteps(judgments);
+  const strong = allUndetermined ? [] : VIEWPOINT_ORDER.filter((v) => judgments[v] === "confirmed");
+  const recommended = new Set(steps.map((s) => s.action));
   const first = state.answers.filter((a) => a.half === "first");
   const second = state.answers.filter((a) => a.half === "second");
   const recovery = second.filter((a) => a.kind === "answer" && RECOVERY_IDS.includes(a.questionId));
   const orderedActions = orderPrepActions(judgments).map(
     (id) => PREP_ACTIONS.find((a) => a.id === id)!,
   );
+  const labelOf = (id: PrepActionId) => PREP_ACTIONS.find((a) => a.id === id)!.label;
 
   const [action, setAction] = useState<PrepActionId | null>(null);
   const [timing, setTiming] = useState<TimingId | null>(null);
+
+  // 3D の対話モードでは、先頭のまとめ（固定文だけ。回答は読まない）を読み上げる（ADR-0033、ADR-0054）
+  const voiceOn = state.mode === "3d";
+  const { speaker, snapshot: speech } = useSpeaker(voiceOn, state.session);
+  const spoken = voiceOn ? reviewSpeech(state) : null;
+  useSpeakWhenChanged(speaker, spoken, spoken === null ? null : speechKey(state, spoken));
+
+  /** 「これを準備する」：準備行動を選び、カードの場所へ送る（キーボードの焦点は動かさない） */
+  const pick = (id: PrepActionId) => {
+    setAction(id);
+    if (typeof document !== "undefined") {
+      document.getElementById(PREP_CARDS_ID)?.scrollIntoView({ block: "start" });
+    }
+  };
 
   return (
     <section className="screen" aria-labelledby="review-title">
@@ -72,80 +109,71 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
       {state.closingAck !== null && (
         <ListenerLine>{state.closingAck}</ListenerLine>
       )}
-      <p>点数や合否はありません。伝えられたこと、まだ確かめていないことを振り返りましょう。</p>
+      {voiceOn && (
+        <SpeakerControls
+          snapshot={speech}
+          onStop={() => speaker?.stop()}
+          onReplay={() => speaker?.replay()}
+        />
+      )}
 
-      {weak.length > 0 && (
+      {steps.length > 0 && (
         <>
-          <h2>手薄なところ</h2>
-          <ul className="weak-list">
-            {weak.map((v) => (
-              <li key={v} className="weak-item">
-                <SourceIcon id={VIEWPOINT_ICON[v]} className="source-icon weak-icon" />
-                <span className="weak-text">
-                  <span className="weak-label">{VIEWPOINT_LABELS[v]}</span>
-                  <span className="weak-judgment">{JUDGMENT_LABELS[judgments[v]]}</span>
-                </span>
+          <h2>{NEXT_STEPS_HEADING}</h2>
+          <ol className="next-step-list">
+            {/* 最初の1枚だけ一言と大きなボタン。2枚目からは短い行（読み上げも最初の一言だけ。reviewSpeech） */}
+            {steps.map((s, i) => (
+              <li key={s.viewpoint} className={i === 0 ? "next-step" : "next-step next-step-compact"}>
+                <div className="next-step-head">
+                  <SourceIcon id={VIEWPOINT_ICON[s.viewpoint]} className="source-icon next-step-icon" />
+                  <span className="next-step-label">{VIEWPOINT_SHORT_LABELS[s.viewpoint]}</span>
+                  <span className="next-step-judgment">{JUDGMENT_LABELS[s.judgment]}</span>
+                  {i === 0 && steps.length > 1 && (
+                    <span className="next-step-tag">{NEXT_STEP_FIRST_TAG}</span>
+                  )}
+                </div>
+                {i === 0 && (
+                  <p className="next-step-why">
+                    {WEAK_POINT_LINES[s.viewpoint][s.judgment as "not_mentioned" | "aware_unconfirmed"]}
+                  </p>
+                )}
+                <div className="next-step-action">
+                  <span className="next-step-action-text">
+                    <span className="label">{NEXT_STEP_LABEL}：</span>
+                    {labelOf(s.action)}
+                  </span>
+                  <button
+                    type="button"
+                    className="next-step-pick"
+                    aria-label={`${NEXT_STEP_PICK}：${labelOf(s.action)}`}
+                    aria-pressed={action === s.action}
+                    onClick={() => pick(s.action)}
+                  >
+                    {action === s.action ? `✓ ${NEXT_STEP_PICKED}` : NEXT_STEP_PICK}
+                  </button>
+                </div>
               </li>
             ))}
-          </ul>
+          </ol>
         </>
       )}
-
-      {state.event !== null && (
-        <>
-          <h2>{REVIEW_EVENT_HEADING}</h2>
-          <div className="event event-summary">
-            <EventSummary event={state.event} />
-            {recovery.length > 0 && (
-              <>
-                <h3>{REVIEW_RECOVERY_LABEL}</h3>
-                <ol className="transcript">
-                  {recovery.map((a, i) => (
-                    <Exchange key={`recovery-${i}`} answer={a} />
-                  ))}
-                </ol>
-              </>
-            )}
-          </div>
-        </>
+      {!allUndetermined && steps.length === 0 && <p className="notice">{NO_WEAK_POINTS_NOTE}</p>}
+      {/* 確認できた観点は、弱い観点の有無にかかわらず1行で示す（全部確認できた回にも出す。PR #138 のレビュー） */}
+      {strong.length > 0 && (
+        <p className="strong-points">
+          <span className="label">{STRONG_POINTS_LABEL}：</span>
+          {strong.map((v) => (
+            <span key={v} className="strong-point">
+              <span aria-hidden="true">✓ </span>
+              {VIEWPOINT_SHORT_LABELS[v]}
+            </span>
+          ))}
+        </p>
       )}
-
-      <h2>5つの観点</h2>
       {allUndetermined && (
         <p className="notice">{state.ai === "off" ? UNDETERMINED_NOTE : AI_FAILED_NOTE}</p>
       )}
-      <dl className="viewpoints">
-        {VIEWPOINT_ORDER.map((v) => (
-          <div key={v} className="viewpoint">
-            <dt>{VIEWPOINT_LABELS[v]}</dt>
-            <dd>{JUDGMENT_LABELS[judgments[v]]}</dd>
-          </div>
-        ))}
-      </dl>
-      <p className="small">{JUDGMENT_NOTE}</p>
-
-      <h2>あなたの回答（入力したまま）</h2>
-      <h3>出来事の前</h3>
-      <ol className="transcript">
-        {first.map((a, i) => (
-          <Exchange key={`first-${i}`} answer={a} />
-        ))}
-      </ol>
-      {state.event !== null && (
-        <div className="event event-divider">
-          <h3>出来事</h3>
-          <EventSummary event={state.event} />
-        </div>
-      )}
-      <h3>出来事の後</h3>
-      <ol className="transcript">
-        {second.map((a, i) => (
-          <Exchange key={`second-${i}`} answer={a} />
-        ))}
-      </ol>
-
-      {/* 救護所に渡す記録の形（Issue #97）。回答を原文のまま項目に並べるだけで、要約しない */}
-      <RecordCard answers={state.answers} />
+      {!allUndetermined && <p className="small">{JUDGMENT_NOTE}</p>}
 
       {/* 思い出せなかったことは、候補を出さず、実物の確認と訓練の繰り返しに向ける（ADR-0022） */}
       <h2>今ここで確かめましょう</h2>
@@ -162,10 +190,8 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
         <p className="interruption-note">{INTERRUPTION_NOTE}</p>
       </div>
 
-      <PublicSources actions={orderedActions} sourcesFor={sourcesFor} />
-
       {/* 準備行動といつやるかは、はじめに・③確認と同じ大きなカード（.mode-card。中は見えないラジオ） */}
-      <h2>次の準備を1つ決める</h2>
+      <h2 id={PREP_CARDS_ID}>次の準備を1つ決める</h2>
       <fieldset className="mode-cards prep-cards">
         <legend>準備行動</legend>
         {orderedActions.map((a) => (
@@ -180,7 +206,11 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
             />
             <SourceIcon id={PREP_ICON[a.id]} className="mode-card-icon" />
             <span className="mode-card-text">
+              {recommended.has(a.id) && (
+                <span className="mode-card-badge">{NEXT_STEP_LABEL}</span>
+              )}
               <span className="mode-card-label">{a.label}</span>
+              <span className="mode-card-description">{PREP_ACTION_EFFECTS[a.id]}</span>
             </span>
             <span className="mode-card-mark" aria-hidden="true">
               ✓
@@ -219,6 +249,65 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
       >
         これに決める
       </button>
+
+      <PublicSources actions={orderedActions} sourcesFor={sourcesFor} />
+
+      {/* ここから下は畳んでおく。出来事と立て直し、5つの観点、回答の原文、記録の形（消さない。PRD ⑥） */}
+      <details className="review-details">
+        <summary>{DETAILS_SUMMARY}</summary>
+
+        {state.event !== null && (
+          <>
+            <h2>{REVIEW_EVENT_HEADING}</h2>
+            <div className="event event-summary">
+              <EventSummary event={state.event} />
+              {recovery.length > 0 && (
+                <>
+                  <h3>{REVIEW_RECOVERY_LABEL}</h3>
+                  <ol className="transcript">
+                    {recovery.map((a, i) => (
+                      <Exchange key={`recovery-${i}`} answer={a} />
+                    ))}
+                  </ol>
+                </>
+              )}
+            </div>
+          </>
+        )}
+
+        <h2>5つの観点</h2>
+        <dl className="viewpoints">
+          {VIEWPOINT_ORDER.map((v) => (
+            <div key={v} className="viewpoint">
+              <dt>{VIEWPOINT_LABELS[v]}</dt>
+              <dd>{JUDGMENT_LABELS[judgments[v]]}</dd>
+            </div>
+          ))}
+        </dl>
+
+        <h2>あなたの回答（入力したまま）</h2>
+        <h3>出来事の前</h3>
+        <ol className="transcript">
+          {first.map((a, i) => (
+            <Exchange key={`first-${i}`} answer={a} />
+          ))}
+        </ol>
+        {state.event !== null && (
+          <div className="event event-divider">
+            <h3>出来事</h3>
+            <EventSummary event={state.event} />
+          </div>
+        )}
+        <h3>出来事の後</h3>
+        <ol className="transcript">
+          {second.map((a, i) => (
+            <Exchange key={`second-${i}`} answer={a} />
+          ))}
+        </ol>
+
+        {/* 救護所に渡す記録の形（Issue #97）。回答を原文のまま項目に並べるだけで、要約しない */}
+        <RecordCard answers={state.answers} />
+      </details>
     </section>
   );
 }
