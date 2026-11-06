@@ -269,6 +269,11 @@ describe("監査役の出力の扱い", () => {
     expect(parseAuditOutput("[]", summary)).toBeNull();
   });
 
+  it("指摘があるのに1つも形が合わないときは null（指摘0件の監査済みと見分ける）", () => {
+    expect(parseAuditOutput('{"findings":[{"kind":"meaning_change","aspect":"current","item_index":0}]}', summary)).toBeNull();
+    expect(parseAuditOutput('{"findings":[]}', summary)).toEqual([]);
+  });
+
   it("理由の文が助言・診断に見える・長すぎるときは、種類ごとの固定文に替える", () => {
     expect(safeReason("meaning_changed", "量は2錠に増やしてください")).toBe(AUDIT_FIXED_REASONS.meaning_changed);
     expect(safeReason("advice_or_diagnosis", "高血圧の可能性があります")).toBe(AUDIT_FIXED_REASONS.advice_or_diagnosis);

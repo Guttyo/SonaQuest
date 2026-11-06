@@ -105,6 +105,8 @@ export function parseAuditOutput(raw: string, summary: KarteSummary): AuditFindi
     const k = kind as AuditFindingKind;
     findings.push({ kind: k, aspect: aspect as AuditFinding["aspect"], itemIndex, reason: safeReason(k, reason) });
   }
+  // 指摘があったのに1つも形が合わないときは、指摘0件（監査済み）と見分けがつかないので「監査できず」にする
+  if (list.length > 0 && findings.length === 0) return null;
   return findings;
 }
 

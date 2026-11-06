@@ -20,7 +20,7 @@
 - **マーカーを含むファイルは、シェルで書き換えられない**（hook が止める）。`docs/decisions.md` への追記や、マーカーのある下書きの文の修正は Edit で行った。
 
 ## 確かめたこと
-- 2026-11-06、Windows 11、Node.js 26.13、Vitest 5.1：`npm --prefix web test` 834/834（`codeCheck.test.ts` 20件、`karte.test.ts` 30件を含む）、`npm --prefix web run typecheck`、`npm --prefix web run bundle:worker`（dry-run、`KARTE_AUDIT_AGENT_ID` が空の vars で束ねられた）、`npm --prefix web run setup:karte-audit`（表示だけ。何も作らない）。
+- 2026-11-06、Windows 11、Node.js 26.13、Vitest 5.1：`npm --prefix web test` 835/835（`codeCheck.test.ts` 20件、`karte.test.ts` 31件を含む。PR #145 のレビューの指摘1件への対応を含む）、`npm --prefix web run typecheck`、`npm --prefix web run bundle:worker`（dry-run、`KARTE_AUDIT_AGENT_ID` が空の vars で束ねられた）、`npm --prefix web run setup:karte-audit`（表示だけ。何も作らない）。
 - 公式ドキュメント（Managed Agents の overview・quickstart・sessions など）と SDK 1.3.0 の型：セッションの削除は動いている間はできず、`user.interrupt` で止めてから削除する。Agent の作成の `tools` は型で省略できるが、省略したときにツールなしになるとは書かれていない。
 
 ## 推測
