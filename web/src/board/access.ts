@@ -33,6 +33,12 @@ export function makeSession(site: SiteId, staff: string): DemoSession | null {
   return { site, staff };
 }
 
+/** 試験と見本のため：その救護所の最初の担当者でログインした状態（本部を渡すと救護所A） */
+export function sessionFor(site: SiteId): DemoSession {
+  const s = LOGIN_SITES.includes(site) ? site : LOGIN_SITES[0];
+  return { site: s, staff: staffFor(s)[0] };
+}
+
 /** その救護所の在庫・カルテを編集できるか（自分の救護所だけ） */
 export function canEdit(session: DemoSession | null, site: SiteId): boolean {
   return session !== null && session.site === site;

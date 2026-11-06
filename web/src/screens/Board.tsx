@@ -79,6 +79,26 @@ import {
 import { BoardMap } from "./BoardMap";
 import { BoardChat } from "../board/chat/BoardChat";
 import { PatientArrivals } from "../board/PatientArrivals";
+import { appendAccess, authorizeWrite, canEdit as canEditSite, makeSession, type AccessEntry, type AccessEventKind, type DemoSession } from "../board/access";
+import type { AuthorizeKind } from "../board/authorizeContract";
+import { BOARD_PERMISSION, CHART_REVIEW_TEXT } from "../board/accessText";
+import {
+  AccessLogPanel,
+  BoardAccessProvider,
+  BoardLogin,
+  ChartReviewPanel,
+  PermissionNote,
+  SessionBar,
+  useBoardAccess,
+  type BoardAccessValue,
+  type ChartOp,
+  type PermissionNotice,
+} from "../board/BoardAccess";
+import { sampleAudit } from "../board/review";
+import { nextRecordId } from "../board/demo";
+
+/** 見本の監査の結果が届くまでの時間（ミリ秒。「AI監査中」が画面で見えるように。Issue #141） */
+const SAMPLE_AUDIT_MS = 1500;
 
 /** 上部タブ（Issue #107）。「連絡」は掲示板チャット（Issue #121） */
 export type BoardTab = "overview" | "stock" | "supply" | "records" | "demo" | "chat";
@@ -95,6 +115,10 @@ interface Props {
   initialState?: DemoState;
   /** 最初からカルテ入力の専用画面で開く（initialSite の救護所。URL の ?view=intake&site=…。Issue #114） */
   initialIntake?: boolean;
+  /** 最初のログイン（試験のため）。省くとデモ用のログインの画面から始める（Issue #141） */
+  initialSession?: DemoSession | null;
+  /** 最初のアクセス記録（試験のため） */
+  initialAccessLog?: AccessEntry[];
 }
 
 const fmt = new Intl.NumberFormat("ja-JP");
@@ -314,12 +338,16 @@ function IntakeForm({
   fixedSite,
   defaultSite,
   onGoSupply,
+  canWrite = () => true,
 }: {
   state: DemoState;
-  onAdd: (a: DemoAction) => void;
+  /** 加えたら true。権限の確認で拒まれたら false（Issue #141） */
+  onAdd: (a: Extract<DemoAction, { type: "add_record" }>) => Promise<boolean> | boolean;
   fixedSite?: SiteId;
   defaultSite?: SiteId;
   onGoSupply?: () => void;
+  /** その救護所に書き込めるか（ログイン中の救護所だけ。Issue #141） */
+  canWrite?: (site: SiteId) => boolean;
 }) {
   const [chosen, setChosen] = useState<SiteId>(defaultSite ?? DEMO_SITES[0]);
   const site = fixedSite ?? chosen;
@@ -331,19 +359,26 @@ function IntakeForm({
   const [message, setMessage] = useState("");
   const unit = STOCK.find((s) => s.site === site && s.item === item)?.unit ?? "";
 
-  function submit(e: FormEvent) {
+  const writable = canWrite(site);
+
+  async function submit(e: FormEvent) {
     e.preventDefault();
+    if (!writable) return;
     const n = Number(count);
     const d = Number(days);
     const prescription = item !== "" && n > 0 ? { item, qty: Math.floor(n), days: d > 0 ? Math.floor(d) : 0 } : null;
-    onAdd({
+    const before = state.stock.find((s) => s.site === site && s.item === item)?.onHand ?? 0;
+    const added = await onAdd({
       type: "add_record",
       site,
       name: name.trim() === "" ? nextFictionalName(state.records.length) : name.trim(),
       items: BOARD_INTAKE_FORM.items.map((label, i) => ({ label, value: values[i].trim() === "" ? "（未記入）" : values[i] })),
       prescription,
     });
-    const before = state.stock.find((s) => s.site === site && s.item === item)?.onHand ?? 0;
+    if (!added) {
+      setMessage("");
+      return;
+    }
     const undelivered = prescription ? Math.max(0, prescription.qty - Math.floor(before)) : 0;
     setMessage(
       `${site}${BOARD_INTAKE_FORM.added}${undelivered > 0 ? ` ${BOARD_INTAKE_FORM.undelivered}${item} ${fmt.format(undelivered)}${unit}` : ""}`,
@@ -417,9 +452,14 @@ function IntakeForm({
           </label>
         </div>
       </fieldset>
-      <button type="submit" className="secondary">
+      <button type="submit" className="secondary" disabled={!writable} aria-describedby={writable ? undefined : "board-intake-readonly"}>
         {BOARD_INTAKE_FORM.submit}
       </button>
+      {!writable && (
+        <p className="board-note" id="board-intake-readonly">
+          {BOARD_PERMISSION.readOnly(site)}
+        </p>
+      )}
       <p className="board-form-message" role="status" aria-live="polite">
         {message}
       </p>
@@ -437,11 +477,14 @@ function IntakeForm({
  * 開くと記録の履歴、最新の記録の6項目（本人の言葉のまま）、医師の処方の履歴
  */
 function ChartCard({ chart, open }: { chart: PatientChart; open: boolean }) {
+  const access = useBoardAccess();
   const latest = chart.visits[0];
   const title = chart.name === null ? `番号 ${chart.id}` : `${chart.name}（架空）`;
+  const review = access?.reviews[chart.key];
   return (
-    <li className={`board-chart-card ${chart.added ? "board-chart-added" : ""}`}>
-      <details open={open}>
+    <li className={`board-chart-card ${chart.added ? "board-chart-added" : ""}`} data-chart={chart.id}>
+      {/* 開いたときだけ「カルテを開いた」をアクセス記録に残す（閉じたときは残さない。Issue #141） */}
+      <details open={open} onToggle={(e) => e.currentTarget.open && access?.logOpen(chart)}>
         <summary>
           <span className="board-chart-head">
             <b>{title}</b>
@@ -449,6 +492,11 @@ function ChartCard({ chart, open }: { chart: PatientChart; open: boolean }) {
             <span className="board-chart-flags">
               <Pill level={chart.hasPrescription ? "ok" : "none"}>{chart.hasPrescription ? BOARD_RECORDS.flagPrescribed : BOARD_RECORDS.flagNone}</Pill>
               {chart.undelivered > 0 && <Pill level="bad">{BOARD_RECORDS.flagUndelivered}</Pill>}
+              {review !== undefined && (
+                <Pill level={review.status === "human_confirmed" ? "ok" : "warn"}>
+                  {review.status === "human_confirmed" ? CHART_REVIEW_TEXT.status.human_confirmed : CHART_REVIEW_TEXT.pendingFlag}
+                </Pill>
+              )}
             </span>
             <span className="board-chart-sub">
               {BOARD_RECORDS.visits} {fmt.format(chart.visits.length)} {BOARD_RECORDS.count}・{latest.at}
@@ -493,6 +541,7 @@ function ChartCard({ chart, open }: { chart: PatientChart; open: boolean }) {
                 : BOARD_RECORDS.prescriptionNone}
             </p>
           </section>
+          <ChartReviewPanel chart={chart} />
         </div>
       </details>
     </li>
@@ -1043,8 +1092,26 @@ function SiteDetail({
  * 架空データ（web/src/board/data.ts）から始め、デモの reducer（demo.ts）でメモリの中だけ動かす。Claude も API も保存も使わない。
  * 焦点は App の画面遷移の処理（[data-scroll-target]）に任せる
  */
-export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "overview", initialState, initialIntake = false }: Props) {
+export function Board({
+  onBack,
+  reducedMotion,
+  initialSite = HQ,
+  initialTab = "overview",
+  initialState,
+  initialIntake = false,
+  initialSession = null,
+  initialAccessLog = [],
+}: Props) {
   const [state, dispatch] = useReducer(demoReducer, initialState, (s) => s ?? initialDemo());
+  // デモ用ログインとアクセス記録（Issue #141）。どちらもメモリだけで、画面を離れる・読み込み直すと消える
+  const [session, setSession] = useState<DemoSession | null>(initialSession);
+  const [accessLog, setAccessLog] = useState<AccessEntry[]>(initialAccessLog);
+  const [aiStopped, setAiStopped] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<PermissionNotice | null>(null);
+  // 非同期の処理（Worker の応答・見本の監査）の後でも、今の時計・ログイン・AI の停止を読むため
+  const live = useRef({ minutes: state.minutes, session, aiStopped });
+  live.current = { minutes: state.minutes, session, aiStopped };
   const [selected, setSelected] = useState<SiteId>(initialSite);
   // カルテ入力の専用画面で開いている救護所（Issue #114）。開いているあいだはボード全体をこの画面にする
   const startIntake = initialIntake && initialSite !== HQ ? initialSite : null;
@@ -1106,6 +1173,83 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
     setIntake(site);
   }
 
+  // ---- デモ用ログイン・権限・アクセス記録（Issue #141） ----
+  /** アクセス記録に1行足す。時刻・救護所・担当者・出来事・対象だけ（カルテの中身・患者の氏名は入れない） */
+  function logAccess(kind: AccessEventKind, target: string, who: DemoSession | null = live.current.session) {
+    if (who === null) return;
+    const entry: AccessEntry = { at: live.current.minutes, site: who.site, staff: who.staff, kind, target };
+    setAccessLog((log) => appendAccess(log, entry));
+  }
+  function login(site: SiteId, staff: string) {
+    const s = makeSession(site, staff);
+    if (s === null) return;
+    setSession(s);
+    setNotice(null);
+    logAccess("login", "", s);
+    // 自分の救護所の画面から始める（URL でカルテ入力の専用画面を開いたときは、その画面のまま）
+    if (intake === null) setSelected(s.site);
+  }
+  function logout() {
+    logAccess("logout", "");
+    setSession(null);
+    setNotice(null);
+    setIntake(null);
+  }
+  /**
+   * 書き込みの前の権限の確認。画面の判定に加えて Worker（/api/board/authorize）に確かめ、許されたときだけ true。
+   * 拒まれたら「権限がなく書き込みを拒否した」を残す。Worker に接続できないときは画面側の判定だけで進める
+   */
+  async function guarded(target: SiteId, kind: AuthorizeKind, targetLabel: string): Promise<boolean> {
+    const who = live.current.session;
+    if (who === null) return false;
+    setBusy(true);
+    try {
+      const r = await authorizeWrite(who, target, kind);
+      setNotice({ site: target, allowed: r.allowed, via: r.via });
+      if (!r.allowed) logAccess("write_denied", targetLabel, who);
+      return r.allowed;
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function addRecord(a: Extract<DemoAction, { type: "add_record" }>): Promise<boolean> {
+    const id = nextRecordId(state, a.site);
+    if (!(await guarded(a.site, "chart_add", id))) return false;
+    dispatch(a);
+    logAccess("chart_edit", id);
+    return true;
+  }
+  async function chartOp(chart: PatientChart, op: ChartOp) {
+    const who = live.current.session;
+    if (who === null) return;
+    const actor = { site: who.site, staff: who.staff };
+    const kind: AuthorizeKind = op === "draft" ? "chart_summary" : op === "audit" ? "chart_audit" : "chart_confirm";
+    if (!(await guarded(chart.site, kind, chart.id))) return;
+    if (op === "draft") {
+      dispatch({ type: "chart_draft", key: chart.key, actor });
+      logAccess("ai_summary", chart.id, who);
+    } else if (op === "audit") {
+      dispatch({ type: "chart_audit_start", key: chart.key, actor });
+      // 見本の監査（Issue #142 の監査役が入るまで）。少し待ってから結果を返す。AI を止めた状態なら「監査できず」
+      window.setTimeout(() => {
+        dispatch({ type: "chart_audit_result", key: chart.key, result: sampleAudit(chart.key, live.current.aiStopped) });
+        logAccess("audit_result", chart.id, who);
+      }, SAMPLE_AUDIT_MS);
+    } else {
+      dispatch({ type: "chart_confirm", key: chart.key, actor });
+      logAccess("human_confirm", chart.id, who);
+    }
+  }
+  /** 拒否の確認のデモ：ほかの救護所のカルテに記録を加える要求を Worker に送る（加える中身は無い） */
+  async function tryWrite(site: SiteId) {
+    await guarded(site, "chart_add", `${site}のカルテ`);
+  }
+  const canEdit = (site: SiteId) => canEditSite(session, site);
+  const access: BoardAccessValue | null =
+    session === null
+      ? null
+      : { session, canEdit, reviews: state.chartReview, aiStopped, busy, notice, chartOp, logOpen: (c) => logAccess("chart_open", c.id), tryWrite };
+
   // 印の並びは固定のルール（在庫切れ → 未交付 → 記録の未着・転記待ち → 人員）。先頭の2つだけを出し、残りは「ほか N 件」（Issue #113）
   const marksFor = (site: SiteId) => {
     const o = overview.find((x) => x.site === site);
@@ -1133,6 +1277,16 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
   const siteStock = state.stock.filter((r) => r.site === selected);
   const siteInbound = state.inbound.filter((r) => r.to === selected || r.from === selected || r.forSite === selected);
 
+  // デモ用のログインの前は、ログインの画面だけを出す（アクセス記録はログアウトの後も見られる）
+  if (session === null || access === null) {
+    return (
+      <>
+        <BoardLogin onLogin={login} onBack={onBack} />
+        <AccessLogPanel log={accessLog} />
+      </>
+    );
+  }
+
   if (intake !== null) {
     const siteCharts = charts.filter((c) => c.site === intake);
     const back = (
@@ -1141,9 +1295,11 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
       </button>
     );
     return (
+      <BoardAccessProvider value={access}>
       <section className="screen board board-intake-screen" aria-labelledby="board-intake-title" data-intake={intake}>
         <header className="board-intake-head">
           {back}
+          <SessionBar session={session} onLogout={logout} />
           <h1 id="board-intake-title" data-scroll-target tabIndex={-1} ref={intakeTitleRef}>
             {intake}
             <span className="board-intake-title-sub">{BOARD_INTAKE_MODE.title}</span>
@@ -1157,7 +1313,8 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
           </p>
         </header>
         <div className="board-intake-body">
-          <IntakeForm key={intake} state={state} onAdd={dispatch} fixedSite={intake} onGoSupply={goSupplyHq} />
+          <PermissionNote site={intake} />
+          <IntakeForm key={intake} state={state} onAdd={addRecord} canWrite={canEdit} fixedSite={intake} onGoSupply={goSupplyHq} />
           <PrescriptionTotals state={state} site={intake} headingId="board-intake-rx" />
           <p className="board-note" data-testid="intake-chart-count">
             {BOARD_INTAKE_MODE.count} {fmt.format(siteCharts.length)} {BOARD_RECORDS.count}
@@ -1165,12 +1322,16 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
           {back}
         </div>
       </section>
+      <AccessLogPanel log={accessLog} />
+      </BoardAccessProvider>
     );
   }
 
   return (
+    <BoardAccessProvider value={access}>
     <section className="screen board" aria-labelledby="board-title">
       <header className="board-head">
+        <SessionBar session={session} onLogout={logout} />
         <div className="board-head-title">
           <h1 id="board-title" data-scroll-target tabIndex={-1}>
             {BOARD_TITLE}
@@ -1210,6 +1371,11 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
           <button type="button" className="secondary" onClick={() => dispatch({ type: "reset" })}>
             {BOARD_DEMO.reset}
           </button>
+          {/* AI を止めた状態の確認（Issue #141）。止めると監査は「監査できず」になり、人の確認で進める */}
+          <label className="board-ai-stop">
+            <input type="checkbox" checked={aiStopped} onChange={(e) => setAiStopped(e.target.checked)} />
+            {CHART_REVIEW_TEXT.aiStop}
+          </label>
         </div>
         </details>
       </header>
@@ -1310,6 +1476,8 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
               {!isHq && districtOf(selected) && <span className="board-count">{districtOf(selected)?.name}</span>}
               {showPanelTab && <span className="board-panel-tab">{tabLabel(tab)}</span>}
             </h2>
+            {/* 救護所の画面では、編集できるか・閲覧のみかを文字で出す（連絡のタブは除く。Issue #141） */}
+            {!isHq && tab !== "chat" && <PermissionNote site={selected} />}
 
             {/* 本部・全体（Issue #113）：見る順は 数字 → 確認・手配が必要な事項 → 地図。指標の札は上段に横一列 */}
             {isHq && tab === "overview" && (
@@ -1730,9 +1898,16 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
                 <section aria-labelledby="board-intake-open" className="board-intake-open">
                   <h3 id="board-intake-open">{BOARD_INTAKE_FORM.title}</h3>
                   <p className="board-note">{BOARD_INTAKE_MODE.openNote}</p>
-                  <button type="button" className="board-approve board-intake-button" ref={intakeOpenRef} onClick={() => openIntake(selected)}>
+                  <button
+                    type="button"
+                    className="board-approve board-intake-button"
+                    ref={intakeOpenRef}
+                    disabled={!canEdit(selected)}
+                    onClick={() => openIntake(selected)}
+                  >
                     {BOARD_INTAKE_MODE.open}
                   </button>
+                  {!canEdit(selected) && <p className="board-note">{BOARD_PERMISSION.readOnly(selected)}</p>}
                 </section>
                 <PatientArrivals state={state} site={selected} />
                 <section aria-labelledby="board-site-charts">
@@ -1766,9 +1941,17 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
                   <p className="board-note">{BOARD_INTAKE_MODE.openNote}</p>
                   <div className="board-intake-launch">
                     {(isHq ? DEMO_SITES : [selected]).map((s) => (
-                      <button key={s} type="button" className="secondary board-intake-button" data-intake-open={s} onClick={() => openIntake(s)}>
+                      <button
+                        key={s}
+                        type="button"
+                        className="secondary board-intake-button"
+                        data-intake-open={s}
+                        disabled={!canEdit(s)}
+                        onClick={() => openIntake(s)}
+                      >
                         {s}
                         {BOARD_INTAKE_MODE.openFor}
+                        {!canEdit(s) && `（${BOARD_PERMISSION.readOnly(s)}）`}
                       </button>
                     ))}
                   </div>
@@ -1812,5 +1995,7 @@ export function Board({ onBack, reducedMotion, initialSite = HQ, initialTab = "o
         </div>
       </div>
     </section>
+    <AccessLogPanel log={accessLog} />
+    </BoardAccessProvider>
   );
 }

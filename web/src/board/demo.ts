@@ -545,6 +545,12 @@ function tick(state: DemoState, hours: number): DemoState {
   return { ...state, minutes: to, stock, inbound, sync, log: [...log.sort((a, b) => b.at - a.at), ...state.log] };
 }
 
+/** 次に加わる記録の番号（「A-D01」など。アクセス記録の対象にも使う。Issue #141） */
+export function nextRecordId(state: DemoState, site: SiteId): string {
+  const n = state.records.filter((r) => r.site === site).length + 1;
+  return `${site.replace("救護所", "")}-D${String(n).padStart(2, "0")}`;
+}
+
 /**
  * 救護所の記録に1人を加える（架空の問診の入力と、架空の患者の到着が同じ経路を通る。Issue #102・#122）。
  * 記録に架空の氏名と番号で加え、今日の患者を1人足し、処方の品目ごとに数量だけ現地の在庫から引き、
@@ -564,8 +570,7 @@ function admit(
     patientNo?: number;
   },
 ): { state: DemoState; id: string } {
-  const n = state.records.filter((r) => r.site === a.site).length + 1;
-  const id = `${a.site.replace("救護所", "")}-D${String(n).padStart(2, "0")}`;
+  const id = nextRecordId(state, a.site);
   const stock = state.stock.map((r) => ({ ...r }));
   const needs = [...state.needs];
   const log: DemoLog[] = [

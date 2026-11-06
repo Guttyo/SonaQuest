@@ -78,6 +78,8 @@ export const CHART_REVIEW_TEXT = {
     audit_unavailable: "監査できず（確認待ち）",
     human_confirmed: "人が確認済み",
   },
+  /** カルテの見出しの印（下書きがあって人がまだ確認していない） */
+  pendingFlag: "確認待ち",
   makeDraft: "AI 下書きを作る（見本）",
   sendAudit: "AI 監査に出す",
   confirm: "内容を確かめて、確認済みにする",
