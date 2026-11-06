@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { duckBgm } from "../bgm/browser";
 import { createBrowserSpeaker, registerVoiceStopper } from "./browser";
 import type { Speaker, SpeakerSnapshot } from "./speaker";
-import { PushToTalk, browserRecognitionFactory, type MicStatus, type TalkSnapshot } from "./talk";
+import { PushToTalk, TALK_STYLE, browserRecognitionFactory, type MicStatus, type TalkSnapshot, type TalkStyle } from "./talk";
 
 const SPEAKER_IDLE: SpeakerSnapshot = { engine: "elevenlabs", loading: false, speaking: false, blocked: false };
 
@@ -63,6 +63,7 @@ export function usePushToTalk(
   beforeListen: () => void,
   lostMic: MicStatus | null,
   onMicLost: (mic: MicStatus) => void,
+  style: TalkStyle = TALK_STYLE,
 ): { talk: PushToTalk | null; snapshot: TalkSnapshot } {
   const lostRef = useRef(lostMic);
   lostRef.current = lostMic;
@@ -82,6 +83,7 @@ export function usePushToTalk(
     const created = new PushToTalk({
       create: browserRecognitionFactory(),
       mic: lostRef.current ?? undefined,
+      style,
       onText: (text) => onTextRef.current(text),
       beforeListen: () => beforeRef.current(),
       onChange: (next) => {
@@ -97,7 +99,7 @@ export function usePushToTalk(
       created.dispose();
       setTalk(null);
     };
-  }, [enabled]);
+  }, [enabled, style]);
   useEffect(() => {
     if (speaking) talk?.abort();
   }, [speaking, talk]);

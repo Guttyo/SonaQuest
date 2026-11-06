@@ -21,7 +21,7 @@
   font: inherit;
   font-weight: var(--fw-bold);
   cursor: pointer;
-  /* 押し続ける操作で、画面のスクロール・文字の選択・長押しのメニューが出ないように */
+  /* 押す操作（ボードの文字起こしは押し続ける）で、画面のスクロール・文字の選択・長押しのメニューが出ないように */
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
