@@ -231,9 +231,15 @@
     grid-template-columns: 11em minmax(9em, 1.2fr) 5.5em 5.5em minmax(9em, 1.4fr) minmax(9em, 1.4fr);
     align-items: start;
   }
+  /* 見出しの行（.board-cases-head）を出す幅では、各行の列名は画面に出さない（Issue #159：同じ見出しの繰り返しをやめる）。
+     見出しの行は読み上げない（aria-hidden）ので、列名は読み上げ用に残す */
   .board-case-row .k {
-    display: block;
-    margin: 0;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   /* 「在庫切れ見込み（あと2.5日）」のような長い札は、列の幅で折り返す（隣の品目の列に重ねない） */
   .board-case-status .board-pill {
@@ -1262,6 +1268,41 @@
 .board-panel h3 {
   margin: 0;
   font-size: var(--fs-subheading);
+}
+
+/* 開閉できる欄（Issue #159）。見出しの行全体が押す的で、閉じていても件数が見える */
+.board-fold > details > summary {
+  position: relative;
+  display: block;
+  min-height: 44px;
+  padding: 10px 0 10px 24px;
+  cursor: pointer;
+  list-style: none;
+}
+.board-fold > details > summary::-webkit-details-marker {
+  display: none;
+}
+.board-fold > details > summary::before {
+  content: "▸";
+  position: absolute;
+  left: 4px;
+  top: 11px;
+  color: var(--ink-soft);
+}
+.board-fold > details[open] > summary::before {
+  content: "▾";
+}
+.board-fold > details > summary:focus-visible {
+  outline: 3px solid var(--focus, var(--mint-strong));
+  outline-offset: 2px;
+}
+.board-fold > details > summary h3 {
+  display: inline;
+}
+.board-fold-body {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
 }
 
 /* 本部の全体：救護所ごとのカード（押すとその救護所の詳細） */
