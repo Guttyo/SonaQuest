@@ -13,7 +13,7 @@ import {
   type ChatStatus,
   type ChatTurnRequest,
 } from "./contract";
-import { CHAT_FIXED } from "./text";
+import { CHAT_FIXED, type ChatView } from "./text";
 
 export interface ChatPost {
   id: number;
@@ -282,5 +282,21 @@ export class ChatController {
   }
 }
 
+/**
+ * 別のタブ（在庫と発注など）へ移って戻ったときに、選んでいた欄とスクロールの位置を戻すための覚え（Issue #161）。
+ * ボードの画面はタブを替えると「連絡」の部品を外すので、部品の外（このメモリ）に持つ。保存はしない（タブを閉じると消える）
+ */
+export interface ChatViewMemory {
+  view: ChatView;
+  /** 欄ごとのスクロールの位置（px）。無い欄は、いちばん下（新しい書き込み）から見せる */
+  scrollTop: Partial<Record<ChatView, number>>;
+}
+
+export function newViewMemory(): ChatViewMemory {
+  return { view: "all", scrollTop: {} };
+}
+
 /** 画面で使う1つ（ブラウザのメモリにだけある。タブを閉じると消える） */
 export const boardChatController = new ChatController();
+/** 画面で使う欄とスクロールの覚え（ブラウザのメモリにだけある） */
+export const boardChatViewMemory: ChatViewMemory = newViewMemory();

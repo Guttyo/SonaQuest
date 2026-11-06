@@ -255,3 +255,147 @@
   border: 1px solid var(--line);
   border-left: 1px solid var(--line);
 }
+
+/* 吹き出し（Issue #161）：本部を右、救護所を左に分ける。AI の発言には印を付け、ボードの状態は変わらないことを上に示す。
+   上の説明は短くし、AI連絡の状態と操作中の役割を小さな札にする。375px で横にはみ出さない */
+.board-chat {
+  gap: 10px;
+}
+.board-chat-head {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.board-chat-lead {
+  margin: 0;
+  font-size: var(--fs-sub);
+  color: var(--ink-soft);
+}
+.board-chat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  min-width: 0;
+}
+.board-chat-chips .board-chat-phase,
+.board-chat-role {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  font-size: var(--fs-sub);
+  font-weight: var(--fw-bold);
+}
+.board-chat-chip-label {
+  font-size: var(--fs-caption);
+  font-weight: normal;
+  color: var(--ink-soft);
+}
+.board-chat-role {
+  border-color: var(--ink);
+}
+.board-chat-stopped {
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--orange);
+  border-radius: 4px;
+  background: var(--alert-bg);
+  color: var(--orange-strong-text);
+  font-size: var(--fs-sub);
+}
+.board-chat-about {
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+.board-chat-about summary {
+  cursor: pointer;
+  min-height: 24px;
+}
+.board-chat-about p {
+  margin: 4px 0 0;
+}
+.board-chat-boundary {
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px dashed var(--control-border);
+  border-radius: 4px;
+  background: var(--surface);
+  font-size: var(--fs-caption);
+}
+.board-chat-role-note {
+  margin: 0;
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+
+.board-chat-log {
+  gap: 12px;
+  /* 縦のスクロールバーが右の吹き出し（本部）に重ならないよう、場所を空けておく */
+  scrollbar-gutter: stable;
+}
+.board-chat-post {
+  gap: 3px;
+  max-width: min(88%, 34rem);
+}
+.board-chat-post.side-site {
+  justify-self: start;
+  justify-items: start;
+}
+.board-chat-post.side-hq {
+  justify-self: end;
+  justify-items: end;
+}
+.board-chat-post.side-hq .board-chat-meta {
+  justify-content: flex-end;
+}
+.board-chat-bubble {
+  position: relative;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+/* 吹き出しの角：救護所は左上、本部は右上を尖らせる */
+.board-chat-post.side-site .board-chat-bubble {
+  border-radius: 0 12px 12px 12px;
+  background: var(--surface);
+}
+.board-chat-post.side-hq .board-chat-bubble {
+  border-radius: 12px 0 12px 12px;
+  background: var(--cream);
+}
+.board-chat-post.side-hq.mine .board-chat-bubble {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--surface);
+}
+.board-chat-post.fixed .board-chat-bubble {
+  border-style: dashed;
+}
+.board-chat-badge.agent {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--surface);
+  font-weight: var(--fw-bold);
+}
+.board-chat-badge.fixed {
+  border-style: dashed;
+}
+.board-chat-channel {
+  color: var(--ink-soft);
+}
+.board-chat-time {
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 480px) {
+  .board-chat-post {
+    max-width: 94%;
+  }
+  .board-chat-log {
+    padding: 10px 12px 10px 8px;
+  }
+}

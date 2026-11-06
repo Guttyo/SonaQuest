@@ -67,6 +67,28 @@ export const CHAT_TEXT = {
 } as const;
 
 /**
+ * 吹き出しの画面（Issue #161）で足した文。上の説明を短くし、AI の発言とボードの状態の境目と、操作中の役割を示す。
+ * もとの長い説明（CHAT_TEXT.lead）は「この掲示板について」を開くと読める。送る先と送るものの説明（startNote・注意文）は始めるボタンと入力欄のそばに残す
+ */
+// [TODO-OWNER: 掲示板チャットの吹き出しの画面で足した文言（Claude Code の下書き。Issue #161：短い説明・AI連絡の状態・AI の印・ボードは変わらない表示・操作中の役割）]
+export const CHAT_BUBBLE_TEXT = {
+  lead: "本部と救護所A〜Dの、薬剤以外の連絡の掲示板（架空）です。",
+  about: "この掲示板について",
+  aiStatusLabel: "AI連絡",
+  aiStatus: {
+    intro: "未開始（固定の掲示）",
+    live: "稼働中",
+    fallback: "停止（固定の掲示）",
+    finished: "上限で停止",
+  },
+  operatingRoleLabel: "操作中の役割",
+  operatingRole: "本部（HQ）",
+  operatingRoleNote: "救護所でログインしていても、ここでは本部として書き込みます。",
+  aiBadge: "AI・訓練上の発言",
+  boardUnchanged: "AI の発言で「送ります」「手配します」とあっても、ボードの搬送・発注の状態は変わりません。",
+} as const;
+
+/**
  * 送る前の注意文（オーナーの指示の文に沿った下書き）。書き込みは Anthropic のセッションに送られ、そこに残る
  */
 // [TODO-OWNER: 掲示板チャットの送信前の注意文（Claude Code の下書き。Issue #121 の文に沿った）]
@@ -87,7 +109,7 @@ const count = (n: number | null, unit: string) => (n === null ? "不明" : `${n}
 // [TODO-OWNER: 掲示板チャットの固定の掲示のひな形（Claude Code の下書き）]
 export const CHAT_FIXED = {
   siteReport: (s: ChatSiteStatus) =>
-    `報告：今日の患者 ${count(s.patients, "人")}、不足が出ている品目 ${s.shortItems} 件、薬剤師の不足 ${s.pharmacistsShort} 人、記録の形になっていない ${count(s.pendingRecords, "件")}。最終報告 ${ago(s.lastReportMinutesAgo)}。`,
+    `報告：今日の患者 ${count(s.patients, "人")}、不足が出ている品目 ${s.shortItems} 件、薬剤師の不足 ${s.pharmacistsShort} 人、未着の記録 ${count(s.notArrivedRecords, "件")}、転記待ちの記録 ${count(s.awaitingEntryRecords, "件")}。最終報告 ${ago(s.lastReportMinutesAgo)}。`,
   hqCommon: (status: ChatStatus) =>
     `全体：今日の患者 ${status.patientsToday} 人。不足が出ている救護所 ${status.shortageSites} か所。各救護所は次の報告をお願いします。`,
   hqDm: (s: ChatSiteStatus) => `本部です。最終報告 ${ago(s.lastReportMinutesAgo)}。次の報告をお願いします。`,

@@ -34,8 +34,10 @@ export interface ChatSiteStatus {
   shortItems: number;
   /** 足りない薬剤師の人数 */
   pharmacistsShort: number;
-  /** 本部で記録の形になっていない数。分からなければ null */
-  pendingRecords: number | null;
+  /** 未着：紙の記録が本部にまだ届いていない数。分からなければ null（Issue #161 で転記待ちと分けた） */
+  notArrivedRecords: number | null;
+  /** 転記待ち：本部に届いたが、まだ記録の形にしていない数。分からなければ null */
+  awaitingEntryRecords: number | null;
   /** 最終報告から何分たったか。分からなければ null */
   lastReportMinutesAgo: number | null;
 }
@@ -111,17 +113,19 @@ export function parseChatSessionRequest(json: unknown): ChatSessionRequest | nul
 }
 
 function parseSiteStatus(v: unknown): ChatSiteStatus | null {
-  const keys = ["site", "patients", "shortItems", "pharmacistsShort", "pendingRecords", "lastReportMinutesAgo"];
+  const keys = ["site", "patients", "shortItems", "pharmacistsShort", "notArrivedRecords", "awaitingEntryRecords", "lastReportMinutesAgo"];
   if (!isRecord(v) || !hasOnlyKeys(v, keys)) return null;
   if (!isOneOf(CHAT_SHELTERS, v.site)) return null;
   if (!isCountOrNull(v.patients) || !isCount(v.shortItems) || !isCount(v.pharmacistsShort)) return null;
-  if (!isCountOrNull(v.pendingRecords) || !isCountOrNull(v.lastReportMinutesAgo)) return null;
+  if (!isCountOrNull(v.notArrivedRecords) || !isCountOrNull(v.awaitingEntryRecords)) return null;
+  if (!isCountOrNull(v.lastReportMinutesAgo)) return null;
   return {
     site: v.site,
     patients: v.patients,
     shortItems: v.shortItems,
     pharmacistsShort: v.pharmacistsShort,
-    pendingRecords: v.pendingRecords,
+    notArrivedRecords: v.notArrivedRecords,
+    awaitingEntryRecords: v.awaitingEntryRecords,
     lastReportMinutesAgo: v.lastReportMinutesAgo,
   };
 }

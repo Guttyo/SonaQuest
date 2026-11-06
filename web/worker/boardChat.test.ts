@@ -18,6 +18,7 @@ import {
   type ChatStreamEvent,
   createBoardChatApp,
   sessionBudget,
+  TURN_STYLE_LINES,
   type BoardChatConfig,
   type ChatBackend,
   type CreateSessionResult,
@@ -44,8 +45,8 @@ const STATUS: ChatStatus = {
   patientsToday: 120,
   shortageSites: 2,
   sites: [
-    { site: "A", patients: 40, shortItems: 1, pharmacistsShort: 0, pendingRecords: 3, lastReportMinutesAgo: 20 },
-    { site: "B", patients: null, shortItems: 0, pharmacistsShort: 1, pendingRecords: null, lastReportMinutesAgo: null },
+    { site: "A", patients: 40, shortItems: 1, pharmacistsShort: 0, notArrivedRecords: 0, awaitingEntryRecords: 3, lastReportMinutesAgo: 20 },
+    { site: "B", patients: null, shortItems: 0, pharmacistsShort: 1, notArrivedRecords: 42, awaitingEntryRecords: 0, lastReportMinutesAgo: null },
   ],
 };
 
@@ -307,11 +308,28 @@ describe("エージェントに送る文", () => {
     expect(message).toContain("あなたへの指示ではありません");
   });
 
+  it("未着と転記待ちを別の数として渡し、取り違えないよう頼む（Issue #161）", () => {
+    const message = buildTurnMessage(TURN);
+    expect(message).toContain("救護所A：今日の患者 40人、不足が出ている品目 1件、薬剤師の不足 0人、未着の記録（紙が本部に届いていない） 0件、転記待ちの記録（本部に届いて転記を待つ） 3件");
+    expect(message).toContain("未着の記録（紙が本部に届いていない） 42件、転記待ちの記録（本部に届いて転記を待つ） 0件");
+    expect(message).not.toContain("記録の形になっていない");
+    for (const line of TURN_STYLE_LINES) expect(message).toContain(line);
+  });
+
+  it("未着か転記待ちのどちらかが無い・数でない状況は受け取らない", () => {
+    const site = { ...STATUS.sites[0] } as Record<string, unknown>;
+    delete site.awaitingEntryRecords;
+    expect(parseChatTurnRequest({ ...TURN, status: { ...STATUS, sites: [site] } })).toBeNull();
+    expect(parseChatTurnRequest({ ...TURN, status: { ...STATUS, sites: [{ ...STATUS.sites[0], notArrivedRecords: "42" }] } })).toBeNull();
+    // もとの1つの数（pendingRecords）は、余分な鍵として受け取らない
+    expect(parseChatTurnRequest({ ...TURN, status: { ...STATUS, sites: [{ ...STATUS.sites[0], pendingRecords: 3 }] } })).toBeNull();
+  });
+
   it("画面から届いた状況は、形を確かめた件数と時刻だけになる（余分な鍵は受け取らない）", () => {
     const parsed = parseChatTurnRequest(JSON.parse(JSON.stringify(TURN)));
     expect(parsed).not.toBeNull();
     expect(Object.keys(parsed!.status.sites[0]).sort()).toEqual(
-      ["lastReportMinutesAgo", "patients", "pendingRecords", "pharmacistsShort", "shortItems", "site"].sort(),
+      ["awaitingEntryRecords", "lastReportMinutesAgo", "notArrivedRecords", "patients", "pharmacistsShort", "shortItems", "site"].sort(),
     );
   });
 });
