@@ -18,6 +18,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "web", "run", "dev:worker:lab"],
       "port": 8787
+    },
+    {
+      "name": "video-studio",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "video", "run", "studio", "--", "--port", "3000", "--no-open"],
+      "port": 3000
     }
   ]
 }

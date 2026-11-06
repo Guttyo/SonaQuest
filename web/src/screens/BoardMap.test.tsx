@@ -30,7 +30,7 @@ describe("架空の町の模式図（Issue #105）", () => {
     }
   });
 
-  it("経路の色と印は ROUTES の状態に合う（通行可＝緑、迂回＝黄の点線と迂回の道、通行止め＝赤の×）", () => {
+  it("経路の色と印は ROUTES の状態に合う（通行可＝灰、迂回＝黄の点線と迂回の道、通行止め＝赤の×）", () => {
     for (const r of ROUTES) {
       expect(html).toContain(`data-status="${r.status}"`);
     }

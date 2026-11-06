@@ -1427,47 +1427,249 @@ body,
   }
 }
 
-/* 振り返りの「手薄なところ」（A-05 の⑥）。観点の絵と、観点の名前・判定の文字を並べる。色だけに頼らず、判定は文字で示す */
-.weak-list {
+/* 振り返りの「まだ弱いところ → 次の一手」（A-05 の⑥、ADR-0054）。
+   観点の絵・短い名前・判定の文字、一言、準備行動1つと「これを準備する」。色だけに頼らず、判定は文字で示す */
+.next-step-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
-.weak-item {
+.next-step {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px 14px;
   border: 3px solid var(--orange);
   border-radius: 16px;
   background: var(--alert-bg);
 }
 
-.weak-icon {
+.next-step-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.next-step-icon {
   width: 40px;
   height: 40px;
   flex: none;
   color: var(--orange-strong);
 }
 
-.weak-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+.next-step-label {
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-emphasis);
+  line-height: var(--lh-heading);
 }
 
-.weak-label {
+.next-step-judgment {
+  font-size: var(--fs-sub);
+  color: var(--orange-strong-text);
   font-weight: var(--fw-bold);
 }
 
-.weak-judgment {
+.next-step-why {
+  margin: 0;
+}
+
+/* 「まず、ここから」の印（弱い観点が2つ以上のとき、最初の1枚に） */
+.next-step-tag {
+  margin-left: auto;
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-bold);
+  color: var(--surface);
+  background: var(--orange-strong);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+/* 2枚目からの短い行：枠を細く、絵を小さく、一言なし、ボタンを小さく */
+.next-step-compact {
+  gap: 4px;
+  padding: 8px 12px 10px;
+  border-width: 1px;
+  background: var(--surface);
+}
+
+.next-step-compact .next-step-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.next-step-compact .next-step-label {
+  font-size: var(--fs-body);
+}
+
+.next-step-compact .next-step-action {
+  padding-top: 4px;
+  border-top: none;
   font-size: var(--fs-sub);
-  color: var(--ink-soft);
+}
+
+.next-step-compact .next-step-pick {
+  min-height: 36px;
+  padding: 4px 12px;
+  font-size: var(--fs-sub);
+}
+
+.next-step-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--orange);
+}
+
+.next-step-action-text {
+  min-width: 0;
+  flex: 1 1 200px;
+}
+
+.next-step-pick {
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 2px solid var(--mint-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--mint-strong);
+  font-weight: var(--fw-bold);
+  cursor: pointer;
+}
+
+.next-step-pick[aria-pressed="true"] {
+  background: var(--mint-strong);
+  color: var(--surface);
+}
+
+.next-step-pick:focus-visible {
+  outline: 3px solid var(--orange-strong);
+  outline-offset: 2px;
+}
+
+/* 伝えられたこと（確認できた観点の短い名前を1行に） */
+.strong-points {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.strong-point {
+  color: var(--mint-strong);
+  font-weight: var(--fw-bold);
+}
+
+/* 「これを準備する」で送られてくる見出し。上の固定の帯に隠れないよう余白を取る */
+#prep-cards {
+  /* 固定の帯の高さ（.dialogue の --header-h と同じ式。振り返りは .dialogue の外なので写して持つ）＋ 8px */
+  scroll-margin-top: calc(max(10px, env(safe-area-inset-top)) + 55px + 8px);
+}
+
+/* 準備行動のカードの「次の一手」の印 */
+.mode-card-badge {
+  align-self: flex-start;
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-bold);
+  color: var(--orange-strong-text);
+  background: var(--alert-bg);
+  border: 1px solid var(--orange);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+/* 畳んである詳しい内容（出来事、5つの観点、回答の原文、記録の形） */
+.review-details {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 0 14px;
+}
+
+.review-details > summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 10px 0;
+  font-weight: var(--fw-bold);
+  cursor: pointer;
+}
+
+.review-details[open] > summary {
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 12px;
+}
+
+.review-details > :last-child {
+  margin-bottom: 14px;
+}
+
+/* 終わりの画面：決めた準備（絵付き）と、まだ弱いところの1行 */
+.decision-action {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.decision-icon {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  color: var(--mint-strong);
+}
+
+.decision-action p {
+  margin: 0;
+}
+
+.done-weak {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--alert-bg);
+  border: 1px solid var(--orange);
+}
+
+/* 終わりの画面の「メモに写す」：ボタン、写した知らせ、写す文（選んで写せる） */
+.done-memo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.done-memo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.done-memo-actions button {
+  flex: 1 1 160px;
+  margin: 0;
+}
+
+.done-memo-state {
+  min-height: 1.4em;
+  margin: 0;
+}
+
+.done-memo-text {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px dashed var(--line);
+  background: var(--surface);
+  font: inherit;
+  font-size: var(--fs-sub);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: all;
 }
 
 /* 振り返りで、出来事で使えなくなったもの（絵・斜線・「（使えない）」） */

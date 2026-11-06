@@ -6,6 +6,7 @@ import {
   MAX_SECOND_HALF_ANSWERS,
   firstHalfQuestions,
   isAcceptableAnswer,
+  nextSteps,
   orderPrepActions,
   secondHalfQuestions,
   selectEvent,
@@ -159,5 +160,60 @@ describe("orderPrepActions", () => {
       proxy: "confirmed",
     };
     expect(orderPrepActions(judgments)).toEqual(original);
+  });
+});
+
+describe("nextSteps（まだ弱いところ → 次の一手。ADR-0054）", () => {
+  const allConfirmed: Judgments = {
+    location: "confirmed",
+    alternative: "confirmed",
+    current: "confirmed",
+    unrecorded: "confirmed",
+    proxy: "confirmed",
+  };
+
+  it("判定できなかった回と、全部「確認できた」の回は空", () => {
+    expect(nextSteps(undeterminedJudgments())).toEqual([]);
+    expect(nextSteps(allConfirmed)).toEqual([]);
+  });
+
+  it("「確認していない」を先に、次に「未確認と気づいた」。同じ判定の中は観点の順", () => {
+    const steps = nextSteps({
+      location: "aware_unconfirmed",
+      alternative: "confirmed",
+      current: "not_mentioned",
+      unrecorded: "aware_unconfirmed",
+      proxy: "not_mentioned",
+    });
+    expect(steps.map((s) => s.viewpoint)).toEqual(["current", "proxy", "location", "unrecorded"]);
+    expect(steps.map((s) => s.judgment)).toEqual([
+      "not_mentioned",
+      "not_mentioned",
+      "aware_unconfirmed",
+      "aware_unconfirmed",
+    ]);
+  });
+
+  it("次の一手は、その観点に関係する準備行動（PREP_ACTIONS の順で最初のもの）", () => {
+    const steps = nextSteps({ ...allConfirmed, proxy: "not_mentioned" });
+    expect(steps).toEqual([{ viewpoint: "proxy", judgment: "not_mentioned", action: "tell_family" }]);
+    for (const s of nextSteps({ ...allConfirmed, alternative: "not_mentioned", current: "not_mentioned" })) {
+      expect(PREP_ACTIONS.find((a) => a.id === s.action)!.viewpoints).toContain(s.viewpoint);
+    }
+  });
+
+  it("別の観点で選んだ行動はなるべく避け、避けられないときは重なってよい", () => {
+    const steps = nextSteps({ ...allConfirmed, location: "not_mentioned", alternative: "not_mentioned" });
+    // location → notebook_bag。alternative は notebook_bag を避けて photo_and_paper
+    expect(steps.map((s) => s.action)).toEqual(["notebook_bag", "photo_and_paper"]);
+    const all = nextSteps({
+      location: "not_mentioned",
+      alternative: "not_mentioned",
+      current: "not_mentioned",
+      unrecorded: "not_mentioned",
+      proxy: "not_mentioned",
+    });
+    expect(all).toHaveLength(5);
+    expect(new Set(all.map((s) => s.action)).size).toBeGreaterThanOrEqual(4);
   });
 });

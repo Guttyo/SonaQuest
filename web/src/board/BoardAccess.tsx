@@ -165,6 +165,14 @@ function statusText(review: ChartReview | undefined): string {
   return CHART_REVIEW_TEXT.status[review.status];
 }
 
+/** 確認状態の見た目（Issue #143、計画書 2.2）：監査の指摘ありは赤、ほかの確認待ちは黄、確認済み・下書きなしは色なし */
+function statusClass(review: ChartReview | undefined): "stop" | "wait" | "done" | "none" {
+  if (review === undefined) return "none";
+  if (review.status === "human_confirmed") return "done";
+  if (review.status === "audited" && review.findings.length > 0) return "stop";
+  return "wait";
+}
+
 /** カルテの中の、AI 下書き・監査・人の確認の欄 */
 function FindingList({ title, findings }: { title: string; findings: readonly AuditFinding[] }) {
   return (
@@ -279,7 +287,7 @@ export function ChartReviewPanel({ chart }: { chart: PatientChart }) {
     <section className="board-review" aria-label={CHART_REVIEW_TEXT.title} data-review={status ?? "none"}>
       <h4>
         {CHART_REVIEW_TEXT.title}
-        <span className={`board-review-status ${status === "human_confirmed" ? "done" : status === undefined ? "none" : "wait"}`} data-testid="review-status">
+        <span className={`board-review-status ${statusClass(review)}`} data-testid="review-status">
           {statusText(review)}
         </span>
       </h4>
@@ -379,7 +387,7 @@ export function AccessLogPanel({ log, defaultOpen = false }: { log: readonly Acc
                       <td>{l.site}</td>
                       <td>{l.staff}</td>
                       <td>{ACCESS_LOG_TEXT.kinds[l.kind]}</td>
-                      <td>{l.target === "" ? "—" : l.target}</td>
+                      <td>{l.target === "" ? ACCESS_LOG_TEXT.noTarget : l.target}</td>
                     </tr>
                   ))}
                 </tbody>

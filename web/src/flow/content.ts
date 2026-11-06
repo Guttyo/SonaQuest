@@ -518,8 +518,83 @@ export const TIMINGS: readonly { id: TimingId; label: string }[] = [
   { id: "next_day_off", label: "次の休み" },
 ];
 
+/**
+ * 振り返りの先頭に出す「まだ弱いところ → 次の一手」（ADR-0054。下のマーカーの行の ADR-0051 は番号を振り直す前の呼び名で、同じ ADR を指す）。
+ * すべて固定文で、規則（rules.ts の nextSteps）で選ぶ。Claude は使わない。
+ * 利用者の回答を引かず、薬の名前・量・病名にも触れない。準備行動の名前は PREP_ACTIONS のまま使う
+ */
+// [TODO-OWNER: 「まだ弱いところ」の観点ごとの短い名前と、判定ごとの一言、準備行動が何を強くするかの一言（Claude Code の下書き。ADR-0051。1文40字以内）]
+export const NEXT_STEPS_HEADING = "まだ弱いところと、次の一手";
+export const NEXT_STEPS_LEAD = "伝えられたことは十分です。次は、ここを強くしましょう。";
+export const STRONG_POINTS_LABEL = "伝えられたこと";
+export const NO_WEAK_POINTS_NOTE =
+  "5つの観点をどれも説明できました。説明できたことを、次の準備で形にしておきましょう。";
+export const NEXT_STEP_LABEL = "次の一手";
+/** 弱い観点が2つ以上のとき、最初の1枚に付ける印。2枚目からは短い行にする */
+export const NEXT_STEP_FIRST_TAG = "まず、ここから";
+export const NEXT_STEP_PICK = "これを準備する";
+export const NEXT_STEP_PICKED = "選びました";
+export const DETAILS_SUMMARY = "くわしく見る（出来事、5つの観点、あなたの回答、記録の形）";
+
+/** 観点の短い名前（先頭のまとめと、終わりの画面で使う。一覧の正式な名前は VIEWPOINT_LABELS） */
+export const VIEWPOINT_SHORT_LABELS: Record<ViewpointId, string> = {
+  location: "情報の在りか",
+  alternative: "代わりの手段",
+  current: "今の服用と記録の新しさ",
+  unrecorded: "記録に無い情報",
+  proxy: "代わりに伝える人",
+};
+
+/** 観点ごとの、弱いときに何を確かめるかの一言。判定が「確認していない」と「未確認と気づいた」で言い方を変える */
+export const WEAK_POINT_LINES: Record<
+  ViewpointId,
+  { not_mentioned: string; aware_unconfirmed: string }
+> = {
+  location: {
+    not_mentioned: "自分の薬の情報が今どこにあるか、まず確かめましょう。",
+    aware_unconfirmed: "在りかが曖昧だと気づけました。今日、置き場所を決めましょう。",
+  },
+  alternative: {
+    not_mentioned: "その情報源が使えないときの手段を、まず1つ持ちましょう。",
+    aware_unconfirmed: "代わりが無いと気づけました。2つ目の手段を用意しましょう。",
+  },
+  current: {
+    not_mentioned: "今飲んでいる薬と、記録がいつのものかを確かめましょう。",
+    aware_unconfirmed: "記録が古いかもと気づけました。最新に合わせましょう。",
+  },
+  unrecorded: {
+    not_mentioned: "記録に載っていないものが無いか、見直しましょう。",
+    aware_unconfirmed: "載っていないものがあると気づけました。書き足しましょう。",
+  },
+  proxy: {
+    not_mentioned: "自分が話せないとき、代わりに伝える人を決めましょう。",
+    aware_unconfirmed: "伝える人が決まっていないと気づけました。1人に頼みましょう。",
+  },
+};
+
+/** 準備行動が何を強くするかの一言（カードと終わりの画面に出す） */
+export const PREP_ACTION_EFFECTS: Record<PrepActionId, string> = {
+  notebook_bag: "持ち出せば、避難先でそのまま見せられます。",
+  photo_and_paper: "スマホと紙に分ければ、片方が使えなくても残ります。",
+  wallet_memo: "財布なら持ち出しやすく、記録に無いものも書き足せます。",
+  tell_family: "本人が話せなくても、家族が在りかを伝えられます。",
+  pharmacy_contact: "連絡がつけば、薬局の記録で確かめてもらえます。",
+  check_portal: "手帳が手元に無くても、ほかの端末から見られることがあります。",
+};
+
 export const DONE_NOTE =
   "この内容は保存されません。忘れないように、メモや予定表に書いておきましょう。ときどきこの訓練を繰り返して、復習しておきましょう。";
+
+/**
+ * 終わりの画面の「メモに写す」（ADR-0054 の追記10。下のマーカーの行の ADR-0051 は同じ ADR）。決めた準備・いつ・まだ弱いところの固定文だけを、
+ * 利用者の端末のクリップボード（または共有）に渡す。回答の原文は入れない。アプリは保存しない
+ */
+// [TODO-OWNER: 「メモに写す」の文言と、写す内容の形（Claude Code の下書き。ADR-0051 追記10）]
+export const DONE_MEMO_TITLE = "お薬の避難訓練の、次の準備";
+export const DONE_MEMO_COPY = "メモに写す";
+export const DONE_MEMO_COPIED = "写しました。メモや予定表に貼ってください。";
+export const DONE_MEMO_FAILED = "写せませんでした。下の文を選んで写してください。";
+export const DONE_MEMO_SHARE = "共有する";
 
 // --- 中断 -----------------------------------------------------------------
 

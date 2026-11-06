@@ -2484,3 +2484,819 @@
   margin: 0 0 4px;
   font-weight: var(--fw-bold);
 }
+
+/* ===== デザインの見直し（Issue #143、B-11。計画書 docs/board-design-plan.md）=====
+   ISA-101 の考え方：平常は無彩色。色は「止まっている」（赤）と「人が確かめる」（黄）だけ。正常・選択・操作は墨。
+   状態には必ず記号（赤は四角の ×、黄は三角の !）と文字を並べる。箱は表と一覧の2種類だけ。角丸は 0 か 4px、影なし。
+   値は計画書 2.1 の下書き（オーナーの確認待ち） */
+.board {
+  --b-ground: #ededed;
+  --b-surface: #ffffff;
+  --b-rule: #c8c8c8;
+  --b-ink: #222222;
+  --b-ink-soft: #555555;
+  --b-stop: #b42318;
+  --b-stop-text: #a31d14;
+  --b-stop-bg: #fdeceb;
+  --b-check: #f2c230;
+  --b-mark-stop: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='2' fill='%23b42318'/%3E%3Cpath d='M4.6 4.6l6.8 6.8M11.4 4.6l-6.8 6.8' stroke='%23fff' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E");
+  --b-mark-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1.2l7.3 13.3H.7z' fill='%23f2c230' stroke='%23222' stroke-width='1.2' stroke-linejoin='round'/%3E%3Cpath d='M8 5.6v4.3' stroke='%23222' stroke-width='2' stroke-linecap='round'/%3E%3Ccircle cx='8' cy='12.3' r='1.1' fill='%23222'/%3E%3C/svg%3E");
+  --b-mark-lock: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='2.5' y='7' width='11' height='8' rx='1' fill='%23555'/%3E%3Cpath d='M5 7V5a3 3 0 0 1 6 0v2' fill='none' stroke='%23555' stroke-width='1.8'/%3E%3C/svg%3E");
+
+  /* 既存の変数を、無彩色と赤・黄に向け直す（青緑と緑はもう使わない） */
+  --surface: var(--b-surface);
+  --cream: var(--b-ground);
+  --line: var(--b-rule);
+  --ink: var(--b-ink);
+  --ink-soft: var(--b-ink-soft);
+  --control-border: var(--b-ink-soft);
+  --mint-strong: var(--b-ink);
+  --mint: var(--b-ground);
+  --board-accent: var(--b-ink);
+  --board-accent-bg: var(--b-ground);
+  --board-bad: var(--b-stop);
+  --board-bad-bg: var(--b-stop-bg);
+  --board-bad-text: var(--b-stop-text);
+  --board-warn: var(--b-ink);
+  --board-warn-bg: var(--b-check);
+  --board-warn-text: var(--b-ink);
+  --orange-strong: var(--b-stop);
+  --orange-strong-text: var(--b-stop-text);
+  --alert-bg: var(--b-stop-bg);
+  --orange: var(--b-ink);
+  --focus: var(--b-ink);
+
+  /* 文字の段階（計画書 3.1）：表の中身・本文は 16px、列の見出しと注記は 14px。13px は使わない */
+  --fs-sub: 1rem;
+  --fs-caption: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+.app:has(.board),
+.app:has(.board) .app-main {
+  background: #ededed;
+}
+/* ログインの画面では、アクセス記録は .board の外にある。カードの下に置き、同じ見た目にする */
+.board-login + .board-access-log {
+  justify-items: center;
+  margin-top: 12px;
+}
+.board-login + .board-access-log .board-access-toggle {
+  border: 1px solid #222222;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #222222;
+  font-weight: 700;
+}
+
+/* 角丸は 0 か 4px、影なし（計画書 4.1・5.1） */
+.board .board-badge,
+.board-tile,
+.board-tablebox,
+.board-pill,
+.board-pane-item,
+.board-pane-mark,
+.board-tab-count,
+.board-order,
+.board-stats > div,
+.board-changes,
+.board-site,
+.board-site-card-button,
+.board-group > details,
+.board-case details,
+.board-chart-card > details,
+.board-record,
+.board-record .board-prescription,
+.board-chart-body .board-prescription,
+.board-more,
+.board-map-figure svg,
+.board-map-side section,
+.board-map-mover-info,
+.board-map-mover-btn,
+.board-heat .cell,
+.board-form-rx,
+.board-image,
+.board-login-card,
+.board-login-notice,
+.board-login-site,
+.board-permission,
+.board-review,
+.board-session-who,
+.board-access-toggle,
+.board-access-body,
+.board-new,
+.board-demo-box > summary {
+  border-radius: 0;
+  box-shadow: none;
+}
+.board button,
+.board .board-approve,
+.board-pill,
+.board-pane-mark,
+.board-tab-count,
+.board-stale,
+.board .board-badge,
+.board-heat .cell,
+.board-demo-box > summary,
+.board-login-site {
+  border-radius: 4px;
+}
+.board-pane-item,
+.board-tab,
+.board-access-body {
+  border-radius: 0;
+}
+.board button.secondary,
+.board .board-approve,
+.board-demo-box > summary {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 4px;
+  border: 1px solid var(--b-ink);
+  background: var(--b-surface);
+  color: var(--b-ink);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-bold);
+}
+.board .board-approve {
+  background: var(--b-ink);
+  color: #fff;
+}
+.board button:disabled {
+  opacity: 1;
+  border-style: dashed;
+  border-color: var(--b-ink-soft);
+  background: var(--b-ground);
+  color: var(--b-ink-soft);
+}
+
+/* 状態の記号。HTML は変えず、CSS で文字の前に描く（中身の無い記号なので、読み上げには文字だけが出る） */
+.board-pill.bad::before,
+.board-pane-mark.bad::before,
+.board-heat .cell.bad::before,
+.board-legend .cell.bad::before,
+.board-review-status.stop::before,
+.board-permission-result.denied::before,
+.board-tile.stop .board-tile-big::before,
+.board-pill.warn::before,
+.board-pane-mark.warn::before,
+.board-stale::before,
+.board-tab-count::before,
+.board-heat .cell.warn::before,
+.board-legend .cell.warn::before,
+.board-review-status.wait::before,
+.board-tile.check .board-tile-big::before {
+  content: "";
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.3em;
+  vertical-align: -0.12em;
+  background: var(--b-mark-check) center / contain no-repeat;
+}
+.board-pill.bad::before,
+.board-pane-mark.bad::before,
+.board-heat .cell.bad::before,
+.board-legend .cell.bad::before,
+.board-review-status.stop::before,
+.board-permission-result.denied::before,
+.board-tile.stop .board-tile-big::before {
+  background-image: var(--b-mark-stop);
+}
+.board-tile .board-tile-big::before {
+  width: 0.7em;
+  height: 0.7em;
+  vertical-align: 0;
+}
+
+/* 札：赤は薄い赤の面と赤の文字、黄は黄の面と墨の文字、平常は灰の枠だけ */
+.board-pill,
+.board-pane-mark,
+.board-stale,
+.board-tab-count {
+  padding: 1px 7px;
+  border: 1px solid var(--b-rule);
+  background: var(--b-surface);
+  color: var(--b-ink);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-tight);
+}
+.board-pill.bad,
+.board-pane-mark.bad,
+.board-heat .cell.bad {
+  border-color: var(--b-stop);
+  background: var(--b-stop-bg);
+  color: var(--b-stop-text);
+  font-weight: var(--fw-bold);
+}
+.board-pill.warn,
+.board-pane-mark.warn,
+.board-stale,
+.board-tab-count,
+.board-heat .cell.warn {
+  border-color: var(--b-ink);
+  background: var(--b-check);
+  color: var(--b-ink);
+  font-weight: var(--fw-bold);
+}
+.board-pill.ok,
+.board-pill.none,
+.board-pane-mark.none,
+.board-heat .cell.ok,
+.board-heat .cell.hq {
+  border-color: var(--b-rule);
+  background: var(--b-surface);
+  color: var(--b-ink);
+}
+.board-heat .cell.none {
+  color: var(--b-ink-soft);
+}
+
+/* 上の帯（計画書 4.2）：題・架空データ・集計時刻・ログイン中・記録・戻る・デモ操作を1本に */
+.board-head {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  min-height: 56px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--b-rule);
+  background: var(--b-surface);
+}
+.board-head-title {
+  order: 1;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+.board-head h1 {
+  font-size: 1.25rem;
+  white-space: nowrap;
+}
+.board-subtitle {
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-regular);
+  white-space: nowrap;
+}
+.board-head .board-asof {
+  order: 2;
+  flex-wrap: nowrap;
+  gap: 8px;
+  white-space: nowrap;
+  color: var(--b-ink);
+}
+.board .board-badge {
+  padding: 1px 8px;
+  border: 1px solid var(--b-ink);
+  color: var(--b-ink);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-bold);
+}
+.board-head .board-session {
+  order: 3;
+  flex: 1 1 0;
+  min-width: 14rem;
+  justify-content: flex-end;
+  margin-left: auto;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+.board-session-who {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.board .board-session-logout {
+  min-height: 44px;
+  white-space: nowrap;
+}
+.board-head .board-access-log {
+  display: contents;
+}
+/* 1180 幅でも、今の文言のままでは1行に入らない（短い言い方はオーナーの確認待ち。計画書 9章）。
+   1行目に題・時刻・ログイン中、2行目の右に操作のボタンを置く */
+.board-head::after {
+  content: "";
+  order: 4;
+  flex-basis: 100%;
+  height: 0;
+}
+.board-head .board-access-toggle {
+  order: 5;
+  margin-left: auto;
+}
+.board-head .board-back {
+  order: 6;
+  margin-left: 0;
+  min-height: 44px;
+}
+.board-head .board-demo-box {
+  order: 7;
+}
+.board-demo-box > summary {
+  display: inline-flex;
+  align-items: center;
+}
+.board-demo-box .board-demo-controls button {
+  min-height: 44px;
+}
+.board-demo-running {
+  border: 1px solid var(--b-ink);
+  background: var(--b-surface);
+  color: var(--b-ink);
+}
+/* アクセス記録：右下に浮かせず、帯の下に開く一覧（表やカルテに重ねない。計画書 4.5） */
+.board-access-log {
+  position: static;
+  display: grid;
+  justify-items: start;
+  max-width: none;
+}
+.board-head .board-access-body {
+  order: 8;
+  flex: 1 0 100%;
+}
+.board-access-toggle {
+  min-height: 44px;
+}
+.board-access-body {
+  max-height: min(40vh, 22rem);
+  border: 1px solid var(--b-rule);
+  background: var(--b-surface);
+}
+
+/* 左の一覧：箱と左の太い線をやめ、白い面に罫線で行を分ける。選んだ行は墨の地に白の文字 */
+.board-pane {
+  gap: 0;
+}
+.board-pane-item,
+.board-pane-item.current,
+.board-pane-item.stale,
+.board-pane-item.current.stale {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 8px;
+  row-gap: 2px;
+  align-items: start;
+  border: 0;
+  border-bottom: 1px solid var(--b-rule);
+  background: var(--b-surface);
+  min-height: 52px;
+  padding: 8px 10px;
+}
+.board-pane-item .board-pane-name {
+  grid-column: 1;
+  font-size: 1.125rem;
+}
+.board-pane-item .board-pane-sub {
+  grid-column: 1;
+  font-size: var(--fs-caption);
+  color: var(--b-ink-soft);
+}
+.board-pane-item .board-pane-marks {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+}
+.board-pane-item .board-pane-marks:empty {
+  display: none;
+}
+.board-pane-item.current,
+.board-pane-item.current.stale {
+  background: var(--b-ink);
+  color: #fff;
+}
+.board-pane-item.current .board-pane-sub {
+  color: #fff;
+}
+.board-pane-item:hover {
+  background: var(--b-ground);
+}
+.board-pane-item.current:hover,
+.board-pane-item.current.stale:hover {
+  background: var(--b-ink);
+}
+.board-pane-district-name {
+  padding: 8px 10px 4px;
+  font-size: var(--fs-caption);
+  color: var(--b-ink-soft);
+}
+.board-pane-district-sites {
+  gap: 0;
+}
+.board-pane-login {
+  font-weight: var(--fw-regular);
+  font-size: var(--fs-caption);
+}
+@media (min-width: 1024px) {
+  /* 帯が折り返したときに高さが伸びるよう、グリッドでなく縦の flex にする（グリッドの行では折り返しの高さが数えられなかった） */
+  .board {
+    display: flex;
+    flex-direction: column;
+  }
+  .board-head {
+    flex: none;
+  }
+  .board-body {
+    flex: 1 1 0;
+    min-height: 0;
+    grid-template-columns: 17.5rem minmax(0, 1fr);
+  }
+  .board-pane {
+    padding-right: 0;
+    border: 1px solid var(--b-rule);
+    background: var(--b-surface);
+    align-self: start;
+    max-height: 100%;
+  }
+  .board-pane-district-name {
+    margin-top: 0;
+    padding-left: 10px;
+    font-size: var(--fs-caption);
+  }
+  .board-pane-district-sites {
+    gap: 0;
+  }
+}
+@media (min-width: 1160px) {
+  .board-body {
+    grid-template-columns: 20rem minmax(0, 1fr);
+  }
+}
+
+/* タブ：今のタブは墨の 3px の下線。件数は黄の記号と数 */
+.board-tab {
+  color: var(--b-ink-soft);
+  font-size: var(--fs-body);
+}
+.board-tab.current {
+  border-bottom-color: var(--b-ink);
+  color: var(--b-ink);
+}
+.board-tabs {
+  box-shadow: inset 0 -1px 0 var(--b-rule);
+}
+
+/* 「前回から変わったこと」：更新があるときだけ見せる。無いときの文は読み上げにだけ残す（計画書 4.2） */
+.board-changes {
+  border: 1px solid var(--b-rule);
+  background: var(--b-surface);
+}
+.board-changes.empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.board-main {
+  position: relative;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.board-main:has(.board-changes:not(.empty)) {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+/* 本部の数字：箱を5つ並べるのをやめ、1行の表に（計画書 4.2）。0 は灰 */
+.board-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0;
+  border: 1px solid var(--b-rule);
+  background: var(--b-surface);
+}
+.board-kpi-row .board-tile,
+.board-kpi-row .board-tile-lead,
+.board-kpi-row .board-tile-major,
+.board-kpi-row .board-tile.stale {
+  grid-column: auto;
+  padding: 8px 12px;
+  border: 0;
+  border-left: 1px solid var(--b-rule);
+  background: transparent;
+}
+.board-kpi-row .board-tile:first-child {
+  border-left: 0;
+}
+.board-kpi-row .board-tile .board-tile-label {
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-bold);
+  color: var(--b-ink-soft);
+}
+.board-kpi-row .board-tile .board-tile-big,
+.board-kpi-row .board-tile-lead .board-tile-big,
+.board-kpi-row .board-tile-major .board-tile-big {
+  font-size: 2rem;
+  line-height: 1.1;
+}
+.board-kpi-row .board-tile.zero .board-tile-big {
+  color: var(--b-ink-soft);
+}
+.board-kpi-row .board-tile-of {
+  font-size: var(--fs-body);
+  font-weight: var(--fw-regular);
+}
+.board-kpi-row .board-tile .board-tile-of {
+  display: inline-block;
+  white-space: nowrap;
+}
+.board-kpi-row .board-tile-sub {
+  font-size: var(--fs-caption);
+  color: var(--b-ink-soft);
+}
+@container board-panel (min-width: 900px) {
+  .board-kpi-row {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .board-kpi-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .board-kpi-row .board-tile {
+    border-top: 1px solid var(--b-rule);
+  }
+}
+
+/* 表：白い面に罫線。列の見出しは 14px の太字、中身は 16px */
+.board table {
+  font-size: var(--fs-body);
+}
+.board th {
+  font-size: var(--fs-caption);
+  color: var(--b-ink-soft);
+}
+.board-tablebox {
+  border-color: var(--b-rule);
+}
+
+/* 救護所の詳細の数字：7つの箱をやめ、罫線で区切った行に（計画書 4.3） */
+.board-stats {
+  gap: 0;
+  border: 1px solid var(--b-rule);
+  background: var(--b-surface);
+}
+.board-stats > div,
+.board-stats > div.short,
+.board-stats > div.stale {
+  border: 0;
+  border-right: 1px solid var(--b-rule);
+  border-bottom: 1px solid var(--b-rule);
+  background: transparent;
+}
+.board-stats .board-pill.none {
+  border-color: var(--b-ink-soft);
+}
+
+/* 発注の提案：左の色線をやめ、罫線の行に */
+.board-order,
+.board-order.approved {
+  border: 1px solid var(--b-rule);
+  background: var(--b-surface);
+}
+.board-order-actions button {
+  min-height: 44px;
+}
+
+/* 救護所ごとのカード・一覧・カルテ：面は白、線は灰 */
+.board-site,
+.board-site-card-button,
+.board-group > details,
+.board-case details,
+.board-chart-card > details,
+.board-record,
+.board-more,
+.board-map-side section {
+  border-color: var(--b-rule);
+  background: var(--b-surface);
+}
+.board-chart-added > details {
+  border-color: var(--b-ink);
+}
+.board-site-card-button:hover {
+  background: var(--b-ground);
+}
+
+/* リンク・画面の見方：墨の文字に下線。44px */
+.board-link,
+.board-help > summary,
+.board-order-basis-box > summary {
+  min-height: 44px;
+  color: var(--b-ink);
+}
+.board-help > summary {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 地図の凡例の拠点の色を無彩色に（本部の紺もやめる） */
+.board-map-legend .dot.hq,
+.board-map-legend .mk.vehicle {
+  background: var(--b-ink);
+  border-color: var(--b-ink);
+}
+.board-map-legend .dot.site {
+  background: var(--b-ink-soft);
+}
+.board-map-mover-btn[aria-pressed="true"] {
+  border-color: var(--b-ink);
+  background: var(--b-ground);
+}
+
+/* デモ用のログイン：注意書きは黄の面をやめ、灰の枠に墨の文字。選択肢は四角 */
+.board-login-notice {
+  border: 1px solid var(--b-ink-soft);
+  background: var(--b-surface);
+  color: var(--b-ink);
+}
+.board-login-site.current {
+  border-color: var(--b-ink);
+  box-shadow: inset 0 0 0 2px var(--b-ink);
+  font-weight: var(--fw-bold);
+}
+
+/* 編集できる・閲覧のみ：左の線の箱をやめ、灰の文字1行。閲覧のみは鍵の記号を添える */
+.board-permission,
+.board-permission.editable,
+.board-permission.readonly {
+  gap: 4px;
+  margin: -8px 0 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--b-ink-soft);
+}
+.board-permission.readonly .board-permission-line::before {
+  content: "";
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.3em;
+  vertical-align: -0.12em;
+  background: var(--b-mark-lock) center / contain no-repeat;
+}
+.board-permission-try > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--b-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.board-permission-result.denied {
+  color: var(--b-stop-text);
+}
+
+/* カルテの確認状態：監査の指摘ありは赤、ほかの確認待ちは黄、確認済み・下書きなしは色なし。破線の箱をやめ罫線で区切る */
+.board-review {
+  padding: 10px 0 0;
+  border: 0;
+  border-top: 1px solid var(--b-rule);
+}
+.board-review-status {
+  border-color: var(--b-rule);
+  background: var(--b-surface);
+  color: var(--b-ink);
+}
+.board-review-status.wait {
+  border-color: var(--b-ink);
+  background: var(--b-check);
+  color: var(--b-ink);
+  font-weight: var(--fw-bold);
+}
+.board-review-status.stop {
+  border-color: var(--b-stop);
+  background: var(--b-stop-bg);
+  color: var(--b-stop-text);
+  font-weight: var(--fw-bold);
+}
+.board-review-status.done {
+  border-color: var(--b-rule);
+  font-weight: var(--fw-regular);
+}
+
+/* 国の医薬品供給状況への外部リンク（計画書 4.6）。平常の文字リンク。注意の色や記号は付けない */
+.board-external {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+}
+.board-external a {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 6px;
+  min-height: 44px;
+  width: max-content;
+  max-width: 100%;
+  color: var(--b-ink);
+  font-weight: var(--fw-bold);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.board-external a:focus-visible {
+  outline: 3px solid var(--b-ink);
+  outline-offset: 2px;
+}
+.board-external-newtab {
+  font-weight: var(--fw-regular);
+  color: var(--b-ink-soft);
+  text-decoration: none;
+}
+.board-external-note {
+  margin: 0;
+  font-size: var(--fs-caption);
+  color: var(--b-ink-soft);
+}
+
+/* 在庫の表の凡例：表の中の札と同じ形（記号と文字） */
+.board-legend .cell {
+  display: inline-block;
+  padding: 1px 7px;
+  border: 1px solid var(--b-rule);
+  border-radius: 4px;
+  background: var(--b-surface);
+  font-size: var(--fs-caption);
+}
+.board-legend .cell.bad {
+  border-color: var(--b-stop);
+  background: var(--b-stop-bg);
+  color: var(--b-stop-text);
+  font-weight: var(--fw-bold);
+}
+.board-legend .cell.warn {
+  border-color: var(--b-ink);
+  background: var(--b-check);
+  color: var(--b-ink);
+  font-weight: var(--fw-bold);
+}
+.board-legend .cell.none {
+  color: var(--b-ink-soft);
+}
+
+/* 表の1列目（拠点・薬の名前）は1字ずつ折り返さない。入らないときは表の枠の中で横に送る */
+.board td:first-child,
+.board th:first-child {
+  white-space: nowrap;
+}
+
+/* 1180 幅より狭いときは、帯の副題「各救護所の状況」を見た目から外し、ログイン中の表示を切らずに1行目に入れる。
+   読み上げには残す（帯から副題を外すことはオーナーの確認待ち。計画書 9章） */
+@media (max-width: 1179px) {
+  .board-head .board-subtitle {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
+
+/* タップの所は 44px 以上（計画書 4.1）：地区の見出しの開閉、地図の便と経路のボタン */
+.board-pane-district-name,
+.board-map-mover-btn,
+.board-map-route-btn {
+  min-height: 44px;
+}
+.board-pane-district-name {
+  display: flex;
+  align-items: center;
+}
+
+/* 640px 以下：帯の時刻とログイン中の表示は切らずに折り返す */
+@media (max-width: 640px) {
+  .board-head .board-asof,
+  .board-head .board-session {
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+  .board-head .board-session {
+    flex: 1 1 100%;
+    min-width: 0;
+    justify-content: flex-start;
+  }
+  .board-session-who {
+    white-space: normal;
+    overflow: visible;
+  }
+}
+
+/* カルテの入力の専用画面（Issue #114）も、同じ帯の見た目（白い面と灰の線）にする。アクセス記録は帯の中で開く */
+.board-intake-head {
+  padding: 12px 16px;
+  border: 1px solid var(--b-rule);
+  background: var(--b-surface);
+}
+.board-intake-head .board-access-log {
+  justify-self: start;
+  width: 100%;
+}
