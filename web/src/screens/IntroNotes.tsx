@@ -4,12 +4,9 @@ import {
   INTRO_ANSWER_TITLE,
   INTRO_FLOW_STEPS,
   INTRO_FLOW_TITLE,
-  INTRO_LEAD,
-  INTRO_POINT_TAGS,
-  INTRO_POINTS,
+  INTRO_NOTE_POINTS,
   INTRO_POINTS_TITLE,
   PRIVACY_EXTERNAL,
-  PRIVACY_HEADS,
   PRIVACY_OWN,
   PRIVACY_TITLE,
   PRIVACY_VOICE,
@@ -24,9 +21,10 @@ import {
 
 /**
  * はじめる前に必ず見せる説明（A-08、privacy.md「知らせたうえで」）。送信先、架空の内容で答えること、保持方針。
- * 文はマーカー付きで変えない。2画面目「はじめる前に」に全文を出す（2026-11-05 オーナー決定、ADR-0036）。
- * `<details>` に入れず、開く操作なしで全文を出す（Issue #212 でも、2026-11-07 オーナー回答「畳まず図で整理」）。
- * Issue #212：上に訓練の流れの図と答え方の3つの札を置き、各項目にアイコンと短い札・要点の1行を添えて、目で追いやすくする。
+ * 2画面目「はじめる前に」に出す（2026-11-05 オーナー決定、ADR-0036）。`<details>` に入れず、開く操作なしで全文を出す
+ * （Issue #212 でも、2026-11-07 オーナー回答「畳まず図で整理」）。
+ * Issue #212：上に訓練の流れの図と答え方の3つの札を置き、図と札に重なる文は出さず、残りの文は短くした
+ * （2026-11-07 オーナー「文章長い」の後、短くした下書きに「下書きで短くする」）。
  * 図は文字の部品（リスト）で作り、絵は飾り（aria-hidden）なので、読み上げでもすべての文に届く。
  * voiceProminent：3D を選んだときは、声と読み上げの送り先を足した「どこへ送るか」の図を先頭の目立つ位置に出す（ADR-0033。
  * Issue #212 の2つめ：それまで先頭に出していた PRIVACY_VOICE の全文は、2D と同じく「会話の扱い」の中に出す）
@@ -74,49 +72,46 @@ export function IntroNotes({ voiceProminent }: { voiceProminent: boolean }) {
       {!voiceProminent && <SendMap voice={false} />}
 
       <h2>{INTRO_POINTS_TITLE}</h2>
-      {/* 送信の説明は実際の動作に合わせて一方だけを出す */}
-      {AI_CONNECTED ? (
-        <p>{INTRO_LEAD}</p>
-      ) : (
+      {/* AI とつながない試作版だけ、送信しないことを先に出す（送り先の図と食い違わないように）。
+          つながる版の導入の文（INTRO_LEAD）は、図と札に同じ内容があるので出さない（Issue #212、オーナー「下書きで短くする」） */}
+      {!AI_CONNECTED && (
         <p className="notice" role="note">
           {PROTOTYPE_LEAD}
         </p>
       )}
       <ul className="tagged-points">
-        {INTRO_POINTS.map((point, index) => (
-          <li key={point}>
-            {INTRO_POINT_TAGS[index] && <span className="point-tag">{INTRO_POINT_TAGS[index]}</span>}
-            <span>{point}</span>
+        {INTRO_NOTE_POINTS.map((point) => (
+          <li key={point.tag}>
+            <span className="point-tag">{point.tag}</span>
+            <span>{point.text}</span>
           </li>
         ))}
       </ul>
 
       <h2>{PRIVACY_TITLE}</h2>
       <ul className="privacy-items">
-        <li className="privacy-item">
-          <p className="privacy-head">
-            <NotesIcon id="app" />
-            <span>{PRIVACY_HEADS.own}</span>
-          </p>
-          <p>{PRIVACY_OWN}</p>
-        </li>
-        <li className="privacy-item">
-          <p className="privacy-head">
-            <NotesIcon id="send" />
-            <span>{PRIVACY_HEADS.external}</span>
-          </p>
-          <p>{PRIVACY_EXTERNAL}</p>
-        </li>
+        <PrivacyItem id="app" text={PRIVACY_OWN} />
+        <PrivacyItem id="send" text={PRIVACY_EXTERNAL} />
         {/* 2D のときも、3D の声の送信先の説明は全文を出す（ADR-0033） */}
-        <li className="privacy-item" id="privacy-voice">
-          <p className="privacy-head">
-            <NotesIcon id="voice" />
-            <span>{PRIVACY_HEADS.voice}</span>
-          </p>
-          <p>{PRIVACY_VOICE}</p>
-        </li>
+        <PrivacyItem id="voice" text={PRIVACY_VOICE} elementId="privacy-voice" />
       </ul>
     </div>
+  );
+}
+
+/** 会話の扱いの1項目。「名前：本文」の名前を、アイコンを添えて太字にする。文はつなげると元の全文になる */
+function PrivacyItem({ id, text, elementId }: { id: "app" | "send" | "voice"; text: string; elementId?: string }) {
+  const cut = text.indexOf("：");
+  const name = cut > 0 ? text.slice(0, cut + 1) : "";
+  const body = cut > 0 ? text.slice(cut + 1) : text;
+  return (
+    <li className="privacy-item" id={elementId}>
+      <NotesIcon id={id} />
+      <p>
+        <strong>{name}</strong>
+        {body}
+      </p>
+    </li>
   );
 }
 

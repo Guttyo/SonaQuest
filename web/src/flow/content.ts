@@ -42,11 +42,13 @@ export const INTRO_POINTS: readonly string[] = [
 ];
 
 /** 自アプリの方針と外部事業者の方針は分けて書く（.claude/rules/privacy.md） */
+// 2026-11-07（Issue #212）：オーナー「文章長い」の後、短くした下書きに「下書きで短くする」（チャット）
 export const PRIVACY_OWN =
-  "このアプリ：会話を保存しません。声や読み上げの音声も保存しません。ログにも残しません。タブを閉じると消えます。";
+  "このアプリ：会話・声・読み上げの音声を保存せず、ログにも残しません。タブを閉じると消えます。";
 // [TODO-OWNER: 外部事業者の保持方針の書き方（ADR-0006の要約。AI連携の実装時に再確認）]
+// 2026-11-07（Issue #212）：オーナー「下書きで短くする」（チャット）で、短くした下書きの文にした。上のマーカーはそのまま
 export const PRIVACY_EXTERNAL =
-  "外部事業者：会話を進めるため、あなたの回答と、画面に出した質問の文（AIが作った言い回しを含む）、出来事などのアプリの文を Anthropic（Claude API）へ送ります。AIが作った文は、画面に出す前に、もう一度 Anthropic へ送って確かめます（このときは、AIが作った文と固定の質問の文だけを送り、あなたの回答は送りません）。Anthropic は、入出力を30日以内に削除すると公表しています。利用規約違反の判定時などの例外があります。このアプリは、入出力を保持しない契約（ゼロ保持）を結んでいません。";
+  "Anthropic（Claude）：会話を進めるため、あなたの回答と画面の文を送ります。AIが作った文は、画面に出す前にもう一度送って確かめます（このときあなたの回答は送りません）。Anthropic は入出力を30日以内に削除すると公表しています（規約違反の判定などの例外あり）。このアプリは、入出力を保持しない契約（ゼロ保持）を結んでいません。";
 
 /**
  * 3D の対話モードの声の送信先（ADR-0033、A-08）。2D（文字で答える）では送らない。
@@ -54,8 +56,9 @@ export const PRIVACY_EXTERNAL =
  */
 // [TODO-OWNER: 音声の送信先と保持方針の書き方（Claude Code の下書き。ADR-0033 の要約）]
 // → オーナー決定（2026-11-06、チャット）：「声の送信先の説明にも同様に直していいよ」（答え方の呼び方「文字で答える」「自分の声で答える」に合わせる。Issue #183）
+// 2026-11-07（Issue #212）：オーナー「下書きで短くする」（チャット）で、短くした下書きの文にした
 export const PRIVACY_VOICE =
-  "「自分の声で答える」を選んだとき：声で答えると、あなたの声は、文字にするためにブラウザが使う音声認識のサービスへ送られます（ブラウザによって送り先が違います。Microsoft Edge は Microsoft、Safari は Apple です。Google Chrome は Google と見られますが、送り先と保持方針は確かめられていません）。Microsoft は録音を保存しないと、Apple は音声入力の改善に同意していなければ音声を保存しないと公表しています。また、話し相手（ソナ）の文を読み上げるため、画面に出した話し相手の文と固定の文を ElevenLabs へ送ります（あなたの回答や声は送りません）。ElevenLabs は、読み上げた文と音声を既定で履歴に残し、AIの学習に使うことがあると公表しています。「文字で答える」を選んだときは、どちらにも送りません。";
+  "声で答えるとき：声は、文字にするためにブラウザの音声認識へ送られます。送り先は、Edge は Microsoft、Safari は Apple です。Chrome は Google と見られますが、確かめられていません。Microsoft は録音を保存しないと、Apple は改善に同意していなければ保存しないと公表しています。ソナの文は、読み上げのため ElevenLabs へ送ります（あなたの回答や声は送りません）。ElevenLabs は、既定で履歴に残し、AIの学習に使うことがあると公表しています。「文字で答える」ではどちらにも送りません。";
 
 /*
  * 「はじめる前に」を目で追いやすくする図と見出し（Issue #212。2026-11-07 オーナー「図とかフローとか使って認知負荷下げてよ」、
@@ -104,15 +107,24 @@ export const INTRO_ANSWER_GROUPS: readonly IntroAnswerGroup[] = [
   },
 ];
 
-/** 注意の見出しと、INTRO_POINTS の各項目の前に置く短い札（INTRO_POINTS と同じ数・同じ順） */
+/**
+ * 「気をつけること」に出す項目（Issue #212。2026-11-07 オーナー「文章長い」の後、短くした下書きに「下書きで短くする」（チャット））。
+ * 上の図と3つの札と重なる INTRO_POINTS の2〜4つめと INTRO_LEAD は、この画面には出さない（文は残す。INTRO_LEAD のマーカーもそのまま）。
+ * 体調の項目は INTRO_POINTS の最後をそのまま使う（PR #203 で文が変わるので、ここで書き換えず、マージ後に自動でそろう）
+ */
+export interface IntroNotePoint {
+  tag: string;
+  text: string;
+}
+
 export const INTRO_POINTS_TITLE = "気をつけること";
-export const INTRO_POINT_TAGS: readonly string[] = [
-  "場面",
-  "入れないもの",
-  "架空で答える",
-  "自分のことを答える",
-  "判定しない",
-  "体調のこと",
+export const INTRO_NOTE_POINTS: readonly IntroNotePoint[] = [
+  { tag: "場面", text: "発災翌日の避難所の救護所（架空）です。" },
+  {
+    tag: "判定しない",
+    text: "答えはそのまま表示するだけです。薬の正確さや治療の適否は判定せず、点数や合否もありません。",
+  },
+  { tag: "体調のこと", text: INTRO_POINTS[INTRO_POINTS.length - 1] },
 ];
 
 /**
@@ -153,13 +165,8 @@ export const SEND_ROUTES: readonly SendRoute[] = [
 export const SEND_MAP_KEEP = "このアプリには残りません。タブを閉じると消えます。";
 export const SEND_MAP_TEXT_ONLY = "「文字で答える」では声を使わず、音声認識と ElevenLabs には送りません。";
 
-/** 会話の扱いの各項目の前に置く要点の1行。全文は続けてそのまま出す */
+/** 会話の扱いの見出し。各項目は「名前：本文」の名前を太字にして出す */
 export const PRIVACY_TITLE = "会話の扱い";
-export const PRIVACY_HEADS = {
-  own: "保存しません",
-  external: "回答は Anthropic（Claude）へ送ります",
-  voice: "声で答えるときだけ：声は音声認識へ、ソナの文は ElevenLabs へ",
-} as const;
 
 /** はじめにの 2D／3D のモード選択（A-14、ADR-0031、ADR-0036）。文言は Claude Code の下書き（Issue #51 の PR の説明で確認） */
 export const MODE_LEGEND = "答え方を選ぶ";

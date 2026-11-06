@@ -837,8 +837,8 @@ textarea {
 
 .privacy-item {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: flex-start;
+  gap: 8px;
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -940,14 +940,6 @@ textarea {
 
 .send-note-plain {
   color: var(--ink-soft);
-}
-
-.privacy-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: var(--fw-bold);
-  line-height: var(--lh-tight);
 }
 
 @media (min-width: 640px) {

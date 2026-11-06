@@ -6,10 +6,9 @@ import {
   INTRO_ANSWER_GROUPS,
   INTRO_FLOW_STEPS,
   INTRO_LEAD,
-  INTRO_POINT_TAGS,
+  INTRO_NOTE_POINTS,
   INTRO_POINTS,
   PRIVACY_EXTERNAL,
-  PRIVACY_HEADS,
   PRIVACY_OWN,
   PRIVACY_VOICE,
   PROTOTYPE_LEAD,
@@ -35,8 +34,20 @@ const choose = renderToStaticMarkup(<Intro onStart={() => {}} />);
 const choose3d = renderToStaticMarkup(<Intro onStart={() => {}} initialMode="3d" />);
 const notes2d = renderToStaticMarkup(<Intro onStart={() => {}} initialView="notes" initialMode="2d" />);
 const notes3d = renderToStaticMarkup(<Intro onStart={() => {}} initialView="notes" initialMode="3d" />);
-const lead = AI_CONNECTED ? INTRO_LEAD : PROTOTYPE_LEAD;
-const REQUIRED = [lead, ...INTRO_POINTS, PRIVACY_OWN, PRIVACY_EXTERNAL, PRIVACY_VOICE];
+/** 画面の文だけを取り出す（タグを消す。会話の扱いの名前を太字にしても、文はつながって元の全文になる） */
+function textOf(html: string): string {
+  return html.replace(/<[^>]+>/g, "");
+}
+const plain2d = textOf(notes2d);
+const plain3d = textOf(notes3d);
+/** 2画面目に必ず出す文（Issue #212：オーナー「下書きで短くする」で、図と札に重なる導入の文と INTRO_POINTS の2〜4つめは出さない） */
+const REQUIRED = [
+  ...(AI_CONNECTED ? [] : [PROTOTYPE_LEAD]),
+  ...INTRO_NOTE_POINTS.map((point) => point.text),
+  PRIVACY_OWN,
+  PRIVACY_EXTERNAL,
+  PRIVACY_VOICE,
+];
 const radios = choose.match(/<input[^>]*type="radio"[^>]*>/g) ?? [];
 
 describe("はじめにの1画面目：答え方をカードで選ぶ（A-14、Issue #51）", () => {
@@ -113,7 +124,7 @@ describe("はじめにの1画面目：答え方をカードで選ぶ（A-14、Is
 describe("はじめにの2画面目「はじめる前に」：必ず見せる説明の全文と開始", () => {
   it("必須の説明の全文が、開く操作なしで画面にある（文は変えない。A-08、privacy.md）", () => {
     for (const html of [notes2d, notes3d]) {
-      for (const text of REQUIRED) expect(html).toContain(escapeHtml(text));
+      for (const text of REQUIRED) expect(textOf(html)).toContain(escapeHtml(text));
       expect(html).not.toContain("<details");
       expect(html).toContain('<div class="intro-notes">');
       expect(html).toContain("<h1");
@@ -135,27 +146,45 @@ describe("はじめにの2画面目「はじめる前に」：必ず見せる説
   it("声の送信先（PRIVACY_VOICE）の全文は、2D・3D とも会話の扱いの中に1回だけ出す（ADR-0033。Issue #212 の2つめ）", () => {
     const voice = escapeHtml(PRIVACY_VOICE);
     for (const html of [notes2d, notes3d]) {
-      expect(html).toContain(`<li class="privacy-item" id="privacy-voice"><p class="privacy-head">`);
-      expect(html).toContain(`</span></p><p>${voice}</p></li>`);
-      expect(html.indexOf(voice)).toBeGreaterThan(html.indexOf(escapeHtml(PRIVACY_EXTERNAL)));
-      expect(html.match(new RegExp(voice.slice(0, 20), "g"))).toHaveLength(1);
+      const plain = textOf(html);
+      expect(html).toContain(`<li class="privacy-item" id="privacy-voice">`);
+      expect(plain.indexOf(voice)).toBeGreaterThan(plain.indexOf(escapeHtml(PRIVACY_EXTERNAL)));
+      expect(plain.split(voice)).toHaveLength(2);
     }
   });
 
-  it("並び：題 → 選んだ答え方 → 必須の説明 → 会話の扱い → 訓練をはじめる → 選び直す", () => {
+  it("会話の扱いの各項目は、「名前：」を太字にし、続けて本文を出す", () => {
+    for (const text of [PRIVACY_OWN, PRIVACY_EXTERNAL, PRIVACY_VOICE]) {
+      const cut = text.indexOf("：");
+      expect(cut).toBeGreaterThan(0);
+      expect(notes2d).toContain(`<strong>${escapeHtml(text.slice(0, cut + 1))}</strong>${escapeHtml(text.slice(cut + 1))}</p>`);
+    }
+  });
+
+  it("並び：題 → 選んだ答え方 → 気をつけること → 会話の扱い → 訓練をはじめる → 選び直す", () => {
     const order = [
-      ">はじめる前に</h1>",
+      "はじめる前に",
       "選んでいる答え方：",
-      escapeHtml(lead),
-      escapeHtml(INTRO_POINTS[0]),
+      ...INTRO_NOTE_POINTS.map((point) => escapeHtml(point.text)),
       escapeHtml(PRIVACY_OWN),
       escapeHtml(PRIVACY_EXTERNAL),
       escapeHtml(PRIVACY_VOICE),
-      ">訓練をはじめる</button>",
-      ">答え方を選び直す</button>",
-    ].map((needle) => notes2d.indexOf(needle));
+      "訓練をはじめる",
+      "答え方を選び直す",
+    ].map((needle) => plain2d.indexOf(needle));
     for (const index of order) expect(index).toBeGreaterThanOrEqual(0);
     for (let i = 1; i < order.length; i++) expect(order[i]).toBeGreaterThan(order[i - 1]);
+  });
+
+  it("図と札に重なる文（導入の文、INTRO_POINTS の2〜4つめ）は出さない（Issue #212、オーナー「下書きで短くする」）", () => {
+    for (const plain of [plain2d, plain3d]) {
+      if (AI_CONNECTED) expect(plain).not.toContain(escapeHtml(INTRO_LEAD));
+      for (const point of INTRO_POINTS.slice(1, 4)) expect(plain).not.toContain(escapeHtml(point));
+    }
+  });
+
+  it("体調の項目は INTRO_POINTS の最後の文をそのまま使う（PR #203 の文とそろう）", () => {
+    expect(INTRO_NOTE_POINTS[INTRO_NOTE_POINTS.length - 1].text).toBe(INTRO_POINTS[INTRO_POINTS.length - 1]);
   });
 });
 
@@ -182,17 +211,13 @@ describe("「はじめる前に」の図と札（Issue #212。畳まず図で整
     }
   });
 
-  it("注意の各項目に短い札を1つずつ、会話の扱いの各項目に要点の1行を添える（全文はそのまま続ける）", () => {
-    expect(INTRO_POINT_TAGS).toHaveLength(INTRO_POINTS.length);
+  it("気をつけることの各項目の前に短い札を1つずつ置く", () => {
     for (const html of [notes2d, notes3d]) {
-      INTRO_POINTS.forEach((point, index) => {
+      for (const point of INTRO_NOTE_POINTS) {
         expect(html).toContain(
-          `<li><span class="point-tag">${escapeHtml(INTRO_POINT_TAGS[index])}</span><span>${escapeHtml(point)}</span></li>`,
+          `<li><span class="point-tag">${escapeHtml(point.tag)}</span><span>${escapeHtml(point.text)}</span></li>`,
         );
-      });
-      expect(html).toContain(`<span>${escapeHtml(PRIVACY_HEADS.own)}</span></p><p>${escapeHtml(PRIVACY_OWN)}</p>`);
-      expect(html).toContain(`<span>${escapeHtml(PRIVACY_HEADS.external)}</span></p><p>${escapeHtml(PRIVACY_EXTERNAL)}</p>`);
-      expect(html).toContain(`<span>${escapeHtml(PRIVACY_HEADS.voice)}</span></p><p>${escapeHtml(PRIVACY_VOICE)}</p>`);
+      }
     }
   });
 
@@ -200,7 +225,7 @@ describe("「はじめる前に」の図と札（Issue #212。畳まず図で整
     const map3d = notes3d.indexOf('<section class="intro-visual send-map send-map-voice"');
     expect(map3d).toBeGreaterThanOrEqual(0);
     expect(map3d).toBeLessThan(notes3d.indexOf('<ol class="intro-flow">'));
-    expect(map3d).toBeLessThan(notes3d.indexOf(escapeHtml(lead)));
+    expect(map3d).toBeLessThan(notes3d.indexOf(escapeHtml(INTRO_NOTE_POINTS[0].text)));
     for (const route of SEND_ROUTES) {
       expect(notes3d).toContain(`<span>${escapeHtml(route.from)}</span>`);
       expect(notes3d).toContain(`<span>${escapeHtml(route.to)}</span>`);
@@ -213,7 +238,7 @@ describe("「はじめる前に」の図と札（Issue #212。畳まず図で整
   it("2D の「どこへ送るか」は回答の送り先だけで、声を使わないことを添える。図と札の後に置く", () => {
     const map2d = notes2d.indexOf('<section class="intro-visual send-map"');
     expect(map2d).toBeGreaterThan(notes2d.indexOf('<ol class="intro-flow">'));
-    expect(map2d).toBeLessThan(notes2d.indexOf(escapeHtml(lead)));
+    expect(map2d).toBeLessThan(notes2d.indexOf(escapeHtml(INTRO_NOTE_POINTS[0].text)));
     expect(notes2d).not.toContain("send-map-voice");
     for (const route of SEND_ROUTES) {
       const shown = notes2d.includes(`<span>${escapeHtml(route.from)}</span>`);
@@ -244,7 +269,7 @@ describe("「はじめる前に」の図と札（Issue #212。畳まず図で整
 
   it("図と札の短い文は、1画面目には出さない", () => {
     for (const step of INTRO_FLOW_STEPS) expect(choose).not.toContain(escapeHtml(step.note));
-    expect(choose).not.toContain(escapeHtml(PRIVACY_HEADS.external));
+    expect(choose).not.toContain(escapeHtml(SEND_MAP_KEEP));
   });
 });
 
