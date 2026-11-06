@@ -1,4 +1,4 @@
-// 提出動画の本体（Issue #28、ADR-0051）。sections.ts の9ビートを <Sequence> で並べる。
+// 提出動画の本体（Issue #28、ADR-0051）。sections.ts の8場面（可変の尺）を <Sequence> で並べる。
 // 素材（実写・地図・録画・ナレーション）は video/public/ に置く（Git の対象外）。
 // 置かれていない素材は描かず・鳴らさず、仮の画面（番号・時間・見出し語）のまま書き出せるようにする。
 import type { CSSProperties, FC, ReactNode } from "react";
@@ -13,10 +13,10 @@ import {
   useCurrentFrame,
 } from "remotion";
 import {
-  BEAT_FRAMES,
   ENDCARD_FRAMES,
   PUBLIC_URL_PLACEHOLDER,
   SECTIONS,
+  SECTION_COUNT,
   type Section,
 } from "./sections";
 
@@ -48,15 +48,22 @@ const hasStaticFile = (name: string | null): name is string => {
 const baseText: CSSProperties = { fontFamily: FONT_FAMILY, color: COLORS.ink };
 
 /**
- * 録画の音の大きさ。ナレーションを遅らせるビート（4番）では、ナレーションが始まるところで録画の音を消し、
- * アプリの声とナレーターの声が重ならないようにする。それ以外は 1（鳴らすかどうかは muted で決める）。
+ * 録画の音の大きさ。アプリの声とナレーターの声が重ならないようにする。
+ * - ナレーションを遅らせる場面（3番）では、ナレーションが始まるところで録画の音を消す。
+ * - 録画の音を後から開ける場面（4番）では、footageAudioFromFrames まで録画の音を消す。
+ * どちらも無ければ 1（鳴らすかどうかは muted で決める）。
  */
 const footageVolume = (section: Section) => {
-  if (section.narrationDelayFrames <= 0) return 1;
-  return (frame: number) => (frame < section.narrationDelayFrames ? 1 : 0);
+  const { narrationDelayFrames, footageAudioFromFrames } = section;
+  if (narrationDelayFrames <= 0 && footageAudioFromFrames <= 0) return 1;
+  return (frame: number) => {
+    if (frame < footageAudioFromFrames) return 0;
+    if (narrationDelayFrames > 0 && frame >= narrationDelayFrames) return 0;
+    return 1;
+  };
 };
 
-/** ナレーション。narrationDelayFrames だけ遅らせて鳴らす（ビートの終わりで切れる） */
+/** ナレーション。narrationDelayFrames だけ遅らせて鳴らす（場面の終わりで切れる） */
 const Narration: FC<{ section: Section }> = ({ section }) => {
   if (!hasStaticFile(section.narrationFile)) return null;
   return (
@@ -138,7 +145,7 @@ const PhoneFrame: FC<{ section: Section }> = ({ section }) => (
   </div>
 );
 
-/** 8番：技術と安全の一枚（図は後で作る。今は仮の文字） */
+/** 7番：技術と安全の一枚（図は後で作る。今は仮の文字） */
 const TechSafety: FC = () => (
   <AbsoluteFill style={{ ...baseText, flexDirection: "row", padding: "180px 120px 120px", gap: 60 }}>
     {[
@@ -166,7 +173,7 @@ const TechSafety: FC = () => (
 );
 
 // [TODO-OWNER: 最後のロゴの形（今は「SonaQuest」の文字だけの仮のもの）]
-/** 9番の最後：ロゴと公開 URL の札 */
+/** 最後の場面（8番）の末尾：ロゴと公開 URL の札 */
 const EndCard: FC = () => {
   const frame = useCurrentFrame();
   const opacity = interpolate(frame, [0, 15], [0, 1], { extrapolateRight: "clamp" });
@@ -197,7 +204,7 @@ const EndCard: FC = () => {
   );
 };
 
-/** ビートの番号・時間・見出し語（音を消して見る人向け） */
+/** 場面の番号・時間・見出し語（音を消して見る人向け） */
 const Caption: FC<{ section: Section; align: "left" | "right" }> = ({ section, align }) => {
   const frame = useCurrentFrame();
   const opacity = interpolate(frame, [0, 12], [0, 1], { extrapolateRight: "clamp" });
@@ -214,14 +221,14 @@ const Caption: FC<{ section: Section; align: "left" | "right" }> = ({ section, a
       }}
     >
       <div style={{ fontSize: 30, color: COLORS.sub }}>
-        {section.number} ／ 9　{section.timeLabel}
+        {section.number} ／ {SECTION_COUNT}　{section.timeLabel}
       </div>
       <div style={{ fontSize: 76, fontWeight: 700, marginTop: 8 }}>{section.headline}</div>
     </div>
   );
 };
 
-/** 1ビート分の画面 */
+/** 1場面分の画面 */
 const Beat: FC<{ section: Section }> = ({ section }) => {
   let body: ReactNode;
   let captionAlign: "left" | "right" = "left";
@@ -248,8 +255,8 @@ const Beat: FC<{ section: Section }> = ({ section }) => {
       {body}
       <Caption section={section} align={captionAlign} />
       <Narration section={section} />
-      {section.number === 9 ? (
-        <Sequence from={BEAT_FRAMES - ENDCARD_FRAMES} durationInFrames={ENDCARD_FRAMES} layout="none">
+      {section.number === SECTION_COUNT ? (
+        <Sequence from={section.durationInFrames - ENDCARD_FRAMES} durationInFrames={ENDCARD_FRAMES} layout="none">
           <EndCard />
         </Sequence>
       ) : null}

@@ -5,8 +5,8 @@
 // ログに出してよいのは、ビートの番号・件数・所要時間・HTTP の状態・エラーの種類（name）だけ。
 import path from "node:path";
 
-/** ナレーションを合成するビート（1番は本人の生声なので無い） */
-export const NARRATION_BEATS = [2, 3, 4, 5, 6, 7, 8, 9];
+/** ナレーションを合成する場面（1番は本人の生声なので無い。8場面。ADR-0051 の追記） */
+export const NARRATION_BEATS = [2, 3, 4, 5, 6, 7, 8];
 
 /**
  * 既定のモデル：eleven_v4。ElevenLabs の文書（elevenlabs.io/docs/models）が、ナレーション・動画の収録には
