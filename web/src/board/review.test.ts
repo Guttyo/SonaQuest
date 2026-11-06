@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { INTAKE_RECORDS } from "./data";
 import { applyAuditResult, chartsFor, demoReducer, initialDemo, type DemoState } from "./demo";
-import { awaitingHuman, chartSite, sampleAudit, sampleDraft } from "./review";
+import { auditResultAfterStop, awaitingHuman, chartSite, sampleAudit, sampleDraft } from "./review";
 
 const A = { site: "救護所A" as const, staff: "見本 青葉" };
 const B = { site: "救護所B" as const, staff: "見本 若葉" };
@@ -99,5 +99,18 @@ describe("カルテの確認状態（Issue #141）", () => {
   it("カルテの key から救護所を取り出す", () => {
     expect(chartSite("救護所B|架空 花子")).toBe("救護所B");
     expect(chartSite("本部備蓄|x")).toBeNull();
+  });
+
+  it("監査役の成功の結果が、AI を止めた後に届いたら「監査できず」にする（後片付けの状態は残す。PR #150 のレビュー）", () => {
+    const ok = { ok: true as const, findings: [], session: "deleted" as const };
+    expect(auditResultAfterStop(ok, false)).toBe(ok);
+    expect(auditResultAfterStop(ok, true)).toEqual({ ok: false, failure: "ai_stopped", session: "deleted" });
+    expect(auditResultAfterStop({ ok: true, findings: [] }, true)).toEqual({ ok: false, failure: "ai_stopped" });
+    const { state, key } = withChart();
+    let s = demoReducer(state, { type: "chart_draft", key, actor: A });
+    s = demoReducer(s, { type: "chart_audit_start", key, actor: A });
+    s = applyAuditResult(s, key, auditResultAfterStop(ok, true));
+    expect(s.chartReview[key].status).toBe("audit_unavailable");
+    expect(s.chartReview[key].session).toBe("deleted");
   });
 });

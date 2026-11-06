@@ -95,7 +95,8 @@ import {
   type ChartOp,
   type PermissionNotice,
 } from "../board/BoardAccess";
-import { sampleAudit } from "../board/review";
+import { auditResultAfterStop, sampleAudit, sampleDraft, type ChartAuditResult, type ChartSummaryDraft } from "../board/review";
+import { requestAudit, requestSummary, sampleForChart } from "../board/karte/client";
 import { nextRecordId } from "../board/demo";
 
 /** 見本の監査の結果が届くまでの時間（ミリ秒。「AI監査中」が画面で見えるように。Issue #141） */
@@ -1129,8 +1130,10 @@ export function Board({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<PermissionNotice | null>(null);
   // 非同期の処理（Worker の応答・見本の監査）の後でも、今の時計・ログイン・AI の停止を読むため
-  const live = useRef({ minutes: state.minutes, session, aiStopped });
-  live.current = { minutes: state.minutes, session, aiStopped };
+  const live = useRef({ minutes: state.minutes, session, aiStopped, reviews: state.chartReview });
+  live.current = { minutes: state.minutes, session, aiStopped, reviews: state.chartReview };
+  // AI 要約を待っているカルテ（Issue #148）。待つ間も、ほかの操作は止めない
+  const [drafting, setDrafting] = useState<ReadonlySet<string>>(() => new Set());
   const [selected, setSelected] = useState<SiteId>(initialSite);
   // カルテ入力の専用画面で開いている救護所（Issue #114）。開いているあいだはボード全体をこの画面にする
   const startIntake = initialIntake && initialSite !== HQ ? initialSite : null;
@@ -1242,20 +1245,48 @@ export function Board({
     return true;
   }
   async function chartOp(chart: PatientChart, op: ChartOp) {
-    const kind: AuthorizeKind = op === "draft" ? "chart_summary" : op === "audit" ? "chart_audit" : "chart_confirm";
+    const kind: AuthorizeKind = op === "audit" ? "chart_audit" : op === "confirm" ? "chart_confirm" : "chart_summary";
     const who = await guarded(chart.site, kind, chart.id);
     if (who === null) return;
     const actor = { site: who.site, staff: who.staff };
-    if (op === "draft") {
-      dispatch({ type: "chart_draft", key: chart.key, actor });
+    if (op === "draft" || op === "draft_planted") {
+      // 抽出型の要約（Issue #148）。送るのは架空の会話の見本の ID だけ。誤りを混ぜた例は AI を呼ばない。
+      // AI を止めた状態・要約が使えないときは、固定の見本の下書きに戻る（PR #146 の動きのまま）
+      const planted = op === "draft_planted";
+      const tryModel = planted || !live.current.aiStopped;
+      let draft: ChartSummaryDraft | null = null;
+      if (tryModel) {
+        setDrafting((d) => new Set(d).add(chart.key));
+        try {
+          draft = await requestSummary(sampleForChart(chart.key).id, planted);
+        } finally {
+          setDrafting((d) => {
+            const next = new Set(d);
+            next.delete(chart.key);
+            return next;
+          });
+        }
+        // 待つ間にログアウト・別の救護所でのログインがあったら、前のログインでは書き込まない
+        if (live.current.session !== who) return;
+      }
+      const fallback: ChartSummaryDraft = { ...sampleDraft(chart.key), source: tryModel ? "sample_fallback" : "sample" };
+      dispatch({ type: "chart_draft", key: chart.key, actor, draft: draft ?? fallback });
       logAccess("ai_summary", chart.id, who);
     } else if (op === "audit") {
+      const draft = live.current.reviews[chart.key]?.draft;
       dispatch({ type: "chart_audit_start", key: chart.key, actor });
-      // 見本の監査（Issue #142 の監査役が入るまで）。少し待ってから結果を返す。AI を止めた状態なら「監査できず」
-      window.setTimeout(() => {
-        dispatch({ type: "chart_audit_result", key: chart.key, result: sampleAudit(chart.key, live.current.aiStopped) });
+      const done = (result: ChartAuditResult) => {
+        dispatch({ type: "chart_audit_result", key: chart.key, result });
         logAccess("audit_result", chart.id, who);
-      }, SAMPLE_AUDIT_MS);
+      };
+      if (draft?.source === "extractive" && !live.current.aiStopped) {
+        // 監査役（Managed Agents）に出す。待つ間も「AI監査中」のまま、ほかの操作は止めない。時間切れは「監査できず」（Issue #148）
+        // 届いた時点で AI を止めた状態なら「監査できず」にする（待つ間に止めたとき。PR #150 のレビュー）
+        void requestAudit(draft).then((result) => done(auditResultAfterStop(result, live.current.aiStopped)));
+      } else {
+        // 見本の下書き・AI を止めた状態は、見本の監査。少し待ってから結果を返す。AI を止めた状態なら「監査できず」
+        window.setTimeout(() => done(sampleAudit(chart.key, live.current.aiStopped)), SAMPLE_AUDIT_MS);
+      }
     } else {
       dispatch({ type: "chart_confirm", key: chart.key, actor });
       logAccess("human_confirm", chart.id, who);
@@ -1269,7 +1300,7 @@ export function Board({
   const access: BoardAccessValue | null =
     session === null
       ? null
-      : { session, canEdit, reviews: state.chartReview, aiStopped, busy, notice, chartOp, logOpen: (c) => logAccess("chart_open", c.id), tryWrite };
+      : { session, canEdit, reviews: state.chartReview, drafting, aiStopped, busy, notice, chartOp, logOpen: (c) => logAccess("chart_open", c.id), tryWrite };
 
   // 印の並びは固定のルール（在庫切れ → 未交付 → 記録の未着・転記待ち → 人員）。先頭の2つだけを出し、残りは「ほか N 件」（Issue #113）
   const marksFor = (site: SiteId) => {

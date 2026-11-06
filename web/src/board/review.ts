@@ -7,6 +7,7 @@
 
 import type { SiteId } from "./data";
 import { SAMPLE_DRAFTS, SAMPLE_FINDINGS } from "./accessText";
+import type { AuditSessionState, KarteSummary } from "./karte/contract";
 
 export type ChartReviewStatus = "ai_draft" | "ai_auditing" | "audited" | "audit_unavailable" | "human_confirmed";
 
@@ -15,6 +16,8 @@ export interface AuditFinding {
   where: string;
   kind: string;
   reason: string;
+  /** 該当する下書きの行（lines の何番目か。Issue #148）。行に結びつかない指摘（落ちている観点など）は省く */
+  line?: number;
 }
 
 /** AI の下書き（要約）の1行。aspect は観点（Issue #142 は web/src/flow/record.ts の5観点の識別子を入れる） */
@@ -30,10 +33,22 @@ export interface ChartSummaryLine {
 export interface ChartSummaryDraft {
   source: "sample" | "extractive" | string;
   lines: readonly ChartSummaryLine[];
+  /** 抽出型の要約（Issue #148）：もとにした架空の会話の見本の ID */
+  sampleId?: string;
+  /** デモ用に誤りを混ぜた例か（画面で必ず明示する） */
+  planted?: boolean;
+  /** 監査に送り返す要約（要約の入口の返事のまま） */
+  summary?: KarteSummary;
+  /** 1段目（コードでの確認）の指摘 */
+  codeFindings?: readonly AuditFinding[];
+  /** 1段目で、引用が会話に見つからなかった・短すぎた行（「原文」と表示しない） */
+  unsupportedLines?: readonly number[];
 }
 
-/** 監査の結果。ok:false は監査できなかったとき（時間切れ・API の停止・形の違う返事など。failure は種類だけ） */
-export type ChartAuditResult = { ok: true; findings: readonly AuditFinding[] } | { ok: false; failure: string };
+/** 監査の結果。ok:false は監査できなかったとき（時間切れ・API の停止・形の違う返事など。failure は種類だけ）。session は監査役のセッションの後片付け */
+export type ChartAuditResult =
+  | { ok: true; findings: readonly AuditFinding[]; session?: AuditSessionState }
+  | { ok: false; failure: string; session?: AuditSessionState };
 
 export interface ChartReview {
   status: ChartReviewStatus;
@@ -44,6 +59,8 @@ export interface ChartReview {
   auditFailure: string | null;
   /** 監査済み・監査できずになった状態（人が確認した後も、何を見て確認したかを残す） */
   auditedAs: "audited" | "audit_unavailable" | null;
+  /** 監査役のセッションの後片付け（Issue #148。見本の監査では無い） */
+  session?: AuditSessionState;
   /** 確認した人と時刻（デモの時計の分） */
   confirmedBy: { site: SiteId; staff: string } | null;
   confirmedAt: number | null;
@@ -70,9 +87,19 @@ export function startAudit(review: ChartReview | undefined): ChartReview | undef
 /** 監査の結果を受け取る（監査中のときだけ。ほかの状態に遅れて届いた結果は捨てる） */
 export function receiveAudit(review: ChartReview | undefined, result: ChartAuditResult): ChartReview | undefined {
   if (review?.status !== "ai_auditing") return review;
+  const session = result.session === undefined ? {} : { session: result.session };
   return result.ok
-    ? { ...review, status: "audited", findings: [...result.findings], auditFailure: null, auditedAs: "audited" }
-    : { ...review, status: "audit_unavailable", findings: [], auditFailure: result.failure, auditedAs: "audit_unavailable" };
+    ? { ...review, ...session, status: "audited", findings: [...result.findings], auditFailure: null, auditedAs: "audited" }
+    : { ...review, ...session, status: "audit_unavailable", findings: [], auditFailure: result.failure, auditedAs: "audit_unavailable" };
+}
+
+/**
+ * 監査役の結果が届いた時点で AI を止めた状態なら、成功の結果も「監査できず（ai_stopped）」にする（PR #150 のレビュー）。
+ * 待つ間に止めたときも、止めた状態の約束（監査は「監査できず」）を守る。セッションの後片付けの状態は残す
+ */
+export function auditResultAfterStop(result: ChartAuditResult, aiStopped: boolean): ChartAuditResult {
+  if (!aiStopped) return result;
+  return result.session === undefined ? { ok: false, failure: "ai_stopped" } : { ok: false, failure: "ai_stopped", session: result.session };
 }
 
 /** 人が確認済みにできる状態か（監査済みか監査できずのとき） */

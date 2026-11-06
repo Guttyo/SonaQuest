@@ -2387,6 +2387,40 @@
 .board-review-findings h5 {
   margin: 0 0 4px;
 }
+/* 抽出型の要約の行と、該当箇所の指摘（Issue #148） */
+.board-review-lines {
+  display: grid;
+  gap: 6px;
+  padding-left: 1.4em;
+}
+.board-review-lines li {
+  display: grid;
+  gap: 2px;
+}
+.board-review-lines li.has-finding {
+  padding: 4px 6px;
+  border-left: 3px solid var(--board-warn);
+  background: var(--board-warn-bg);
+}
+.board-review-label {
+  font-weight: var(--fw-bold);
+  margin-right: 6px;
+}
+.board-review-hit {
+  color: var(--board-warn-text);
+  font-weight: var(--fw-bold);
+}
+.board-review-planted {
+  margin: 0;
+  padding: 4px 8px;
+  border: 2px solid var(--board-warn);
+  border-radius: 4px;
+  font-weight: var(--fw-bold);
+}
+.board-review-conversation ul {
+  margin: 4px 0 0;
+  padding-left: 1.2em;
+}
 .board-review-findings ul {
   margin: 0;
   padding-left: 1.2em;
