@@ -161,6 +161,18 @@ describe("振り返りの一言（案A：観点と判定の名前だけ。繰り
     }
   });
 
+  it("よくある回答の言い回し（〜いました、そうです）があっても、決まった言い回しで書いた一言は通る", async () => {
+    const answers = ["毎朝飲んでいました", "そうです", "ありがとうございます", "家族が知っています"];
+    const req = {
+      ...secondDone,
+      inputs: secondDone.inputs.map((i, n) => ({ ...i, text: answers[n % answers.length] })),
+    };
+    const outcome = await runTurn(req, fake({ ...finish, closing_remark: remark }), null);
+    if (!outcome.ok) throw new Error("ok のはず");
+    expect(outcome.remarkRejectReason).toBeNull();
+    expect(outcome.response.remark).toBe(remark);
+  });
+
   it("準備の助言・安心させる言い方の一言は捨てる", async () => {
     for (const bad of ["薬は飲み忘れないよう気をつけましょう。", "これなら大丈夫です。"]) {
       const outcome = await runTurn(secondDone, fake({ ...finish, closing_remark: bad }), null);

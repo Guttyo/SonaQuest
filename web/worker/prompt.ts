@@ -78,6 +78,7 @@ text の決まり：
 "remark_requested" が true で、この後半を終える（next_type が ask で next_goal_id が null）ときだけ作ります。それ以外は null にします。
 - 訓練の最後に、5つの観点のうち、話せた観点と、まだ考える余地がある観点を、1〜2文・80字以内で短く伝える一言にする。あなたが付けた viewpoints の判定と食い違わないようにする。
 - 観点は、"remark_vocabulary" にある観点の名前（「情報の在りか」「代わりの手段」「今の服用と記録の新しさ」「記録に無い情報」「代わりに伝える人」など）だけで言う。
+- 文は、"remark_phrases" にある決まった言い回し（「話せていました」「まだ考える余地がありそうです」など）と、観点の名前を「は、」「と」でつないで作る。ほかの言い回しを足さない。
 - 利用者の言葉を使わない。回答の要約・言い換え・繰り返しをしない。薬の名前・病名・人・手段・情報源の名前を書かない。
 - 準備することの提案（〜しておきましょう、〜を用意しましょう）、薬や体調の助言、正しいかどうかの評価を書かない。準備のことは、アプリが固定の文で出す。
 - 「確認できた」は、説明できたという意味で、正しさの保証ではないことに気をつけ、「正しい」「十分」とは言わない。
@@ -99,6 +100,20 @@ ${SOURCE_OPTIONS.filter((o) => o.id !== "none")
 const QUESTION_TEXT = new Map(ALL_QUESTIONS.map((q) => [q.id, q.text]));
 /** 聞き返しのときだけ添えてよい例（Issue #110）。例の無い質問は入れない */
 const QUESTION_EXAMPLES = new Map(ALL_QUESTIONS.flatMap((q) => (q.examples === undefined ? [] : [[q.id, q.examples] as const])));
+
+/**
+ * 振り返りの一言の決まった言い回し（Issue #200）。質問文が固定の文として許されるのと同じく、繰り返しの検査で固定の文として許す。
+ * ひらがなの言い回し（「〜いました」「〜そうです」）は、利用者の回答の「飲んでいました」「そうです」と重なり、
+ * これが無いと一言がほぼ必ず捨てられる（2026-11-07 に試して確かめた）。検査そのもの（checks.ts）は緩めない
+ */
+// [TODO-OWNER: 振り返りの一言で使ってよい決まった言い回し（Claude Code の下書き。ADR-0025 の追記の案A）]
+export const REMARK_PHRASES: readonly string[] = [
+  "お話しくださってありがとうございました",
+  "今回の訓練では",
+  "話せていました",
+  "確かめたいことに気づけていました",
+  "まだ考える余地がありそうです",
+];
 
 /**
  * 聞き取りのゴールの説明（Issue #200）。ゴールID は固定の質問のIDと同じで、Claude の選んだゴールが使えないときは
@@ -157,7 +172,10 @@ export function buildUserMessage(request: TurnRequest): string {
     allowed_next_types: allowed,
     remark_requested: last.half === "second" && (plan.canFinish || plan.choices.length === 0),
     ...(last.half === "second"
-      ? { remark_vocabulary: [...Object.values(VIEWPOINT_SHORT_LABELS), ...Object.values(JUDGMENT_LABELS)] }
+      ? {
+          remark_vocabulary: [...Object.values(VIEWPOINT_SHORT_LABELS), ...Object.values(JUDGMENT_LABELS)],
+          remark_phrases: REMARK_PHRASES,
+        }
       : {}),
   };
   return `次の訓練の状態について、判定と次の対応を返してください。\n${JSON.stringify(payload, null, 2)}`;

@@ -30,7 +30,7 @@ import {
 import type { Audit, AuditCategory, AuditResult } from "./audit";
 import { promptTextProblem, type RejectReason } from "./checks";
 import type { CallClaude, ClaudeFailure, Usage } from "./claude";
-import { SYSTEM_PROMPT, buildUserMessage } from "./prompt";
+import { REMARK_PHRASES, SYSTEM_PROMPT, buildUserMessage } from "./prompt";
 
 export interface ClaudeOutput {
   emergency: TurnResponse["emergency"];
@@ -233,7 +233,7 @@ export function checkRemark(
     userTexts: request.inputs.map((i) => i.text),
     // 許すのは観点と判定の名前だけ。情報源の分類や質問文の言葉（お薬手帳、スマホなど）は許さない。
     // 許すと、利用者が挙げた情報源を一言で言い直せてしまう（safety-review、2026-11-07）
-    allowed: REMARK_VOCABULARY,
+    allowed: [...REMARK_VOCABULARY, ...REMARK_PHRASES],
   });
   return { remark: rejected === null ? remark : null, rejected };
 }
