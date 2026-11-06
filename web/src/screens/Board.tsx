@@ -94,7 +94,7 @@ import {
   type ChartOp,
   type PermissionNotice,
 } from "../board/BoardAccess";
-import { sampleAudit, sampleDraft, type ChartAuditResult, type ChartSummaryDraft } from "../board/review";
+import { auditResultAfterStop, sampleAudit, sampleDraft, type ChartAuditResult, type ChartSummaryDraft } from "../board/review";
 import { requestAudit, requestSummary, sampleForChart } from "../board/karte/client";
 import { nextRecordId } from "../board/demo";
 
@@ -1276,7 +1276,8 @@ export function Board({
       };
       if (draft?.source === "extractive" && !live.current.aiStopped) {
         // 監査役（Managed Agents）に出す。待つ間も「AI監査中」のまま、ほかの操作は止めない。時間切れは「監査できず」（Issue #148）
-        void requestAudit(draft).then(done);
+        // 届いた時点で AI を止めた状態なら「監査できず」にする（待つ間に止めたとき。PR #150 のレビュー）
+        void requestAudit(draft).then((result) => done(auditResultAfterStop(result, live.current.aiStopped)));
       } else {
         // 見本の下書き・AI を止めた状態は、見本の監査。少し待ってから結果を返す。AI を止めた状態なら「監査できず」
         window.setTimeout(() => done(sampleAudit(chart.key, live.current.aiStopped)), SAMPLE_AUDIT_MS);

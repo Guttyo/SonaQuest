@@ -93,6 +93,15 @@ export function receiveAudit(review: ChartReview | undefined, result: ChartAudit
     : { ...review, ...session, status: "audit_unavailable", findings: [], auditFailure: result.failure, auditedAs: "audit_unavailable" };
 }
 
+/**
+ * 監査役の結果が届いた時点で AI を止めた状態なら、成功の結果も「監査できず（ai_stopped）」にする（PR #150 のレビュー）。
+ * 待つ間に止めたときも、止めた状態の約束（監査は「監査できず」）を守る。セッションの後片付けの状態は残す
+ */
+export function auditResultAfterStop(result: ChartAuditResult, aiStopped: boolean): ChartAuditResult {
+  if (!aiStopped) return result;
+  return result.session === undefined ? { ok: false, failure: "ai_stopped" } : { ok: false, failure: "ai_stopped", session: result.session };
+}
+
 /** 人が確認済みにできる状態か（監査済みか監査できずのとき） */
 export function confirmable(review: ChartReview | undefined): boolean {
   return review?.status === "audited" || review?.status === "audit_unavailable";
