@@ -5,6 +5,7 @@ import { MAX_ANSWER_LENGTH } from "../flow/rules";
 import {
   PushToTalk,
   TALK_LANG,
+  TALK_STYLE,
   appendRecognized,
   browserRecognitionFactory,
   classifyRecognitionError,
@@ -156,7 +157,7 @@ describe("押して話す（hold）", () => {
   });
 });
 
-describe("押して話す（tap。オーナーが選んだら TALK_STYLE を替える）", () => {
+describe("押して話す（tap。3D の対話の既定。2026-11-06 オーナー決定）", () => {
   it("話し終わると自動で止まる設定で開き、もう一度押すと止める。離しても止めない", () => {
     const { talk, log, recognitions, texts } = setup("tap");
     talk.press();
@@ -168,6 +169,65 @@ describe("押して話す（tap。オーナーが選んだら TALK_STYLE を替�
     recognitions[0].result([{ text: "家族が知っています", final: true }]);
     recognitions[0].onend?.();
     expect(texts).toEqual(["家族が知っています"]);
+  });
+
+  it("既定の押し方は tap（1回押しで、話し終わると自動で止まる）", () => {
+    expect(TALK_STYLE).toBe("tap");
+    const log: string[] = [];
+    const recognitions: FakeRecognition[] = [];
+    const talk = new PushToTalk({
+      create: () => {
+        const r = new FakeRecognition(log);
+        recognitions.push(r);
+        return r;
+      },
+      onText: () => {},
+      beforeListen: () => log.push("speech:stop"),
+    });
+    talk.press();
+    expect(recognitions[0].continuous).toBe(false);
+  });
+
+  it("押すと、読み上げを止めてからマイクを開く。話し終わって認識が終わると、押さなくても閉じて文を渡す", () => {
+    const { talk, log, recognitions, texts } = setup("tap");
+    talk.press();
+    expect(log).toEqual(["speech:stop", "mic:start"]);
+    expect(talk.snapshot.listening).toBe(true);
+    recognitions[0].result([{ text: "Aという薬", final: false }]);
+    expect(talk.snapshot.interim).toBe("Aという薬");
+    // 話し終わると、ブラウザが自分で認識を終える（continuous = false）
+    recognitions[0].result([{ text: "Aという薬を朝に1錠", final: true }]);
+    recognitions[0].onend?.();
+    expect(log).not.toContain("mic:stop");
+    expect(texts).toEqual(["Aという薬を朝に1錠"]);
+    expect(talk.snapshot.listening).toBe(false);
+    expect(talk.snapshot.interim).toBe("");
+    // 次に押すと、また聞ける
+    talk.press();
+    expect(recognitions).toHaveLength(2);
+  });
+
+  it("声が無いまま終わったら、知らせて文を渡さない。もう一度押せる", () => {
+    const { talk, recognitions, texts } = setup("tap");
+    talk.press();
+    recognitions[0].onerror?.({ error: "no-speech" });
+    recognitions[0].onend?.();
+    expect(texts).toEqual([]);
+    expect(talk.snapshot.notice).toBe("no_speech");
+    expect(talk.snapshot.listening).toBe(false);
+    talk.press();
+    expect(recognitions).toHaveLength(2);
+  });
+
+  it("聞いている間に読み上げが始まったら（abort）、届いていた文を捨てて閉じる", () => {
+    const { talk, log, recognitions, texts } = setup("tap");
+    talk.press();
+    recognitions[0].result([{ text: "途中まで", final: true }]);
+    talk.abort();
+    recognitions[0].onend?.();
+    expect(log).toContain("mic:abort");
+    expect(texts).toEqual([]);
+    expect(talk.snapshot.listening).toBe(false);
   });
 });
 

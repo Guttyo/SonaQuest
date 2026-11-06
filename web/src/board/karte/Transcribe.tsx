@@ -115,7 +115,7 @@ function TranscribeMic({
   onPress: () => void;
   onText: (text: string) => void;
 }) {
-  const { talk, snapshot } = usePushToTalk(true, false, onText, () => {}, lostMic, onMicLost);
+  const { talk, snapshot } = usePushToTalk(true, false, onText, () => {}, lostMic, onMicLost, "hold");
   return (
     <TalkButton
       snapshot={snapshot}
@@ -126,6 +126,7 @@ function TranscribeMic({
       }}
       onRelease={() => talk?.release()}
       texts={TALK_TEXTS}
+      style="hold"
     />
   );
 }
