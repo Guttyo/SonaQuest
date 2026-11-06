@@ -676,6 +676,322 @@ textarea {
   gap: 12px;
 }
 
+.intro-notes h2 {
+  margin: 8px 0 0;
+}
+
+/* 「はじめる前に」の図と札（Issue #212）。絵は飾りで、意味は文字で示す。色だけに頼らない */
+.notes-icon {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  color: var(--mint-strong);
+}
+
+.intro-visual {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 訓練の流れ：スマホ幅は縦に、広い画面は横に並べ、間に矢印（線で描くので読み上げない） */
+.intro-flow {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.intro-flow-step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 2px solid var(--mint-strong);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.intro-flow-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -15px;
+  transform: translateX(-50%);
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 10px solid var(--mint-strong);
+}
+
+.intro-flow-step:nth-child(3) {
+  border-color: var(--orange);
+  background: var(--alert-bg);
+}
+
+.intro-flow-step:nth-child(3) .notes-icon {
+  color: var(--orange-strong-text);
+}
+
+.intro-flow-text {
+  display: flex;
+  flex-direction: column;
+  line-height: var(--lh-tight);
+}
+
+.intro-flow-label {
+  font-weight: var(--fw-bold);
+}
+
+.intro-flow-note {
+  font-size: var(--fs-sub);
+  color: var(--ink-soft);
+}
+
+/* 答え方のきまり：3つの札 */
+.intro-answer-groups {
+  display: grid;
+  gap: 10px;
+}
+
+.intro-answer {
+  padding: 10px 12px;
+  border: 2px solid var(--mint-strong);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.intro-answer h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: var(--fs-subheading);
+}
+
+.intro-answer ul {
+  margin: 0;
+  padding-left: 1.2em;
+  line-height: var(--lh-tight);
+}
+
+.intro-answer-note {
+  margin: 4px 0 0;
+  font-size: var(--fs-sub);
+  color: var(--ink-soft);
+}
+
+.intro-answer-never {
+  border-color: var(--orange);
+  background: var(--alert-bg);
+}
+
+.intro-answer-never .notes-icon {
+  color: var(--orange-strong-text);
+}
+
+.intro-answer-fictional {
+  background: var(--mint);
+}
+
+/* 気をつけること：項目の前に短い札 */
+.tagged-points {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tagged-points li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding-left: 10px;
+  border-left: 4px solid var(--mint);
+}
+
+.point-tag {
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--mint);
+  color: var(--go);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+}
+
+/* 会話の扱い：要点の1行を太字で先に、全文を続けて */
+.privacy-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.privacy-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.privacy-item p {
+  margin: 0;
+}
+
+/* どこへ送るか（Issue #212 の2つめ）：何を → どこへ を矢印でつなぎ、何のためかを下に。3D は目立つ枠 */
+.send-map-voice {
+  padding: 12px;
+  border: 2px solid var(--mint-strong);
+  border-radius: 12px;
+  background: var(--mint);
+}
+
+.send-map-voice h2 {
+  margin-top: 0;
+}
+
+.send-routes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.send-route {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.send-ends {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+}
+
+.send-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.send-end .notes-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.send-arrow {
+  flex: none;
+  width: 22px;
+  height: 2px;
+  margin-right: 8px;
+  position: relative;
+  background: var(--mint-strong);
+}
+
+.send-arrow::after {
+  content: "";
+  position: absolute;
+  right: -8px;
+  top: -5px;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-left: 9px solid var(--mint-strong);
+}
+
+.send-why {
+  font-size: var(--fs-sub);
+  color: var(--ink-soft);
+  line-height: var(--lh-tight);
+}
+
+.send-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--fs-sub);
+}
+
+.send-note .notes-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.send-note-plain {
+  color: var(--ink-soft);
+}
+
+@media (min-width: 640px) {
+  .intro-flow {
+    flex-direction: row;
+    gap: 16px;
+  }
+
+  .intro-flow-step {
+    flex: 1 1 0;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 10px 4px;
+  }
+
+  /* 5つを横に並べると1つが約 108px なので、文字を一段小さくし、語の途中で折り返さない（対応するブラウザだけ） */
+  .intro-flow-label {
+    font-size: var(--fs-sub);
+  }
+
+  .intro-flow-note {
+    font-size: var(--fs-caption);
+  }
+
+  .intro-flow-text,
+  .intro-answer h3 {
+    word-break: auto-phrase;
+  }
+
+  .intro-answer h3 {
+    font-size: var(--fs-body);
+  }
+
+  .intro-flow-step:not(:last-child)::after {
+    left: auto;
+    right: -14px;
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
+    border-top: 8px solid transparent;
+    border-bottom: 8px solid transparent;
+    border-left: 10px solid var(--mint-strong);
+    border-right: none;
+  }
+
+  .intro-answer-groups {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 /* 2画面目「はじめる前に」の、選んだ答え方の表示 */
 .chosen-mode {
   display: flex;
