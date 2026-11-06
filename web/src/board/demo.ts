@@ -22,6 +22,16 @@ import {
   type SyncRow,
 } from "./data";
 import { DEFAULT_ARRIVAL_SEED, DISPENSE_DAYS, arrivalPlan, dispenseQty, hasCondition, simPatient, type PlannedArrival } from "./patients";
+import {
+  confirmReview,
+  receiveAudit,
+  sampleDraft,
+  startAudit,
+  startDraft,
+  type ChartAuditResult,
+  type ChartReview,
+  type ChartSummaryDraft,
+} from "./review";
 
 /** 記録の処方の1品目（薬の仮名・数量・日数・単位と、在庫が足りず渡せなかった数） */
 export interface RecordRx {
@@ -160,6 +170,14 @@ export interface DemoState {
   rev: number;
   /** 架空の患者の到着（Issue #122） */
   arrivals: ArrivalState;
+  /** カルテの確認状態（カルテの key → 状態。Issue #141）。無いカルテは「AI 下書きなし」 */
+  chartReview: Record<string, ChartReview>;
+}
+
+/** カルテの操作をする人（ログイン中の救護所と架空の担当者。Issue #141） */
+export interface ChartActor {
+  site: SiteId;
+  staff: string;
 }
 
 export type DemoAction =
@@ -178,7 +196,16 @@ export type DemoAction =
       name: string;
       items: readonly { label: string; value: string }[];
       prescription: { item: string; qty: number; days: number } | null;
-    };
+    }
+  /**
+   * カルテの確認状態（Issue #141）。actor はログイン中の救護所と担当者で、カルテの救護所と違えば何もしない
+   * （画面と Worker の確認の後ろの、3つ目の守り）。draft を省くと見本の下書き
+   */
+  | { type: "chart_draft"; key: string; actor: ChartActor; draft?: ChartSummaryDraft }
+  | { type: "chart_audit_start"; key: string; actor: ChartActor }
+  /** 監査の結果（Issue #142 の監査役、または見本）。監査中のカルテにだけ効く */
+  | { type: "chart_audit_result"; key: string; result: ChartAuditResult }
+  | { type: "chart_confirm"; key: string; actor: ChartActor };
 
 /** 記録が本部に届く架空の時刻（1日の中の分）。搬送便・連絡員・定時報告の時刻 */
 const SYNC_TIMES: Readonly<Record<string, readonly number[]>> = {
@@ -242,6 +269,7 @@ export function initialDemo(seed: number = DEFAULT_ARRIVAL_SEED): DemoState {
     dismissed: {},
     seq: 0,
     rev: 0,
+    chartReview: {},
   });
   return { ...start, log: [] };
 }
@@ -668,13 +696,48 @@ export function demoReducer(state: DemoState, action: DemoAction): DemoState {
       return { ...state, arrivals: { ...state.arrivals, active: action.active } };
     case "reseed":
       return initialDemo(action.seed);
-    case "add_record":
-      return refreshProposals(addRecord({ ...state, rev: state.rev + 1 }, action));
+    case "add_record": {
+      // 同じカルテに記録が加わったら、前の下書き・監査・確認は古くなるので外す（新しい記録で作り直す）
+      const chartReview = { ...state.chartReview };
+      delete chartReview[`${action.site}|${action.name}`];
+      return refreshProposals(addRecord({ ...state, rev: state.rev + 1, chartReview }, action));
+    }
+    case "chart_draft":
+      return withReview(state, action.key, action.actor, (r) => startDraft(r, action.draft ?? sampleDraft(action.key)));
+    case "chart_audit_start":
+      return withReview(state, action.key, action.actor, startAudit);
+    case "chart_audit_result":
+      return applyAuditResult(state, action.key, action.result);
+    case "chart_confirm":
+      return withReview(state, action.key, action.actor, (r) => confirmReview(r, action.key, action.actor, state.minutes));
     case "approve_proposal":
       return refreshProposals(approve({ ...state, rev: state.rev + 1 }, action.id));
     case "reject_proposal":
       return refreshProposals(reject({ ...state, rev: state.rev + 1 }, action.id));
   }
+}
+
+/** カルテの救護所（key の先頭）とログイン中の救護所が同じときだけ、確認状態を変える */
+function withReview(
+  state: DemoState,
+  key: string,
+  actor: ChartActor,
+  step: (r: ChartReview | undefined) => ChartReview | undefined,
+): DemoState {
+  if (!key.startsWith(`${actor.site}|`)) return state;
+  const next = step(state.chartReview[key]);
+  if (next === undefined || next === state.chartReview[key]) return state;
+  return { ...state, chartReview: { ...state.chartReview, [key]: next } };
+}
+
+/**
+ * 監査の結果をカルテの確認状態に入れる（Issue #142 の監査役の結果の受け口）。監査中のカルテにだけ効き、
+ * ほかの状態（下書きのまま・確認済み）に遅れて届いた結果は捨てる
+ */
+export function applyAuditResult(state: DemoState, key: string, result: ChartAuditResult): DemoState {
+  const next = receiveAudit(state.chartReview[key], result);
+  if (next === undefined || next === state.chartReview[key]) return state;
+  return { ...state, chartReview: { ...state.chartReview, [key]: next } };
 }
 
 /** 救護所の並び（本部備蓄は除く） */
