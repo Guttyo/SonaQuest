@@ -220,7 +220,7 @@ export function decideNext(request: TurnRequest, output: ClaudeOutput): TurnResp
 
 /**
  * 振り返りの一言の検査（Issue #200 の案A）。後半を終えるときだけ受け付け、質問文と同じ検査（長さ・禁止表現・
- * 固定の文に無い言葉・利用者の言葉の繰り返し）を、そのまま通す。許す固定の言葉に、観点と判定の名前を足すだけ
+ * 固定の文に無い言葉・利用者の言葉の繰り返し）を、そのまま通す。許す固定の言葉は、観点と判定の名前だけ
  */
 export function checkRemark(
   request: TurnRequest,
@@ -231,7 +231,9 @@ export function checkRemark(
   if (remark === null || next.type !== "finish" || half !== "second") return { remark: null, rejected: null };
   const rejected = promptTextProblem(remark, {
     userTexts: request.inputs.map((i) => i.text),
-    allowed: [...REMARK_VOCABULARY, ...ALLOWED_VOCABULARY],
+    // 許すのは観点と判定の名前だけ。情報源の分類や質問文の言葉（お薬手帳、スマホなど）は許さない。
+    // 許すと、利用者が挙げた情報源を一言で言い直せてしまう（safety-review、2026-11-07）
+    allowed: REMARK_VOCABULARY,
   });
   return { remark: rejected === null ? remark : null, rejected };
 }

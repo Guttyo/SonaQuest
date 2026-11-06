@@ -148,6 +148,19 @@ describe("振り返りの一言（案A：観点と判定の名前だけ。繰り
     expect(outcome.remarkRejectReason).toBe("repeat");
   });
 
+  it("利用者が挙げた情報源の名前を言い直す一言は捨てる（固定の言葉でも、一言では観点と判定の名前だけを許す）", async () => {
+    const req = { ...secondDone, inputs: [...secondDone.inputs.slice(0, -1), input("second_proxy", "second", "お薬手帳を家族が持っています")] };
+    for (const [bad, reason] of [
+      ["お薬手帳のことは話せていました。", "repeat"],
+      ["スマホのことは話せていました。", "unknown_term"],
+    ] as const) {
+      const outcome = await runTurn(req, fake({ ...finish, closing_remark: bad }), null);
+      if (!outcome.ok) throw new Error("ok のはず");
+      expect(outcome.response.remark).toBeNull();
+      expect(outcome.remarkRejectReason).toBe(reason);
+    }
+  });
+
   it("準備の助言・安心させる言い方の一言は捨てる", async () => {
     for (const bad of ["薬は飲み忘れないよう気をつけましょう。", "これなら大丈夫です。"]) {
       const outcome = await runTurn(secondDone, fake({ ...finish, closing_remark: bad }), null);
