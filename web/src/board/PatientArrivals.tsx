@@ -6,6 +6,7 @@ import { SHELTERS, type SiteId } from "./data";
 import { arrivalRows, clockText, type DemoAction, type DemoState } from "./demo";
 import { nextSeed } from "./patients";
 import { BOARD_ARRIVALS } from "./text";
+import { Fold, Help } from "./Fold";
 
 const fmt = new Intl.NumberFormat("ja-JP");
 
@@ -28,8 +29,15 @@ function ArrivalSummary({ state, dispatch }: { state: DemoState; dispatch?: (a: 
   const withCondition = rows.filter((r) => r.hasCondition).length;
   const done = a.arrived.length >= a.plan.length;
   return (
-    <section aria-labelledby="board-arrivals" className="board-arrivals" data-testid="arrivals-summary">
-      <h3 id="board-arrivals">{BOARD_ARRIVALS.title}</h3>
+    // 受け入れの最中だけ開いておく（Issue #159）。閉じた見出しにも到着の人数を出す
+    <Fold
+      id="board-arrivals"
+      className="board-arrivals"
+      testId="arrivals-summary"
+      title={BOARD_ARRIVALS.title}
+      count={`${fmt.format(a.arrived.length)} / ${fmt.format(a.plan.length)} ${BOARD_ARRIVALS.people}`}
+      open={a.active}
+    >
       <dl className="board-stats">
         <div>
           <dt>{BOARD_ARRIVALS.arrived}</dt>
@@ -66,12 +74,12 @@ function ArrivalSummary({ state, dispatch }: { state: DemoState; dispatch?: (a: 
           </button>
         </div>
       )}
-      <p className="board-note">{BOARD_ARRIVALS.note}</p>
-      <p className="board-note">
-        {BOARD_ARRIVALS.nameNote}
-        {BOARD_ARRIVALS.memoryNote}
-      </p>
-    </section>
+      <p className="board-note">{BOARD_ARRIVALS.nameNote}</p>
+      <Help>
+        <p className="board-note">{BOARD_ARRIVALS.note}</p>
+        <p className="board-note">{BOARD_ARRIVALS.memoryNote}</p>
+      </Help>
+    </Fold>
   );
 }
 
@@ -79,10 +87,15 @@ function ArrivalList({ state, site }: { state: DemoState; site: SiteId }) {
   const rows = arrivalRows(state, site);
   const headingId = `board-arrivals-${site}`;
   return (
-    <section aria-labelledby={headingId} className="board-arrivals" data-testid="arrivals-list">
-      <h3 id={headingId}>
-        {BOARD_ARRIVALS.listTitle} <span className="board-count">{fmt.format(rows.length)} {BOARD_ARRIVALS.people}</span>
-      </h3>
+    // ふだんは閉じておく（Issue #159）。閉じた見出しにも人数を出す
+    <Fold
+      id={headingId}
+      className="board-arrivals"
+      testId="arrivals-list"
+      title={BOARD_ARRIVALS.listTitle}
+      count={`${fmt.format(rows.length)} ${BOARD_ARRIVALS.people}`}
+      open={false}
+    >
       <p className="board-note">{BOARD_ARRIVALS.nameNote}</p>
       {rows.length === 0 ? (
         <p className="board-note">{BOARD_ARRIVALS.empty}</p>
@@ -126,6 +139,6 @@ function ArrivalList({ state, site }: { state: DemoState; site: SiteId }) {
         </div>
       )}
       <p className="board-note">{BOARD_ARRIVALS.conditionNote}</p>
-    </section>
+    </Fold>
   );
 }
