@@ -189,6 +189,21 @@ export interface NextStep {
 }
 
 /**
+ * 出来事ごとに、優先して勧める準備行動（3つ）。3D の振り返りで読み上げる（2026-11-07 のオーナーの言葉
+ * 「今回はお薬手帳を忘れているので、財布に入れたりスマホに入れたり家族に教えたり、とかの3つくらい優先に選んで」）。
+ * 出来事で使えなくなったものに頼る行動は先にしない。ルールで決め、Claude には選ばせない
+ */
+// [TODO-OWNER: 出来事ごとに優先する準備行動の3つ（お薬手帳が自宅はオーナーの例、ほかの5つは Claude Code の下書き）]
+export const EVENT_PREP_PRIORITY: Record<EventId, readonly PrepActionId[]> = {
+  notebook_home: ["wallet_memo", "photo_and_paper", "tell_family"],
+  battery: ["wallet_memo", "notebook_bag", "tell_family"],
+  network: ["notebook_bag", "wallet_memo", "tell_family"],
+  family_unreachable: ["notebook_bag", "wallet_memo", "photo_and_paper"],
+  clinic_unreachable: ["notebook_bag", "photo_and_paper", "check_portal"],
+  handover: ["wallet_memo", "notebook_bag", "tell_family"],
+};
+
+/**
  * 手薄な観点ごとに、次の一手（準備行動）を1つ選ぶ（ADR-0054）。固定の表と規則だけで、Claude は使わない。
  * 並びは「確認していない」を先に、次に「未確認と気づいた」。同じ判定の中は VIEWPOINT_ORDER の順。
  * 準備行動は PREP_ACTIONS の順で、その観点に関係する最初のもの。別の観点で既に選んだものはなるべく避け、

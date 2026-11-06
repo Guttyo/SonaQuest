@@ -5,11 +5,13 @@
 import {
   AI_FAILED_NOTE,
   CONFIRM_PROMPT,
+  EVENT_PREP_INTRO,
   EVENT_SPEECH,
   JUDGMENT_LABELS,
   NEXT_STEPS_HEADING,
   NEXT_STEP_LABEL,
   NO_WEAK_POINTS_NOTE,
+  ORDINALS,
   PREP_SPEECH,
   PREP_ACTIONS,
   RECALL_NOW,
@@ -18,7 +20,7 @@ import {
   VIEWPOINT_SHORT_LABELS,
   WEAK_POINT_LINES,
 } from "../flow/content";
-import { nextSteps, undeterminedJudgments } from "../flow/rules";
+import { EVENT_PREP_PRIORITY, nextSteps, undeterminedJudgments } from "../flow/rules";
 import { currentQuestion, type TrainingState } from "../flow/training";
 
 /**
@@ -27,12 +29,29 @@ import { currentQuestion, type TrainingState } from "../flow/training";
  * 2つ目からの一言は読まない（長くなるので画面で読む）。判定が無い回はその知らせ、全部確認できた回はその一言
  */
 export function reviewSpeech(state: TrainingState): string | null {
-  const body = reviewSpeechBody(state);
-  // 最後に「次の準備を1つ決める」へ促す固定文を言う（2026-11-07 のオーナーの言葉）
-  return body === null ? null : body + PREP_SPEECH;
+  const tail = eventPrepSpeech(state) + PREP_SPEECH;
+  // 出来事に合わせて優先する準備行動を3つ読み、最後に「次の準備を1つ決める」へ促す固定文を言う（2026-11-07 のオーナーの言葉）。
+  // 読み上げの中継の上限（500字）を超えると、その回の残りがブラウザの読み上げになるので、超えるときは最初の一言と次の一手を省く
+  const full = reviewSpeechBody(state, true);
+  if (full === null) return null;
+  if ((full + tail).length <= REVIEW_SPEECH_MAX) return full + tail;
+  return reviewSpeechBody(state, false) + tail;
 }
 
-function reviewSpeechBody(state: TrainingState): string | null {
+/** 振り返りの読み上げの長さの上限（読み上げの中継 /api/tts の 500字より少し短く） */
+export const REVIEW_SPEECH_MAX = 480;
+
+/** 出来事に合わせた準備行動3つの読み上げ。出来事が無い回は空 */
+export function eventPrepSpeech(state: TrainingState): string {
+  if (state.event === null) return "";
+  const items = EVENT_PREP_PRIORITY[state.event].map((id, i) => {
+    const label = PREP_ACTIONS.find((a) => a.id === id)!.label;
+    return `${ORDINALS[i]}、${label}。`;
+  });
+  return EVENT_PREP_INTRO + items.join("");
+}
+
+function reviewSpeechBody(state: TrainingState, withFirstStep: boolean): string | null {
   if (state.stage.name !== "review") return null;
   // 受け止めの後に、Claude の一言（Issue #200。検査と監査役を通ったもの）を続ける
   const ack = (state.closingAck ?? "") + (state.closingRemark ?? "");
@@ -46,6 +65,7 @@ function reviewSpeechBody(state: TrainingState): string | null {
   const names = steps
     .map((s) => `${VIEWPOINT_SHORT_LABELS[s.viewpoint]}は${JUDGMENT_LABELS[s.judgment]}。`)
     .join("");
+  if (!withFirstStep) return `${ack}${NEXT_STEPS_HEADING}。${names}`;
   const first = steps[0];
   const line = WEAK_POINT_LINES[first.viewpoint][first.judgment as "not_mentioned" | "aware_unconfirmed"];
   const action = PREP_ACTIONS.find((a) => a.id === first.action)!.label;
