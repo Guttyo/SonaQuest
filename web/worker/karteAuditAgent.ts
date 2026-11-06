@@ -10,12 +10,12 @@
  * 監査役のモデル。要約を作るモデル（karteSummary.ts の KARTE_SUMMARY_MODEL）と別のモデルにする。
  * Agent の作成のときに固定されるので、変えたら setup スクリプトで作り直す
  */
-// [TODO-OWNER: カルテの監査役のモデルと effort（Claude Code の下書き：claude-opus-5-5、effort medium）]
+// 決定済み：カルテの監査役のモデルと effort（Claude Code の下書き：claude-opus-5-5、effort medium）
 // → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（AI のモデルと budget）
 export const KARTE_AUDIT_MODEL = { id: "claude-opus-5-5", effort: "medium" } as const;
 
 /** セッション1つの支出の上限（米ドルのセント）。監査1回ごとにセッションを作り、終わったら削除する */
-// [TODO-OWNER: カルテの監査のセッション1つの budget の金額（Claude Code の下書き：$0.20 ＝ "20" セント）]
+// 決定済み：カルテの監査のセッション1つの budget の金額（Claude Code の下書き：$0.20 ＝ "20" セント）
 // → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（AI のモデルと budget）
 export const KARTE_AUDIT_SESSION_BUDGET_CENTS = "20";
 
@@ -24,7 +24,7 @@ export const KARTE_AUDIT_SESSION_BUDGET_CENTS = "20";
  * 見るのは4つ（落ちていること・意味が変わったこと・会話にない言葉や事実・助言や診断に見える書き方）だけで、
  * 医学的な正しさや薬の適否は判断させない。出力は指摘の JSON だけ。Workers の検査（karteAudit.ts）が最後の守り
  */
-// [TODO-OWNER: カルテの監査役の system prompt の文面（Claude Code の下書き。医療の境界に関わる）]
+// 決定済み：カルテの監査役の system prompt の文面（Claude Code の下書き。医療の境界に関わる）
 // → オーナー決定（2026-11-07、チャット、Issue #207）：「案は提出後、今の下書きは採る（推奨）」（ボードの AI の守り）
 export const KARTE_AUDIT_SYSTEM_PROMPT = [
   "あなたは、防災訓練アプリ SonaQuest のデモ画面「地域本部の医薬品ボード」で、カルテの要約を監査する役です。",

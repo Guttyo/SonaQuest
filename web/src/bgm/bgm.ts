@@ -66,7 +66,7 @@ export interface BgmDeps {
   reducedMotion?: boolean;
 }
 
-// [TODO-OWNER: BGM の初期状態（Claude Code の下書きはオフ。オンにしても、利用者が最初に押すまでは鳴らない）]
+// 決定済み：BGM の初期状態（Claude Code の下書きはオフ。オンにしても、利用者が最初に押すまでは鳴らない）
 // → オーナー決定（2026-11-05、チャット）：「オフ」（BGM の初期状態）
 export const BGM_DEFAULT_ON = false;
 
@@ -74,13 +74,13 @@ export const BGM_DEFAULT_ON = false;
  * BGM を止める画面。中断の画面（訓練をやめた・体調の訴え・自傷の案内。どれも stopped）では必ず止める（ADR-0011）。
  * 振り返り（review）では鳴らし続け、終わりの画面（done）では止める
  */
-// [TODO-OWNER: 振り返りと終わりの画面での BGM の扱い（Claude Code の下書き：振り返りでは鳴らし続け、終わりの画面で止める）]
+// 決定済み：振り返りと終わりの画面での BGM の扱い（Claude Code の下書き：振り返りでは鳴らし続け、終わりの画面で止める）
 // → オーナー決定（2026-11-05、チャット）：「振り返りで鳴らし終わりで止める」（振り返りと終わりの画面での BGM の扱い）
 export function bgmStopsOn(stage: string): boolean {
   return stage === "stopped" || stage === "done";
 }
 
-// [TODO-OWNER: 動きを減らす設定のときの BGM の扱い（Claude Code の下書き：BGM は動きではないので変えない。初期状態のオフと、いつでも止められることで足りるとした）]
+// 決定済み：動きを減らす設定のときの BGM の扱い（Claude Code の下書き：BGM は動きではないので変えない。初期状態のオフと、いつでも止められることで足りるとした）
 // → オーナー決定（2026-11-05、チャット）：「BGM も鳴らさない」（動きを減らす設定のときの BGM の扱い）
 
 /** 終わりの画面では、小さくし終えてから止め、その画面では鳴らし直せないようにする */

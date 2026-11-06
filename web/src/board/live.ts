@@ -92,7 +92,7 @@ export function sitePoint(site: SiteId): Pt {
  * 最終報告が古いとみなす時間（時間）。この試作で仮に置いた値で、医学的・運用上の基準ではない。
  * 光の条件に使うだけで、緊急度や優先順位は決めない
  */
-// [TODO-OWNER: 最終報告が古いとみなす時間（Claude Code の下書き。12時間・仮の値）]
+// 決定済み：最終報告が古いとみなす時間（Claude Code の下書き。12時間・仮の値）
 // → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（ボードの架空の数値）
 // ボードの「N時間以上 報告なし」（Issue #113、text.ts の BOARD_CHANGES.staleHours）と同じ値を使い、別の閾値を作らない
 export const STALE_REPORT_HOURS = BOARD_CHANGES.staleHours;

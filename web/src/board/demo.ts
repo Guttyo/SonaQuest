@@ -661,7 +661,7 @@ function addRecord(state: DemoState, a: Extract<DemoAction, { type: "add_record"
 }
 
 /** 到着した架空の患者の記録の項目（固定の見出しと、架空のデータの文。要約・判断をしない） */
-// [TODO-OWNER: 到着した架空の患者の記録の項目の見出し（Claude Code の下書き。性別・年齢・けが・体調・服薬）]
+// 決定済み：到着した架空の患者の記録の項目の見出し（Claude Code の下書き。性別・年齢・けが・体調・服薬）
 // → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（ボードの文言）
 export const ARRIVAL_ITEM_LABELS = {
   sex: "性別",

@@ -12,7 +12,7 @@ export interface RecordItem {
   questionIds: readonly string[];
 }
 
-// [TODO-OWNER: 記録の項目の名前と、質問との対応（Claude Code の下書き）]
+// 決定済み：記録の項目の名前と、質問との対応（Claude Code の下書き）
 // → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（訓練の画面の文言のうち安全に関わらないもの）
 export const RECORD_ITEMS: readonly RecordItem[] = [
   // Issue #200：「ほかには？」の掘り下げの回答も、同じ項目に順に並べる
