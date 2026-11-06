@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { HQ, INBOUND, INTAKE_RECORDS, ITEMS, NEEDS, PATIENTS, SITES, STOCK, SYNC, type SiteId } from "../board/data";
 import { clockText, demoReducer, initialDemo, type DemoAction } from "../board/demo";
 import { caseRows, criticalItems, pendingSummary, todaySummary } from "../board/summary";
+import { timelineRows } from "../board/timeline";
 import {
   BOARD_CASES,
   BOARD_CHANGES,
@@ -18,6 +19,7 @@ import {
   BOARD_ORDERS,
   BOARD_DISASTER_NAME,
   BOARD_SUPPLY_LINK,
+  BOARD_TIMELINE,
   BOARD_TITLE,
   INTAKE_IMAGE,
 } from "../board/text";
@@ -777,5 +779,49 @@ describe("画面の言葉をそろえる（Issue #160。2026-11-06 オーナー�
     expect(all).toContain("うち処方のあった人");
     expect(all).toContain("<th>受領状況・次の予定</th>");
     expect(all).not.toContain("普段の薬の継続");
+  });
+});
+
+describe("発注・搬送の時間軸（Issue #118、ADR-0043 の追記 13）", () => {
+  const run = (s: ReturnType<typeof initialDemo>, ...actions: DemoAction[]) => actions.reduce(demoReducer, s);
+  it("発注・搬送のタブの先頭に置く。概況のタブには出さない", () => {
+    const s = panel(render(HQ, "supply"));
+    expect(s).toContain('data-testid="board-timeline"');
+    expect(s.indexOf('data-testid="board-timeline"')).toBeLessThan(s.indexOf('id="board-orders"'));
+    expect(panel(render(HQ, "overview"))).not.toContain('data-testid="board-timeline"');
+  });
+
+  it("本部は全部の行（救護所の名前つき）、救護所はその救護所の行だけ", () => {
+    const h = panel(render(HQ, "supply"));
+    expect(h.match(/data-timeline-row="/g)).toHaveLength(timelineRows(initialDemo()).length);
+    const b = panel(render("救護所B", "supply"));
+    const rows = b.match(/data-timeline-row="([^"]+)"/g) ?? [];
+    expect(rows.length).toBe(timelineRows(initialDemo(), "救護所B").length);
+    expect(rows.every((r) => r.includes("救護所B|"))).toBe(true);
+  });
+
+  it("図は読み上げから外し、同じ内容を文で並べる。到着未定に日付を出さず、判定の文を出さない", () => {
+    const h = panel(render(HQ, "supply"));
+    const tl = h.slice(h.indexOf('data-testid="board-timeline"'), h.indexOf('id="board-orders"'));
+    expect(tl).toContain('class="board-tl-track" aria-hidden="true"');
+    expect(tl).toContain("到着未定");
+    expect(tl).toContain(BOARD_TIMELINE.title);
+    for (const w of ["遅れ", "間に合わない", "危険", "至急"]) expect(tl).not.toContain(w);
+  });
+
+  it("承認すると、その行の段階が「引当済み」に変わる", () => {
+    const s0 = run(initialDemo(), {
+      type: "add_record",
+      site: "救護所B",
+      name: "架空 太郎",
+      items: [{ label: "薬の名前・量（本人の言葉のまま）", value: "（未記入）" }],
+      prescription: { item: "抗凝固薬F", qty: 60, days: 7 },
+    });
+    const p = s0.proposals.find((x) => x.site === "救護所B" && x.item === "抗凝固薬F")!;
+    const s1 = run(s0, { type: "approve_proposal", id: p.id });
+    const h = panel(render(HQ, "supply", s1));
+    const at = h.indexOf('data-timeline-row="救護所B|抗凝固薬F"');
+    expect(h.slice(at, at + 200)).toContain('data-stage="承認済み（引当済み）"');
+    expect(h.slice(at, h.indexOf("</li>", at))).toContain(`${BOARD_TIMELINE.stageLabel}：${BOARD_TIMELINE.stage["承認済み（引当済み）"]}`);
   });
 });
