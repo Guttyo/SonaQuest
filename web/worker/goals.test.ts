@@ -129,7 +129,7 @@ describe("followsGoalRules（問い合わせの確かめ。ADR-0028 の12）", (
 
 describe("振り返りの一言（案A：観点と判定の名前だけ。繰り返しの検査は緩めない）", () => {
   const finish = { ...output, next_goal_id: null, text: null };
-  const remark = "お話しくださってありがとうございました。代わりに伝える人は、話せていました。記録に無い情報は、まだ考える余地がありそうです。";
+  const remark = "お話しくださってありがとうございました。自分のお薬情報がどこに記録されているのか把握できていましたね。代わりに伝える人は、話せていました。";
 
   it("後半を終えるときの一言は、検査と監査役を通れば返す。監査役には一言と固定の役目の文だけを送る", async () => {
     const audit = vi.fn<Audit>(async () => passed);
@@ -171,6 +171,16 @@ describe("振り返りの一言（案A：観点と判定の名前だけ。繰り
     if (!outcome.ok) throw new Error("ok のはず");
     expect(outcome.remarkRejectReason).toBeNull();
     expect(outcome.response.remark).toBe(remark);
+  });
+
+  it("（オーナーに確かめること）「まだどこかにお薬の情報があるかもしれませんね」は、推測の禁止表現（かもしれません）に当たって捨てられる", async () => {
+    const outcome = await runTurn(
+      secondDone,
+      fake({ ...finish, closing_remark: "記録に無い情報は、まだどこかにお薬の情報があるかもしれませんね。今のうちに確かめておくと安心です。" }),
+      null,
+    );
+    if (!outcome.ok) throw new Error("ok のはず");
+    expect(outcome.remarkRejectReason).toBe("forbidden");
   });
 
   it("準備の助言・安心させる言い方の一言は捨てる", async () => {
