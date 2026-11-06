@@ -82,6 +82,8 @@ export function detectDistress(text: string): "symptom" | "self_harm" | null {
  * 体調の語は、薬の説明（「頭が痛いときに飲む薬」）にも出るので、すぐには中断しない。自傷のほのめかしは今までどおりすぐ中断する
  */
 export const SYMPTOM_CHECK_TEXT = "現在の体調の訴えでしょうか？";
+/** 確かめの問いの間の入力欄の案内（Claude Code の下書き） */
+export const SYMPTOM_CHECK_HINT = "いまの体調のことなら「はい」、薬の説明などなら「いいえ」と答えてください";
 
 // [TODO-OWNER: 確かめの問いへの答えを「はい」とみなす言葉の一覧（Claude Code の下書き。文の頭が肯定の言葉で、否定の言葉を含まないもの）]
 const AFFIRMATIVE_HEADS: readonly string[] = [

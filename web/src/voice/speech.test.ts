@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { CONFIRM_PROMPT, EVENTS, RECALL_NOW } from "../flow/content";
 import { modeFromSearch } from "../flow/mode";
+import { SYMPTOM_CHECK_TEXT } from "../flow/emergency";
 import { firstHalfQuestions } from "../flow/rules";
 import { initialState, trainingReducer, type TrainingAction, type TrainingState } from "../flow/training";
 import { listenerSpeech, speechKey } from "./speech";
@@ -133,6 +134,13 @@ describe("認識した文にも、送る前に緊急の照合がかかる（docs
     const draft = appendRecognized("Aという薬", heard);
     const sent = trainingReducer(run([{ type: "start" }]), { type: "answer", text: draft });
     expect(sent.prompt?.type).toBe("symptom_check");
+  });
+
+  it("3D では、確かめの問いをそれだけ読み上げ、読み上げの切り替えの鍵も変わる（ADR-0011 の追記）", () => {
+    const started = run([{ type: "start", mode: "3d" }]);
+    const checking = trainingReducer(started, { type: "answer", text: "頭が痛いときに飲む薬があります" });
+    expect(listenerSpeech(checking)).toBe(SYMPTOM_CHECK_TEXT);
+    expect(speechKey(checking, listenerSpeech(checking) ?? "")).not.toBe(speechKey(started, listenerSpeech(started) ?? ""));
   });
 });
 
