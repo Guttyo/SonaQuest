@@ -32,7 +32,7 @@ const render = (judgments: Judgments | null) =>
     <Done action="wallet_memo" timing="today" judgments={judgments} onRestart={() => {}} />,
   );
 
-describe("終わりの画面（ADR-0051）：持ち帰るのは、決めた準備・いつ・まだ弱いところ", () => {
+describe("終わりの画面（ADR-0054）：持ち帰るのは、決めた準備・いつ・まだ弱いところ", () => {
   it("決めた準備の名前と一言、いつやるか、まだ弱いところを短い名前と判定で1行に出す", () => {
     const html = render(mixed);
     expect(html).toContain(PREP_ACTIONS.find((a) => a.id === "wallet_memo")!.label);
@@ -58,7 +58,7 @@ describe("終わりの画面（ADR-0051）：持ち帰るのは、決めた準�
   });
 });
 
-describe("メモに写す（ADR-0051 の追記10）：固定文だけで、回答は入れない", () => {
+describe("メモに写す（ADR-0054 の追記10）：固定文だけで、回答は入れない", () => {
   it("写す文は、題・次の準備・いつ・まだ弱いところの4行。弱いところが無い回は3行", () => {
     const text = doneMemoText("wallet_memo", "this_week", mixed);
     expect(text.split("\n")).toEqual([

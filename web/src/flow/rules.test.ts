@@ -163,7 +163,7 @@ describe("orderPrepActions", () => {
   });
 });
 
-describe("nextSteps（まだ弱いところ → 次の一手。ADR-0051）", () => {
+describe("nextSteps（まだ弱いところ → 次の一手。ADR-0054）", () => {
   const allConfirmed: Judgments = {
     location: "confirmed",
     alternative: "confirmed",

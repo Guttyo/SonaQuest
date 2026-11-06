@@ -123,7 +123,7 @@ const between = (html: string, from: string, to: string) =>
 
 const label = (id: PrepActionId) => PREP_ACTIONS.find((a) => a.id === id)!.label;
 
-describe("⑥振り返りの並び（A-05 の⑥、Issue #49、ADR-0051）", () => {
+describe("⑥振り返りの並び（A-05 の⑥、Issue #49、ADR-0054）", () => {
   it("判定が混在する回：受け止め → まだ弱いところと次の一手 → 今ここで → 次の準備 → くわしく見る（出来事 → 5つの観点 → 原文）", () => {
     const html = render(battery);
     expect(html.indexOf("試験の受け止め")).toBeLessThan(html.indexOf(H.next));
@@ -165,7 +165,7 @@ describe("⑥振り返りの並び（A-05 の⑥、Issue #49、ADR-0051）", () 
   });
 });
 
-describe("まだ弱いところと、次の一手（ADR-0051）", () => {
+describe("まだ弱いところと、次の一手（ADR-0054）", () => {
   it("手薄な観点だけを、絵・短い名前・判定の文字・一言・準備行動1つ・「これを準備する」で示す", () => {
     const html = render(battery);
     const section = between(html, H.next, H.recall);

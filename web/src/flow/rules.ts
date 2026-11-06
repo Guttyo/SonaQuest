@@ -112,7 +112,7 @@ export function verifiedSourcesFor(
     .filter((s): s is PublicSource => s !== undefined && s.verified);
 }
 
-/** 振り返りの先頭の「まだ弱いところ → 次の一手」1件（ADR-0051） */
+/** 振り返りの先頭の「まだ弱いところ → 次の一手」1件（ADR-0054） */
 export interface NextStep {
   viewpoint: ViewpointId;
   judgment: Judgment;
@@ -121,7 +121,7 @@ export interface NextStep {
 }
 
 /**
- * 手薄な観点ごとに、次の一手（準備行動）を1つ選ぶ（ADR-0051）。固定の表と規則だけで、Claude は使わない。
+ * 手薄な観点ごとに、次の一手（準備行動）を1つ選ぶ（ADR-0054）。固定の表と規則だけで、Claude は使わない。
  * 並びは「確認していない」を先に、次に「未確認と気づいた」。同じ判定の中は VIEWPOINT_ORDER の順。
  * 準備行動は PREP_ACTIONS の順で、その観点に関係する最初のもの。別の観点で既に選んだものはなるべく避け、
  * 避けられないときは重なってもよい（同じ行動が2つの観点を強くすることはある）。

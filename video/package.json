@@ -1,0 +1,25 @@
+{
+  "name": "sonaquest-video",
+  "version": "0.0.0",
+  "private": true,
+  "description": "SonaQuest の提出動画（Issue #28、SUB-01）を Remotion で組む独立パッケージ。アプリ（web/）とは別。",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts SonaQuestVideo out/sonaquest.mp4",
+    "render:test": "remotion render src/index.ts SonaQuestVideo out/sonaquest-test.mp4 --frames=0-299",
+    "narration": "node scripts/synthesize-narration.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test scripts/*.test.mjs"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.541",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "remotion": "4.0.541"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "typescript": "7.0.2"
+  }
+}

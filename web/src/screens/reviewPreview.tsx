@@ -8,7 +8,7 @@ import { Done } from "./Done";
 import { Review } from "./Review";
 
 /**
- * 振り返りと終わりの画面の見本のページ（開発用。web/review-preview.html。ADR-0051）。
+ * 振り返りと終わりの画面の見本のページ（開発用。web/review-preview.html。ADR-0054）。
  * 判定の組み合わせ（弱い観点が1つ・多い・無い・判定できない）を切り替えて、先頭のまとめの長さと並びを確かめる。
  * 回答はすべて架空の見本の文で、Claude も Workers も使わない。本番のビルドには入らない
  */

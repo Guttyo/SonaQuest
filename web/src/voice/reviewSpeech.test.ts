@@ -34,7 +34,7 @@ const review = (patch: Partial<TrainingState>): TrainingState => ({
   ...patch,
 });
 
-describe("振り返りの読み上げ（3D。ADR-0051）：固定文だけで、回答は読まない", () => {
+describe("振り返りの読み上げ（3D。ADR-0054）：固定文だけで、回答は読まない", () => {
   it("弱い観点があるとき：受け止め → 見出し → 名前と判定（全部）→ 最初の一言と次の一手", () => {
     const text = reviewSpeech(
       review({ judgments: J({ alternative: "aware_unconfirmed", proxy: "not_mentioned" }) }),

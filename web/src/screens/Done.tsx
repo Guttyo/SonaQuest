@@ -34,7 +34,7 @@ export function weakLine(judgments: Judgments | null): string | null {
 }
 
 /**
- * メモに写す文（ADR-0051 の追記10）。決めた準備・いつ・まだ弱いところの固定文だけで、
+ * メモに写す文（ADR-0054 の追記10）。決めた準備・いつ・まだ弱いところの固定文だけで、
  * 利用者の回答の原文は入れない。アプリはこれを保存しない（端末のクリップボードや共有先に渡すだけ）
  */
 export function doneMemoText(action: PrepActionId, timing: TimingId, judgments: Judgments | null): string {
@@ -50,7 +50,7 @@ export function doneMemoText(action: PrepActionId, timing: TimingId, judgments: 
 }
 
 /**
- * 終わりの画面（ADR-0051）。持ち帰るのは3つだけ：決めた準備、いつやるか、まだ弱いところ。
+ * 終わりの画面（ADR-0054）。持ち帰るのは3つだけ：決めた準備、いつやるか、まだ弱いところ。
  * 「メモに写す」でその3つを端末のクリップボードに渡す（共有が使える端末では「共有する」も）。
  * 文はすべて固定文で、利用者の回答は引かない。保存はしない（DONE_NOTE）
  */

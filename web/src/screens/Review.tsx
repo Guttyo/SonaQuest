@@ -60,7 +60,7 @@ const RECOVERY_IDS: readonly string[] = [RECOVERY_QUESTION.id, HANDOVER_QUESTION
 const PREP_CARDS_ID = "prep-cards";
 
 /**
- * ⑥振り返り（A-05 の⑥、Issue #49、ADR-0051）。
+ * ⑥振り返り（A-05 の⑥、Issue #49、ADR-0054）。
  * 先に見せるのは「まだ弱いところ → 次の一手」だけ：手薄な観点ごとに、短い名前・判定・一言・準備行動1つ。
  * 「これを準備する」で準備行動のカードが選ばれ、いつやるかを選んで決める。
  * 出来事と立て直し、5つの観点の一覧、回答の原文、記録の形は「くわしく見る」（details）に畳む。消さない。
@@ -87,7 +87,7 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
   const [action, setAction] = useState<PrepActionId | null>(null);
   const [timing, setTiming] = useState<TimingId | null>(null);
 
-  // 3D の対話モードでは、先頭のまとめ（固定文だけ。回答は読まない）を読み上げる（ADR-0033、ADR-0051）
+  // 3D の対話モードでは、先頭のまとめ（固定文だけ。回答は読まない）を読み上げる（ADR-0033、ADR-0054）
   const voiceOn = state.mode === "3d";
   const { speaker, snapshot: speech } = useSpeaker(voiceOn, state.session);
   const spoken = voiceOn ? reviewSpeech(state) : null;
