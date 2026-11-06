@@ -5,7 +5,7 @@
 import {
   AI_FAILED_NOTE,
   CONFIRM_PROMPT,
-  EVENTS,
+  EVENT_SPEECH,
   JUDGMENT_LABELS,
   NEXT_STEPS_HEADING,
   NEXT_STEP_LABEL,
@@ -64,12 +64,8 @@ export function listenerSpeech(state: TrainingState): string | null {
     const recall = last !== undefined && last.half === "first" && last.recall ? RECALL_NOW : "";
     return recall + (state.closingAck ?? "") + CONFIRM_PROMPT;
   }
-  if (stage.name === "event" && state.event !== null) {
-    const event = EVENTS[state.event];
-    return event.unavailable === null
-      ? event.text
-      : `${event.text}使えなくなったもの：${event.unavailable}`;
-  }
+  // 出来事は、画面の一覧ではなく場面を語る固定文を読み上げる（2026-11-07 のオーナーの言葉）
+  if (stage.name === "event" && state.event !== null) return EVENT_SPEECH[state.event];
   return null;
 }
 
