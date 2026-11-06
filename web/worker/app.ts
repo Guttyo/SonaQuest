@@ -13,9 +13,10 @@ import { ALLOWED_VOCABULARY, followsFixedOrder, runTurn } from "./turn";
 import { createTtsApp, type TtsEnv } from "./tts";
 import { createTtsLabApp } from "./ttsLab";
 import { createBoardChatApp, makeChatBackend, type BoardChatEnv } from "./boardChat";
+import { createKarteApp, type KarteEnv } from "./karte";
 
-/** 読み上げの中継の設定（TtsEnv）は tts.ts、ボードの掲示板チャットの設定（BoardChatEnv）は boardChat.ts */
-export interface Env extends TtsEnv, BoardChatEnv {
+/** 読み上げの中継の設定（TtsEnv）は tts.ts、ボードの掲示板チャットの設定（BoardChatEnv）は boardChat.ts、カルテの要約と監査（KarteEnv）は karte.ts */
+export interface Env extends TtsEnv, BoardChatEnv, KarteEnv {
   /** Workers の secrets（手元では .dev.vars）。ブラウザには出さない */
   ANTHROPIC_API_KEY?: string;
   /** 開発中だけの本文のログ出力。wrangler.jsonc には書かない（ADR-0007 の追記） */
@@ -91,6 +92,7 @@ export function createApp(
   makeClaude: (apiKey: string, options?: ClaudeOptions) => CallClaude = makeCallClaude,
   makeAuditor: (apiKey: string) => Audit = makeAudit,
   makeChat: Parameters<typeof createBoardChatApp>[0]["makeBackend"] = makeChatBackend,
+  karteDeps: Omit<Parameters<typeof createKarteApp>[0], "readBody"> = {},
 ) {
   const app = new Hono<{ Bindings: Env }>();
 
@@ -202,6 +204,8 @@ export function createApp(
   app.route("/", createTtsLabApp({ readBody: readLimitedText }));
   // ボードの掲示板チャット（B-07、ADR-0047）。Managed Agents のセッションを中継する。/api/turn と同じ条件で通す
   app.route("/", createBoardChatApp({ readBody: readLimitedText, makeBackend: makeChat }));
+  // カルテの抽出型の要約と2段構えの監査（B-10、Issue #142）。入力は架空の会話の見本の ID だけ。/api/turn と同じ条件で通す
+  app.route("/", createKarteApp({ readBody: readLimitedText, ...karteDeps }));
 
   app.all("/api/*", (c) => c.json({ error: "not_found" }, 404));
   return app;
