@@ -127,8 +127,10 @@ export function Intro({ onStart, onOpenBoard, initialView = "choose", initialMod
 
       {/* 医療者側（Issue #97、#101、ADR-0042）。「次へ」の直下にボードへのボタン（架空データの試作で、訓練の外の画面）。
           問診モードは将来構想で、その下の説明にまとめる（押せるものにしない。PRD「Coming soon の表示の決まり」） */}
-      <button type="button" className="secondary" onClick={() => onOpenBoard?.()}>
-        {BOARD_ENTRY_LABEL}
+      {/* Issue #162：見えづらいので、絵を付けて文字を大きくし、「次へ」との間をあける。主の操作は「次へ」なので塗りつぶしにはしない */}
+      <button type="button" className="secondary board-entry" onClick={() => onOpenBoard?.()}>
+        <ModeIcon id="board" className="board-entry-icon" />
+        <span>{BOARD_ENTRY_LABEL}</span>
       </button>
       <p className="intro-aside">{COMING_SOON_INTAKE}</p>
     </section>

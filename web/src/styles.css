@@ -155,6 +155,27 @@ p {
   line-height: var(--lh-heading);
 }
 
+/* はじめにの、ボードへの入口（Issue #162）。「次へ」より目立たせない（塗りつぶさない）が、絵と大きめの文字で別の入口だと分かるようにする */
+button.secondary.board-entry {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 64px;
+  margin-top: 12px;
+  padding: 8px 20px;
+  border-radius: 16px;
+  font-size: var(--fs-emphasis);
+  line-height: var(--lh-heading);
+  text-align: left;
+}
+
+.board-entry-icon {
+  width: 36px;
+  height: 36px;
+  flex: none;
+}
+
 /* はじめにの、ボードのボタンの下の短い説明（将来構想の問診モード。押せるものにしない。Issue #101） */
 .intro-aside {
   margin: 0;

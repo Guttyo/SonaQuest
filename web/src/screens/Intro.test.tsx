@@ -46,8 +46,8 @@ describe("はじめにの1画面目：答え方をカードで選ぶ（A-14、Is
 
   it("カードの絵は飾りで、意味は文字で示す（aria-hidden）", () => {
     const svgs = choose.match(/<svg[^>]*>/g) ?? [];
-    // 2D・3D・C-01 の鍵（問診モードは文だけで、絵は無い。Issue #101）
-    expect(svgs).toHaveLength(3);
+    // 2D・3D・C-01 の鍵・ボードへの入口（Issue #162）。問診モードは文だけで、絵は無い（Issue #101）
+    expect(svgs).toHaveLength(4);
     for (const svg of svgs) expect(svg).toContain('aria-hidden="true"');
   });
 
@@ -64,14 +64,19 @@ describe("はじめにの1画面目：答え方をカードで選ぶ（A-14、Is
     // ボタンは「次へ」と、訓練の外の画面（地域本部のボード）へ入るものの2つ（Issue #97）
     expect(choose.match(/<button/g)).toHaveLength(2);
     expect(choose).toContain(">次へ</button>");
-    expect(choose).toContain(`>${escapeHtml(BOARD_ENTRY_LABEL)}</button>`);
+    expect(choose).toContain(`<span>${escapeHtml(BOARD_ENTRY_LABEL)}</span></button>`);
     for (const text of REQUIRED) expect(choose).not.toContain(escapeHtml(text));
   });
 
   it("「次へ」が主ボタンで、その直下にボードへのボタン、その下に問診モード（将来構想）の説明の文（Issue #101）", () => {
     const text = escapeHtml(COMING_SOON_INTAKE);
     expect(choose).toContain('<button type="button" class="primary">次へ</button>');
-    expect(choose).toContain(`<button type="button" class="secondary">${escapeHtml(BOARD_ENTRY_LABEL)}</button>`);
+    // Issue #162：絵（読み上げない）と文字の入口。塗りつぶしの primary にはしない
+    expect(choose).toMatch(
+      new RegExp(
+        `<button type="button" class="secondary board-entry"><svg class="board-entry-icon"[^>]*aria-hidden="true"[\\s\\S]*?</svg><span>${escapeHtml(BOARD_ENTRY_LABEL)}</span></button>`,
+      ),
+    );
     expect(choose).toContain(`<p class="intro-aside">${text}</p>`);
     // 問診モードはボタン・リンク・カードにしない（押せるものに見せない）
     expect(choose).not.toMatch(new RegExp(`<(button|a|input|label)[^>]*>[^<]*${text.slice(0, 10)}`));
@@ -81,7 +86,7 @@ describe("はじめにの1画面目：答え方をカードで選ぶ（A-14、Is
     expect(next).toBeLessThan(board);
     expect(board).toBeLessThan(choose.indexOf(text));
     // 「次へ」とボードのボタンの間に、ほかの部品を置かない
-    expect(choose.slice(next, board)).toBe('>次へ</button><button type="button" class="secondary">');
+    expect(choose.slice(next, board)).toMatch(/^>次へ<\/button><button type="button" class="secondary board-entry"><svg[\s\S]*<\/svg><span>$/);
   });
 
   it("並び：問いかけ → 題 → カード → Coming soon → 次へ", () => {
