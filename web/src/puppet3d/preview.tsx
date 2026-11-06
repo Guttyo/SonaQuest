@@ -2,8 +2,6 @@ import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Listener } from "../screens/Listener";
 import "../styles.css";
-import { LOOKS, LOOK_LABELS, type PuppetLook } from "./palette";
-import { setPuppetLook } from "./stage";
 import { ACTIVITY_LABELS, type ListenerActivity, type ListenerMode } from "./types";
 
 /**
@@ -35,10 +33,6 @@ if (params.get("motion") === "reduce") {
     return { ...result, matches: true, addEventListener() {}, removeEventListener() {} } as MediaQueryList;
   };
 }
-
-// 見た目の案（Issue #164）。?look=a などで選ぶ。アプリの画面には入れない
-const look: PuppetLook = LOOKS.find((l) => l === params.get("look")) ?? "current";
-setPuppetLook(look);
 
 const ACTIVITIES: ListenerActivity[] = ["idle", "listening", "speaking", "thinking"];
 const SAMPLE_TEXT = "これは見本の文です。実際の訓練の質問ではありません。";
@@ -117,14 +111,6 @@ function Preview() {
           <p className="small">
             <a href="?">そのまま</a>／<a href="?webgl=off">WebGL を使えないことにする</a>／
             <a href="?motion=reduce">動きを減らす設定にする</a>
-          </p>
-          <p className="small" id="preview-look">
-            見た目の案（3D だけ。Issue #164）：{LOOK_LABELS[look]}。
-            {LOOKS.map((l) => (
-              <a key={l} href={`?look=${l}`}>
-                {LOOK_LABELS[l]}{" "}
-              </a>
-            ))}
           </p>
         </section>
       </main>

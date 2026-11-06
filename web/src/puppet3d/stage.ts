@@ -18,7 +18,7 @@ import {
   WebGLRenderer,
   type BufferGeometry,
 } from "three";
-import { lookExtra, lookPalette, type PuppetLook, type PuppetPalette } from "./palette";
+import { paletteFor, type PuppetPalette } from "./palette";
 import { blendPose, nodAt, poseAt, type Pose } from "./pose";
 import type { ListenerActivity } from "./types";
 
@@ -43,14 +43,6 @@ const KEEP_MS = 2000;
 
 type PartName = "body" | "accent" | "cheek" | "mouth" | "eye" | "highlight" | "extra";
 
-/** 見た目の案（Issue #164）。見本のページだけが変える。アプリの画面は "current" のまま */
-let puppetLook: PuppetLook = "current";
-
-/** 見本のページ用：これから作るパペットの見た目の案を選ぶ（作り直されるまで今のパペットは変わらない） */
-export function setPuppetLook(look: PuppetLook): void {
-  puppetLook = look;
-}
-
 class PuppetStage {
   readonly canvas: HTMLCanvasElement;
   lost = false;
@@ -74,8 +66,6 @@ class PuppetStage {
   /** うなずき始めた時刻（秒）。うなずいていないときは -Infinity */
   private nodStart = -Infinity;
   private palette: PuppetPalette | null = null;
-  private readonly look: PuppetLook = puppetLook;
-  private relief = false;
 
   constructor() {
     const dpr = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
@@ -109,7 +99,7 @@ class PuppetStage {
       extra: toon(),
     };
     this.materials.mouth.side = DoubleSide;
-    this.setPalette(lookPalette(this.look, false));
+    this.setPalette(paletteFor(false));
 
     this.buildPuppet();
 
@@ -132,7 +122,7 @@ class PuppetStage {
     return new Mesh(this.geometry(geometry), this.materials[part]);
   }
 
-  /** 手袋人形の形：袖のような胴、丸い頭、上下に開く口、目、短い腕。胴と頭の上の飾りは見た目の案で変える */
+  /** 手袋人形の形：ずんぐりした胴、丸い頭と丸い耳、上下に開く口、目、短い腕（Issue #164 の案C どうぶつ風） */
   private buildPuppet(): void {
     this.buildBody();
 
@@ -192,13 +182,13 @@ class PuppetStage {
       upper.add(cheek);
     }
 
-    this.buildTopper(upper);
+    this.buildEarsAndMuzzle(upper);
 
     this.root.position.y = 0.1;
     this.scene.add(this.root);
   }
 
-  /** 胴・襟・腕（見た目の案ごと） */
+  /** 胴・襟・おなか・腕 */
   private buildBody(): void {
     const add = (m: Mesh) => {
       this.root.add(m);
@@ -211,111 +201,45 @@ class PuppetStage {
         arm.rotation.z = side * tilt;
       }
     };
-    if (this.look === "a") {
-      // 卵形の体。襟は無く、胸に小さな丸い飾り。頭を大きくする
-      const body = add(this.mesh(new SphereGeometry(0.86, 24, 16), "body"));
-      body.scale.set(1, 1.08, 0.9);
-      body.position.y = -1.22;
-      const badge = add(this.mesh(new SphereGeometry(0.13, 12, 8), "extra"));
-      badge.scale.set(1, 1, 0.4);
-      badge.position.set(0.28, -0.9, 0.74);
-      arms(0.13, 0.18, 0.84, -1.05, 0.9);
-      this.head.scale.setScalar(1.06);
-      return;
-    }
-    if (this.look === "b") {
-      // 細長い体に、藍色のマフラー（首の輪と垂れ）。頭は少し小さく
-      add(this.mesh(new CylinderGeometry(0.5, 0.62, 1.8, 20), "body")).position.y = -1.32;
-      const scarf = add(this.mesh(new TorusGeometry(0.54, 0.16, 8, 24), "accent"));
-      scarf.rotation.x = Math.PI / 2;
-      scarf.position.y = -0.48;
-      const tail = add(this.mesh(new CapsuleGeometry(0.11, 0.42, 4, 8), "accent"));
-      tail.position.set(0.32, -0.86, 0.5);
-      tail.rotation.z = 0.12;
-      arms(0.12, 0.5, 0.64, -1.05, 0.3);
-      this.head.scale.setScalar(0.94);
-      return;
-    }
-    if (this.look === "c") {
-      // ずんぐりした体に、緑の襟と、クリーム色のおなか
-      add(this.mesh(new CylinderGeometry(0.74, 0.9, 1.2, 20), "body")).position.y = -1.08;
-      const collar = add(this.mesh(new TorusGeometry(0.74, 0.11, 8, 24), "accent"));
-      collar.rotation.x = Math.PI / 2;
-      collar.position.y = -0.46;
-      const belly = add(this.mesh(new SphereGeometry(0.46, 16, 12), "extra"));
-      belly.scale.set(1, 1.1, 0.36);
-      belly.position.set(0, -1.12, 0.74);
-      arms(0.16, 0.3, 0.92, -0.96, 0.7);
-      return;
-    }
-    const body = add(this.mesh(new CylinderGeometry(0.6, 0.82, 1.4, 20), "body"));
-    body.position.y = -1.15;
-    const collar = add(this.mesh(new TorusGeometry(0.64, 0.13, 8, 24), "accent"));
+    // ずんぐりした体に、緑の襟と、クリーム色のおなか
+    add(this.mesh(new CylinderGeometry(0.74, 0.9, 1.2, 20), "body")).position.y = -1.08;
+    const collar = add(this.mesh(new TorusGeometry(0.74, 0.11, 8, 24), "accent"));
     collar.rotation.x = Math.PI / 2;
     collar.position.y = -0.46;
-    arms(0.14, 0.42, 0.78, -1.0, 0.55);
+    const belly = add(this.mesh(new SphereGeometry(0.46, 16, 12), "extra"));
+    belly.scale.set(1, 1.1, 0.36);
+    belly.position.set(0, -1.12, 0.74);
+    arms(0.16, 0.3, 0.92, -0.96, 0.7);
   }
 
-  /** 頭の上の飾り（係を見分ける目印。医療者の帽子や記号にはしない）。案C は耳と口まわり */
-  private buildTopper(upper: Group): void {
-    if (this.look === "a") {
-      // 双葉：短い茎と、左右に開いた2枚の葉
-      const stem = this.mesh(new CapsuleGeometry(0.04, 0.16, 4, 8), "accent");
-      stem.position.set(0, 0.78, 0);
-      upper.add(stem);
-      for (const side of [-1, 1]) {
-        const leaf = this.mesh(new SphereGeometry(0.17, 12, 8), "accent");
-        leaf.scale.set(1.4, 0.45, 0.8);
-        leaf.position.set(side * 0.19, 0.88, 0);
-        leaf.rotation.z = side * 0.45;
-        upper.add(leaf);
-      }
-      return;
+  /** 丸い耳と口まわり（動物の目印。医療者の帽子や記号にはしない） */
+  private buildEarsAndMuzzle(upper: Group): void {
+    // 丸い耳（内側は頬の色）と、口の上の丸い口まわり
+    for (const side of [-1, 1]) {
+      const ear = this.mesh(new SphereGeometry(0.24, 14, 10), "body");
+      ear.scale.set(1, 1, 0.55);
+      ear.position.set(side * 0.5, 0.6, -0.05);
+      upper.add(ear);
+      const inner = this.mesh(new SphereGeometry(0.13, 12, 8), "cheek");
+      inner.scale.set(1, 1, 0.4);
+      inner.position.set(side * 0.5, 0.6, 0.06);
+      upper.add(inner);
     }
-    if (this.look === "b") {
-      // 短いアンテナと、先の丸い玉
-      const pole = this.mesh(new CylinderGeometry(0.025, 0.025, 0.36, 8), "accent");
-      pole.position.set(0, 0.92, 0);
-      upper.add(pole);
-      const ball = this.mesh(new SphereGeometry(0.11, 12, 8), "extra");
-      ball.position.set(0, 1.12, 0);
-      upper.add(ball);
-      return;
-    }
-    if (this.look === "c") {
-      // 丸い耳（内側は頬の色）と、口の上の丸い口まわり
-      for (const side of [-1, 1]) {
-        const ear = this.mesh(new SphereGeometry(0.24, 14, 10), "body");
-        ear.scale.set(1, 1, 0.55);
-        ear.position.set(side * 0.5, 0.6, -0.05);
-        upper.add(ear);
-        const inner = this.mesh(new SphereGeometry(0.13, 12, 8), "cheek");
-        inner.scale.set(1, 1, 0.4);
-        inner.position.set(side * 0.5, 0.6, 0.06);
-        upper.add(inner);
-      }
-      const muzzle = this.mesh(new SphereGeometry(0.24, 14, 10), "extra");
-      muzzle.scale.set(1.25, 0.6, 0.6);
-      muzzle.position.set(0, 0.1, 0.68);
-      upper.add(muzzle);
-      const nose = this.mesh(new SphereGeometry(0.07, 10, 8), "eye");
-      nose.position.set(0, 0.2, 0.82);
-      upper.add(nose);
-      return;
-    }
-    const tuft = this.mesh(new CapsuleGeometry(0.09, 0.22, 4, 8), "accent");
-    tuft.position.set(0.08, 0.8, 0.02);
-    tuft.rotation.z = -0.35;
-    upper.add(tuft);
+    const muzzle = this.mesh(new SphereGeometry(0.24, 14, 10), "extra");
+    muzzle.scale.set(1.25, 0.6, 0.6);
+    muzzle.position.set(0, 0.1, 0.68);
+    upper.add(muzzle);
+    const nose = this.mesh(new SphereGeometry(0.07, 10, 8), "eye");
+    nose.position.set(0, 0.2, 0.82);
+    upper.add(nose);
   }
 
   private setPalette(palette: PuppetPalette): void {
     if (this.palette === palette) return;
     this.palette = palette;
-    for (const part of Object.keys(palette) as (keyof PuppetPalette)[]) {
+    for (const part of Object.keys(this.materials) as PartName[]) {
       this.materials[part].color.set(palette[part]);
     }
-    this.materials.extra.color.set(lookExtra(this.look, this.relief));
   }
 
   nod(): void {
@@ -324,8 +248,7 @@ class PuppetStage {
 
   setState(activity: ListenerActivity, relief: boolean): void {
     this.activity = activity;
-    this.relief = relief;
-    this.setPalette(lookPalette(this.look, relief));
+    this.setPalette(paletteFor(relief));
   }
 
   mount(host: HTMLElement, onLost: () => void): void {

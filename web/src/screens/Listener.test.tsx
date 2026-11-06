@@ -130,6 +130,15 @@ describe("Puppet2D の絵（ADR-0038）", () => {
     expect(relief).not.toContain(`fill="${MAIN_PALETTE.body}"`);
   });
 
+  it("2D も 3D と同じ案C（どうぶつ風。Issue #164）：丸い耳と、口まわり・おなかの色がある", () => {
+    const html = renderToStaticMarkup(<Puppet2D activity="idle" relief={false} />);
+    expect(html).toContain(`fill="${MAIN_PALETTE.extra}"`);
+    // 耳は左右に2つずつ（外側と内側）
+    expect(html.match(/<circle cx="(40|80)" cy="25"/g)?.length).toBe(4);
+    const relief = renderToStaticMarkup(<Puppet2D activity="idle" relief />);
+    expect(relief).toContain(`fill="${RELIEF_PALETTE.extra}"`);
+  });
+
   it("吹き出しの横の小さな顔も、文字を含まない飾り", () => {
     const html = renderToStaticMarkup(<Puppet2DFace activity="thinking" />);
     expect(html).toContain('data-activity="thinking"');
