@@ -22,6 +22,17 @@ function lastReportAt(state: DemoState, site: SiteId): number | null {
   return times.length > 0 ? Math.max(...times) : null;
 }
 
+/**
+ * 本部で記録の形になっていない数を、未着（紙が届いていない）と転記待ち（届いたが記録にしていない）に分ける（Issue #161）。
+ * ボードの同期の行は、救護所ごとに1つの数と、その内訳の種類を持つ。行が無ければ両方 null
+ */
+export function pendingSplit(state: DemoState, site: SiteId): { notArrived: number | null; awaitingEntry: number | null } {
+  const row = state.sync.find((s) => s.site === site);
+  if (row === undefined) return { notArrived: null, awaitingEntry: null };
+  if (row.pending === 0 || row.pendingKind === "なし") return { notArrived: 0, awaitingEntry: 0 };
+  return row.pendingKind === "未着" ? { notArrived: row.pending, awaitingEntry: 0 } : { notArrived: 0, awaitingEntry: row.pending };
+}
+
 export function chatStatus(state: DemoState): ChatStatus {
   const patients = patientsWithExtra(state);
   const today = latestDate(patients);
@@ -35,7 +46,8 @@ export function chatStatus(state: DemoState): ChatStatus {
       patients: patients.find((r) => r.date === today && r.site === site)?.patients ?? null,
       shortItems: critical.filter((c) => c.site === site).length,
       pharmacistsShort: info ? Math.max(0, info.pharmacistsNeeded - info.pharmacists) : 0,
-      pendingRecords: state.sync.find((s) => s.site === site)?.pending ?? null,
+      notArrivedRecords: pendingSplit(state, site).notArrived,
+      awaitingEntryRecords: pendingSplit(state, site).awaitingEntry,
       lastReportMinutesAgo: at === null ? null : Math.max(0, state.minutes - at),
     };
   });

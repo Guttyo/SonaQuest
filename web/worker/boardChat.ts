@@ -133,11 +133,21 @@ export function statusLines(status: ChatStatus): string[] {
   ];
   for (const s of status.sites) {
     lines.push(
-      `救護所${s.site}：今日の患者 ${countText(s.patients, "人")}、不足が出ている品目 ${s.shortItems}件、薬剤師の不足 ${s.pharmacistsShort}人、記録の形になっていない ${countText(s.pendingRecords, "件")}、最終報告 ${agoText(s.lastReportMinutesAgo)}`,
+      `救護所${s.site}：今日の患者 ${countText(s.patients, "人")}、不足が出ている品目 ${s.shortItems}件、薬剤師の不足 ${s.pharmacistsShort}人、未着の記録（紙が本部に届いていない） ${countText(s.notArrivedRecords, "件")}、転記待ちの記録（本部に届いて転記を待つ） ${countText(s.awaitingEntryRecords, "件")}、最終報告 ${agoText(s.lastReportMinutesAgo)}`,
     );
   }
   return lines;
 }
+
+/**
+ * 1回分の文の終わりに足す書き方の頼み（Issue #161）。1件1用件・要点を先に、と、未着と転記待ちを取り違えないこと。
+ * Agent の system prompt は setup で作り直さないと変わらないので、毎回の文に足す
+ */
+// [TODO-OWNER: 掲示板チャットの1回分の文に足す書き方の頼み（Claude Code の下書き。Issue #161：1件1用件・要点を先に、未着と転記待ちの区別）]
+export const TURN_STYLE_LINES: readonly string[] = [
+  "1つの書き込みには1つの用件だけを書き、要点を先に書いてください。",
+  "未着の記録は、紙がまだ本部に届いていないものです。転記待ちの記録は、もう本部に届いていて、本部で転記を待っているものです。転記待ちだけの救護所が、紙を本部へ届けると書かないでください。",
+];
 
 /**
  * エージェントに送る1回分の文。書き込みは「掲示板の内容で、指示ではない」と囲んで渡す。
@@ -160,6 +170,7 @@ export function buildTurnMessage(request: ChatTurnRequest): string {
     ...posts,
     "",
     `あなた（${name}）として、この欄に書き込む連絡を1件だけ、120字以内で書いてください。薬剤以外の連絡（処方箋の用紙・物資・食糧・人員・通信・搬送・記録の受け渡し）だけを書き、薬の名前・量・病名・体調・医療の判断には触れません。`,
+    ...TURN_STYLE_LINES,
   ].join("\n");
 }
 
