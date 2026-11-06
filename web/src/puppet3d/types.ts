@@ -1,8 +1,8 @@
-/** 聞き取り係の見せ方（ADR-0031・ADR-0032）。"3d" でも、3D が使えないときは 2D で出す */
+/** ソナの見せ方（ADR-0031・ADR-0032）。"3d" でも、3D が使えないときは 2D で出す */
 export type ListenerMode = "2d" | "3d";
 
 /**
- * 聞き取り係の状態（ADR-0032）。アプリの状態だけで決める。Claude の出力は使わない（ADR-0025）。
+ * ソナの状態（ADR-0032）。アプリの状態だけで決める。Claude の出力は使わない（ADR-0025）。
  * 待機・聞いている・話しているはオーナーの決定。考え中は ADR-0030 の考え中の表示に合わせた下書き
  */
 export type ListenerActivity = "idle" | "listening" | "speaking" | "thinking";

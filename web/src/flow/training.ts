@@ -55,7 +55,7 @@ export interface TrainingState {
   source: SourceId | null;
   event: EventId | null;
   ai: AiStatus;
-  /** 聞き取り係のいまの発言。質問を出していない段階では null */
+  /** ソナのいまの発言。質問を出していない段階では null */
   prompt: Prompt | null;
   /** Claude の返事を待っているか。待っている間は次の回答を受け付けない */
   waiting: boolean;

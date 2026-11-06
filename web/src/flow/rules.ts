@@ -46,7 +46,7 @@ const EVENT_BY_SOURCE: Record<SourceId, EventId> = {
 
 /**
  * ③確認で本人が選んだ情報源から出来事を選ぶ（ADR-0016）。
- * 選ばなかったとき（null）は「係の人が交代する」出来事にする。
+ * 選ばなかったとき（null）は「係がソナからクエに交代する」出来事にする。
  */
 export function selectEvent(source: SourceId | null): EventId {
   return source === null ? "handover" : EVENT_BY_SOURCE[source];

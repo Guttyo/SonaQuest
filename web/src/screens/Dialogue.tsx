@@ -6,6 +6,7 @@ import {
   CONTACT_CHOICE_QUESTIONS,
   SCENE_INTRO,
   WAITING_TEXT,
+  listenerName,
 } from "../flow/content";
 import { MAX_ANSWER_LENGTH, isAcceptableAnswer } from "../flow/rules";
 import { countedAnswers, currentQuestion, type TrainingAction, type TrainingState } from "../flow/training";
@@ -39,7 +40,7 @@ interface VoiceControls {
 }
 
 /**
- * 対話の画面（Issue #46）。上に聞き取り係を固定し、やり取りは真ん中で上から下へ流れ、
+ * 対話の画面（Issue #46）。上に話し相手（ソナ）を固定し、やり取りは真ん中で上から下へ流れ、
  * 回答の欄は下に固定する。新しい発言は下に足され、App.tsx が画面のいちばん下へ送る
  */
 export function Dialogue({ state, dispatch }: Props) {
@@ -101,12 +102,12 @@ export function Dialogue({ state, dispatch }: Props) {
         <p className="scene">{SCENE_INTRO}</p>
         <Transcript state={state} />
 
-        {question !== null && state.waiting && <Thinking />}
+        {question !== null && state.waiting && <Thinking relief={relief} />}
 
         {answering && (
-          // 聞き取り係の発言が変わるたびに、下から入る（key で作り直す）
+          // 話し相手の発言が変わるたびに、下から入る（key で作り直す）
           <div key={`${state.answers.length}-${state.prompt?.text ?? question.id}`} className="enter-up">
-            <ListenerLine id="current-question">{state.prompt?.text ?? question.text}</ListenerLine>
+            <ListenerLine id="current-question" relief={relief}>{state.prompt?.text ?? question.text}</ListenerLine>
           </div>
         )}
 
@@ -128,7 +129,7 @@ export function Dialogue({ state, dispatch }: Props) {
 
       {answering && (
         <AnswerForm
-          // 聞き取り係の発言が変わったら下書きを消す
+          // 話し相手の発言が変わったら下書きを消す
           key={state.answers.length}
           hint={ANSWER_HINTS[question.answerAs]}
           choices={CONTACT_CHOICE_QUESTIONS.has(question.id) ? CONTACT_CHOICES : null}
@@ -163,12 +164,12 @@ export function showsSourceShift(state: TrainingState): boolean {
  * 読み上げは文だけ（点は読まない）。動きを減らす設定では動きが止まり、文だけで示す（styles.css、ADR-0020）。
  * 3D の対話モードでは、上のパペットも考え中の様子になる（ListenerStage）
  */
-function Thinking() {
+function Thinking({ relief }: { relief: boolean }) {
   return (
     <div className="exchange-row thinking" role="status" data-scroll-target="end" tabIndex={-1}>
       <Puppet2DFace activity="thinking" />
       <p className="exchange-question">
-        <span className="bubble-name">聞き取り係</span>
+        <span className="bubble-name">{listenerName(relief)}</span>
         {WAITING_TEXT}
         <span className="thinking-dots" aria-hidden="true">
           <span />
@@ -222,7 +223,7 @@ export function AnswerForm({
     (mic) => voice?.onMicLost(mic),
   );
 
-  // マイクが開いている間は、上の聞き取り係を「聞いています」にする
+  // マイクが開いている間は、上の話し相手を「聞いています」にする
   useEffect(() => {
     onListeningChange(talkState.listening);
   }, [talkState.listening, onListeningChange]);

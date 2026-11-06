@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Puppet2DFace } from "./Puppet2D";
-import { EVENTS, FALLBACK_NOTICE, RECALL_NOW } from "../flow/content";
+import { EVENTS, FALLBACK_NOTICE, RECALL_NOW, listenerName } from "../flow/content";
 import type { TrainingState } from "../flow/training";
 import type { Answer } from "../flow/types";
 
@@ -9,6 +9,8 @@ export function Transcript({ state }: { state: TrainingState }) {
   const first = state.answers.filter((a) => a.half === "first");
   const second = state.answers.filter((a) => a.half === "second");
   if (first.length === 0) return null;
+  // 係の交代の後（後半）は、話し相手をクエとして出す（Issue #164）
+  const relief = state.event === "handover";
 
   return (
     <ol className="transcript" aria-label="これまでのやり取り">
@@ -20,7 +22,7 @@ export function Transcript({ state }: { state: TrainingState }) {
         <li className="transcript-event">{EVENTS[state.event].text}</li>
       )}
       {second.map((a, i) => (
-        <Exchange key={`second-${i}`} answer={a} notice={notice(state, a)} />
+        <Exchange key={`second-${i}`} answer={a} notice={notice(state, a)} relief={relief} />
       ))}
     </ol>
   );
@@ -34,13 +36,22 @@ function notice(state: TrainingState, answer: Answer): string | null {
 }
 
 /**
- * 1回のやり取り。聞き取り係の文は、そのとき実際に出した文（固定文か、検査を通った Claude の文）。
+ * 1回のやり取り。話し相手（ソナ、交代の後はクエ）の文は、そのとき実際に出した文（固定文か、検査を通った Claude の文）。
  * 思い出せないという回答の後には、その場の固定文を添える（docs/phase2-decisions.md 項目7）
  */
-export function Exchange({ answer, notice }: { answer: Answer; notice?: string | null }) {
+export function Exchange({
+  answer,
+  notice,
+  relief = false,
+}: {
+  answer: Answer;
+  notice?: string | null;
+  /** 係の交代の後のやり取りか。名前をクエにする */
+  relief?: boolean;
+}) {
   return (
     <li className="exchange">
-      <ListenerLine>{answer.prompt}</ListenerLine>
+      <ListenerLine relief={relief}>{answer.prompt}</ListenerLine>
       <div className="exchange-row exchange-row-user">
         <p className="exchange-answer">
           <span className="visually-hidden">あなた：</span>
@@ -48,7 +59,7 @@ export function Exchange({ answer, notice }: { answer: Answer; notice?: string |
         </p>
         <UserAvatar />
       </div>
-      {answer.recall && <ListenerLine>{RECALL_NOW}</ListenerLine>}
+      {answer.recall && <ListenerLine relief={relief}>{RECALL_NOW}</ListenerLine>}
       {notice != null && (
         <p className="notice" role="status">
           {notice}
@@ -58,13 +69,13 @@ export function Exchange({ answer, notice }: { answer: Answer; notice?: string |
   );
 }
 
-/** 聞き取り係の吹き出し。毎回、パペットの 2D 版の小さな顔（Issue #47、ADR-0038）を左に添える */
-export function ListenerLine({ children, id }: { children: ReactNode; id?: string }) {
+/** 話し相手の吹き出し。毎回、パペットの 2D 版の小さな顔（Issue #47、ADR-0038）を左に添える。名前は係の交代の後だけクエ（Issue #164） */
+export function ListenerLine({ children, id, relief = false }: { children: ReactNode; id?: string; relief?: boolean }) {
   return (
     <div className="exchange-row">
       <Puppet2DFace />
       <p className="exchange-question" id={id}>
-        <span className="bubble-name">聞き取り係</span>
+        <span className="bubble-name">{listenerName(relief)}</span>
         {children}
       </p>
     </div>
