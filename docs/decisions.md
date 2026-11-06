@@ -1380,7 +1380,7 @@
   - **ボードとの接続**：訓練の回答がボードに届くと誤認させないよう、6番で「訓練とは別のものです。訓練の回答は届きません」と言う。2026-11-05 の「つなぎは記録の形」は、映す場合も「形が同じ」と言うにとどめる（記録の形を映すかはマーカー）。
   - **冒頭と結末**：1番の問い（自分の薬のことを伝える訓練をしたことがあるか）に 8番で答える形にし、2番の終わりも同じ問いで閉じる。1番から自己紹介（職業・経歴。2026-11-04 の決定では入れてよい）を削るかと、最後の公開 URL を置くかはマーカー。
   - 却下案：9ビートのまま中身だけ入れ替える（場面ごとに要る長さが違い、4番の「間（ま）」が20秒に収まらない）。ナレーションを別の場面に分けて2本鳴らす（音声ファイルと表の対応が崩れる。4番は1本を頭に置き、録画の音を後から開けるだけで足りる）。
-  - 影響：`video/src/sections.ts`（`seconds`・`footageAudioFromFrames`・`SECTION_COUNT`、`BEAT_FRAMES`・`BEAT_COUNT` を外した）、`video/src/SonaQuestVideo.tsx`（録画の音の開閉、場面の数の表示、最後の札の位置）、`video/narration/02〜08.txt`（09 を削除）、`video/scripts/narration-lib.mjs`・試験（2〜8番）、`video/README.md`、`docs/demo-script.md`、`docs/STATUS.md`。残るリスク：4番で録画の音を開ける位置（見込み 9秒）はナレーションの実際の長さに合わせて直さないと、ナレーターとアプリの声が重なる。3D が公開 URL で本物の Claude と声で通ることをまだ確かめていない（A-12 の残り）。8場面の版は typecheck と単体試験まで確かめ、Studio の表示と書き出しは 20秒×9 の版でしか確かめていない。
+  - 影響：`video/src/sections.ts`（`seconds`・`footageAudioFromFrames`・`SECTION_COUNT`、`BEAT_FRAMES`・`BEAT_COUNT` を外した）、`video/src/SonaQuestVideo.tsx`（録画の音の開閉、場面の数の表示、最後の札の位置）、`video/narration/02〜08.txt`（09 を削除）、`video/scripts/narration-lib.mjs`・試験（2〜8番）、`video/README.md`、`docs/demo-script.md`、`docs/STATUS.md`。残るリスク：4番で録画の音を開ける位置（見込み 9秒）はナレーションの実際の長さに合わせて直さないと、ナレーターとアプリの声が重なる。3D が公開 URL で本物の Claude と声で通ることをまだ確かめていない（A-12 の残り）。8場面の版は typecheck・単体試験と、Studio で8場面が 3:00 に並ぶことまで確かめ、書き出しは 20秒×9 の版でしか確かめていない。
 
 ## ADR-0054 振り返りを「まだ弱いところ → 次の一手」から始め、長い内容は畳む（固定文と規則だけで、Claude は使わない）
 - 状態：採用（Claude Code の下書き。文面はマーカーでオーナーに渡す）　日付：2026-11-06（Issue #137、PR #138）

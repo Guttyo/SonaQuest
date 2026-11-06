@@ -110,7 +110,7 @@ const ROWS: Row[] = [
     seconds: 13,
     voice: "本人（生声）",
     screen: "liveAction",
-    screenNote: "本人（顔出し）。災害支援で見た課題と、問い",
+    screenNote: "本人（顔出し）。災害の現場で見た課題と、問い",
     footageFile: "footage/01-live-action.mp4",
     footageAudio: true,
   },
