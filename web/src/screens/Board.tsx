@@ -81,6 +81,7 @@ import {
   INTAKE_IMAGE,
 } from "../board/text";
 import { BoardMap } from "./BoardMap";
+import { BoardTimeline } from "./BoardTimeline";
 import { BoardChat } from "../board/chat/BoardChat";
 import { ArrivalControls, PatientArrivals } from "../board/PatientArrivals";
 import { Fold, Help } from "../board/Fold";
@@ -1961,6 +1962,8 @@ export function Board({
             {/* 発注・搬送 */}
             {tab === "supply" && (
               <>
+                {/* 時間軸は「発注・搬送」の先頭（Issue #118。2026-11-06 オーナー決定「凍結前・案1・3日」）。本部の全体の並びは変えない */}
+                <BoardTimeline state={state} site={isHq ? undefined : selected} showSite={isHq} />
                 <section aria-labelledby="board-orders">
                   <h3 id="board-orders">
                     {BOARD_ORDERS.title}{" "}
