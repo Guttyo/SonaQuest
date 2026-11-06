@@ -362,9 +362,11 @@
   border-radius: 0 4px 4px 4px;
   background: var(--surface);
 }
+/* 本部は白の面に濃い枠。--cream は会話欄の地（--mint）と同じ色に向け直されているので使わない（Issue #186） */
 .board-chat-post.side-hq .board-chat-bubble {
   border-radius: 4px 0 4px 4px;
-  background: var(--cream);
+  background: var(--surface);
+  border-color: var(--ink-soft);
 }
 .board-chat-post.side-hq.mine .board-chat-bubble {
   background: var(--ink);
