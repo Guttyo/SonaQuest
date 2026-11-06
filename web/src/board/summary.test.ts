@@ -56,7 +56,8 @@ describe("架空データの形", () => {
       expect(item).toMatch(/[A-I]|消毒薬/);
     }
     for (const s of SITES) {
-      expect(s.phone).toMatch(/^000-0000-000\d（架空/);
+      // 架空であることは画面の上の帯「すべてのデータは架空です」で示す（Issue #170）
+      expect(s.phone).toMatch(/^000-0000-000\d/);
       expect(s.phone).not.toMatch(/tel:/);
     }
   });

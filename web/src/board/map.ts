@@ -4,7 +4,7 @@
 
 import { DEMAND, type RouteRow, type SiteId } from "./data";
 
-export const TOWN_NAME = "架空の町";
+export const TOWN_NAME = "デモの町";
 
 /** 図の大きさ（viewBox） */
 export const MAP_W = 1000;

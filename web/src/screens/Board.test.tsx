@@ -56,7 +56,7 @@ describe("ボードの題とレイアウト（Issue #107）", () => {
 
   it("左のペインは、上から本部（HQ）→ 地区の見出し → その地区の救護所。最初は本部が選ばれている", () => {
     const p = pane(html);
-    const order = [BOARD_LAYOUT.hq, "東地区（架空）", "救護所A", "救護所D", "西地区（架空）", "救護所B", "救護所C"].map((s) => p.indexOf(s));
+    const order = [BOARD_LAYOUT.hq, "東地区", "救護所A", "救護所D", "西地区", "救護所B", "救護所C"].map((s) => p.indexOf(s));
     expect(order.every((x) => x >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(p.match(/<button type="button" class="board-pane-item/g)).toHaveLength(5);
@@ -161,7 +161,7 @@ describe("救護所の詳細（左のペインか図で選ぶ）", () => {
     expect(pane(c)).toContain('class="board-pane-item current" aria-current="true" data-pane="救護所C"');
     expect(pane(c)).not.toContain('class="board-pane-item hq current"');
     expect(c).toContain('data-panel="救護所C|overview"');
-    expect(c).toContain("西地区（架空）");
+    expect(c).toContain("西地区");
     // 本部の数字のカードは出ない
     expect(c).not.toContain('data-testid="sites-short"');
     expect(c).not.toContain('data-testid="action-table"');
@@ -184,7 +184,7 @@ describe("救護所の詳細（左のペインか図で選ぶ）", () => {
     expect(first).toContain("卸に照会中・到着未定");
     expect(first).toContain("次の確認</span> 卸の回答を確認する");
     expect(first).toContain("3錠（11/08 09:00 まで）");
-    expect(p).toContain("000-0000-0003（架空。携帯が断続的）");
+    expect(p).toContain("000-0000-0003（携帯が断続的）");
     expect(p).toContain("校舎1階の保健室");
     expect(p).toContain(">通行可</span> 幹線道路（西回り）");
     expect(p).toContain("紙で記録・携帯が断続的");
@@ -285,7 +285,7 @@ describe("デモの状態を渡すと、登録 → 提案 → 承認が画面に
     expect(again.slice(again.indexOf('data-proposal="P-03"'))).toContain(`>${BOARD_ORDERS.updatedMark}<`);
     // 救護所B の詳細に、登録したカルテ（架空の氏名）が開いて出る
     const b = panel(render("救護所B", "overview", s1));
-    expect(b).toContain("<b>架空 太郎（架空）</b>");
+    expect(b).toContain("<b>架空 太郎</b>");
     expect(b).toContain("board-chart-added");
   });
 
