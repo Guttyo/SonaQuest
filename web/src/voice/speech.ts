@@ -11,6 +11,7 @@ import {
   NEXT_STEPS_HEADING,
   NEXT_STEP_LABEL,
   NO_WEAK_POINTS_NOTE,
+  OPENING_SPEECH,
   ORDINALS,
   PREP_SPEECH,
   PREP_ACTIONS,
@@ -85,7 +86,9 @@ export function listenerSpeech(state: TrainingState): string | null {
     if (state.prompt?.type === "symptom_check") return state.prompt.text;
     // 思い出せないという回答の直後は、その場の固定文を先に言う（Transcript の表示と同じ）
     const recall = last !== undefined && last.half === stage.name && last.recall ? RECALL_NOW : "";
-    return recall + (state.prompt?.text ?? question.text);
+    // 最初の質問の前に、デモであることと実際の服薬情報を入れないことを言う（2026-11-07 のオーナーの言葉）
+    const opening = stage.name === "first" && state.answers.length === 0 ? OPENING_SPEECH : "";
+    return opening + recall + (state.prompt?.text ?? question.text);
   }
   if (stage.name === "confirm") {
     const recall = last !== undefined && last.half === "first" && last.recall ? RECALL_NOW : "";

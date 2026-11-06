@@ -1,7 +1,7 @@
 // 何を読み上げるか（speech.ts）と、認識した文の緊急の照合の試験（docs/safety-test-plan.md P15・V4）
 
 import { describe, expect, it } from "vitest";
-import { CONFIRM_PROMPT, EVENT_SPEECH, RECALL_NOW } from "../flow/content";
+import { CONFIRM_PROMPT, EVENT_SPEECH, OPENING_SPEECH, RECALL_NOW } from "../flow/content";
 import { modeFromSearch } from "../flow/mode";
 import { SYMPTOM_CHECK_TEXT } from "../flow/emergency";
 import { firstHalfQuestions } from "../flow/rules";
@@ -23,7 +23,8 @@ const offline: TrainingState = { ...initialState, ai: "off" };
 describe("読み上げるのはソナの文と固定文だけ（ADR-0005）", () => {
   it("最初の質問を読み、回答の後は次の質問を読む。回答は読み上げる文に入らない", () => {
     const started = run([{ type: "start" }], offline);
-    expect(listenerSpeech(started)).toBe(firstHalfQuestions()[0].text);
+    // 最初の質問の前に、デモであることを言う（2026-11-07）
+    expect(listenerSpeech(started)).toBe(OPENING_SPEECH + firstHalfQuestions()[0].text);
     const answered = run([{ type: "answer", text: ANSWER }], started);
     const spoken = listenerSpeech(answered);
     expect(spoken).not.toBeNull();
