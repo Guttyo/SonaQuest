@@ -16,7 +16,7 @@ import {
 } from "./karteAudit";
 import { KARTE_AUDIT_MODEL, KARTE_AUDIT_SYSTEM_PROMPT, karteAuditAgentDefinition } from "./karteAuditAgent";
 import { buildSummaryMessage, KARTE_SUMMARY_MODEL, summaryModel, type Summarize, type SummaryResult } from "./karteSummary";
-import { MASKED_TEXT } from "../src/board/karte/codeCheck";
+import { MASKED_TEXT, textForbidden } from "../src/board/karte/codeCheck";
 import type { KarteAuditResponse, KarteSummary, KarteSummaryResponse } from "../src/board/karte/contract";
 import { findSample, KARTE_SAMPLES, PLANTED_DEMO_SAMPLE_ID, plantedSummary } from "../src/board/karte/samples";
 
@@ -275,6 +275,10 @@ describe("監査役の出力の扱い", () => {
     expect(safeReason("omitted", "あ".repeat(81))).toBe(AUDIT_FIXED_REASONS.omitted);
     expect(safeReason("omitted", 3)).toBe(AUDIT_FIXED_REASONS.omitted);
     expect(safeReason("omitted", "娘のことが落ちています")).toBe("娘のことが落ちています");
+  });
+
+  it("固定文そのものも、理由の文の検査を通る", () => {
+    for (const reason of Object.values(AUDIT_FIXED_REASONS)) expect(textForbidden(reason), reason).toBe(false);
   });
 });
 

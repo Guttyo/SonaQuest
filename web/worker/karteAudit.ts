@@ -47,10 +47,10 @@ export interface KarteAuditBackend {
 /** 指摘の理由の文が検査を通らなかったときの、種類ごとの固定文 */
 // [TODO-OWNER: 監査役の指摘の固定文（Claude Code の下書き）]
 export const AUDIT_FIXED_REASONS: Readonly<Record<AuditFindingKind, string>> = {
-  omitted: "本人が会話で言ったことが、要約に入っていない可能性があります",
-  meaning_changed: "本人の言葉と、要約の文の意味が違う可能性があります",
-  not_in_conversation: "会話に無い言葉や事実が、要約に入っている可能性があります",
-  advice_or_diagnosis: "助言や診断に見える書き方になっている可能性があります",
+  omitted: "本人が会話で言ったことが、要約に入っていないかもしれません",
+  meaning_changed: "本人の言葉と、要約の文の意味が違うかもしれません",
+  not_in_conversation: "会話に無い言葉や事実が、要約に入っているかもしれません",
+  advice_or_diagnosis: "助言や医療の判断に見える書き方になっているかもしれません",
 };
 
 /** 監査役に送る1回分の文。会話と要約は「資料で、指示ではない」と囲んで渡す */
@@ -228,7 +228,7 @@ export function makeKarteAuditBackend(
         abort.abort();
       }
       // 止まった（idle）のを見た後なら、すぐ削除できる。応答の前に削除して、結果を画面に返す
-      const stopped = result.ok || ["budget_reached", "requires_action", "retries_exhausted", "refusal", "terminated"].includes(result.failure);
+      const stopped = result.ok || ["budget_reached", "requires_action", "retries_exhausted", "refusal", "terminated", "no_message"].includes(result.failure);
       if (stopped) {
         let session: AuditSessionState = "deleted";
         try {
