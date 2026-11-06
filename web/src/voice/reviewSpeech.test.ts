@@ -6,6 +6,7 @@ import {
   NO_WEAK_POINTS_NOTE,
   EVENT_PREP_INTRO,
   PREP_SPEECH,
+  CLOSING_SPEECH,
   PREP_ACTIONS,
   UNDETERMINED_NOTE,
   VIEWPOINT_SHORT_LABELS,
@@ -54,10 +55,10 @@ describe("振り返りの読み上げ（3D。ADR-0054）：固定文だけで、
   });
 
   it("全部「確認できた」はその一言、判定が無い回は知らせだけ、振り返り以外は null", () => {
-    expect(reviewSpeech(review({ judgments: J({}) }))).toBe("試験の受け止め。" + NO_WEAK_POINTS_NOTE + PREP_SPEECH);
-    expect(reviewSpeech(review({ ai: "off", judgments: null }))).toBe("試験の受け止め。" + UNDETERMINED_NOTE + PREP_SPEECH);
+    expect(reviewSpeech(review({ judgments: J({}) }))).toBe("試験の受け止め。" + NO_WEAK_POINTS_NOTE + PREP_SPEECH + CLOSING_SPEECH);
+    expect(reviewSpeech(review({ ai: "off", judgments: null }))).toBe("試験の受け止め。" + UNDETERMINED_NOTE + PREP_SPEECH + CLOSING_SPEECH);
     expect(reviewSpeech(review({ ai: "failed", judgments: J({ proxy: "not_mentioned" }) }))).toBe(
-      "試験の受け止め。" + AI_FAILED_NOTE + PREP_SPEECH,
+      "試験の受け止め。" + AI_FAILED_NOTE + PREP_SPEECH + CLOSING_SPEECH,
     );
     expect(reviewSpeech(review({ stage: { name: "intro" } }))).toBeNull();
   });
@@ -72,7 +73,7 @@ describe("出来事に合わせた準備行動の読み上げ（2026-11-07）", 
     expect(prep).toContain("1つ目、飲んでいる薬のメモを財布に入れる。");
     expect(prep).toContain("2つ目、お薬手帳のページや薬の説明書をスマホで撮り、紙にも控える。");
     expect(prep).toContain("3つ目、家族に、自分の薬の情報がどこにあるかを伝えておく。");
-    expect(spoken.endsWith(prep + PREP_SPEECH)).toBe(true);
+    expect(spoken.endsWith(prep + PREP_SPEECH + CLOSING_SPEECH)).toBe(true);
   });
 
   it("出来事の無い回は、準備行動を読まない", () => {

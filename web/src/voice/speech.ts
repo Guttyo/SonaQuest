@@ -4,6 +4,7 @@
 
 import {
   AI_FAILED_NOTE,
+  CLOSING_SPEECH,
   CONFIRM_PROMPT,
   EVENT_PREP_INTRO,
   EVENT_SPEECH,
@@ -30,13 +31,16 @@ import { currentQuestion, type TrainingState } from "../flow/training";
  * 2つ目からの一言は読まない（長くなるので画面で読む）。判定が無い回はその知らせ、全部確認できた回はその一言
  */
 export function reviewSpeech(state: TrainingState): string | null {
-  const tail = eventPrepSpeech(state) + PREP_SPEECH;
+  const tail = eventPrepSpeech(state) + PREP_SPEECH + CLOSING_SPEECH;
   // 出来事に合わせて優先する準備行動を3つ読み、最後に「次の準備を1つ決める」へ促す固定文を言う（2026-11-07 のオーナーの言葉）。
   // 読み上げの中継の上限（500字）を超えると、その回の残りがブラウザの読み上げになるので、超えるときは最初の一言と次の一手を省く
   const full = reviewSpeechBody(state, true);
   if (full === null) return null;
   if ((full + tail).length <= REVIEW_SPEECH_MAX) return full + tail;
-  return reviewSpeechBody(state, false) + tail;
+  const short = reviewSpeechBody(state, false) + tail;
+  if (short.length <= REVIEW_SPEECH_MAX) return short;
+  // それでも長いときは、Claude の一言を読まない（画面には出ている）
+  return reviewSpeechBody({ ...state, closingRemark: null }, false) + tail;
 }
 
 /** 振り返りの読み上げの長さの上限（読み上げの中継 /api/tts の 500字より少し短く） */
