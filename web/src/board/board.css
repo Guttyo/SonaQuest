@@ -2328,7 +2328,8 @@
   order: 0;
 }
 
-.board-login {
+/* 画面（.screen.board）の flex より強く指定して、ログインのカードを横の中央に置く（PC で左に寄っていた） */
+.screen.board.board-login {
   display: grid;
   place-items: start center;
 }
