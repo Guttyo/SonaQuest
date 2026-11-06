@@ -14,6 +14,7 @@ import {
   BOARD_MOCK_BADGE,
   BOARD_ORDERS,
   BOARD_SUBTITLE,
+  BOARD_SUPPLY_LINK,
   BOARD_TITLE,
   INTAKE_IMAGE,
 } from "../board/text";
@@ -302,16 +303,59 @@ describe("守ること", () => {
     }
   });
 
-  it("点数・合否の言葉を使わず、電話リンク・外部リンクが無い。はじめにへ戻れる", () => {
+  it("点数・合否の言葉を使わず、電話リンクが無い。外部リンクは本部の在庫タブの1つだけ。はじめにへ戻れる", () => {
     for (const site of [HQ, "救護所A", "救護所D"] as SiteId[]) {
       for (const tab of ["overview", "stock", "supply", "records", "demo"] as BoardTab[]) {
         const h = render(site, tab);
         expect(h).not.toMatch(/点数|合格|不合格|正解/);
         expect(h).not.toContain('href="tel:');
-        expect(h).not.toContain("<a ");
+        // 国の医薬品供給状況へのリンク（Issue #143、2026-11-06 オーナーの指示）だけを、本部の在庫タブに置く
+        expect(h.match(/<a /g) ?? []).toHaveLength(site === HQ && tab === "stock" ? 1 : 0);
         expect(h).toContain(">はじめにへ戻る</button>");
       }
     }
+  });
+
+  it("本部の在庫タブの外部リンクは、オーナーの指示の表示名・URL・添える文で、新しいタブで開く（データは取り込まない）", () => {
+    expect(BOARD_SUPPLY_LINK.label).toBe("国の医薬品供給状況（厚生労働省）");
+    expect(BOARD_SUPPLY_LINK.url).toBe("https://www.mhlw.go.jp/stf/seisakunitsuite/bunya/kenkou_iryou/iryou/kouhatu-iyaku/04_00003.html");
+    expect(BOARD_SUPPLY_LINK.note).toBe("メーカーの出荷状況です。救護所の在庫ではありません");
+    expect(BOARD_SUPPLY_LINK.checkedOn).toBe("2026-11-06");
+    const h = panel(render(HQ, "stock"));
+    const link = h.slice(h.indexOf('data-testid="supply-link"'), h.indexOf("</div>", h.indexOf('data-testid="supply-link"')));
+    expect(link).toContain(`<a href="${BOARD_SUPPLY_LINK.url}" target="_blank" rel="noopener noreferrer">${BOARD_SUPPLY_LINK.label}`);
+    expect(link).toContain(BOARD_SUPPLY_LINK.newTab);
+    expect(link).toContain(BOARD_SUPPLY_LINK.note);
+    // 在庫の表のすぐ下。注意の色（bad・warn）の札を付けない
+    expect(h.indexOf('data-testid="supply-link"')).toBeGreaterThan(h.indexOf("board-heat"));
+    expect(link).not.toMatch(/class="[^"]*(bad|warn)/);
+    // ほかのサイトへのリンクは無い
+    expect(h.match(/href="https?:/g)).toHaveLength(1);
+  });
+});
+
+describe("デザインの見直し（Issue #143）", () => {
+  it("アクセス記録は帯（board-head）の中に置き、右下に浮かせない", () => {
+    const h = render(HQ);
+    const head = h.slice(h.indexOf('class="board-head"'), h.indexOf('class="board-body"'));
+    expect(head).toContain('class="board-access-log"');
+    expect(h.indexOf('class="board-access-log"')).toBeLessThan(h.indexOf('class="board-body"'));
+    expect(head).toContain('data-testid="board-session"');
+  });
+
+  it("左の一覧で、ログイン中の救護所の名前の後ろに「（ログイン中）」を添える", () => {
+    const p = pane(render(HQ));
+    const a = p.slice(p.indexOf('data-pane="救護所A"'), p.indexOf('data-pane="救護所D"'));
+    expect(a).toContain(`<span class="board-pane-login">${BOARD_LOGIN.paneMark}</span>`);
+    expect(p.match(/board-pane-login/g)).toHaveLength(1);
+  });
+
+  it("アクセス記録の、対象の無い行は横線の記号でなく「なし」と出す", () => {
+    const open = renderToStaticMarkup(
+      <AccessLogPanel log={[{ at: 0, site: "救護所A", staff: "見本 青葉", kind: "login", target: "" }]} defaultOpen />,
+    );
+    expect(open).toContain(`<td>${ACCESS_LOG_TEXT.noTarget}</td>`);
+    expect(open).not.toContain("—");
   });
 });
 
@@ -525,6 +569,8 @@ describe("デモ用ログイン・救護所ごとの権限・カルテの確認�
     });
     const h = panel(render("救護所B", "records", found, b));
     expect(h).toContain(CHART_REVIEW_TEXT.status.audited_findings(1));
+    // 監査の指摘ありは赤（stop）。ほかの確認待ちは黄（wait）（Issue #143、計画書 2.2）
+    expect(h).toContain('class="board-review-status stop"');
     expect(h).toContain("会話にない内容");
     const other = panel(render("救護所B", "records", found, sessionFor("救護所A")));
     expect(other).not.toContain(CHART_REVIEW_TEXT.confirm);

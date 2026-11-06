@@ -234,3 +234,24 @@
     width: 100%;
   }
 }
+
+/* デザインの見直し（Issue #143、計画書 4.5）：角丸は 4px まで、左の太い線をやめる。色は board.css の変数（無彩色と赤・黄）に従う */
+.board-chat-phase,
+.board-chat-start,
+.board-chat-view,
+.board-chat-log,
+.board-chat-input,
+.board-chat-bubble,
+.board-chat-post.mine .board-chat-bubble {
+  border-radius: 4px;
+}
+.board-chat-start-button,
+.board-chat-send,
+.board-chat-count,
+.board-chat-badge {
+  border-radius: 4px;
+}
+.board-chat-notice {
+  border: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}

@@ -54,7 +54,7 @@ interface Props {
 const fmt = new Intl.NumberFormat("ja-JP");
 
 const ROUTE_COLOR: Record<RouteRow["status"], string> = {
-  通行可: "#2f7d63",
+  通行可: "#555555", // 正常は色なし（Issue #143、計画書 2.3）
   迂回: "#c99a06",
   通行止め: "#c62828",
 };
@@ -86,9 +86,9 @@ function FacilityShape({ f }: { f: Facility }) {
   const { x, y, w, h } = f.rect;
   switch (f.kind) {
     case "lot":
-      return <rect x={x} y={y} width={w} height={h} rx="4" fill="#f4f1ea" stroke="#d8cfbd" />;
+      return <rect x={x} y={y} width={w} height={h} rx="4" fill="#f4f4f4" stroke="#c8c8c8" />;
     case "hospital":
-      return <rect x={x} y={y} width={w} height={h} fill="#d6e0ee" stroke="#6f86a8" strokeWidth="1.5" />;
+      return <rect x={x} y={y} width={w} height={h} fill="#dcdcdc" stroke="#8a8a8a" strokeWidth="1.5" />;
     case "parking": {
       const lines = [];
       for (let yy = y + 10; yy < y + h - 4; yy += 10) {
@@ -98,7 +98,7 @@ function FacilityShape({ f }: { f: Facility }) {
         <g>
           <rect x={x} y={y} width={w} height={h} fill="#c4c4c4" />
           {lines}
-          <circle cx={x + w / 2} cy={y + h / 2} r="10" fill="#4a6fa5" />
+          <circle cx={x + w / 2} cy={y + h / 2} r="10" fill="#555555" />
           <text x={x + w / 2} y={y + h / 2 + 5} fontSize="14" fontWeight="800" fill="#fff" textAnchor="middle">
             P
           </text>
@@ -106,22 +106,22 @@ function FacilityShape({ f }: { f: Facility }) {
       );
     }
     case "school":
-      return <rect x={x} y={y} width={w} height={h} fill="#efe2c8" stroke="#a88f62" strokeWidth="1.5" />;
+      return <rect x={x} y={y} width={w} height={h} fill="#e6e6e6" stroke="#9a9a9a" strokeWidth="1.5" />;
     case "ground":
       return (
         <g>
-          <rect x={x} y={y} width={w} height={h} rx="6" fill="#e3cfa6" />
+          <rect x={x} y={y} width={w} height={h} rx="6" fill="#dedede" />
           <ellipse cx={x + w / 2} cy={y + h / 2} rx={w / 2 - 10} ry={h / 2 - 10} fill="none" stroke="#fff" strokeWidth="2.5" />
         </g>
       );
     case "hall":
-      return <rect x={x} y={y} width={w} height={h} fill="#e8d6c6" stroke="#9a7a5e" strokeWidth="1.5" />;
+      return <rect x={x} y={y} width={w} height={h} fill="#e2e2e2" stroke="#949494" strokeWidth="1.5" />;
     case "park":
       return (
         <g>
-          <rect x={x} y={y} width={w} height={h} rx="4" fill="#e7e3da" />
+          <rect x={x} y={y} width={w} height={h} rx="4" fill="#e6e6e6" />
           {[0.25, 0.5, 0.75].map((p) => (
-            <circle key={p} cx={x + w * p} cy={y + h * (p === 0.5 ? 0.65 : 0.35)} r="7" fill="#cfc8bb" />
+            <circle key={p} cx={x + w * p} cy={y + h * (p === 0.5 ? 0.65 : 0.35)} r="7" fill="#c8c8c8" />
           ))}
         </g>
       );
@@ -178,22 +178,22 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
               <title id="board-map-desc">{BOARD_MAP.svgTitle}</title>
               <defs>
                 <pattern id="board-map-houses" width="16" height="14" patternUnits="userSpaceOnUse">
-                  <rect x="2" y="2" width="11" height="9" fill="#ddd0b8" />
+                  <rect x="2" y="2" width="11" height="9" fill="#d8d8d8" />
                 </pattern>
               </defs>
               {/* 地面（生活道路の色）と街区（住宅地） */}
-              <rect width={MAP_W} height={MAP_H} fill="#fbfaf6" />
+              <rect width={MAP_W} height={MAP_H} fill="#f7f7f7" />
               {MAP_BLOCKS.map((b) => (
                 <g key={`${b.x},${b.y}`}>
-                  <rect x={b.x} y={b.y} width={b.w} height={b.h} fill="#ede5d4" />
+                  <rect x={b.x} y={b.y} width={b.w} height={b.h} fill="#e0e0e0" />
                   <rect x={b.x} y={b.y} width={b.w} height={b.h} fill="url(#board-map-houses)" />
                 </g>
               ))}
               {/* 山林 */}
               {MAP_HILLS.map((d) => (
                 <g key={d}>
-                  <path d={d} fill="#e9e4da" />
-                  <path d={d} fill="none" stroke="#c9c1b2" strokeWidth="1.5" strokeDasharray="10 6" transform="translate(-6,0)" />
+                  <path d={d} fill="#e4e4e4" />
+                  <path d={d} fill="none" stroke="#bdbdbd" strokeWidth="1.5" strokeDasharray="10 6" transform="translate(-6,0)" />
                 </g>
               ))}
               {/* 施設 */}
@@ -202,30 +202,30 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
               ))}
               {/* 碁盤目に乗らない生活道路（川沿いの道）と幹線道路 */}
               {MAP_LOCAL_ROADS.map((d) => (
-                <path key={d} d={d} fill="none" stroke="#fbfaf6" strokeWidth="8" strokeLinejoin="round" />
+                <path key={d} d={d} fill="none" stroke="#f7f7f7" strokeWidth="8" strokeLinejoin="round" />
               ))}
               {MAP_MAIN_ROADS.map((d) => (
-                <path key={`c${d}`} d={d} fill="none" stroke="#d3bf86" strokeWidth="16" />
+                <path key={`c${d}`} d={d} fill="none" stroke="#c4c4c4" strokeWidth="16" />
               ))}
               {MAP_MAIN_ROADS.map((d) => (
-                <path key={d} d={d} fill="none" stroke="#f8eec8" strokeWidth="12" />
+                <path key={d} d={d} fill="none" stroke="#ffffff" strokeWidth="12" />
               ))}
               {/* 川（街区と道を覆う。道が川を渡るのは橋だけ） */}
-              <path d={MAP_RIVER} fill="none" stroke="#d5e7f3" strokeWidth="44" strokeLinejoin="round" />
-              <path d={MAP_RIVER} fill="none" stroke="#8fbfe0" strokeWidth="26" strokeLinejoin="round" />
+              <path d={MAP_RIVER} fill="none" stroke="#e2e2e2" strokeWidth="44" strokeLinejoin="round" />
+              <path d={MAP_RIVER} fill="none" stroke="#d4d4d4" strokeWidth="26" strokeLinejoin="round" />
               {/* 土砂が流れ込んだ場所 */}
               {MAP_LANDSLIDES.map((d) => (
-                <path key={d} d={d} fill="#b98a5a" opacity="0.85" />
+                <path key={d} d={d} fill="#a8a8a8" opacity="0.85" />
               ))}
               {/* 橋 */}
               {MAP_BRIDGES.map((b) => (
                 <g key={`${b.x},${b.y}`} transform={`translate(${b.x},${b.y}) rotate(${b.angle})`}>
-                  <rect x="-30" y="-9" width="60" height="18" fill="#f8eec8" stroke="#666" strokeWidth="2" />
+                  <rect x="-30" y="-9" width="60" height="18" fill="#ffffff" stroke="#666" strokeWidth="2" />
                 </g>
               ))}
               {/* 高速道路（架空） */}
               <path d={`M${ex},0 V${MAP_NOTE_Y}`} stroke="#8a8378" strokeWidth="20" />
-              <path d={`M${ex},0 V${MAP_NOTE_Y}`} stroke="#d6d0c4" strokeWidth="15" />
+              <path d={`M${ex},0 V${MAP_NOTE_Y}`} stroke="#d6d6d6" strokeWidth="15" />
               <path d={`M${ex},0 V${MAP_NOTE_Y}`} stroke="#fff" strokeWidth="1.5" strokeDasharray="10 8" />
               <g transform={`translate(${ex},250)`}>
                 <rect x="-13" y="-46" width="26" height="80" rx="5" fill="#5d5a55" />
@@ -371,7 +371,7 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                       rx="8"
                       fill="#fff"
                       fillOpacity="0.95"
-                      stroke={isHq ? "#1f4e8c" : "#5d5a55"}
+                      stroke={isHq ? "#222222" : "#5d5a55"}
                       strokeWidth={isSelected ? 4 : 1.5}
                     />
                     <text x={cx} y={top + 20} fontSize="18" fontWeight="700" fill="#111" textAnchor="middle">
@@ -388,7 +388,7 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                         </text>
                       </g>
                     ))}
-                    <circle r={isHq ? 20 : 17} fill={isHq ? "#1f4e8c" : "#3d3a36"} stroke="#fff" strokeWidth="4" />
+                    <circle r={isHq ? 20 : 17} fill={isHq ? "#222222" : "#3d3a36"} stroke="#fff" strokeWidth="4" />
                     {isHq ? (
                       <text x="0" y="8" fontSize="22" fill="#fff" textAnchor="middle" fontWeight="800">
                         H
@@ -430,9 +430,9 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                   data-mover="car"
                   {...moverPress("car")}
                 >
-                  <path d="M0,0 V16" stroke="#1f4e8c" strokeWidth="2" />
-                  <circle r="4" fill="#1f4e8c" />
-                  <rect x="-19" y="16" width="38" height="22" rx="6" fill="#1f4e8c" stroke="#fff" strokeWidth={mover === "car" ? 3.5 : 2} />
+                  <path d="M0,0 V16" stroke="#222222" strokeWidth="2" />
+                  <circle r="4" fill="#222222" />
+                  <rect x="-19" y="16" width="38" height="22" rx="6" fill="#222222" stroke="#fff" strokeWidth={mover === "car" ? 3.5 : 2} />
                   <text y="32" fontSize="13" fontWeight="800" fill="#fff" textAnchor="middle">
                     車
                   </text>
