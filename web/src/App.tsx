@@ -94,7 +94,8 @@ export function App() {
           （戻るボタンはボードの中。Issue #113、2026-11-05 オーナー決定） */}
       {!onBoard && (
         <header className="app-header">
-          <span className="app-title">お薬の避難訓練</span>
+          {/* 帯はアプリの名前。はじめにの題が「お薬の避難訓練」なので、同じ言葉を続けない（Issue #190、2026-11-06 オーナー、チャット） */}
+          <span className="app-title">SonaQuest</span>
           {/* BGM の操作はヘッダーの決まった1か所。中断の画面では出さない（B-03） */}
           {stage.name !== "stopped" && (
             <BgmControls
