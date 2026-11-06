@@ -12,7 +12,6 @@ import * as entry from "./index";
 import { SYSTEM_PROMPT, buildUserMessage } from "./prompt";
 import {
   auditedQuestion,
-  checkRemark,
   chooseNext,
   decideNext,
   followsGoalRules,
