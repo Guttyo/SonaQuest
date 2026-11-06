@@ -24,7 +24,7 @@ import {
 import { Board, type BoardTab } from "./Board";
 import { sessionFor, type DemoSession } from "../board/access";
 import { ACCESS_LOG_TEXT, BOARD_LOGIN, BOARD_PERMISSION, CHART_REVIEW_TEXT } from "../board/accessText";
-import { AccessLogPanel } from "../board/BoardAccess";
+import { AccessLogPanel, loginSubmitLabel } from "../board/BoardAccess";
 import { PLANTED_NOTICE, SAMPLE_NOTICE } from "../board/karte/contract";
 import { auditToResult, summaryToDraft } from "../board/karte/client";
 import { checkSummary, maskForbidden } from "../board/karte/codeCheck";
@@ -766,7 +766,8 @@ describe("画面の言葉をそろえる（Issue #160。2026-11-06 オーナー�
 
   it("新しい言い方が出る", () => {
     expect(login).toContain(BOARD_LOGIN.submit);
-    expect(BOARD_LOGIN.submit).toBe("救護所に入る");
+    expect(loginSubmitLabel("救護所A")).toBe("救護所に入る");
+    expect(loginSubmitLabel(HQ)).toBe("本部に入る");
     expect(all).toContain("本部未反映の記録");
     expect(all).toContain("在庫切れ見込み");
     expect(all).toContain("本日の延べ患者数");
