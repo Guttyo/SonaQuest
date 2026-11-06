@@ -29,8 +29,8 @@ const FAKE_TEXT = "これは試験のための架空の原稿です。";
 // 判断待ちの印（文字列を分けて書き、リポジトリの印の一覧に試験の文字が混ざらないようにする）
 const OWNER_MARK = ["TODO", "OWNER"].join("-");
 
-test("ナレーションは 2〜9番の8件（1番は本人の生声で合成しない）", () => {
-  assert.deepEqual(NARRATION_BEATS, [2, 3, 4, 5, 6, 7, 8, 9]);
+test("ナレーションは 2〜8番の7件（1番は本人の生声で合成しない）", () => {
+  assert.deepEqual(NARRATION_BEATS, [2, 3, 4, 5, 6, 7, 8]);
 });
 
 test("ファイル名は2桁の番号で組み立てる", () => {
