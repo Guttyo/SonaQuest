@@ -47,6 +47,25 @@ const hasStaticFile = (name: string | null): name is string => {
 
 const baseText: CSSProperties = { fontFamily: FONT_FAMILY, color: COLORS.ink };
 
+/**
+ * 録画の音の大きさ。ナレーションを遅らせるビート（4番）では、ナレーションが始まるところで録画の音を消し、
+ * アプリの声とナレーターの声が重ならないようにする。それ以外は 1（鳴らすかどうかは muted で決める）。
+ */
+const footageVolume = (section: Section) => {
+  if (section.narrationDelayFrames <= 0) return 1;
+  return (frame: number) => (frame < section.narrationDelayFrames ? 1 : 0);
+};
+
+/** ナレーション。narrationDelayFrames だけ遅らせて鳴らす（ビートの終わりで切れる） */
+const Narration: FC<{ section: Section }> = ({ section }) => {
+  if (!hasStaticFile(section.narrationFile)) return null;
+  return (
+    <Sequence from={section.narrationDelayFrames} layout="none" name="ナレーション">
+      <Audio src={staticFile(section.narrationFile)} />
+    </Sequence>
+  );
+};
+
 /** 素材が無いときの仮の画面の中身 */
 const Placeholder: FC<{ section: Section; label: string; style?: CSSProperties }> = ({ section, label, style }) => (
   <div
@@ -80,6 +99,7 @@ const WideFootage: FC<{ section: Section; label: string }> = ({ section, label }
         <OffthreadVideo
           src={staticFile(section.footageFile)}
           muted={!section.footageAudio}
+          volume={footageVolume(section)}
           style={{ width: "100%", height: "100%", objectFit: "cover" }}
         />
       </AbsoluteFill>
@@ -108,6 +128,7 @@ const PhoneFrame: FC<{ section: Section }> = ({ section }) => (
         <OffthreadVideo
           src={staticFile(section.footageFile)}
           muted={!section.footageAudio}
+          volume={footageVolume(section)}
           style={{ width: "100%", height: "100%", objectFit: "cover" }}
         />
       ) : (
@@ -226,7 +247,7 @@ const Beat: FC<{ section: Section }> = ({ section }) => {
     <AbsoluteFill style={{ backgroundColor: COLORS.background }}>
       {body}
       <Caption section={section} align={captionAlign} />
-      {hasStaticFile(section.narrationFile) ? <Audio src={staticFile(section.narrationFile)} /> : null}
+      <Narration section={section} />
       {section.number === 9 ? (
         <Sequence from={BEAT_FRAMES - ENDCARD_FRAMES} durationInFrames={ENDCARD_FRAMES} layout="none">
           <EndCard />

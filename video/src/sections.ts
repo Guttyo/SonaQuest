@@ -55,6 +55,11 @@ export type Section = {
    * ほかの録画の音は消し、ナレーションだけにする（docs/demo-script.md「声の割り当て」）。
    */
   footageAudio: boolean;
+  /**
+   * ナレーションを鳴らし始めるまでのフレーム数（ビートの頭から）。0 ならすぐ鳴らす。
+   * 0 より大きいときは、録画の音（footageAudio）をナレーションが始まるところで消し、二つの声が重ならないようにする。
+   */
+  narrationDelayFrames: number;
 };
 
 // [TODO-OWNER: 字幕の代わりの見出し語を各ビートに置くか、置くなら下の headline の文でよいか（docs/demo-script.md「オーナーに決めてほしいこと」の3）]
@@ -70,7 +75,16 @@ const HEADLINES = [
   "平時の練習を、備えに",
 ] as const;
 
-type Row = Omit<Section, "number" | "from" | "durationInFrames" | "timeLabel" | "headline" | "narrationFile">;
+type Row = Omit<
+  Section,
+  "number" | "from" | "durationInFrames" | "timeLabel" | "headline" | "narrationFile" | "narrationDelayFrames"
+> & { narrationDelayFrames?: number };
+
+/**
+ * 4番の頭で、3D の聞き取り係が1問目を話す長さ（台本では3〜4秒。アプリの声は録画の音声をそのまま使う）。
+ * この間はナレーションを待たせる。実際の録画の長さに合わせてオーナーが直す。
+ */
+const BEAT4_APP_VOICE_FRAMES = 4 * FPS;
 
 const ROWS: Row[] = [
   {
@@ -100,6 +114,7 @@ const ROWS: Row[] = [
     screenNote: "S2 3D の聞き取り係が1問目を話す → S3 2D の対話 → S4 情報源を選ぶ",
     footageFile: "footage/04-phone.mp4",
     footageAudio: true,
+    narrationDelayFrames: BEAT4_APP_VOICE_FRAMES,
   },
   {
     voice: "ナレーター",
@@ -153,6 +168,7 @@ export const SECTIONS: Section[] = ROWS.map((row, i) => {
     durationInFrames: BEAT_FRAMES,
     timeLabel: `${clock(startSec)}–${clock(endSec)}`,
     headline: HEADLINES[i],
+    narrationDelayFrames: row.narrationDelayFrames ?? 0,
     // 1番は本人の生声（実写の音声）なので、合成したナレーションは無い
     narrationFile: number === 1 ? null : `narration/${pad2(number)}.mp3`,
   };

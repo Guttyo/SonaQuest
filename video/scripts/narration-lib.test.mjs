@@ -155,3 +155,16 @@ test("上限（10,000 文字）ちょうどは通り、超えると送らずに�
   assert.equal(normalizeText("あ".repeat(10_000), 2).length, 10_000);
   assert.throws(() => normalizeText("あ".repeat(10_001), 2));
 });
+
+test("原稿（narration/NN.txt）は docs/demo-script.md の台本の表のナレーションと同じ", () => {
+  const script = readFileSync(path.join(videoDir, "..", "docs", "demo-script.md"), "utf8");
+  for (const beat of NARRATION_BEATS) {
+    const row = script.split("\n").find((line) => line.startsWith(`| ${beat} | `));
+    assert.ok(row, `台本の表に ${beat} 番の行がある`);
+    const cells = row.split("|").map((c) => c.trim());
+    const quoted = cells[5];
+    assert.ok(quoted.startsWith("「") && quoted.endsWith("」"), `${beat} 番のナレーションの欄が「」で囲まれている`);
+    const text = normalizeText(readFileSync(narrationTextPath(videoDir, beat), "utf8"), beat);
+    assert.equal(text, quoted.slice(1, -1), `${beat} 番の原稿が台本と食い違う`);
+  }
+});
