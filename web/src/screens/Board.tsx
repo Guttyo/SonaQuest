@@ -80,6 +80,7 @@ import {
 import { BoardMap } from "./BoardMap";
 import { BoardChat } from "../board/chat/BoardChat";
 import { PatientArrivals } from "../board/PatientArrivals";
+import { Fold, Help } from "../board/Fold";
 import { appendAccess, authorizeWrite, canEdit as canEditSite, makeSession, type AccessEntry, type AccessEventKind, type DemoSession } from "../board/access";
 import type { AuthorizeKind } from "../board/authorizeContract";
 import { BOARD_LOGIN, BOARD_PERMISSION, CHART_REVIEW_TEXT } from "../board/accessText";
@@ -847,16 +848,6 @@ function StaleMark({ state, site }: { state: DemoState; site: SiteId }) {
   return <span className="board-stale">{BOARD_CHANGES.stale(BOARD_CHANGES.staleHours)}</span>;
 }
 
-/** 画面の見方の説明。ふだんは閉じておく（Issue #113：説明文をヘルプの開閉へ） */
-function Help({ children }: { children: ReactNode }) {
-  return (
-    <details className="board-help">
-      <summary>{BOARD_CASES.help}</summary>
-      <div className="board-help-body">{children}</div>
-    </details>
-  );
-}
-
 /** 「前回から変わったこと」の1行（Issue #107）。デモの記録の件数をルールで並べるだけ（氏名・品目名・数量は入れない） */
 export function changeLineText(state: DemoState, site?: SiteId): string {
   const counts = changesSince(state.log, site);
@@ -870,11 +861,15 @@ export function changeLineText(state: DemoState, site?: SiteId): string {
 /** カルテの処方の累計の表（Issue #114）。人が入れた数量を足しただけで、量の妥当性は判断しない */
 function PrescriptionTotals({ state, site, headingId }: { state: DemoState; site: SiteId; headingId: string }) {
   const totals = prescriptionTotals(state.records, site);
+  // 未交付があるときだけ開いておく（Issue #159）
   return (
-    <section aria-labelledby={headingId} className="board-rx-totals">
-      <h3 id={headingId}>
-        {BOARD_INTAKE_MODE.totalsTitle} <span className="board-count">{fmt.format(totals.length)} 品目</span>
-      </h3>
+    <Fold
+      id={headingId}
+      className="board-rx-totals"
+      title={BOARD_INTAKE_MODE.totalsTitle}
+      count={`${fmt.format(totals.length)} 品目`}
+      open={totals.some((t) => t.undelivered > 0)}
+    >
       {totals.length === 0 ? (
         <p className="board-note">{BOARD_INTAKE_MODE.totalsEmpty}</p>
       ) : (
@@ -905,8 +900,10 @@ function PrescriptionTotals({ state, site, headingId }: { state: DemoState; site
           </table>
         </div>
       )}
-      <p className="board-note">{BOARD_INTAKE_MODE.totalsNote}</p>
-    </section>
+      <Help>
+        <p className="board-note">{BOARD_INTAKE_MODE.totalsNote}</p>
+      </Help>
+    </Fold>
   );
 }
 
@@ -993,10 +990,13 @@ function SiteDetail({
         </dl>
       </section>
 
-      <section aria-labelledby="board-detail-shortage">
-        <h3 id="board-detail-shortage">
-          {BOARD_LAYOUT.detail.shortage} <span className="board-count">{fmt.format(cases.length)} 件</span>
-        </h3>
+      {/* 在庫切れ・在庫切れ見込みがあるときだけ開いておく（Issue #159） */}
+      <Fold
+        id="board-detail-shortage"
+        title={BOARD_LAYOUT.detail.shortage}
+        count={`${fmt.format(cases.length)} 件`}
+        open={cases.some((c) => c.status === "在庫切れ" || c.status === "在庫切れ見込み")}
+      >
         {cases.length === 0 ? (
           <p className="board-note">{BOARD_GROUPS.empty}</p>
         ) : (
@@ -1021,7 +1021,7 @@ function SiteDetail({
           <p className="board-note">{BOARD_CHANGES.lastReportNote}</p>
           <p className="board-note">{BOARD_CHANGES.staleNote(BOARD_CHANGES.staleHours)}</p>
         </Help>
-      </section>
+      </Fold>
 
       <div className="board-detail-cols">
         <section aria-labelledby="board-detail-contact">
@@ -1077,21 +1077,30 @@ function SiteDetail({
 
       <PrescriptionTotals state={state} site={site} headingId="board-detail-rx" />
 
-      <section aria-labelledby="board-detail-orders">
-        <h3 id="board-detail-orders">
-          {BOARD_ORDERS.title} <span className="board-count">{fmt.format(proposals.length)} {BOARD_ORDERS.count}</span>
-        </h3>
+      {/* 承認待ちの提案があるときだけ開いておく（Issue #159） */}
+      <Fold
+        id="board-detail-orders"
+        title={BOARD_ORDERS.title}
+        count={`${fmt.format(proposals.length)} ${BOARD_ORDERS.count}`}
+        open={proposals.some((p) => p.status === "提案")}
+      >
         <ProposalList state={state} proposals={proposals} canDecide={false} dispatch={dispatch} showSite={false} />
         {proposals.some((p) => p.status === "提案") && <p className="board-note">{BOARD_ORDERS.approveOnlyHq}</p>}
-      </section>
+      </Fold>
 
       <PatientArrivals state={state} site={site} />
 
-      <section aria-labelledby="board-detail-charts" id="board-intake">
-        <h3 id="board-detail-charts">
-          {BOARD_LAYOUT.detail.charts} <span className="board-count">{fmt.format(charts.length)} {BOARD_RECORDS.count}</span>
-        </h3>
-        <p className="board-note">{BOARD_RECORDS.note}</p>
+      {/* いま入力したカルテがあるときだけ開いておく（Issue #159） */}
+      <Fold
+        id="board-detail-charts"
+        sectionId="board-intake"
+        title={BOARD_LAYOUT.detail.charts}
+        count={`${fmt.format(charts.length)} ${BOARD_RECORDS.count}`}
+        open={latestAddedKey !== null && charts.some((c) => c.key === latestAddedKey)}
+      >
+        <Help>
+          <p className="board-note">{BOARD_RECORDS.note}</p>
+        </Help>
         {charts.length === 0 ? (
           <p className="board-note">{BOARD_RECORDS.empty}</p>
         ) : (
@@ -1101,7 +1110,7 @@ function SiteDetail({
             ))}
           </ul>
         )}
-      </section>
+      </Fold>
     </div>
   );
 }
@@ -1591,10 +1600,14 @@ export function Board({
                   </div>
                 </section>
 
-                <section aria-labelledby="board-cases" className="board-actions">
-                  <h3 id="board-cases">
-                    {BOARD_CASES.title} <span className="board-count">{fmt.format(cases.length)} 件</span>
-                  </h3>
+                {/* 在庫切れ・在庫切れ見込みがあるときだけ開いておく（Issue #159） */}
+                <Fold
+                  id="board-cases"
+                  className="board-actions"
+                  title={BOARD_CASES.title}
+                  count={`${fmt.format(cases.length)} 件`}
+                  open={critical.length > 0}
+                >
                   {cases.length === 0 ? (
                     <p className="board-note">{BOARD_CASES.empty}</p>
                   ) : (
@@ -1623,14 +1636,17 @@ export function Board({
                     <p className="board-note">{BOARD_CHANGES.lastReportNote}</p>
                     <p className="board-note">{BOARD_CHANGES.staleNote(BOARD_CHANGES.staleHours)}</p>
                   </Help>
-                </section>
+                </Fold>
 
-                <section aria-labelledby="board-hq-orders">
-                  <h3 id="board-hq-orders">
-                    {BOARD_TILES.proposals} <span className="board-count">{fmt.format(pendingProposals.length)} {BOARD_ORDERS.count}</span>
-                  </h3>
+                {/* 承認待ちがあるときだけ開いておく（Issue #159） */}
+                <Fold
+                  id="board-hq-orders"
+                  title={BOARD_TILES.proposals}
+                  count={`${fmt.format(pendingProposals.length)} ${BOARD_ORDERS.count}`}
+                  open={pendingProposals.length > 0}
+                >
                   <ProposalList state={state} proposals={pendingProposals} canDecide dispatch={dispatch} />
-                </section>
+                </Fold>
 
                 <PatientArrivals state={state} dispatch={dispatch} />
 

@@ -25,7 +25,9 @@ import {
   type MapMarkLabel,
 } from "../board/map";
 import type { SiteOverview } from "../board/summary";
+import { Fold, Help } from "../board/Fold";
 import { BOARD_MAP, BOARD_MAP_LIVE } from "../board/text";
+
 
 /** 動く地図（Issue #128）に使う、デモの状態の一部。渡さなければ始まりの架空データ（時計 0 分）で描く */
 export interface MapLive {
@@ -503,8 +505,13 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                 ? BOARD_MAP_LIVE.routeLine(emph, emphRoute.status, emphRoute.via, emphRoute.minutes)
                 : BOARD_MAP_LIVE.routeHint}
             </p>
-            <section aria-labelledby="board-map-glows">
-              <h3 id="board-map-glows">{BOARD_MAP_LIVE.glowTitle}</h3>
+            {/* 開閉できる欄（Issue #159）。赤（在庫切れ）があるときだけ開いておく */}
+            <Fold
+              id="board-map-glows"
+              title={BOARD_MAP_LIVE.glowTitle}
+              count={`${glows.length} か所`}
+              open={glows.some((g) => g.level === "bad")}
+            >
               {glows.length === 0 ? (
                 <p>{BOARD_MAP_LIVE.glowNone}</p>
               ) : (
@@ -517,13 +524,16 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                   ))}
                 </ul>
               )}
-              <p className="board-note">{BOARD_MAP_LIVE.staleNote(STALE_REPORT_HOURS)}</p>
-            </section>
-            <section aria-labelledby="board-map-movers">
-              <h3 id="board-map-movers">{BOARD_MAP_LIVE.moversTitle}</h3>
-              <p className="board-map-mover-info" aria-live="polite">
-                {moverText ?? BOARD_MAP_LIVE.pressHint}
-              </p>
+              <Help>
+                <p className="board-note">{BOARD_MAP_LIVE.staleNote(STALE_REPORT_HOURS)}</p>
+              </Help>
+            </Fold>
+            {/* 図の印を押したときの行き先と到着見込みは、一覧を閉じていても見えるよう欄の外に出す（Issue #159） */}
+            <p className="board-map-mover-info" aria-live="polite">
+              {moverText ?? BOARD_MAP_LIVE.pressHint}
+            </p>
+            {/* 一覧はふだん閉じておく（Issue #159） */}
+            <Fold id="board-map-movers" title={BOARD_MAP_LIVE.moversTitle} count={`${moverRows.length} 件`} open={false}>
               {/* 一覧の行は SVG の外の本物のボタン。押すと図の印を太くし、上の欄に行き先と到着見込みを出す（もう一度押すと戻す） */}
               <ul className="board-map-mover-list">
                 {moverRows.map((r) => (
@@ -535,8 +545,10 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                 ))}
                 {shipments.length === 0 && <li>{BOARD_MAP_LIVE.noShipment}</li>}
               </ul>
-              <p className="board-note">{BOARD_MAP_LIVE.moversNote}</p>
-            </section>
+              <Help>
+                <p className="board-note">{BOARD_MAP_LIVE.moversNote}</p>
+              </Help>
+            </Fold>
           </div>
         </figure>
         {side && (
@@ -581,14 +593,14 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
               ))}
             </ul>
           </section>
-          <section aria-labelledby="board-map-notes">
-            <h3 id="board-map-notes">{BOARD_MAP.notesTitle}</h3>
+          {/* ふだんは閉じておく（Issue #159） */}
+          <Fold id="board-map-notes" title={BOARD_MAP.notesTitle} count={`${notes.length} 件`} open={false}>
             <ul className="board-map-notes">
               {notes.map((n) => (
                 <li key={n}>{n}</li>
               ))}
             </ul>
-          </section>
+          </Fold>
         </div>
         )}
       </div>
