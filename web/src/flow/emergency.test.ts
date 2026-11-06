@@ -58,6 +58,43 @@ describe("体調の訴えの検出（ADR-0011）", () => {
     }
   });
 
+  it("E10：何の薬かの説明（症状の語のすぐ後に「時・とき・場合・用」「を抑える・止め」）では中断しない（Issue #206）", () => {
+    for (const text of [
+      "胸が苦しい時に飲む薬",
+      "頭が痛いときに飲む薬",
+      "発作が起きたときの薬",
+      "けいれんを抑える薬",
+      "息が苦しいときの吸入薬",
+      "めまいがするときに飲む薬",
+      "動悸がするときの頓服",
+      "熱があるときに飲む薬",
+      "痛い場合に使う貼り薬",
+      "ケイレンをおさえる薬",
+      "発作が出たときの吸入",
+      "吐き気止めです",
+    ]) {
+      expect(detectDistress(text), text).toBeNull();
+    }
+  });
+
+  it("E10：薬の説明と同じ回答に今の訴えがあれば中断する。自傷の語は説明の形でも中断する", () => {
+    expect(detectDistress("胸が苦しい時に飲む薬が切れて、今頭が痛い")).toBe("symptom");
+    expect(detectDistress("頭が痛いときに飲む薬。今も頭が痛い")).toBe("symptom");
+    expect(detectDistress("発作が止まらない")).toBe("symptom");
+    expect(detectDistress("死にたいときに飲む")).toBe("self_harm");
+  });
+
+  // 語の照合では見逃す、「とき・場合」を使った今の訴え（Issue #206 の safety-review）。
+  // オーナー（2026-11-07、チャット）「LLMジャッジでよくないだろうか。システムプロンプトに書いておけばよい。」を受けて、
+  // Claude の emergency の判定（worker/prompt.ts）に例として書き、そちらで補う。Claude を使えない回（固定の進行）では残る見逃しで、
+  // 「訓練をやめる」ボタンを残す。語を足して検出できるようにしたら、上の試験へ移す
+  it.each(["今、胸が苦しいときがある", "息が苦しい時、どうしたらいい", "苦しい場合どうする"])(
+    "E10 の見逃し（記録済み。Claude の判定で補う）：%s",
+    (text) => {
+      expect(detectDistress(text)).toBeNull();
+    },
+  );
+
   it("表記の違い（全角・カタカナ・空白）をそろえて照合する", () => {
     expect(normalizeForMatch("ドキドキ　する")).toBe("どきどきする");
     expect(detectDistress("ムネガ クルシイ")).toBe("symptom");
