@@ -3598,7 +3598,7 @@
 }
 .board-action-table .board-action-toggle {
   display: flex;
-  min-height: 28px;
+  min-height: 44px;
   margin-top: 4px;
   white-space: nowrap;
 }
