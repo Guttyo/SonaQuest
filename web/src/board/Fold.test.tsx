@@ -77,11 +77,11 @@ describe("開閉できる欄（Issue #159）", () => {
     const html = render("救護所A", "overview");
     const list = html.slice(html.indexOf('aria-labelledby="board-arrivals-救護所A"'));
     const help = list.indexOf('class="board-help"');
-    expect(list.indexOf("実在の人の名前ではない")).toBeGreaterThanOrEqual(0);
+    expect(list.indexOf("実在の人とは関係がない")).toBeGreaterThanOrEqual(0);
     expect(list.indexOf("重さ・緊急度・処置を判断しない")).toBeGreaterThanOrEqual(0);
     if (help >= 0) {
       const helpEnd = list.indexOf("</details>", help);
-      for (const t of ["実在の人の名前ではない", "重さ・緊急度・処置を判断しない"]) {
+      for (const t of ["実在の人とは関係がない", "重さ・緊急度・処置を判断しない"]) {
         const at = list.indexOf(t);
         expect(at < help || at > helpEnd).toBe(true);
       }

@@ -50,3 +50,5 @@
 | [2026-11-04-audit-guard.md](2026-11-04-audit-guard.md) | Issue #40：監査役の Claude を /api/turn に入れ、考え中の表示を足した。止めたはずの Workers が残って比較の1回が古い設定で答えたこと、緊急のときに使われない文を監査役に確かめさせていたこと、などの教訓 |
 | [2026-11-04-voice-push-to-talk.md](2026-11-04-voice-push-to-talk.md) | Issue #52・#53（PR #63）：3D の対話モードに押して話す音声入力と ElevenLabs の読み上げを足した。worktree にキーが無く本物の音声を試せなかったこと、ブラウザ画面はマイクを使えないこと、音声の `src` を空にすると切り替えが起きたこと、STATUS.md の衝突でマーカーの語を含む行を消せなかったこと、などの教訓 |
 | [2026-11-06-karte-summary-audit.md](2026-11-06-karte-summary-audit.md) | Issue #142：カルテの抽出型要約（架空の会話の見本だけ）と、コードでの確認・Managed Agents の監査役の2段構え。会話に無い quote に禁止表現を当てていなかったこと、固定文が自分の検査に当たっていたこと、などの教訓 |
+| [2026-11-06-board-chat-managed-agents.md](2026-11-06-board-chat-managed-agents.md) | Issue #121・#139（PR #129・#140）：ボードの掲示板チャットを Managed Agents で作り、本物で動かした。許可の一覧の検査が空白で分けた語をすり抜けたこと、SSE の終わりを「止まった」と取り違えたこと、既定値の ID が公開の課金の経路になること、などの教訓 |
+| [2026-11-06-demo-video-remotion.md](2026-11-06-demo-video-remotion.md) | Issue #28（PR #135・#136）：提出動画の台本の改訂と、Remotion の骨組み・ElevenLabs でのナレーションの合成。「保存しません」の範囲が同じ動画の掲示板チャットの例外と食い違ったこと、台本と原稿を別々に直していたこと、などの教訓 |

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ACCESS_LOG_MAX, appendAccess, authorizeWrite, canEdit, localAllowed, makeSession, siteCode, staffFor, type FetchLike } from "./access";
+import { ACCESS_LOG_MAX, appendAccess, authorizeWrite, canDecideOrders, canEdit, localAllowed, makeSession, siteCode, staffFor, type FetchLike } from "./access";
 import { parseAuthorizeRequest, writeAllowed } from "./authorizeContract";
 import { FICTIONAL_NAMES } from "./demo";
 import { HQ, SHELTERS } from "./data";
@@ -8,7 +8,7 @@ const json = (status: number, body: unknown, type = "application/json"): ReturnT
   Promise.resolve({ status, headers: { get: (n: string) => (n === "content-type" ? type : null) }, json: () => Promise.resolve(body) });
 
 describe("デモ用ログイン（Issue #141）", () => {
-  it("救護所A〜Dと、その救護所の架空の担当者だけで入れる。本部では入れない", () => {
+  it("拠点の架空の担当者だけで入れる。ほかの拠点の担当者では入れない", () => {
     for (const s of SHELTERS) expect(staffFor(s).length).toBeGreaterThan(0);
     expect(makeSession("救護所A", staffFor("救護所A")[0])).toEqual({ site: "救護所A", staff: staffFor("救護所A")[0] });
     expect(makeSession("救護所A", staffFor("救護所B")[0])).toBeNull();
@@ -27,6 +27,17 @@ describe("デモ用ログイン（Issue #141）", () => {
     expect(canEdit(null, "救護所A")).toBe(false);
     expect(localAllowed(a!, "救護所A")).toBe(true);
     expect(localAllowed(a!, "救護所B")).toBe(false);
+  });
+
+  it("本部（HQ）でも入れる。HQ は承認・却下だけができ、どの救護所の記録も編集できない（Issue #169）", () => {
+    const hq = makeSession(HQ, staffFor(HQ)[0]);
+    expect(hq).toEqual({ site: HQ, staff: "見本 司" });
+    expect(canDecideOrders(hq)).toBe(true);
+    expect(canDecideOrders(makeSession("救護所A", staffFor("救護所A")[0]))).toBe(false);
+    expect(canDecideOrders(null)).toBe(false);
+    for (const s of [...SHELTERS, HQ]) expect(canEdit(hq, s)).toBe(false);
+    expect(localAllowed(hq!, "救護所A")).toBe(false);
+    for (const n of staffFor(HQ)) expect(FICTIONAL_NAMES).not.toContain(n);
   });
 
   it("アクセス記録は新しいものが先で、上限を超えた古い行は消える", () => {

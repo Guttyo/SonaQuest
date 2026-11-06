@@ -3,7 +3,7 @@
 // ログインの状態とアクセス記録はブラウザのメモリだけに持ち、保存・ログ出力をしない。再読み込みで消える。
 // Worker へ送るのは、権限の確認に要る3つの値（ログイン中の救護所・書き込み先の救護所・出来事の種類）だけ。
 
-import { SHELTERS, type SiteId } from "./data";
+import { HQ, SHELTERS, type SiteId } from "./data";
 import {
   AUTHORIZE_SITES,
   writeAllowed,
@@ -24,8 +24,22 @@ export function staffFor(site: SiteId): readonly string[] {
   return DEMO_STAFF[site] ?? [];
 }
 
-/** ログインできる救護所（本部備蓄は選べない。本部がすべてを編集する役割は作らない） */
-export const LOGIN_SITES: readonly SiteId[] = SHELTERS;
+/**
+ * ログインできる拠点。救護所A〜D と本部（HQ。Issue #169）。
+ * 2026-11-06 オーナー決定（チャット）：HQ は全体を見て、発注の提案の承認・却下だけができる。救護所のカルテは編集できない
+ * （本部がすべてを編集する役割は作らない）
+ */
+export const LOGIN_SITES: readonly SiteId[] = [...SHELTERS, HQ];
+
+/** 画面に出す拠点の名前（本部備蓄は「本部（HQ）」） */
+export function siteLabel(site: SiteId): string {
+  return site === HQ ? "本部（HQ）" : site;
+}
+
+/** 発注の提案を承認・却下できるか（HQ でログインしているときだけ。Issue #169） */
+export function canDecideOrders(session: DemoSession | null): boolean {
+  return session !== null && session.site === HQ;
+}
 
 export function makeSession(site: SiteId, staff: string): DemoSession | null {
   if (!LOGIN_SITES.includes(site)) return null;
@@ -39,9 +53,9 @@ export function sessionFor(site: SiteId): DemoSession {
   return { site: s, staff: staffFor(s)[0] };
 }
 
-/** その救護所の在庫・カルテを編集できるか（自分の救護所だけ） */
+/** その救護所の在庫・カルテを編集できるか（自分の救護所だけ。HQ は編集しない） */
 export function canEdit(session: DemoSession | null, site: SiteId): boolean {
-  return session !== null && session.site === site;
+  return session !== null && session.site === site && site !== HQ;
 }
 
 /** 画面の SiteId を、Worker へ送る短い記号にする（本部備蓄は null） */

@@ -10,19 +10,20 @@ export const DEMO_STAFF: Readonly<Partial<Record<SiteId, readonly string[]>>> = 
   救護所B: ["見本 若葉", "見本 二葉"],
   救護所C: ["見本 光", "見本 三月"],
   救護所D: ["見本 灯", "見本 四季"],
+  本部備蓄: ["見本 司", "見本 統"],
 };
 
 export const BOARD_LOGIN = {
   title: "デモ用のログイン",
-  lead: "救護所と担当者（架空）を選んで入ります。パスワードはありません。",
+  lead: "救護所か本部（HQ）と、担当者を選んで入ります。パスワードはありません。本部（HQ）は全体を見て、発注の提案を承認・却下できます（救護所のカルテは編集できません）。",
   notice: "デモ用のログインです。本人確認はしていません。救護所・担当者・患者はすべてデモ用の架空データです。",
-  site: "救護所",
-  staff: "担当者（架空）",
-  submit: "この救護所で入る",
+  site: "救護所・本部",
+  staff: "担当者",
+  submit: "この拠点で入る",
   memory: "ログインの状態はこの画面のメモリだけに持ち、保存しません。読み込み直すと、もう一度選びます。",
   back: "はじめにへ戻る",
   /** 右上の表示 */
-  who: (site: string, staff: string) => `${site}／担当：${staff}（架空）`,
+  who: (site: string, staff: string) => `${site}／担当：${staff}`,
   logout: "ログアウト",
   /** 左の一覧で、ログイン中の救護所の名前の後ろに灰で添える（Issue #143、計画書 4.2） */
   paneMark: "（ログイン中）",
@@ -33,7 +34,10 @@ export const BOARD_PERMISSION = {
   editable: (site: string) => `編集できます（${site}の記録）`,
   /** ほかの救護所・本部のとき。色だけにせず、文字で理由を出す */
   readOnly: (site: string) => `閲覧のみ（${site}の記録）`,
-  readOnlyWhy: (mine: string) => `${mine}でログインしているため、ほかの救護所の在庫とカルテは編集できません。`,
+  readOnlyWhy: (mine: string) =>
+    mine === "本部備蓄"
+      ? "本部（HQ）でログインしているため、救護所の在庫とカルテは編集できません（発注の提案の承認・却下はできます）。"
+      : `${mine}でログインしているため、ほかの救護所の在庫とカルテは編集できません。`,
   /** 本部の画面。本部のログインはこのデモに無い */
   hqReadOnly: "閲覧のみ（本部の記録。本部のログインはこのデモにありません）",
   /** Worker での確認の結果 */
@@ -55,7 +59,7 @@ export const ACCESS_LOG_TEXT = {
   empty: "まだ記録はありません。",
   open: "アクセス記録を開く",
   close: "アクセス記録を閉じる",
-  head: { at: "時刻", site: "救護所", staff: "担当者（架空）", kind: "出来事", target: "対象" },
+  head: { at: "時刻", site: "救護所", staff: "担当者", kind: "出来事", target: "対象" },
   /** 対象の無い行（ログイン・ログアウト）。横線の記号の代わりに文字で出す（Issue #143、計画書 4.5） */
   noTarget: "なし",
   kinds: {
@@ -88,7 +92,7 @@ export const CHART_REVIEW_TEXT = {
   sendAudit: "AI 監査に出す",
   confirm: "内容を確かめて、確認済みにする",
   auditing: "監査の結果を待っています。",
-  confirmedBy: (staff: string, site: string, at: string) => `${site}の${staff}（架空）が ${at} に確認`,
+  confirmedBy: (staff: string, site: string, at: string) => `${site}の${staff}が ${at} に確認`,
   waiting: "監査で指摘が無くても、人が確認するまで確定しません。",
   unavailable: "AI の監査が使えないため、監査なしで人が確かめます。",
   findings: "監査の指摘",
