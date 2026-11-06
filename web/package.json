@@ -11,7 +11,8 @@
     "bundle:worker": "wrangler deploy --dry-run --outdir .wrangler/dry-run",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "setup:board-chat": "node scripts/setup-board-chat.ts"
+    "setup:board-chat": "node scripts/setup-board-chat.ts",
+    "setup:karte-audit": "node scripts/setup-karte-audit.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.3.0",
