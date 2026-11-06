@@ -81,13 +81,20 @@ export function Intro({ onStart, onOpenBoard, initialView = "choose", initialMod
 
   return (
     <section className="screen" aria-labelledby="intro-title">
-      <p className="tagline">もしもの時、自分の薬のことを伝えられますか？</p>
-      <h1 id="intro-title" ref={titleRef} tabIndex={-1}>
-        お薬の避難訓練
-      </h1>
+      {/* 上の帯（Issue #183。2026-11-06 オーナー「1ページ目のヘッダーはA案がいいね」）：問いかけと題を淡いミントの帯に置き、お薬手帳と薬の袋の絵を添える */}
+      <div className="intro-hero">
+        <div className="intro-hero-text">
+          <p className="tagline">もしもの時、自分の薬のことを伝えられますか？</p>
+          <h1 id="intro-title" ref={titleRef} tabIndex={-1}>
+            お薬の避難訓練
+          </h1>
+        </div>
+        <IntroHeroArt />
+      </div>
 
-      {/* 2D／3D のモード選択。カード全体がタップの的で、中のラジオで選ぶ（キーボードは Tab と矢印）。3D は押せる選択肢（ADR-0036） */}
-      <fieldset className="mode-cards">
+      {/* 答え方の選択（Issue #183 で呼び方を「文字で答える」「自分の声で答える」に。内部の値は 2d／3d のまま）。
+          カード全体がタップの的で、中のラジオで選ぶ（キーボードは Tab と矢印）。広さがあれば2枚を横に並べる（案B） */}
+      <fieldset className="mode-cards intro-modes">
         <legend>{MODE_LEGEND}</legend>
         {MODE_OPTIONS.map((option) => (
           <label key={option.id} className="mode-card">
@@ -134,5 +141,19 @@ export function Intro({ onStart, onOpenBoard, initialView = "choose", initialMod
       </button>
       <p className="intro-aside">{COMING_SOON_INTAKE}</p>
     </section>
+  );
+}
+
+/** はじめにの上の帯の絵（お薬手帳と薬の袋）。飾りなので読み上げない */
+function IntroHeroArt() {
+  return (
+    <svg className="intro-hero-art" viewBox="0 0 104 104" aria-hidden="true" focusable="false">
+      <rect x="10" y="22" width="52" height="66" rx="6" fill="#fff" stroke="#2f7d63" strokeWidth="3" />
+      <rect x="10" y="22" width="12" height="66" rx="4" fill="#2f7d63" />
+      <path d="M32 40h20M32 50h20M32 60h14" stroke="#2f7d63" strokeWidth="3" strokeLinecap="round" />
+      <path d="M56 46h34l-4 46H60z" fill="#fff1e3" stroke="#a94e17" strokeWidth="3" strokeLinejoin="round" />
+      <path d="M62 46c0-8 6-12 11-12s11 4 11 12" fill="none" stroke="#a94e17" strokeWidth="3" />
+      <path d="M73 60v16M65 68h16" stroke="#a94e17" strokeWidth="3.5" strokeLinecap="round" />
+    </svg>
   );
 }

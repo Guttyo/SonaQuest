@@ -46,8 +46,8 @@ describe("はじめにの1画面目：答え方をカードで選ぶ（A-14、Is
 
   it("カードの絵は飾りで、意味は文字で示す（aria-hidden）", () => {
     const svgs = choose.match(/<svg[^>]*>/g) ?? [];
-    // 2D・3D・C-01 の鍵・ボードへの入口（Issue #162）。問診モードは文だけで、絵は無い（Issue #101）
-    expect(svgs).toHaveLength(4);
+    // 上の帯の絵（Issue #183）・2D・3D・C-01 の鍵・ボードへの入口（Issue #162）。問診モードは文だけで、絵は無い（Issue #101）
+    expect(svgs).toHaveLength(5);
     for (const svg of svgs) expect(svg).toContain('aria-hidden="true"');
   });
 
@@ -116,7 +116,7 @@ describe("はじめにの2画面目「はじめる前に」：必ず見せる説
 
   it("選んだ答え方を文字で示し、訓練をはじめると選び直すがある", () => {
     expect(notes2d).toContain("選んでいる答え方：</span>文字で答える");
-    expect(notes3d).toContain("選んでいる答え方：</span>声で答えて読み上げを聞く");
+    expect(notes3d).toContain("選んでいる答え方：</span>自分の声で答える");
     for (const html of [notes2d, notes3d]) {
       expect(html.match(/<button/g)).toHaveLength(2);
       expect(html).toContain(">訓練をはじめる</button>");

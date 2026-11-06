@@ -77,7 +77,7 @@ describe("答える範囲（ADR-0022 案B）", () => {
     expect(PRIVACY_VOICE).toContain("ElevenLabs");
     expect(PRIVACY_VOICE).toContain("あなたの回答や声は送りません");
     expect(PRIVACY_VOICE).toContain("確かめられていません");
-    expect(PRIVACY_VOICE).toContain("2Dのモードでは、どちらにも送りません");
+    expect(PRIVACY_VOICE).toContain("「文字で答える」を選んだときは、どちらにも送りません");
   });
 
   it("利用開始の文面は、架空にするのが薬の中身であることを示す（案Bと食い違わない）", () => {
