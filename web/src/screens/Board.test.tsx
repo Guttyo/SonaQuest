@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { HQ, INBOUND, INTAKE_RECORDS, NEEDS, PATIENTS, SITES, STOCK, SYNC, type SiteId } from "../board/data";
+import { HQ, INBOUND, INTAKE_RECORDS, ITEMS, NEEDS, PATIENTS, SITES, STOCK, SYNC, type SiteId } from "../board/data";
 import { clockText, demoReducer, initialDemo, type DemoAction } from "../board/demo";
 import { caseRows, criticalItems, pendingSummary, todaySummary } from "../board/summary";
 import {
@@ -210,11 +210,11 @@ describe("在庫・発注・搬送・記録・デモのタブ", () => {
   it("在庫：本部は救護所×薬の表、救護所はその救護所の行だけ", () => {
     const heat = panel(render(HQ, "stock"));
     expect(heat.match(/<th class="site">/g)).toHaveLength(5);
-    expect(heat.match(/<td class="item">/g)).toHaveLength(9);
+    expect(heat.match(/<td class="item">/g)).toHaveLength(ITEMS.length);
     expect(heat).toContain(">切れ<");
     expect(heat).toContain(">算出不可<");
     const b = panel(render("救護所B", "stock"));
-    expect(b.match(/<tr>/g)?.length).toBe(1 + 9);
+    expect(b.match(/<tr>/g)?.length).toBe(1 + ITEMS.length);
     expect(b).toContain(">在庫切れ見込み</span>");
   });
 

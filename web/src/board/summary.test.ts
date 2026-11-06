@@ -5,6 +5,7 @@ import {
   DEMAND,
   HQ,
   INBOUND,
+  ITEMS,
   NEEDS,
   PATIENTS,
   SHELTERS,
@@ -44,7 +45,7 @@ describe("架空データの形", () => {
   it("救護所は4か所で、どの救護所にも全品目の在庫の行がある", () => {
     expect(SHELTERS).toHaveLength(4);
     for (const site of [...SHELTERS, HQ]) {
-      expect(STOCK.filter((r) => r.site === site)).toHaveLength(9);
+      expect(STOCK.filter((r) => r.site === site)).toHaveLength(ITEMS.length);
     }
   });
 
@@ -52,7 +53,7 @@ describe("架空データの形", () => {
     const text = JSON.stringify({ STOCK, PATIENTS, INBOUND, DEMAND, SYNC, SITES, NEEDS });
     expect(text).not.toMatch(/さん|様|氏名|名前は[^分]/);
     for (const item of new Set(STOCK.map((r) => r.item))) {
-      expect(item).toMatch(/[A-H]|消毒薬/);
+      expect(item).toMatch(/[A-I]|消毒薬/);
     }
     for (const s of SITES) {
       expect(s.phone).toMatch(/^000-0000-000\d（架空/);
