@@ -1,8 +1,9 @@
 // 何を読み上げるか（speech.ts）と、認識した文の緊急の照合の試験（docs/safety-test-plan.md P15・V4）
 
 import { describe, expect, it } from "vitest";
-import { CONFIRM_PROMPT, EVENTS, RECALL_NOW } from "../flow/content";
+import { CONFIRM_PROMPT, EVENT_SPEECH, OPENING_SPEECH, RECALL_NOW } from "../flow/content";
 import { modeFromSearch } from "../flow/mode";
+import { SYMPTOM_CHECK_TEXT } from "../flow/emergency";
 import { firstHalfQuestions } from "../flow/rules";
 import { initialState, trainingReducer, type TrainingAction, type TrainingState } from "../flow/training";
 import { listenerSpeech, speechKey } from "./speech";
@@ -22,7 +23,8 @@ const offline: TrainingState = { ...initialState, ai: "off" };
 describe("読み上げるのはソナの文と固定文だけ（ADR-0005）", () => {
   it("最初の質問を読み、回答の後は次の質問を読む。回答は読み上げる文に入らない", () => {
     const started = run([{ type: "start" }], offline);
-    expect(listenerSpeech(started)).toBe(firstHalfQuestions()[0].text);
+    // 最初の質問の前に、デモであることを言う（2026-11-07）
+    expect(listenerSpeech(started)).toBe(OPENING_SPEECH + firstHalfQuestions()[0].text);
     const answered = run([{ type: "answer", text: ANSWER }], started);
     const spoken = listenerSpeech(answered);
     expect(spoken).not.toBeNull();
@@ -43,7 +45,7 @@ describe("読み上げるのはソナの文と固定文だけ（ADR-0005）", ()
     state = trainingReducer(state, { type: "confirm", source: "notebook" });
     expect(state.stage.name).toBe("event");
     const event = listenerSpeech(state);
-    expect(event).toContain(EVENTS[state.event!].text);
+    expect(event).toBe(EVENT_SPEECH[state.event!]);
     seen.push(event!);
     for (const text of seen) expect(text).not.toContain(ANSWER);
   });
@@ -110,11 +112,13 @@ describe("認識した文にも、送る前に緊急の照合がかかる（docs
     return results;
   }
 
-  it("体調の訴えらしい認識文は、送ると回答として受け取らずに中断する", () => {
+  it("体調の訴えらしい認識文は、送ると回答として受け取らずに確かめ、「はい」で中断する", () => {
     const [heard] = recognize("いま胸が苦しいです");
     const draft = appendRecognized("", heard);
     const started = run([{ type: "start" }]);
-    const sent = trainingReducer(started, { type: "answer", text: draft });
+    const checking = trainingReducer(started, { type: "answer", text: draft });
+    expect(checking.prompt?.type).toBe("symptom_check");
+    const sent = trainingReducer(checking, { type: "answer", text: "はい" });
     expect(sent.stage).toEqual({ name: "stopped", reason: "symptom" });
     expect(sent.answers).toHaveLength(0);
     expect(sent.waiting).toBe(false);
@@ -130,7 +134,21 @@ describe("認識した文にも、送る前に緊急の照合がかかる（docs
     const [heard] = recognize("苦しい");
     const draft = appendRecognized("Aという薬", heard);
     const sent = trainingReducer(run([{ type: "start" }]), { type: "answer", text: draft });
-    expect(sent.stage.name).toBe("stopped");
+    expect(sent.prompt?.type).toBe("symptom_check");
+  });
+
+  it("出来事は、使えなくなったものの一覧ではなく、場面を語る固定文を読み上げる（2026-11-07）", () => {
+    const state: TrainingState = { ...initialState, stage: { name: "event" }, event: "notebook_home" };
+    expect(listenerSpeech(state)).toBe(EVENT_SPEECH.notebook_home);
+    expect(listenerSpeech(state)).not.toContain("使えなくなったもの");
+    expect(EVENT_SPEECH.notebook_home).toContain("急いで避難したあまり");
+  });
+
+  it("3D では、確かめの問いをそれだけ読み上げ、読み上げの切り替えの鍵も変わる（ADR-0011 の追記）", () => {
+    const started = run([{ type: "start", mode: "3d" }]);
+    const checking = trainingReducer(started, { type: "answer", text: "頭が痛いので薬を飲んでいます" });
+    expect(listenerSpeech(checking)).toBe(SYMPTOM_CHECK_TEXT);
+    expect(speechKey(checking, listenerSpeech(checking) ?? "")).not.toBe(speechKey(started, listenerSpeech(started) ?? ""));
   });
 });
 

@@ -24,6 +24,7 @@ import { LOST_BY_EVENT, SourceChip } from "./SourceIcon";
 import { ListenerLine, Transcript } from "./Transcript";
 import { SourceShift } from "./SourceShift";
 import { Puppet2DFace } from "./Puppet2D";
+import { SYMPTOM_CHECK_HINT } from "../flow/emergency";
 
 interface Props {
   state: TrainingState;
@@ -129,10 +130,10 @@ export function Dialogue({ state, dispatch }: Props) {
 
       {answering && (
         <AnswerForm
-          // 話し相手の発言が変わったら下書きを消す
-          key={state.answers.length}
-          hint={ANSWER_HINTS[question.answerAs]}
-          choices={CONTACT_CHOICE_QUESTIONS.has(question.id) ? CONTACT_CHOICES : null}
+          // 話し相手の発言が変わったら下書きを消す。体調の確かめの問い（ADR-0011 の追記）は回答を増やさないので、出たときと戻ったときにも消す
+          key={`${state.answers.length}-${state.symptomCheck === null ? "ask" : "check"}`}
+          hint={state.symptomCheck === null ? ANSWER_HINTS[question.answerAs] : SYMPTOM_CHECK_HINT}
+          choices={state.symptomCheck === null && CONTACT_CHOICE_QUESTIONS.has(question.id) ? CONTACT_CHOICES : null}
           onSubmit={(text) => {
             setNods((n) => n + 1);
             dispatch({ type: "answer", text });

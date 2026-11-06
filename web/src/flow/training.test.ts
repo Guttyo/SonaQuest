@@ -1,3 +1,5 @@
+import { RECHECK_CLOSING } from "./content";
+import { SYMPTOM_CHECK_TEXT } from "./emergency";
 import { describe, expect, it } from "vitest";
 import { MAX_ANSWERS } from "./rules";
 import {
@@ -62,11 +64,11 @@ describe("訓練の流れ", () => {
         answer("紙のメモがあります"),
         answer("妻が知っています"),
         answer("ありません"),
-        answer("思い出せなかったことはありません"),
       ]);
       expect(state.stage).toEqual({ name: "review" });
-      // 固定の質問は8問。聞き返しが無ければ、上限の10回より少なく終わる
-      expect(state.answers).toHaveLength(8);
+      // 固定の質問は7問（2026-11-07 に後半の「思い出せなかったこと」を外した）。聞き返しが無ければ、上限の10回より少なく終わる
+      expect(state.answers).toHaveLength(7);
+      expect(state.closingAck).toContain(RECHECK_CLOSING);
       expect(state.answers.length).toBeLessThan(MAX_ANSWERS);
     },
   );
@@ -149,8 +151,11 @@ describe("中断とやり直し", () => {
 });
 
 describe("体調の訴えらしい入力での中断（ADR-0011）", () => {
-  it("前半の回答で体調の訴えがあれば中断し、その回答は受け取らない（E1）", () => {
-    const state = run([{ type: "start" }, answer("お薬手帳です"), answer("今、胸が苦しい")]);
+  it("前半の回答で体調の訴えがあれば、確かめの問いを出し、「はい」で中断する。その回答は受け取らない（E1、ADR-0011 の追記）", () => {
+    const checking = run([{ type: "start" }, answer("お薬手帳です"), answer("今、胸が苦しい")]);
+    expect(checking.stage.name).toBe("first");
+    expect(checking.prompt).toMatchObject({ type: "symptom_check", text: SYMPTOM_CHECK_TEXT });
+    const state = trainingReducer(checking, answer("はい"));
     expect(state.stage).toEqual({ name: "stopped", reason: "symptom" });
     expect(state.answers.map((a) => a.text)).toEqual(["お薬手帳です"]);
   });
@@ -162,6 +167,7 @@ describe("体調の訴えらしい入力での中断（ADR-0011）", () => {
       { type: "continue_after_event" },
       answer("スマホの写真で見せます"),
       answer("飲めていない、今つらい"),
+      answer("はい、そうです"),
     ]);
     expect(state.stage).toEqual({ name: "stopped", reason: "symptom" });
   });
@@ -172,13 +178,47 @@ describe("体調の訴えらしい入力での中断（ADR-0011）", () => {
   });
 
   it("自動で中断した後は回答を受け付けない", () => {
-    const stopped = run([{ type: "start" }, answer("頭が痛い")]);
+    const stopped = run([{ type: "start" }, answer("頭が痛い"), answer("うん")]);
+    expect(stopped.stage).toEqual({ name: "stopped", reason: "symptom" });
     expect(trainingReducer(stopped, answer("A薬を朝に1錠"))).toBe(stopped);
   });
 
   it("文字数の上限を超える回答でも、訴えがあれば中断する", () => {
-    const state = run([{ type: "start" }, answer("あ".repeat(600) + "息ができない")]);
+    const state = run([{ type: "start" }, answer("あ".repeat(600) + "息ができない"), answer("はい")]);
     expect(state.stage).toEqual({ name: "stopped", reason: "symptom" });
+  });
+
+  it("薬の説明に体調の語があっても、確かめの問いに「いいえ」なら、その答えを回答として受け取って続ける（回数に数えない）", () => {
+    const checking = run([{ type: "start" }, answer("頭が痛いので薬を飲んでいます")]);
+    expect(checking.prompt?.type).toBe("symptom_check");
+    expect(checking.answers).toHaveLength(0);
+    const resumed = trainingReducer(checking, answer("いいえ、違います"));
+    expect(resumed.stage).toEqual({ name: "first", index: 1 });
+    expect(resumed.answers.map((a) => a.text)).toEqual(["頭が痛いので薬を飲んでいます"]);
+    expect(resumed.answers[0].prompt).toBe(checking.symptomCheck?.resume?.text);
+    expect(resumed.prompt?.type).toBe("ask");
+    expect(resumed.symptomCheck).toBeNull();
+  });
+
+  it("何の薬かの説明（「頭が痛いときに飲む薬」。Issue #206）は、確かめの問いを出さずにそのまま回答として受け取る", () => {
+    const state = run([{ type: "start" }, answer("頭が痛いときに飲む薬があります")]);
+    expect(state.symptomCheck).toBeNull();
+    expect(state.answers.map((a) => a.text)).toEqual(["頭が痛いときに飲む薬があります"]);
+  });
+
+  it("確かめの問いへの答えが自傷のほのめかしなら、自傷用の案内で中断する", () => {
+    const state = run([{ type: "start" }, answer("頭が痛い"), answer("もう消えたい")]);
+    expect(state.stage).toEqual({ name: "stopped", reason: "self_harm" });
+  });
+
+  it("確かめの問いへの答えに、また体調の語があれば「はい」でなくても中断する（安全な側。下書き）", () => {
+    const state = run([{ type: "start" }, answer("頭が痛い"), answer("よくわからないけど苦しい")]);
+    expect(state.stage).toEqual({ name: "stopped", reason: "symptom" });
+  });
+
+  it("自傷のほのめかしは、確かめずにすぐ中断する", () => {
+    const state = run([{ type: "start" }, answer("死にたい")]);
+    expect(state.stage).toEqual({ name: "stopped", reason: "self_harm" });
   });
 
   it("想定の話（E6）や過去の話（E9）では中断しない", () => {

@@ -9,8 +9,7 @@ import {
   type AudioLike,
   type SpeakerDeps,
   type SynthLike,
-  type UtteranceLike,
-} from "./speaker";
+  type UtteranceLike, startTimeoutFor } from "./speaker";
 import { PushToTalk, type RecognitionLike } from "./talk";
 
 const TEXT = "普段の薬の情報は、どこに記録していますか？";
@@ -307,5 +306,13 @@ describe("読み上げの中継を呼ぶ（fetchTtsAudio）", () => {
     await expect(fetchTtsAudio(TEXT, new AbortController().signal, status)).rejects.toThrow("tts_status_503");
     const empty = (async () => new Response(new Uint8Array([]))) as unknown as typeof fetch;
     await expect(fetchTtsAudio(TEXT, new AbortController().signal, empty)).rejects.toThrow("tts_empty");
+  });
+});
+
+describe("長い文は、始まるまで長く待つ（2026-11-07）", () => {
+  it("150字までは基本の時間、それを超える分は1字15ミリ秒、最大7秒を足す", () => {
+    expect(startTimeoutFor(5_000, "あ".repeat(150))).toBe(5_000);
+    expect(startTimeoutFor(5_000, "あ".repeat(450))).toBe(9_500);
+    expect(startTimeoutFor(5_000, "あ".repeat(2_000))).toBe(12_000);
   });
 });
