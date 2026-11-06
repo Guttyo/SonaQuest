@@ -1,5 +1,5 @@
 import { TALK_HINT, TALK_INSERTED, TALK_LABELS, TALK_NOTICES } from "./messages";
-import { TALK_STYLE, micNotice, type TalkNotice, type TalkSnapshot } from "./talk";
+import { TALK_STYLE, micNotice, type TalkNotice, type TalkSnapshot, type TalkStyle } from "./talk";
 import "./voice.css";
 
 /** 画面ごとに差し替える文（ボードの文字起こし。Issue #202）。省くと訓練の文 */
@@ -11,7 +11,7 @@ export interface TalkButtonTexts {
 
 /**
  * 「押して話す」のボタン（ADR-0033）。指・マウス・キーボード（スペース・Enter）で押せる。
- * 押している間だけマイクを開く。マイクが使えないときは、理由を文字で示し、文字入力で続ける。
+ * tap（既定）は1回押すとマイクを開き、話し終わると自動で止まる。hold は押している間だけ開く。マイクが使えないときは、理由を文字で示し、文字入力で続ける。
  */
 export function TalkButton({
   snapshot,
@@ -19,6 +19,7 @@ export function TalkButton({
   onPress,
   onRelease,
   texts,
+  style = TALK_STYLE,
 }: {
   snapshot: TalkSnapshot;
   /** 聞き取った文を入力欄に入れた直後か */
@@ -26,8 +27,10 @@ export function TalkButton({
   onPress: () => void;
   onRelease: () => void;
   texts?: TalkButtonTexts;
+  /** 押し方。PushToTalk に渡したものと同じにする */
+  style?: TalkStyle;
 }) {
-  const labels = TALK_LABELS[TALK_STYLE];
+  const labels = TALK_LABELS[style];
   const usable = snapshot.mic === "ready";
   const notice = snapshot.notice ?? micNotice(snapshot.mic);
   const t = texts ?? { hint: TALK_HINT, inserted: TALK_INSERTED, notices: TALK_NOTICES };
