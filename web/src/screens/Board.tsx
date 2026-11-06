@@ -141,7 +141,8 @@ function Pill({ level, children }: { level: "bad" | "warn" | "ok" | "none"; chil
 
 function statusLevel(status: CaseRow["status"]): "bad" | "warn" | "none" {
   if (status === "在庫切れ") return "bad";
-  if (status === "在庫切れ見込み") return "warn";
+  // 未確認・見込み算出不可も「人が確かめる」の黄（Issue #143、計画書 2.2）。余裕ありは色なし
+  if (status === "在庫切れ見込み" || status === "未確認" || status === "見込み算出不可") return "warn";
   return "none";
 }
 
@@ -510,7 +511,7 @@ function ChartCard({ chart, open }: { chart: PatientChart; open: boolean }) {
               <Pill level={chart.hasPrescription ? "ok" : "none"}>{chart.hasPrescription ? BOARD_RECORDS.flagPrescribed : BOARD_RECORDS.flagNone}</Pill>
               {chart.undelivered > 0 && <Pill level="bad">{BOARD_RECORDS.flagUndelivered}</Pill>}
               {review !== undefined && (
-                <Pill level={review.status === "human_confirmed" ? "ok" : "warn"}>
+                <Pill level={review.status === "human_confirmed" ? "ok" : review.status === "audited" && review.findings.length > 0 ? "bad" : "warn"}>
                   {review.status === "human_confirmed" ? CHART_REVIEW_TEXT.status.human_confirmed : CHART_REVIEW_TEXT.pendingFlag}
                 </Pill>
               )}
@@ -1277,7 +1278,8 @@ export function Board({
     if (!o) return m;
     if (o.outOfStock > 0) m.push({ text: `${BOARD_LAYOUT.marks.outOfStock} ${fmt.format(o.outOfStock)}`, level: "bad" });
     if (charts.some((c) => c.site === site && c.undelivered > 0)) m.push({ text: BOARD_LAYOUT.marks.undelivered, level: "bad" });
-    if (o.pending !== null && o.pending > 0) m.push({ text: BOARD_LAYOUT.marks.pending(o.pending), level: "warn" });
+    // 記録の未着・転記待ちは、どの救護所にもふつうにある数なので色を付けない（Issue #143、計画書 2.2）
+    if (o.pending !== null && o.pending > 0) m.push({ text: BOARD_LAYOUT.marks.pending(o.pending), level: "none" });
     if (o.pharmacistsShort > 0) m.push({ text: BOARD_LAYOUT.marks.pharmacistsShort(o.pharmacistsShort), level: "none" });
     const max = BOARD_LAYOUT.marks.max;
     return m.length <= max ? m : [...m.slice(0, max), { text: BOARD_LAYOUT.marks.more(m.length - max), level: "none" as const }];
@@ -1823,7 +1825,7 @@ export function Board({
                             <td className="num">{r.dailyUse === null ? "不明" : `${fmt.format(r.dailyUse)}${r.unit}`}</td>
                             <td className="num">{d === null ? "—" : `${roundDays(d)} 日`}</td>
                             <td>
-                              <Pill level={st === "在庫切れ" ? "bad" : st === "在庫切れ見込み" ? "warn" : st === "余裕あり" ? "ok" : "none"}>{st}</Pill>
+                              <Pill level={st === "在庫切れ" ? "bad" : st === "余裕あり" ? "ok" : "warn"}>{st}</Pill>
                             </td>
                             <td className="num">{hq ? qty(hq.onHand, hq.unit) : "—"}</td>
                           </tr>

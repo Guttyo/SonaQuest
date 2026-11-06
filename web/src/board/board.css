@@ -2499,7 +2499,19 @@
 }
 .app:has(.board),
 .app:has(.board) .app-main {
-  background: var(--b-ground);
+  background: #ededed;
+}
+/* ログインの画面では、アクセス記録は .board の外にある。カードの下に置き、同じ見た目にする */
+.board-login + .board-access-log {
+  justify-items: center;
+  margin-top: 12px;
+}
+.board-login + .board-access-log .board-access-toggle {
+  border: 1px solid #222222;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #222222;
+  font-weight: 700;
 }
 
 /* 角丸は 0 か 4px、影なし（計画書 4.1・5.1） */
@@ -2564,6 +2576,7 @@
 .board-demo-box > summary {
   min-height: 44px;
   padding: 0 16px;
+  border-radius: 4px;
   border: 1px solid var(--b-ink);
   background: var(--b-surface);
   color: var(--b-ink);
@@ -2586,6 +2599,7 @@
 .board-pill.bad::before,
 .board-pane-mark.bad::before,
 .board-heat .cell.bad::before,
+.board-legend .cell.bad::before,
 .board-review-status.stop::before,
 .board-permission-result.denied::before,
 .board-tile.stop .board-tile-big::before,
@@ -2594,6 +2608,7 @@
 .board-stale::before,
 .board-tab-count::before,
 .board-heat .cell.warn::before,
+.board-legend .cell.warn::before,
 .board-review-status.wait::before,
 .board-tile.check .board-tile-big::before {
   content: "";
@@ -2607,6 +2622,7 @@
 .board-pill.bad::before,
 .board-pane-mark.bad::before,
 .board-heat .cell.bad::before,
+.board-legend .cell.bad::before,
 .board-review-status.stop::before,
 .board-permission-result.denied::before,
 .board-tile.stop .board-tile-big::before {
@@ -2702,8 +2718,9 @@
 }
 .board-head .board-session {
   order: 3;
-  flex: 0 1 auto;
-  min-width: 0;
+  flex: 1 1 0;
+  min-width: 14rem;
+  justify-content: flex-end;
   margin-left: auto;
   flex-wrap: nowrap;
   gap: 8px;
@@ -2719,20 +2736,30 @@
 }
 .board .board-session-logout {
   min-height: 44px;
+  white-space: nowrap;
 }
 .board-head .board-access-log {
   display: contents;
 }
-.board-head .board-access-toggle {
+/* 1180 幅でも、今の文言のままでは1行に入らない（短い言い方はオーナーの確認待ち。計画書 9章）。
+   1行目に題・時刻・ログイン中、2行目の右に操作のボタンを置く */
+.board-head::after {
+  content: "";
   order: 4;
+  flex-basis: 100%;
+  height: 0;
+}
+.board-head .board-access-toggle {
+  order: 5;
+  margin-left: auto;
 }
 .board-head .board-back {
-  order: 5;
+  order: 6;
   margin-left: 0;
   min-height: 44px;
 }
 .board-head .board-demo-box {
-  order: 6;
+  order: 7;
 }
 .board-demo-box > summary {
   display: inline-flex;
@@ -2754,7 +2781,7 @@
   max-width: none;
 }
 .board-head .board-access-body {
-  order: 7;
+  order: 8;
   flex: 1 0 100%;
 }
 .board-access-toggle {
@@ -2795,14 +2822,14 @@
   color: var(--b-ink-soft);
 }
 .board-pane-item .board-pane-marks {
-  grid-column: 2;
-  grid-row: 1 / span 2;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: center;
-  align-self: center;
+  grid-column: 1 / -1;
+  margin-top: 2px;
 }
-.board-pane-item.current {
+.board-pane-item .board-pane-marks:empty {
+  display: none;
+}
+.board-pane-item.current,
+.board-pane-item.current.stale {
   background: var(--b-ink);
   color: #fff;
 }
@@ -2812,7 +2839,8 @@
 .board-pane-item:hover {
   background: var(--b-ground);
 }
-.board-pane-item.current:hover {
+.board-pane-item.current:hover,
+.board-pane-item.current.stale:hover {
   background: var(--b-ink);
 }
 .board-pane-district-name {
@@ -2828,7 +2856,17 @@
   font-size: var(--fs-caption);
 }
 @media (min-width: 1024px) {
+  /* 帯が折り返したときに高さが伸びるよう、グリッドでなく縦の flex にする（グリッドの行では折り返しの高さが数えられなかった） */
+  .board {
+    display: flex;
+    flex-direction: column;
+  }
+  .board-head {
+    flex: none;
+  }
   .board-body {
+    flex: 1 1 0;
+    min-height: 0;
     grid-template-columns: 17.5rem minmax(0, 1fr);
   }
   .board-pane {
@@ -2928,6 +2966,10 @@
 .board-kpi-row .board-tile-of {
   font-size: var(--fs-body);
   font-weight: var(--fw-regular);
+}
+.board-kpi-row .board-tile .board-tile-of {
+  display: inline-block;
+  white-space: nowrap;
 }
 .board-kpi-row .board-tile-sub {
   font-size: var(--fs-caption);
@@ -3138,4 +3180,78 @@
   margin: 0;
   font-size: var(--fs-caption);
   color: var(--b-ink-soft);
+}
+
+/* 在庫の表の凡例：表の中の札と同じ形（記号と文字） */
+.board-legend .cell {
+  display: inline-block;
+  padding: 1px 7px;
+  border: 1px solid var(--b-rule);
+  border-radius: 4px;
+  background: var(--b-surface);
+  font-size: var(--fs-caption);
+}
+.board-legend .cell.bad {
+  border-color: var(--b-stop);
+  background: var(--b-stop-bg);
+  color: var(--b-stop-text);
+  font-weight: var(--fw-bold);
+}
+.board-legend .cell.warn {
+  border-color: var(--b-ink);
+  background: var(--b-check);
+  color: var(--b-ink);
+  font-weight: var(--fw-bold);
+}
+.board-legend .cell.none {
+  color: var(--b-ink-soft);
+}
+
+/* 表の1列目（拠点・薬の名前）は1字ずつ折り返さない。入らないときは表の枠の中で横に送る */
+.board td:first-child,
+.board th:first-child {
+  white-space: nowrap;
+}
+
+/* 1180 幅より狭いときは、帯の副題「各救護所の状況」を見た目から外し、ログイン中の表示を切らずに1行目に入れる。
+   読み上げには残す（帯から副題を外すことはオーナーの確認待ち。計画書 9章） */
+@media (max-width: 1179px) {
+  .board-head .board-subtitle {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
+
+/* タップの所は 44px 以上（計画書 4.1）：地区の見出しの開閉、地図の便と経路のボタン */
+.board-pane-district-name,
+.board-map-mover-btn,
+.board-map-route-btn {
+  min-height: 44px;
+}
+.board-pane-district-name {
+  display: flex;
+  align-items: center;
+}
+
+/* 640px 以下：帯の時刻とログイン中の表示は切らずに折り返す */
+@media (max-width: 640px) {
+  .board-head .board-asof,
+  .board-head .board-session {
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+  .board-head .board-session {
+    flex: 1 1 100%;
+    min-width: 0;
+    justify-content: flex-start;
+  }
+  .board-session-who {
+    white-space: normal;
+    overflow: visible;
+  }
 }
