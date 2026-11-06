@@ -13,6 +13,7 @@ export const HQ: SiteId = "本部備蓄";
  * 模式図の位置（map.ts）に合わせ、東側に救護所A・D、西側に救護所B・C を置いた
  */
 // [TODO-OWNER: 地区の名前と分け方（Claude Code の下書き。東地区＝救護所A・D、西地区＝救護所B・C）]
+// → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（ボードの文言）
 export interface District {
   id: string;
   name: string;
@@ -394,6 +395,7 @@ export const SYNC: readonly SyncRow[] = [
  * 「医師の処方」は人（医師）が入力する欄で、アプリも Claude も決めない
  */
 // [TODO-OWNER: 問診の記録の架空の文（「医師の処方」の欄の文を含む）と、薬の仮名（薬効の分類名を仮名に使っている。Claude Code の下書き）]
+// → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（ボードの架空の数値・文）
 export interface IntakeRecord {
   /** 架空の番号（名前は使わない） */
   id: string;

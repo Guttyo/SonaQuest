@@ -23,6 +23,7 @@ export const BOARD_CHAT_ROLE_NAMES: Readonly<Record<BoardChatRoleId, string>> = 
  * 断られたときに別のモデルで答え直す設定は Managed Agents の Agent には無いので、断られたら固定の掲示に替える
  */
 // [TODO-OWNER: 掲示板チャットのエージェントのモデルと effort（Claude Code の下書き：claude-opus-5-5、effort low）]
+// → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（AI のモデルと budget）
 export const BOARD_CHAT_MODEL = { id: "claude-opus-5-5", effort: "low" } as const;
 
 /**
@@ -31,6 +32,7 @@ export const BOARD_CHAT_MODEL = { id: "claude-opus-5-5", effort: "low" } as cons
  * Anthropic 側の月の上限（P9）である（ADR-0047）
  */
 // [TODO-OWNER: 掲示板チャットのセッション1つの budget の金額（Claude Code の下書き：$0.20 ＝ "20" セント）]
+// → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（AI のモデルと budget）
 export const BOARD_CHAT_SESSION_BUDGET_CENTS = "20";
 
 /** Environment の定義。ネットワークは limited で、許す宛先を1つも書かない（パッケージ・MCP も許さない） */
@@ -45,6 +47,7 @@ export const BOARD_CHAT_ENVIRONMENT = {
 
 /** カタカナの言葉で、エージェントが使ってよいもの。これ以外のカタカナの言葉は検査で捨てる（薬の名前の多くがカタカナのため） */
 // [TODO-OWNER: 掲示板チャットで使ってよいカタカナの言葉の一覧（Claude Code の下書き）]
+// → オーナー決定（2026-11-07、チャット、Issue #207）：「案は提出後、今の下書きは採る（推奨）」（ボードの AI の守り）
 export const BOARD_CHAT_KATAKANA_WORDS: readonly string[] = [
   "トイレ",
   "ブルーシート",
@@ -105,6 +108,7 @@ const ROLE_DUTY: Readonly<Record<BoardChatRoleId, string>> = {
  * Workers の検査（boardChatChecks.ts）が最後の守りで、プロンプトだけに頼らない
  */
 // [TODO-OWNER: 掲示板チャットのエージェントの system prompt の文面（Claude Code の下書き。医療の境界に関わる）]
+// → オーナー決定（2026-11-07、チャット、Issue #207）：「案は提出後、今の下書きは採る（推奨）」（ボードの AI の守り）
 export function boardChatSystemPrompt(role: BoardChatRoleId): string {
   return [
     `あなたは、防災訓練アプリ SonaQuest のデモ画面「地域本部の医薬品ボード」の掲示板で、${BOARD_CHAT_ROLE_NAMES[role]}の担当者の役を演じます。`,

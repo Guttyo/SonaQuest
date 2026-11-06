@@ -13,6 +13,7 @@ const KATAKANA = "[\\u30a1-\\u30faー]";
  * 診断、緊急度、備蓄の量、公的な制度、個人の連絡先を尋ねること
  */
 // [TODO-OWNER: Claude が作った文で禁止する表現の一覧（Claude Codeの下書き）]
+// → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（訓練の Claude の守り）
 export const FORBIDDEN_PATTERNS: readonly RegExp[] = [
   // 候補・推測の確認、薬の名前の修正
   /ではないですか|ではないでしょうか|ではないかと|ではありませんか|じゃないですか|では？|のことですか|という意味ですか/,
@@ -94,6 +95,7 @@ export function watchedWords(userText: string): string[] {
  * 禁止表現の「大丈夫」の例外（ゆっくりで・急がなくて・あわてなくて）は FORBIDDEN_PATTERNS の中にある（ADR-0029 の6）
  */
 // [TODO-OWNER: 繰り返しの検査で許す、受け止めの決まった言葉の一覧（Claude Code の下書き：「わかりました」「承知しました」）]
+// → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（訓練の Claude の守り）
 export const ACK_WORDS: readonly string[] = ["わかりました", "分かりました", "承知しました"];
 
 /** 利用者の言葉を繰り返していないか。固定の文と、受け止めの決まった言葉にもある言葉は除く */

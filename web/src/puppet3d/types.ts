@@ -10,6 +10,7 @@ export type ListenerActivity = "idle" | "listening" | "speaking" | "thinking";
 /**
  * 状態は動きだけでなく文字でも示す（ADR-0020）。
  * [TODO-OWNER: 状態の文字の文面（Claude Code の下書き。ADR-0032 の状態の見せ方のマーカーとあわせて確かめる）]
+ * → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（訓練の画面の文言のうち安全に関わらないもの）
  */
 export const ACTIVITY_LABELS: Record<ListenerActivity, string> = {
   idle: "待っています",

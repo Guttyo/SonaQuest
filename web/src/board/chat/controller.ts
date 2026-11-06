@@ -46,6 +46,7 @@ export type ChatFetch = (url: string, init: RequestInit) => Promise<Response>;
 
 /** 1ページで頼むエージェントの文の数の上限（人の書き込みへの返事も含む）。budget と回数制限に加えた画面側の上限 */
 // [TODO-OWNER: 掲示板チャットの1ページあたりのエージェントの文の上限と、自動で進む回数・間隔（Claude Code の下書き：30件、自動10回、40秒ごと）]
+// → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（ボードの架空の数値）
 export const MAX_AGENT_TURNS = 30;
 /** 人が書き込まなくても、エージェントどうしで進める回数の上限 */
 export const MAX_AUTO_TURNS = 10;
