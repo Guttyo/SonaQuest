@@ -3,7 +3,7 @@
 
 import type { SiteId } from "./data";
 
-// [TODO-OWNER: デモ用ログイン・閲覧のみの表示・アクセス記録の文言と、架空の担当者名の候補（Claude Code の下書き）]
+// 決定済み：デモ用ログイン・閲覧のみの表示・アクセス記録の文言と、架空の担当者名の候補（Claude Code の下書き）
 // → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（ボードの文言）
 /** 救護所ごとの架空の担当者名。実在の人ではない（「見本」を付けて架空と分かる形にした） */
 export const DEMO_STAFF: Readonly<Partial<Record<SiteId, readonly string[]>>> = {

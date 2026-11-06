@@ -10,7 +10,7 @@ import type { KarteSample } from "../src/board/karte/samples";
 import { transcriptUtterances } from "../src/board/karte/transcript";
 
 /** 要約を作るモデル。監査役のモデル（karteAuditAgent.ts の KARTE_AUDIT_MODEL）と別にする */
-// [TODO-OWNER: カルテの要約を作るモデル（Claude Code の下書き：claude-sonnet-5-5、effort low）]
+// 決定済み：カルテの要約を作るモデル（Claude Code の下書き：claude-sonnet-5-5、effort low）
 // → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（AI のモデルと budget）
 export const KARTE_SUMMARY_MODEL = "claude-sonnet-5-5";
 /** 要約を待つ時間 */
@@ -24,7 +24,7 @@ export function summaryModel(override: string | undefined): string {
 }
 
 /** 要約を作るモデルへの指示。医療の境界に関わる文言なので、Claude Code の下書き */
-// [TODO-OWNER: カルテの要約を作るモデルへの system prompt（Claude Code の下書き。医療の境界に関わる）]
+// 決定済み：カルテの要約を作るモデルへの system prompt（Claude Code の下書き。医療の境界に関わる）
 // → オーナー決定（2026-11-07、チャット、Issue #207）：「案は提出後、今の下書きは採る（推奨）」（ボードの AI の守り）
 export const KARTE_SUMMARY_SYSTEM_PROMPT = [
   "あなたは、防災訓練アプリ SonaQuest のデモ画面で、救護所の聞き取りの会話から、本人の言葉を抜き出してカルテの項目に並べる役です。会話はすべて架空の見本です。",

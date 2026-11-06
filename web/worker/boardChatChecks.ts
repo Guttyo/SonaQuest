@@ -15,7 +15,7 @@ const KATAKANA = "[\\u30a1-\\u30faー]";
 const NUM = "[0-9０-９一二三四五六七八九十百千半]";
 
 /** 禁止表現（語の照合）。空白を除き、NFKC でそろえた文に当てる */
-// [TODO-OWNER: 掲示板チャットで禁止する表現の一覧（Claude Code の下書き）]
+// 決定済み：掲示板チャットで禁止する表現の一覧（Claude Code の下書き）
 // → オーナー決定（2026-11-07、チャット、Issue #207）：「案は提出後、今の下書きは採る（推奨）」（ボードの AI の守り）
 export const CHAT_FORBIDDEN_PATTERNS: readonly RegExp[] = [
   // 薬の言葉そのもの。「薬剤師」（人員）と「処方箋」（用紙）は連絡に使うので除く

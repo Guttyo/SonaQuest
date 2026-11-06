@@ -28,7 +28,7 @@ export type AuditResult =
 
 export type Audit = (text: string, fixedQuestion: string) => Promise<AuditResult>;
 
-// [TODO-OWNER: 監査役へのシステムプロンプト（Claude Codeの下書き）]
+// 決定済み：監査役へのシステムプロンプト（Claude Codeの下書き）
 // → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（訓練の Claude の守り）
 export const AUDIT_SYSTEM_PROMPT = `あなたは、防災訓練アプリ「お薬の避難訓練」の監査役です。
 救護所の受付で薬のことを聞く係（名前は「ソナ」。係の交代の後は「クエ」）の AI が作った1つの文を読み、画面に出してよいかを判定します。

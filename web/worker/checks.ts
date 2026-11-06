@@ -12,7 +12,7 @@ const KATAKANA = "[\\u30a1-\\u30faー]";
  * 禁止表現（語の照合）。薬の名前の修正、候補や推測の確認、薬効・用法・用量、服薬の助言、
  * 診断、緊急度、備蓄の量、公的な制度、個人の連絡先を尋ねること
  */
-// [TODO-OWNER: Claude が作った文で禁止する表現の一覧（Claude Codeの下書き）]
+// 決定済み：Claude が作った文で禁止する表現の一覧（Claude Codeの下書き）
 // → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（訓練の Claude の守り）
 export const FORBIDDEN_PATTERNS: readonly RegExp[] = [
   // 候補・推測の確認、薬の名前の修正
@@ -94,7 +94,7 @@ export function watchedWords(userText: string): string[] {
  * 「わからない」「覚えていない」を受け止める言葉は入れない（RECALL_NOW と重なり、答えの言い直しにもなるため）。
  * 禁止表現の「大丈夫」の例外（ゆっくりで・急がなくて・あわてなくて）は FORBIDDEN_PATTERNS の中にある（ADR-0029 の6）
  */
-// [TODO-OWNER: 繰り返しの検査で許す、受け止めの決まった言葉の一覧（Claude Code の下書き：「わかりました」「承知しました」）]
+// 決定済み：繰り返しの検査で許す、受け止めの決まった言葉の一覧（Claude Code の下書き：「わかりました」「承知しました」）
 // → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（訓練の Claude の守り）
 export const ACK_WORDS: readonly string[] = ["わかりました", "分かりました", "承知しました"];
 
