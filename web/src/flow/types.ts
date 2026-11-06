@@ -67,14 +67,14 @@ export interface Answer {
   questionId: string;
   half: Half;
   text: string;
-  /** その入力の直前に聞き取り係が言った文（固定文か、検査を通った Claude の文） */
+  /** その入力の直前にソナが言った文（固定文か、検査を通った Claude の文） */
   prompt: string;
   kind: "answer" | "redirected";
   /** 思い出せないという回答だったか（Claude の判定。docs/phase2-decisions.md 項目7） */
   recall: boolean;
 }
 
-/** 聞き取り係のいまの発言。ask は質問、clarify は聞き返し、redirect は質問し直し */
+/** ソナのいまの発言。ask は質問、clarify は聞き返し、redirect は質問し直し */
 export interface Prompt {
   questionId: string;
   text: string;

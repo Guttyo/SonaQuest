@@ -23,7 +23,7 @@ import { blendPose, nodAt, poseAt, type Pose } from "./pose";
 import type { ListenerActivity } from "./types";
 
 /**
- * 聞き取り係の 3D パペット（ADR-0032）。球・円柱・カプセルなどを組み合わせてコードで組む。
+ * ソナの 3D パペット（ADR-0032）。球・円柱・カプセルなどを組み合わせてコードで組む。
  * 外部のモデルファイル・画像・素材は使わない。three を import するのはこのファイルだけで、
  * 3D を表示するときだけ動的に読み込む（loader.ts）。
  */
@@ -38,7 +38,7 @@ export interface PuppetHandle {
 
 /** 1秒に30回までにする（スマートフォンの電池と熱のため） */
 const FRAME_INTERVAL_MS = 1000 / 30 - 1;
-/** 質問が変わって聞き取り係が作り直されるとき、同じ描画の文脈を使い回す猶予 */
+/** 質問が変わってソナが作り直されるとき、同じ描画の文脈を使い回す猶予 */
 const KEEP_MS = 2000;
 
 type PartName = "body" | "accent" | "cheek" | "mouth" | "eye" | "highlight" | "extra";
@@ -333,7 +333,7 @@ let sharedInUse = false;
 let disposeTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
- * パペットを host の中に出す。聞き取り係は質問ごとに作り直されるので、描画の文脈は1つを使い回す。
+ * パペットを host の中に出す。ソナは質問ごとに作り直されるので、描画の文脈は1つを使い回す。
  * 2つ同時に出すときだけ、2つめを別に作り、外したらすぐに片づける。
  * 外したもの（中断の画面に移ったときなど）は、すぐに描画を止め、KEEP_MS の後に片づける。
  */

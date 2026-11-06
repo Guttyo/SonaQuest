@@ -5,10 +5,12 @@ import type { ListenerActivity } from "../puppet3d/types";
 import { Listener } from "./Listener";
 import { ListenerStage } from "./ListenerStage";
 import { Puppet2D, Puppet2DFace } from "./Puppet2D";
+import { Exchange } from "./Transcript";
+import { EVENTS, HANDOVER_QUESTION, MODE_OPTIONS, SCENE_INTRO } from "../flow/content";
 
 /**
  * 試験は DOM の無い環境で動くので、文字列に描いて確かめる。
- * この環境では WebGL が無いので、"3d" を頼んでも 2D の聞き取り係になる（ADR-0032 の戻り先）。
+ * この環境では WebGL が無いので、"3d" を頼んでも 2D のソナになる（ADR-0032 の戻り先）。
  */
 const ACTIVITIES: ListenerActivity[] = ["idle", "listening", "speaking", "thinking"];
 const LABELS: Record<ListenerActivity, string> = {
@@ -44,7 +46,7 @@ describe("Listener の props（ADR-0032、2D の姿は ADR-0038）", () => {
     expect(html).toContain("<p>質問の文</p>");
   });
 
-  it("3D を頼んでも、WebGL が使えないときは 2D の聞き取り係で続け、状態を文字で示す", () => {
+  it("3D を頼んでも、WebGL が使えないときは 2D のソナで続け、状態を文字で示す", () => {
     const html = renderToStaticMarkup(
       <Listener mode="3d" activity="speaking">
         <p>質問の文</p>
@@ -73,7 +75,7 @@ describe("Listener の props（ADR-0032、2D の姿は ADR-0038）", () => {
   });
 });
 
-describe("対話の上の聞き取り係（ListenerStage）の 2D の姿（Issue #47）", () => {
+describe("対話の上のソナ（ListenerStage）の 2D の姿（Issue #47）", () => {
   it.each(ACTIVITIES)("%s：状態の印と状態の文字が変わる", (activity) => {
     const html = renderToStaticMarkup(
       <ListenerStage mode="2d" activity={activity} relief={false} showState scene="tell" />,
@@ -151,5 +153,37 @@ describe("Puppet2D の絵（ADR-0038）", () => {
     expect(svgOf(face)).toMatch(/class="puppet2d puppet2d-static"/);
     const stage = renderToStaticMarkup(<Puppet2D activity="thinking" relief={false} />);
     expect(stage).not.toContain("puppet2d-static");
+  });
+});
+
+describe("話し相手の名前（Issue #164。旧称「聞き取り係」）", () => {
+  it("ふだんはソナ、係の交代の後はクエと出す", () => {
+    const sona = renderToStaticMarkup(
+      <ListenerStage mode="2d" activity="idle" relief={false} showState scene="tell" />,
+    );
+    const que = renderToStaticMarkup(<ListenerStage mode="2d" activity="idle" relief showState scene="retell" />);
+    expect(sona).toContain("ソナ");
+    expect(sona).not.toContain("クエ");
+    expect(que).toContain("クエ");
+    expect(que).not.toContain("ソナ");
+    expect(renderToStaticMarkup(<Listener>x</Listener>)).toContain("ソナ");
+    expect(renderToStaticMarkup(<Listener relief>x</Listener>)).toContain("クエ");
+  });
+
+  it("吹き出しの名前も、交代の後のやり取りだけクエにする", () => {
+    const answer = { questionId: "second_handover", half: "second", text: "x", prompt: "y", kind: "answer", recall: true } as const;
+    const before = renderToStaticMarkup(<Exchange answer={answer} />);
+    const after = renderToStaticMarkup(<Exchange answer={answer} relief />);
+    expect(before.match(/ソナ/g)?.length).toBe(2);
+    expect(before).not.toContain("クエ");
+    expect(after.match(/クエ/g)?.length).toBe(2);
+    expect(after).not.toContain("ソナ");
+  });
+
+  it("古い呼び方が画面の文に残っていない", () => {
+    const texts = [SCENE_INTRO, HANDOVER_QUESTION.text, EVENTS.handover.text, ...MODE_OPTIONS.map((o) => o.description)];
+    for (const t of texts) {
+      expect(t).not.toMatch(/聞き取り係|係の人|新しい係/);
+    }
   });
 });

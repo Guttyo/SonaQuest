@@ -5,7 +5,7 @@ import "../styles.css";
 import { ACTIVITY_LABELS, type ListenerActivity, type ListenerMode } from "./types";
 
 /**
- * 聞き取り係の見本のページ（開発用。web/puppet-preview.html。ADR-0032）。
+ * ソナの見本のページ（開発用。web/puppet-preview.html。ADR-0032）。
  * 状態・係の交代・見せ方を切り替えて、形と 2D への戻りを確かめる。実際の会話は使わない。
  * ?webgl=off で WebGL が使えない場合を、?motion=reduce で動きを減らす設定を、まねて確かめる。
  * まねるための置き換えはこのページの中だけで、アプリの画面には入れない。
@@ -44,7 +44,7 @@ function Preview() {
   const [shown, setShown] = useState(true);
   const [canvasCount, setCanvasCount] = useState(0);
 
-  // 中断の画面に移ったときと同じく、聞き取り係を外したら描画の領域が消えるかを数える
+  // 中断の画面に移ったときと同じく、ソナを外したら描画の領域が消えるかを数える
   useEffect(() => {
     const count = () => setCanvasCount(document.querySelectorAll("canvas").length);
     count();
@@ -56,7 +56,7 @@ function Preview() {
   return (
     <div className="app">
       <header className="app-header">
-        <span className="app-title">聞き取り係の見本（開発用）</span>
+        <span className="app-title">ソナの見本（開発用）</span>
       </header>
       <main className="app-main">
         <section className="screen" aria-label="見本">
@@ -65,7 +65,7 @@ function Preview() {
               <p>{SAMPLE_TEXT}</p>
             </Listener>
           ) : (
-            <p className="small">聞き取り係を外しました（中断の画面に移ったときと同じ）。</p>
+            <p className="small">ソナを外しました（中断の画面に移ったときと同じ）。</p>
           )}
 
           <fieldset className="options">
@@ -100,7 +100,7 @@ function Preview() {
 
           <div className="form-row">
             <button type="button" className="primary" onClick={() => setShown((v) => !v)}>
-              {shown ? "聞き取り係を外す" : "聞き取り係を戻す"}
+              {shown ? "ソナを外す" : "ソナを戻す"}
             </button>
           </div>
 

@@ -3,6 +3,7 @@ import { PuppetView } from "../puppet3d/PuppetView";
 import { ACTIVITY_LABELS, type ListenerActivity, type ListenerMode } from "../puppet3d/types";
 import { useRenderMode } from "../puppet3d/useRenderMode";
 import "../puppet3d/puppet3d.css";
+import { listenerName } from "../flow/content";
 import { Puppet2D } from "./Puppet2D";
 
 export type { ListenerActivity, ListenerMode };
@@ -14,14 +15,14 @@ interface Props {
    * "3d" でも、WebGL 2 が使えない・動きを減らす設定・3D の失敗のときは 2D で出す
    */
   mode?: ListenerMode;
-  /** 聞き取り係の状態。アプリの状態だけで決める（Claude の出力は使わない）。既定は "idle" */
+  /** 話し相手の状態。アプリの状態だけで決める（Claude の出力は使わない）。既定は "idle" */
   activity?: ListenerActivity;
   /** 係の交代（出来事「どれにも当てはまらない」）。別の色で出す */
   relief?: boolean;
 }
 
 /**
- * 聞き取り係の発言。2D はパペットの 2D 版（Puppet2D、ADR-0038）。3D はパペット（ADR-0032）。
+ * 話し相手（ソナ、交代の後はクエ）の発言。2D はパペットの 2D 版（Puppet2D、ADR-0038）。3D はパペット（ADR-0032）。
  * props を省いたときは、待機の 2D の姿と発言になる。
  * 状態は動きだけでなく文字でも示す（mode か activity を渡したとき）。
  */
@@ -39,7 +40,7 @@ export function Listener({ children, mode = "2d", activity, relief = false }: Pr
       )}
       <div className="listener-speech">
         <span className="listener-name">
-          聞き取り係
+          {listenerName(relief)}
           {showState && <span className="listener-state">（{ACTIVITY_LABELS[current]}）</span>}
         </span>
         {children}

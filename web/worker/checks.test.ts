@@ -1,7 +1,7 @@
 // Claude が作った文の検査（ADR-0025、docs/safety-test-plan.md S16〜S18）
 
 import { describe, expect, it } from "vitest";
-import { FIRST_HALF_QUESTIONS, PROXY_QUESTION } from "../src/flow/content";
+import { FIRST_HALF_QUESTIONS, HANDOVER_QUESTION, PROXY_QUESTION } from "../src/flow/content";
 import { isAcceptablePromptText, repeatsUserWords } from "./checks";
 
 const location = FIRST_HALF_QUESTIONS[1].text;
@@ -169,5 +169,19 @@ describe("長さ（S18）", () => {
 describe("固定の質問文そのものは検査を通る", () => {
   it.each([...FIRST_HALF_QUESTIONS, PROXY_QUESTION].map((q) => [q.id, q.text]))("%s", (_id, text) => {
     expect(isAcceptablePromptText(text, { userTexts: [], allowed: [text] })).toBe(true);
+  });
+});
+
+describe("係の名前（ソナ・クエ。Issue #164）", () => {
+  it("交代の問いを言い直すときは、固定の質問にある名前を使ってよい", () => {
+    const allowed = [HANDOVER_QUESTION.text];
+    expect(isAcceptablePromptText(`はい。${HANDOVER_QUESTION.text}`, { userTexts: [], allowed })).toBe(true);
+    expect(
+      isAcceptablePromptText("クエです。ほかに、薬のことが分かるものはありますか？", { userTexts: [], allowed }),
+    ).toBe(true);
+  });
+
+  it("固定の質問に名前が無いときに名乗る文は、知らないカタカナの言葉として捨てる", () => {
+    expect(isAcceptablePromptText("ソナです。その薬のことは、何を見れば確かめられますか？", context())).toBe(false);
   });
 });

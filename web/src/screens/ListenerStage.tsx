@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { PuppetView } from "../puppet3d/PuppetView";
 import { ACTIVITY_LABELS, type ListenerActivity, type ListenerMode } from "../puppet3d/types";
 import { useRenderMode } from "../puppet3d/useRenderMode";
+import { listenerName } from "../flow/content";
 import { Puppet2D } from "./Puppet2D";
 import "../puppet3d/puppet3d.css";
 
@@ -24,7 +25,7 @@ export function sceneNumber(id: SceneId): string {
 }
 
 /**
- * 対話の画面の上に固定する聞き取り係（Issue #46）。やり取りが流れても、係の姿はここに残る。
+ * 対話の画面の上に固定する話し相手（ソナ、交代の後はクエ。Issue #46、#164）。やり取りが流れても、係の姿はここに残る。
  * 3D はこの1か所だけで描く（WebGL の文脈を1つにする）。3D が使えないときと 2D のときは、パペットの 2D 版（Puppet2D、ADR-0038）。
  * 状態の文字は showState のときに出す（Dialogue は 2D・3D とも出す。Issue #47）
  */
@@ -61,7 +62,7 @@ export function ListenerStage({
         </div>
         <div className="dialogue-stage-side">
           <span className="listener-name">
-            聞き取り係
+            {listenerName(relief)}
             {showState && <span className="listener-state">（{ACTIVITY_LABELS[activity]}）</span>}
           </span>
           {children}

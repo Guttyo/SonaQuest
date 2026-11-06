@@ -2,7 +2,7 @@ import { paletteFor } from "../puppet3d/palette";
 import type { ListenerActivity } from "../puppet3d/types";
 
 /**
- * 2D の聞き取り係（Issue #47、A-03、ADR-0038）。3D パペット（ADR-0032、web/src/puppet3d/）の 2D 版の姿。
+ * 2D のソナ（Issue #47、A-03、ADR-0038）。3D パペット（ADR-0032、web/src/puppet3d/）の 2D 版の姿。
  * ずんぐりした胴・おなか・襟・短い腕・丸い頭と丸い耳・上下に開く口・口まわり・鼻・目・頬を、SVG の基本の形でコードで描く
  * （Issue #164 の案C どうぶつ風。2026-11-06 オーナー決定）。
  * 色は 3D と同じ palette.ts から取る。外部の画像・素材は使わない。医療者の記号は使わない（ADR-0020）。

@@ -107,7 +107,7 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
       <h1 id="review-title">ふりかえり</h1>
       {/* 後半の最後の回答への受け止め（ADR-0029 の2） */}
       {state.closingAck !== null && (
-        <ListenerLine>{state.closingAck}</ListenerLine>
+        <ListenerLine relief={state.event === "handover"}>{state.closingAck}</ListenerLine>
       )}
       {voiceOn && (
         <SpeakerControls
@@ -266,7 +266,7 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
                   <h3>{REVIEW_RECOVERY_LABEL}</h3>
                   <ol className="transcript">
                     {recovery.map((a, i) => (
-                      <Exchange key={`recovery-${i}`} answer={a} />
+                      <Exchange key={`recovery-${i}`} answer={a} relief={state.event === "handover"} />
                     ))}
                   </ol>
                 </>
@@ -301,7 +301,7 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
         <h3>出来事の後</h3>
         <ol className="transcript">
           {second.map((a, i) => (
-            <Exchange key={`second-${i}`} answer={a} />
+            <Exchange key={`second-${i}`} answer={a} relief={state.event === "handover"} />
           ))}
         </ol>
 

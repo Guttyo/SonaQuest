@@ -55,13 +55,13 @@ export const EMERGENCY_KINDS: ReadonlySet<string> = new Set(["none", "symptom", 
  */
 export const MAX_TURN_INPUTS = MAX_ANSWERS;
 
-/** 聞き取り係の文（Claude が作ったもの）の長さの上限（ADR-0025。値は実装時に決めた） */
+/** ソナの文（Claude が作ったもの）の長さの上限（ADR-0025。値は実装時に決めた） */
 export const MAX_PROMPT_LENGTH = 200;
 
 export interface TurnInput {
   question_id: string;
   half: Half;
-  /** その回答の直前に画面に出した聞き取り係の文（Claude が作った文を含む。項目4のオーナー決定） */
+  /** その回答の直前に画面に出したソナの文（Claude が作った文を含む。項目4のオーナー決定） */
   asked: string;
   text: string;
 }
