@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { HQ, PATIENTS, ROUTES, SHELTERS, SITES, STOCK, SYNC, type RouteRow } from "./data";
 import { demoReducer, initialDemo, minutesAt, type DemoInbound } from "./demo";
-import { MAP_ROUTES, MAP_SITES } from "./map";
+import { MAP_LOCAL_ROADS, MAP_ROUTES, MAP_SITES, STREETS_H, STREETS_V } from "./map";
 import { siteOverview } from "./summary";
 import {
   ARRIVAL_MINUTE_OF_DAY,
@@ -52,6 +52,31 @@ describe("経路の線", () => {
     expect(line.some((p) => p.x === 252 && p.y === 250)).toBe(false);
     // 迂回の道が無い経路は本来の道のまま
     expect(travelLine("救護所A", "迂回")).toEqual(parsePath(MAP_ROUTES[0].d));
+  });
+
+  it("救護所D の迂回は、土砂の場所（山すその道）を通らず南の幹線から入る（Issue #167）", () => {
+    const line = travelLine("救護所D", "迂回");
+    expect(line).toEqual(parsePath("M760,92 V130 V440 H880 V540"));
+    const blocked = MAP_ROUTES.find((m) => m.to === "救護所D")!.blocked!;
+    // 線の上の点を細かく見て、× の場所に近づかない
+    for (let i = 0; i <= 200; i++) {
+      const p = pointAt(line, i / 200);
+      expect(Math.hypot(p.x - blocked.x, p.y - blocked.y)).toBeGreaterThan(30);
+    }
+  });
+
+  it("どの経路も、迂回のときは × の場所を通らない。線はすべて縦か横の道（または川沿いの道）の上", () => {
+    for (const m of MAP_ROUTES) {
+      if (!m.blocked) continue;
+      const line = travelLine(m.to, "迂回");
+      for (let i = 0; i <= 200; i++) {
+        const p = pointAt(line, i / 200);
+        expect(Math.hypot(p.x - m.blocked.x, p.y - m.blocked.y)).toBeGreaterThan(30);
+      }
+      for (let i = 1; i < line.length; i++) {
+        expect(line[i].x === line[i - 1].x || line[i].y === line[i - 1].y).toBe(true);
+      }
+    }
   });
 
   it("割合の位置：0 は始まり、1 は終わり、半分は長さの半分。範囲の外は端に寄せる", () => {
@@ -168,9 +193,14 @@ describe("搬送便の印", () => {
       arriveAt: 180,
       proposalId: "P-01",
     };
-    const [m] = shipmentMarkers([row], 120, ROUTES);
+    const closed: RouteRow[] = ROUTES.map((r) => (r.to === "救護所D" ? { ...r, status: "通行止め", minutes: null } : r));
+    const [m] = shipmentMarkers([row], 120, closed);
     expect(m.progress).toBeCloseTo(0.5);
     expect(m.mode).toBe("連絡員（徒歩）");
+    // 迂回のときは搬送便が迂回の道を通る（Issue #167）
+    const [v] = shipmentMarkers([row], 120, ROUTES);
+    expect(v.mode).toBe("搬送便");
+    expect(v).toMatchObject(pointAt(travelLine("救護所D", "迂回"), 0.5));
     // 受領・引当済み・救護所どうしの融通・本部向けの入荷は印にしない
     const others: DemoInbound[] = [
       { ...row, status: "受領" },
@@ -184,12 +214,12 @@ describe("搬送便の印", () => {
 });
 
 describe("医療チームの車（架空・模擬）", () => {
-  it("通行止めの救護所（救護所D）には行かない。経路が開けば巡回に入る", () => {
+  it("通行止めの救護所には行かない。迂回の救護所（救護所D）は迂回の道で回る", () => {
     const legs = patrolLegs(ROUTES);
-    expect(legs.some((l) => l.to === "救護所D" || l.from === "救護所D")).toBe(false);
-    expect(legs.filter((l) => l.kind === "移動" && l.from === HQ).map((l) => l.to)).toEqual(["救護所A", "救護所C", "救護所B"]);
-    const open: RouteRow[] = ROUTES.map((r) => (r.to === "救護所D" ? { ...r, status: "通行可", minutes: 30 } : r));
-    expect(patrolLegs(open).some((l) => l.to === "救護所D")).toBe(true);
+    expect(legs.filter((l) => l.kind === "移動" && l.from === HQ).map((l) => l.to)).toEqual(["救護所A", "救護所C", "救護所B", "救護所D"]);
+    expect(legs.find((l) => l.kind === "移動" && l.to === "救護所D")!.line).toEqual(travelLine("救護所D", "迂回"));
+    const closed: RouteRow[] = ROUTES.map((r) => (r.to === "救護所D" ? { ...r, status: "通行止め", minutes: null } : r));
+    expect(patrolLegs(closed).some((l) => l.to === "救護所D" || l.from === "救護所D")).toBe(false);
   });
 
   it("始まりは本部で停車中で、次の行き先は救護所A", () => {
@@ -236,5 +266,44 @@ describe("医療チームの車（架空・模擬）", () => {
 
   it("車は現在地と行き先だけを持ち、患者や医療の内容を持たない", () => {
     expect(Object.keys(vehicleAt(100, ROUTES)).sort()).toEqual(["arriveAt", "at", "state", "to", "x", "y"]);
+  });
+});
+
+describe("道に沿って動く（Issue #167）", () => {
+  // 背景の道：碁盤目の道（縦・横）と、碁盤目に乗らない川沿いの道
+  const river = MAP_LOCAL_ROADS.map(parsePath);
+  const onRiverRoad = (p: { x: number; y: number }) =>
+    river.some((pts) =>
+      pts.slice(1).some((b, i) => {
+        const a = pts[i];
+        const len = Math.hypot(b.x - a.x, b.y - a.y);
+        const t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / (len * len);
+        if (t < -0.001 || t > 1.001) return false;
+        return Math.hypot(a.x + (b.x - a.x) * t - p.x, a.y + (b.y - a.y) * t - p.y) < 0.6;
+      }),
+    );
+  const onRoad = (p: { x: number; y: number }) =>
+    STREETS_V.some((v) => Math.abs(v - p.x) < 0.6) || STREETS_H.some((h) => Math.abs(h - p.y) < 0.6) || onRiverRoad(p);
+
+  it("医療チームの車は、巡回の1周のどの時刻でも背景の道の上にいる（救護所の間を直線で横切らない）", () => {
+    const legs = patrolLegs(ROUTES);
+    const cycle = legs[legs.length - 1].end;
+    for (let m = 0; m <= cycle; m += 0.5) {
+      const v = vehicleAt(m, ROUTES);
+      expect(onRoad(v), `${m} 分：(${v.x}, ${v.y})`).toBe(true);
+    }
+  });
+
+  it("搬送便は、出発から到着までのどの時刻でも背景の道の上にいて、通れない場所（×）に近づかない", () => {
+    for (const to of SHELTERS) {
+      const row: DemoInbound = { id: `T-${to}`, item: "降圧薬A", from: HQ, to, qty: 10, eta: "2026-11-05", status: "搬送中", departAt: 0, arriveAt: 100, proposalId: "P-99" };
+      const blocked = MAP_ROUTES.find((m) => m.to === to)?.blocked;
+      const status = ROUTES.find((r) => r.to === to)!.status;
+      for (let m = 0; m <= 100; m += 1) {
+        const [s] = shipmentMarkers([row], m, ROUTES);
+        expect(onRoad(s), `${to} ${m} 分：(${s.x}, ${s.y})`).toBe(true);
+        if (blocked && status !== "通行止め") expect(Math.hypot(s.x - blocked.x, s.y - blocked.y)).toBeGreaterThan(30);
+      }
+    }
   });
 });

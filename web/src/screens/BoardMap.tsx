@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { HQ, INBOUND, ROUTES, SYNC, type RouteRow, type SiteId, type SyncRow } from "../board/data";
 import { clockText, type DemoInbound } from "../board/demo";
 import { STALE_REPORT_HOURS, shipmentMarkers, siteGlows, toPathD, travelLine } from "../board/live";
@@ -54,6 +54,44 @@ interface Props {
 }
 
 const fmt = new Intl.NumberFormat("ja-JP");
+
+/** 時計が進んだあいだを、印が道の上を通って移るのにかける時間（ミリ秒）。デモの自動の時計（2秒で1時間）より少し短くする */
+const SWEEP_MS = 1800;
+/** これより大きく進んだとき（「1日進める」など）は、途中を通さずにその時刻の位置へ移す（分） */
+const SWEEP_MAX_MINUTES = 180;
+
+/**
+ * 印（搬送便・車）の位置に使う時刻（Issue #167）。時計が進むと、前の時刻から新しい時刻までを少しずつ刻んで返す。
+ * 位置はそのつど経路の線の上で求めるので、印は道に沿って動く（前の点から次の点へ直線で移さない）。
+ * 動きを減らす設定・時計が戻ったとき・大きく進んだときは、その時刻をそのまま返す
+ */
+function useSweptMinutes(target: number, still: boolean): number {
+  const [shown, setShown] = useState(target);
+  const last = useRef(target);
+  useEffect(() => {
+    const from = last.current;
+    const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    // 画面が隠れているあいだは描画の合図が来ないので、刻まずにその時刻の位置へ移す
+    const hidden = typeof document !== "undefined" && document.hidden;
+    if (still || reduce || hidden || typeof requestAnimationFrame === "undefined" || target <= from || target - from > SWEEP_MAX_MINUTES) {
+      last.current = target;
+      setShown(target);
+      return;
+    }
+    const t0 = performance.now();
+    let raf = 0;
+    const step = (now: number) => {
+      const f = Math.min(1, (now - t0) / SWEEP_MS);
+      const m = from + (target - from) * f;
+      last.current = m;
+      setShown(m);
+      if (f < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target, still]);
+  return shown;
+}
 
 const ROUTE_COLOR: Record<RouteRow["status"], string> = {
   通行可: "#555555", // 正常は色なし（Issue #143、計画書 2.3）
@@ -149,6 +187,10 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
   const glows = siteGlows(overview, live.sync, live.minutes);
   const shipments = shipmentMarkers(live.inbound, live.minutes, routes);
   const car = vehicleAt(live.minutes, routes);
+  // 図の上の印の位置だけは、時計の進みを刻んだ時刻で求める（道に沿って動かす。Issue #167）。文の到着見込みは今の時刻のもの
+  const swept = useSweptMinutes(live.minutes, reducedMotion);
+  const shipmentsAt = swept === live.minutes ? shipments : shipmentMarkers(live.inbound, swept, routes);
+  const carAt = swept === live.minutes ? car : vehicleAt(swept, routes);
   const placeName = (site: SiteId) => (site === HQ ? "本部" : site);
   const carText =
     car.state === "移動中"
@@ -404,8 +446,8 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
               {/* 動いているもの（Issue #128。架空・模擬）：搬送中の便と医療チームの車。位置はデモ時計から求め、時計が進むと滑らかに移る。
                   印は点の上（便）と下（車）に置き、重なる便は横にずらす。押すと行き先と到着見込みを図の下に出す */}
               <g className="board-map-movers">
-                {shipments.map((sh, i) => {
-                  const k = shipments.slice(0, i).filter((o) => Math.hypot(o.x - sh.x, o.y - sh.y) < 28).length;
+                {shipmentsAt.map((sh, i) => {
+                  const k = shipmentsAt.slice(0, i).filter((o) => Math.hypot(o.x - sh.x, o.y - sh.y) < 28).length;
                   const id = `s-${sh.id}`;
                   return (
                     <g
@@ -428,7 +470,7 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                 })}
                 <g
                   className={`board-map-mover vehicle${mover === "car" ? " active" : ""}`}
-                  style={{ transform: `translate(${car.x}px, ${car.y}px)` }}
+                  style={{ transform: `translate(${carAt.x}px, ${carAt.y}px)` }}
                   data-mover="car"
                   {...moverPress("car")}
                 >

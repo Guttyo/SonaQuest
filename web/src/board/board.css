@@ -1427,6 +1427,47 @@
   font-size: var(--fs-sub);
 }
 
+/* 発注の提案を救護所ごとにまとめた欄（Issue #167）。見出しの行全体が押す的で、閉じていても件数が見える */
+.board-order-groups {
+  display: grid;
+  gap: 6px;
+}
+.board-order-group {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.board-order-group > summary {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  min-height: 44px;
+  padding: 8px 12px 8px 30px;
+  cursor: pointer;
+  list-style: none;
+}
+.board-order-group > summary::-webkit-details-marker {
+  display: none;
+}
+.board-order-group > summary::before {
+  content: "▸";
+  position: absolute;
+  left: 12px;
+  color: var(--ink-soft);
+}
+.board-order-group[open] > summary::before {
+  content: "▾";
+}
+.board-order-group > summary:focus-visible {
+  outline: 3px solid var(--focus, var(--mint-strong));
+  outline-offset: 2px;
+}
+.board-order-group > .board-orders {
+  padding: 0 8px 8px;
+}
+
 /* 発注の提案（Issue #107） */
 .board-orders {
   list-style: none;
@@ -1787,8 +1828,8 @@
   }
 }
 /* 便と車：デモ時計が進むと、次の位置へ滑らかに移る */
+/* 印の移動は BoardMap.tsx で時刻を刻んで道の上の位置を求める（Issue #167）。CSS の transition は直線で移すので使わない */
 .board-map-mover {
-  transition: transform 1.8s linear;
   cursor: pointer;
 }
 /* 動きを減らす設定：脈打ち・流れ・移動を止める（光は動かない光、印はその時刻の位置で止まる） */
@@ -2287,7 +2328,8 @@
   order: 0;
 }
 
-.board-login {
+/* 画面（.screen.board）の flex より強く指定して、ログインのカードを横の中央に置く（PC で左に寄っていた） */
+.screen.board.board-login {
   display: grid;
   place-items: start center;
 }
