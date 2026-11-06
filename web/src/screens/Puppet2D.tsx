@@ -3,8 +3,9 @@ import type { ListenerActivity } from "../puppet3d/types";
 
 /**
  * 2D のソナ（Issue #47、A-03、ADR-0038）。3D パペット（ADR-0032、web/src/puppet3d/）の 2D 版の姿。
- * 袖のような胴・襟・短い腕・丸い頭・上下に開く口・目・頬・頭の上の房を、SVG の基本の形でコードで描く。
- * 色は 3D と同じ palette.ts から取る。外部の画像・素材は使わない。名前は付けず、医療者の記号は使わない（ADR-0020）。
+ * ずんぐりした胴・おなか・襟・短い腕・丸い頭と丸い耳・上下に開く口・口まわり・鼻・目・頬を、SVG の基本の形でコードで描く
+ * （Issue #164 の案C どうぶつ風。2026-11-06 オーナー決定）。
+ * 色は 3D と同じ palette.ts から取る。外部の画像・素材は使わない。医療者の記号は使わない（ADR-0020）。
  *
  * 状態の姿勢は data-activity に合わせた止まった CSS で決め、動きはその上に重ねる（styles.css の .p2d-*）。
  * 動きを減らす設定では動きだけが止まり、状態ごとの最後の姿が残る。
@@ -75,23 +76,31 @@ function PuppetSvg({
     >
       <g className="p2d-sway">
         {/* 短い腕（手袋人形の親指と小指） */}
-        <rect className="p2d-arm p2d-arm-left" x="24" y="68" width="12" height="24" rx="6" fill={p.body} {...line} />
-        <rect className="p2d-arm p2d-arm-right" x="84" y="68" width="12" height="24" rx="6" fill={p.body} {...line} />
-        {/* 袖のような胴。下は舞台の縁で切れてよい */}
-        <path d="M40 62 L80 62 L90 104 L30 104 Z" fill={p.body} {...line} />
+        <rect className="p2d-arm p2d-arm-left" x="18" y="66" width="14" height="22" rx="7" fill={p.body} {...line} />
+        <rect className="p2d-arm p2d-arm-right" x="88" y="66" width="14" height="22" rx="7" fill={p.body} {...line} />
+        {/* ずんぐりした胴。下は舞台の縁で切れてよい */}
+        <path d="M33 62 L87 62 L93 104 L27 104 Z" fill={p.body} {...line} />
+        {/* おなか */}
+        <ellipse cx="60" cy="86" rx="15" ry="14" fill={p.extra} />
         {/* 襟 */}
-        <ellipse cx="60" cy="62" rx="24" ry="6" fill={p.accent} {...line} />
+        <ellipse cx="60" cy="62" rx="28" ry="6" fill={p.accent} {...line} />
         <g className="p2d-head">
           <g key={nodKey} className={nodKey > 0 ? "p2d-nod p2d-nod-on" : "p2d-nod"}>
             <g className="p2d-bob">
-              {/* 頭の上の房（係を見分ける目印。帽子や記号にはしない） */}
-              <rect x="60" y="11" width="7" height="13" rx="3.5" fill={p.accent} {...line} transform="rotate(14 63 17)" />
+              {/* 丸い耳（内側は頬の色）。帽子や記号にはしない */}
+              <circle cx="40" cy="25" r="8" fill={p.body} {...line} />
+              <circle cx="80" cy="25" r="8" fill={p.body} {...line} />
+              <circle cx="40" cy="25" r="4" fill={p.cheek} />
+              <circle cx="80" cy="25" r="4" fill={p.cheek} />
               {/* 口の中。話している間は下あごが下がって見える */}
               <ellipse className="p2d-mouth" cx="60" cy="46" rx="17" ry="5" fill={p.mouth} {...line} />
               {/* 下あご */}
               <path className="p2d-jaw" d="M37 46 Q60 66 83 46 Q60 52 37 46 Z" fill={p.body} {...line} />
               {/* 上あご（丸い頭） */}
               <path d="M35 46 A25 25 0 0 1 85 46 Q60 52 35 46 Z" fill={p.body} {...line} />
+              {/* 口まわりと鼻 */}
+              <ellipse cx="60" cy="42" rx="10" ry="5.5" fill={p.extra} />
+              <ellipse cx="60" cy="38.5" rx="2.6" ry="2" fill={p.eye} />
               {/* 頬 */}
               <ellipse cx="43" cy="40" rx="5" ry="3" fill={p.cheek} />
               <ellipse cx="77" cy="40" rx="5" ry="3" fill={p.cheek} />

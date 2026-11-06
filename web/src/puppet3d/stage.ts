@@ -41,7 +41,7 @@ const FRAME_INTERVAL_MS = 1000 / 30 - 1;
 /** 質問が変わってソナが作り直されるとき、同じ描画の文脈を使い回す猶予 */
 const KEEP_MS = 2000;
 
-type PartName = "body" | "accent" | "cheek" | "mouth" | "eye" | "highlight";
+type PartName = "body" | "accent" | "cheek" | "mouth" | "eye" | "highlight" | "extra";
 
 class PuppetStage {
   readonly canvas: HTMLCanvasElement;
@@ -96,6 +96,7 @@ class PuppetStage {
       mouth: toon(),
       eye: toon(),
       highlight: toon(),
+      extra: toon(),
     };
     this.materials.mouth.side = DoubleSide;
     this.setPalette(paletteFor(false));
@@ -121,23 +122,9 @@ class PuppetStage {
     return new Mesh(this.geometry(geometry), this.materials[part]);
   }
 
-  /** 手袋人形の形：袖のような胴、丸い頭、上下に開く口、目、短い腕 */
+  /** 手袋人形の形：ずんぐりした胴、丸い頭と丸い耳、上下に開く口、目、短い腕（Issue #164 の案C どうぶつ風） */
   private buildPuppet(): void {
-    const body = this.mesh(new CylinderGeometry(0.6, 0.82, 1.4, 20), "body");
-    body.position.y = -1.15;
-    this.root.add(body);
-
-    const collar = this.mesh(new TorusGeometry(0.64, 0.13, 8, 24), "accent");
-    collar.rotation.x = Math.PI / 2;
-    collar.position.y = -0.46;
-    this.root.add(collar);
-
-    for (const side of [-1, 1]) {
-      const arm = this.mesh(new CapsuleGeometry(0.14, 0.42, 4, 8), "body");
-      arm.position.set(side * 0.78, -1.0, 0.12);
-      arm.rotation.z = side * 0.55;
-      this.root.add(arm);
-    }
+    this.buildBody();
 
     // 頭。上あごを後ろの蝶番で持ち上げ、下あごを少し下げて口を開ける（手袋人形の口の動き）
     this.head.position.y = 0.05;
@@ -195,14 +182,56 @@ class PuppetStage {
       upper.add(cheek);
     }
 
-    // 頭の上の小さな房（係を見分ける目印。医療者の帽子や記号にはしない）
-    const tuft = this.mesh(new CapsuleGeometry(0.09, 0.22, 4, 8), "accent");
-    tuft.position.set(0.08, 0.8, 0.02);
-    tuft.rotation.z = -0.35;
-    upper.add(tuft);
+    this.buildEarsAndMuzzle(upper);
 
     this.root.position.y = 0.1;
     this.scene.add(this.root);
+  }
+
+  /** 胴・襟・おなか・腕 */
+  private buildBody(): void {
+    const add = (m: Mesh) => {
+      this.root.add(m);
+      return m;
+    };
+    const arms = (radius: number, length: number, x: number, y: number, tilt: number) => {
+      for (const side of [-1, 1]) {
+        const arm = add(this.mesh(new CapsuleGeometry(radius, length, 4, 8), "body"));
+        arm.position.set(side * x, y, 0.12);
+        arm.rotation.z = side * tilt;
+      }
+    };
+    // ずんぐりした体に、緑の襟と、クリーム色のおなか
+    add(this.mesh(new CylinderGeometry(0.74, 0.9, 1.2, 20), "body")).position.y = -1.08;
+    const collar = add(this.mesh(new TorusGeometry(0.74, 0.11, 8, 24), "accent"));
+    collar.rotation.x = Math.PI / 2;
+    collar.position.y = -0.46;
+    const belly = add(this.mesh(new SphereGeometry(0.46, 16, 12), "extra"));
+    belly.scale.set(1, 1.1, 0.36);
+    belly.position.set(0, -1.12, 0.74);
+    arms(0.16, 0.3, 0.92, -0.96, 0.7);
+  }
+
+  /** 丸い耳と口まわり（動物の目印。医療者の帽子や記号にはしない） */
+  private buildEarsAndMuzzle(upper: Group): void {
+    // 丸い耳（内側は頬の色）と、口の上の丸い口まわり
+    for (const side of [-1, 1]) {
+      const ear = this.mesh(new SphereGeometry(0.24, 14, 10), "body");
+      ear.scale.set(1, 1, 0.55);
+      ear.position.set(side * 0.5, 0.6, -0.05);
+      upper.add(ear);
+      const inner = this.mesh(new SphereGeometry(0.13, 12, 8), "cheek");
+      inner.scale.set(1, 1, 0.4);
+      inner.position.set(side * 0.5, 0.6, 0.06);
+      upper.add(inner);
+    }
+    const muzzle = this.mesh(new SphereGeometry(0.24, 14, 10), "extra");
+    muzzle.scale.set(1.25, 0.6, 0.6);
+    muzzle.position.set(0, 0.1, 0.68);
+    upper.add(muzzle);
+    const nose = this.mesh(new SphereGeometry(0.07, 10, 8), "eye");
+    nose.position.set(0, 0.2, 0.82);
+    upper.add(nose);
   }
 
   private setPalette(palette: PuppetPalette): void {
