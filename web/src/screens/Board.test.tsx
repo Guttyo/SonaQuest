@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { HQ, INBOUND, INTAKE_RECORDS, NEEDS, PATIENTS, SITES, STOCK, SYNC, type SiteId } from "../board/data";
-import { demoReducer, initialDemo, type DemoAction } from "../board/demo";
+import { clockText, demoReducer, initialDemo, type DemoAction } from "../board/demo";
 import { caseRows, criticalItems, pendingSummary, todaySummary } from "../board/summary";
 import {
   BOARD_CASES,
@@ -18,10 +18,15 @@ import {
   INTAKE_IMAGE,
 } from "../board/text";
 import { Board, type BoardTab } from "./Board";
+import { sessionFor, type DemoSession } from "../board/access";
+import { ACCESS_LOG_TEXT, BOARD_LOGIN, BOARD_PERMISSION, CHART_REVIEW_TEXT } from "../board/accessText";
+import { AccessLogPanel } from "../board/BoardAccess";
 
 /** 試験は DOM の無い環境で動くので、拠点とタブを最初の値で渡して文字列に描き、画面の切り替えを確かめる */
-const render = (site: SiteId = HQ, tab: BoardTab = "overview", state = initialDemo()) =>
-  renderToStaticMarkup(<Board onBack={() => {}} reducedMotion={false} initialSite={site} initialTab={tab} initialState={state} />);
+const render = (site: SiteId = HQ, tab: BoardTab = "overview", state = initialDemo(), session: DemoSession | null = sessionFor(site)) =>
+  renderToStaticMarkup(
+    <Board onBack={() => {}} reducedMotion={false} initialSite={site} initialTab={tab} initialState={state} initialSession={session} />,
+  );
 const html = render();
 const cases = caseRows(STOCK, INBOUND, NEEDS, SITES, SYNC);
 const panel = (h: string) => h.slice(h.indexOf('id="board-panel"'));
@@ -242,7 +247,7 @@ describe("在庫・発注・搬送・記録・デモのタブ", () => {
     for (const s of ["救護所A", "救護所B", "救護所C", "救護所D"]) expect(d).toContain(`data-intake-open="${s}"`);
     expect(panel(render("救護所C", "demo")).match(/data-intake-open=/g)).toHaveLength(1);
     expect(d).toContain(BOARD_DEMO.logEmpty);
-    const reduced = renderToStaticMarkup(<Board onBack={() => {}} reducedMotion />);
+    const reduced = renderToStaticMarkup(<Board onBack={() => {}} reducedMotion initialSession={sessionFor(HQ)} />);
     expect(reduced).not.toContain(`>${BOARD_DEMO.start}</button>`);
     expect(reduced).toContain(BOARD_DEMO.reducedMotion);
   });
@@ -368,7 +373,9 @@ describe("前回から変わったこと・最終報告・一番大きな数（I
 
 describe("カルテ入力の専用画面と処方の累計（Issue #114）", () => {
   const renderIntake = (site: SiteId, state = initialDemo()) =>
-    renderToStaticMarkup(<Board onBack={() => {}} reducedMotion={false} initialSite={site} initialIntake initialState={state} />);
+    renderToStaticMarkup(
+      <Board onBack={() => {}} reducedMotion={false} initialSite={site} initialIntake initialState={state} initialSession={sessionFor(site)} />,
+    );
 
   it("専用画面はボード全体を置き換える：左のペイン・上部タブ・デモ操作・在庫の表を出さず、救護所名・架空の印・時計・戻るが出る", () => {
     const h = renderIntake("救護所A");
@@ -420,5 +427,125 @@ describe("カルテ入力の専用画面と処方の累計（Issue #114）", () 
     expect(renderIntake("救護所B", s)).toContain(`${BOARD_INTAKE_MODE.count} 2 件`);
     // ほかの救護所には出ない
     expect(panel(render("救護所A", "overview", s))).not.toContain('data-testid="rx-totals"');
+  });
+});
+
+describe("デモ用ログイン・救護所ごとの権限・カルテの確認状態（Issue #141）", () => {
+  const added = (site: SiteId = "救護所B") =>
+    demoReducer(initialDemo(), {
+      type: "add_record",
+      site,
+      name: "架空 花子",
+      items: [{ label: "薬の名前（架空）", value: "架空の錠剤" }],
+      prescription: null,
+    });
+  const keyB = "救護所B|架空 花子";
+
+  it("ログインしていなければ、デモ用のログインの画面だけを出す（「デモ用のログインです」、パスワードの欄なし）", () => {
+    const h = render(HQ, "overview", initialDemo(), null);
+    expect(h).toContain(BOARD_LOGIN.title);
+    expect(h).toContain("デモ用のログインです");
+    expect(h).toContain("デモ用の架空データ");
+    expect(h).not.toContain('type="password"');
+    expect(h).not.toContain('class="board-pane"');
+    for (const s of ["救護所A", "救護所B", "救護所C", "救護所D"]) expect(h).toContain(`value="${s}"`);
+    expect(h).not.toContain('value="本部備蓄"');
+  });
+
+  it("右上に「救護所A／担当：○○（架空）」とログアウトを常に出す（ボードとカルテ入力の専用画面）", () => {
+    const who = BOARD_LOGIN.who("救護所A", sessionFor("救護所A").staff);
+    expect(render("救護所B", "overview", initialDemo(), sessionFor("救護所A"))).toContain(who);
+    expect(render(HQ)).toContain(BOARD_LOGIN.logout);
+    const intake = renderToStaticMarkup(
+      <Board onBack={() => {}} reducedMotion={false} initialSite="救護所A" initialIntake initialSession={sessionFor("救護所A")} />,
+    );
+    expect(intake).toContain(who);
+    expect(intake).toContain(BOARD_LOGIN.logout);
+  });
+
+  it("救護所A で入って救護所B を開くと、閲覧のみを文字で示し、カルテ入力のボタンを無効にする。拒否の確認のボタンを出す", () => {
+    const h = panel(render("救護所B", "records", initialDemo(), sessionFor("救護所A")));
+    expect(h).toContain(BOARD_PERMISSION.readOnly("救護所B"));
+    expect(h).toContain('data-permission="read"');
+    expect(h).toMatch(/<button type="button" class="board-approve board-intake-button" disabled=""/);
+    expect(h).toContain('data-try-write="救護所B"');
+    // 自分の救護所は編集できる
+    const own = panel(render("救護所A", "records", initialDemo(), sessionFor("救護所A")));
+    expect(own).toContain(BOARD_PERMISSION.editable("救護所A"));
+    expect(own).not.toContain("data-try-write");
+    expect(own).not.toMatch(/board-intake-button" disabled=""/);
+  });
+
+  it("URL でほかの救護所のカルテ入力の専用画面を開いても、登録のボタンは無効で閲覧のみと出る", () => {
+    const h = renderToStaticMarkup(
+      <Board onBack={() => {}} reducedMotion={false} initialSite="救護所B" initialIntake initialSession={sessionFor("救護所A")} />,
+    );
+    expect(h).toContain('data-intake="救護所B"');
+    expect(h).toMatch(/<button type="submit" class="secondary" disabled=""/);
+    expect(h).toContain(BOARD_PERMISSION.readOnly("救護所B"));
+  });
+
+  it("デモのタブのカルテ入力のボタンは、ログイン中の救護所だけ押せる", () => {
+    const d = panel(render(HQ, "demo", initialDemo(), sessionFor("救護所C")));
+    expect(d).toMatch(/data-intake-open="救護所C">/);
+    expect(d).toMatch(/disabled="" data-intake-open="救護所A"|data-intake-open="救護所A" disabled=""/);
+  });
+
+  it("カルテの確認状態：下書きなし → 下書きを作るボタン、監査済み（指摘なし）でも確認待ち、確認済みで誰がいつ確認したかを出す", () => {
+    const a = sessionFor("救護所B");
+    let s = added();
+    let h = panel(render("救護所B", "records", s, a));
+    expect(h).toContain(CHART_REVIEW_TEXT.status.none);
+    expect(h).toContain(CHART_REVIEW_TEXT.makeDraft);
+    s = demoReducer(s, { type: "chart_draft", key: keyB, actor: a });
+    s = demoReducer(s, { type: "chart_audit_start", key: keyB, actor: a });
+    h = panel(render("救護所B", "records", s, a));
+    expect(h).toContain(CHART_REVIEW_TEXT.status.ai_auditing);
+    s = demoReducer(s, { type: "chart_audit_result", key: keyB, result: { ok: true, findings: [] } });
+    h = panel(render("救護所B", "records", s, a));
+    expect(h).toContain(CHART_REVIEW_TEXT.status.audited_clean);
+    expect(h).toContain(CHART_REVIEW_TEXT.pendingFlag);
+    expect(h).toContain(CHART_REVIEW_TEXT.confirm);
+    s = demoReducer(s, { type: "chart_confirm", key: keyB, actor: a });
+    h = panel(render("救護所B", "records", s, a));
+    expect(h).toContain(CHART_REVIEW_TEXT.confirmedBy(a.staff, "救護所B", clockText(0)));
+    expect(h).not.toContain(CHART_REVIEW_TEXT.confirm);
+  });
+
+  it("監査できず・監査の指摘ありを文字で出す。ほかの救護所の人には操作のボタンを出さない", () => {
+    const b = sessionFor("救護所B");
+    let s = demoReducer(added(), { type: "chart_draft", key: keyB, actor: b });
+    s = demoReducer(s, { type: "chart_audit_start", key: keyB, actor: b });
+    const failed = demoReducer(s, { type: "chart_audit_result", key: keyB, result: { ok: false, failure: "ai_stopped" } });
+    expect(panel(render("救護所B", "records", failed, b))).toContain(CHART_REVIEW_TEXT.status.audit_unavailable);
+    const found = demoReducer(s, {
+      type: "chart_audit_result",
+      key: keyB,
+      result: { ok: true, findings: [{ where: "代わりに伝えられる人", kind: "会話にない内容", reason: "（見本）" }] },
+    });
+    const h = panel(render("救護所B", "records", found, b));
+    expect(h).toContain(CHART_REVIEW_TEXT.status.audited_findings(1));
+    expect(h).toContain("会話にない内容");
+    const other = panel(render("救護所B", "records", found, sessionFor("救護所A")));
+    expect(other).not.toContain(CHART_REVIEW_TEXT.confirm);
+    expect(other).toContain("data-readonly-review");
+  });
+
+  it("アクセス記録の一覧は開閉でき、「デモ用の記録です。保存していません」と、行は時刻・救護所・担当者・出来事・対象だけ", () => {
+    const closed = render(HQ);
+    expect(closed).toContain(ACCESS_LOG_TEXT.open);
+    const log = [
+      { at: 0, site: "救護所A" as const, staff: "見本 青葉", kind: "write_denied" as const, target: "救護所Bのカルテ" },
+      { at: 0, site: "救護所A" as const, staff: "見本 青葉", kind: "login" as const, target: "" },
+    ];
+    const h = renderToStaticMarkup(<Board onBack={() => {}} reducedMotion={false} initialSession={sessionFor("救護所A")} initialAccessLog={log} />);
+    expect(h).toContain(`${ACCESS_LOG_TEXT.open}（2 件）`);
+    const open = renderToStaticMarkup(<AccessLogPanel log={log} defaultOpen />);
+    expect(open).toContain(ACCESS_LOG_TEXT.notice);
+    expect(open).toContain(ACCESS_LOG_TEXT.kinds.write_denied);
+    expect(open).toContain("救護所Bのカルテ");
+    expect(open.match(/<th>/g)).toHaveLength(5);
+    // 8種類の出来事の名前がそろっている
+    expect(Object.keys(ACCESS_LOG_TEXT.kinds)).toHaveLength(8);
   });
 });
