@@ -22,6 +22,7 @@ import {
  * （当てるとほとんどの正しい要約が止まる）。空白を除き、NFKC でそろえた text に当てる
  */
 // [TODO-OWNER: カルテの要約で禁止する表現の一覧（Claude Code の下書き）]
+// → オーナー決定（2026-11-07、チャット、Issue #207）：「案は提出後、今の下書きは採る（推奨）」（ボードの AI の守り）
 export const KARTE_FORBIDDEN_PATTERNS: readonly RegExp[] = [
   // 服薬の指示・助言
   /飲んで(?:ください|下さい|もらう|おく)|飲むべき|飲ませ|飲まないで|飲み続け|やめ(?:て|る|た方|るべき)|中止|中断して|続けて(?:ください|下さい)|増や|減ら|追加して|変更して/,
@@ -104,6 +105,7 @@ export function maskForbidden(summary: KarteSummary, findings: readonly CodeFind
 
 /** 指摘の種類ごとの、画面に出す固定の文 */
 // [TODO-OWNER: コードでの確認の指摘の文（Claude Code の下書き）]
+// → オーナー決定（2026-11-07、チャット、Issue #207）：「案は提出後、今の下書きは採る（推奨）」（ボードの AI の守り）
 export const CODE_FINDING_LABELS: Readonly<Record<CodeFinding["kind"], string>> = {
   quote_not_found: "根拠なし：引用が会話の本人の発言に見つかりません",
   quote_too_short: "根拠なし：引用が短すぎます",

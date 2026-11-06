@@ -46,6 +46,7 @@ export interface KarteAuditBackend {
 
 /** 指摘の理由の文が検査を通らなかったときの、種類ごとの固定文 */
 // [TODO-OWNER: 監査役の指摘の固定文（Claude Code の下書き）]
+// → オーナー決定（2026-11-07、チャット、Issue #207）：「案は提出後、今の下書きは採る（推奨）」（ボードの AI の守り）
 export const AUDIT_FIXED_REASONS: Readonly<Record<AuditFindingKind, string>> = {
   omitted: "本人が会話で言ったことが、要約に入っていないかもしれません",
   meaning_changed: "本人の言葉と、要約の文の意味が違うかもしれません",

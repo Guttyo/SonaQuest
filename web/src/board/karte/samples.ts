@@ -29,6 +29,7 @@ const S = (text: string): KarteTurn => ({ speaker: "staff", text });
 const P = (text: string): KarteTurn => ({ speaker: "patient", text });
 
 // [TODO-OWNER: 架空の会話の見本 10本と正解の要約（Claude Code の下書き）]
+// → オーナー決定（2026-11-07、チャット、Issue #207）：「案は提出後、今の下書きは採る（推奨）」（ボードの AI の守り）
 export const KARTE_SAMPLES: readonly KarteSample[] = [
   {
     id: "karte-01",

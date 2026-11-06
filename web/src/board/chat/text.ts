@@ -19,6 +19,7 @@ export type ChatView = "all" | ChatChannel;
 export const CHAT_VIEWS: readonly ChatView[] = ["all", "common", "A", "B", "C", "D"];
 
 // [TODO-OWNER: 掲示板チャットの画面の文言（Claude Code の下書き。題・欄の名前・ボタン・状態の文・使えないときの文）]
+// → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（ボードの文言）
 export const CHAT_TEXT = {
   title: "連絡（掲示板）",
   lead: "本部と救護所の連絡の掲示板です。実際の災害では本部のホワイトボードに書いて共有していた報告を、各救護所から本部へ届く形で見せます。薬の在庫・数量は在庫と発注のタブで見るもので、ここでは扱いません。",
@@ -74,6 +75,7 @@ export const CHAT_TEXT = {
  * もとの長い説明（CHAT_TEXT.lead）は「この掲示板について」を開くと読める。送る先と送るものの説明（startNote・注意文）は始めるボタンと入力欄のそばに残す
  */
 // [TODO-OWNER: 掲示板チャットの吹き出しの画面で足した文言（Claude Code の下書き。Issue #161：短い説明・AI連絡の状態・AI の印・ボードは変わらない表示・操作中の役割）]
+// → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（ボードの文言）
 export const CHAT_BUBBLE_TEXT = {
   lead: "本部と救護所A〜Dの、薬剤以外の連絡の掲示板（架空）です。",
   about: "この掲示板について",
@@ -95,6 +97,7 @@ export const CHAT_BUBBLE_TEXT = {
  * 送る前の注意文（オーナーの指示の文に沿った下書き）。書き込みは Anthropic のセッションに送られ、そこに残る
  */
 // [TODO-OWNER: 掲示板チャットの送信前の注意文（Claude Code の下書き。Issue #121 の文に沿った）]
+// → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（ボードの文言）
 export const CHAT_SEND_NOTICE =
   "このチャットは架空の訓練用で、書いた内容は Anthropic の Managed Agents のセッションに送られ、そこに残ります。実在の人の名前や実際の情報を入れないでください。";
 
@@ -110,6 +113,7 @@ const count = (n: number | null, unit: string) => (n === null ? "不明" : `${n}
  * 固定の掲示（エージェントが使えないとき、検査で文を捨てたとき）。件数と時刻をルールで並べるだけ
  */
 // [TODO-OWNER: 掲示板チャットの固定の掲示のひな形（Claude Code の下書き）]
+// → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（ボードの文言）
 export const CHAT_FIXED = {
   siteReport: (s: ChatSiteStatus) =>
     `報告：今日の患者 ${count(s.patients, "人")}、不足が出ている品目 ${s.shortItems} 件、薬剤師の不足 ${s.pharmacistsShort} 人、未着の記録 ${count(s.notArrivedRecords, "件")}、転記待ちの記録 ${count(s.awaitingEntryRecords, "件")}。最終報告 ${ago(s.lastReportMinutesAgo)}。`,

@@ -4,6 +4,7 @@ import type { ViewpointId } from "../../flow/types";
 import type { AuditFindingKind, AuditSessionState } from "./contract";
 
 // [TODO-OWNER: カルテ画面の要約・監査の文（観点の短い名前、監査の指摘の種類の名前、セッションの状態、操作のボタンと説明。Claude Code の下書き）]
+// → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（ボードの文言）
 export const KARTE_ASPECT_LABELS: Readonly<Record<ViewpointId, string>> = {
   location: "情報の在りか",
   alternative: "代わりの手段",

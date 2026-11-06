@@ -172,6 +172,7 @@ const NAMES: readonly (readonly [string, string, SimSex])[] = [
  * 量は在庫の動きを見せるための架空の数で、用法・用量の基準ではない
  */
 // [TODO-OWNER: 架空の患者の服薬の品目と1日の量の候補（Claude Code の下書き。降圧薬A 1〜2錠、血糖降下薬B 1〜3錠、抗てんかん薬C 2〜3錠、貼付鎮痛薬E 1〜2枚、抗凝固薬F 1〜2錠）]
+// → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（ボードの架空の数値）
 const MED_CHOICES: readonly { item: string; perDay: readonly number[]; weight: number }[] = [
   { item: "降圧薬A", perDay: [1, 2], weight: 5 },
   { item: "血糖降下薬B", perDay: [1, 2, 3], weight: 3 },
@@ -188,6 +189,7 @@ export const CONDITION_NONE = "なし";
  * 並びは表示の順ではなく、選ぶときの候補の並び
  */
 // [TODO-OWNER: 架空の患者のけが・体調の候補の文（Claude Code の下書き。なし、すり傷、打撲、切り傷、捻挫、軽いやけど）と、「なし」の割合（半分）]
+// → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（ボードの架空の数値）
 export const CONDITIONS: readonly string[] = [CONDITION_NONE, "すり傷", "打撲", "切り傷", "捻挫", "軽いやけど"];
 const CONDITION_NONE_SHARE = 0.5;
 
@@ -251,6 +253,7 @@ export interface PlannedArrival {
 
 /** 1時間に到着する人数の候補（等しい確からしさで1つ選ぶ。平均 1.5 人） */
 // [TODO-OWNER: 1時間に到着する人数の候補（Claude Code の下書き。0・1・1・2・2・3 人）と、救護所の選び方（避難者数の割合）]
+// → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（ボードの架空の数値）
 const PER_HOUR: readonly number[] = [0, 1, 1, 2, 2, 3];
 
 /**
