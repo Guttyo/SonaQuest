@@ -38,7 +38,7 @@ describe("連絡（掲示板チャット）の画面", () => {
     expect(html).toContain(CHAT_BUBBLE_TEXT.boardUnchanged);
   });
 
-  it("左に、本部のすべての欄・共通の欄・救護所A〜Dの DM の6つを並べる", () => {
+  it("左に、本部のすべての連絡・全体連絡・救護所A〜Dの DM の6つを並べる", () => {
     for (const v of CHAT_VIEWS) expect(html).toContain(`data-view="${v}"`);
     expect(html.match(/class="board-chat-view[ "]/g)).toHaveLength(6);
     expect(html).toContain('aria-pressed="true"');
@@ -86,7 +86,7 @@ describe("連絡（掲示板チャット）の画面", () => {
     expect(out).toContain(CHAT_BUBBLE_TEXT.operatingRoleNote);
   });
 
-  it("すべての欄のときは書き込まず、欄を選ぶよう案内する。タブを閉じると消えることを書く", () => {
+  it("すべての連絡のときは書き込まず、欄を選ぶよう案内する。タブを閉じると消えることを書く", () => {
     expect(html).toContain(CHAT_TEXT.chooseChannel);
     expect(html).not.toContain("<textarea");
     expect(html).toContain(CHAT_TEXT.memoryNote);
