@@ -2393,23 +2393,11 @@
   min-height: 48px;
 }
 
-/* 編集できる／閲覧のみ。色だけにせず、必ず文字で理由を出す */
+/* 編集できる／閲覧のみ。色だけにせず、必ず文字で理由を出す。左の線の箱にせず灰の文字1行（見た目は下の Issue #143 の節） */
 .board-permission {
   display: grid;
   gap: 6px;
   margin: 0 0 12px;
-  padding: 8px 12px;
-  border: 1px solid var(--line);
-  border-left-width: 4px;
-  border-radius: 6px;
-  background: var(--surface);
-}
-.board-permission.editable {
-  border-left-color: var(--board-accent);
-}
-.board-permission.readonly {
-  border-left-color: var(--ink-soft);
-  background: var(--cream);
 }
 .board-permission-line {
   margin: 0;
@@ -2529,35 +2517,26 @@
   font-size: var(--fs-sub);
 }
 
-/* 画面の端（右下）の、開閉できるアクセス記録の一覧 */
+/* 開閉できるアクセス記録の一覧。右下に浮かせず、ボードでは帯の「アクセス記録」から帯のすぐ下に開く
+   （Issue #143、2026-11-06 オーナー決定「計画書どおり帯に入れる」。置き場所は下の Issue #143 の節） */
 .board-access-log {
-  position: fixed;
-  right: 12px;
-  bottom: 12px;
-  z-index: 30;
   display: grid;
-  justify-items: end;
   gap: 6px;
-  max-width: min(40rem, calc(100vw - 24px));
 }
 .board-access-toggle {
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 14px;
   border: 1px solid var(--ink);
-  border-radius: 6px;
+  border-radius: 4px;
   background: var(--surface, #fff);
   color: var(--ink);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 .board-access-body {
   width: 100%;
-  max-height: min(60vh, 28rem);
   overflow: auto;
   padding: 12px;
   border: 1px solid var(--line, #dde2e7);
-  border-radius: 8px;
   background: var(--surface, #fff);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
 }
 .board-access-body h2 {
   margin: 0 0 4px;
