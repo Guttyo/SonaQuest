@@ -9,7 +9,7 @@ import { AUDIT_MODEL, makeAudit, type Audit } from "./audit";
 import { contentLogEnabled, devOverrides, logContent } from "./devlog";
 import { promptTextProblem } from "./checks";
 import { checkRateLimit, type RateLimiter } from "./ratelimit";
-import { ALLOWED_VOCABULARY, followsFixedOrder, runTurn } from "./turn";
+import { ALLOWED_VOCABULARY, followsGoalRules, runTurn } from "./turn";
 import { createTtsApp, type TtsEnv } from "./tts";
 import { createTtsLabApp } from "./ttsLab";
 import { createBoardChatApp, makeChatBackend, type BoardChatEnv } from "./boardChat";
@@ -113,7 +113,7 @@ export function createApp(
     }
     const request = parseTurnRequest(json);
     // 次の質問は、画面が送ってきた値を信じずに、固定の順番から確かめる（ADR-0025 の A、ADR-0028）
-    if (request === null || !followsFixedOrder(request)) return c.json({ error: "bad_request" }, 400);
+    if (request === null || !followsGoalRules(request)) return c.json({ error: "bad_request" }, 400);
 
     const apiKey = c.env.ANTHROPIC_API_KEY;
     if (apiKey === undefined || apiKey === "") {
@@ -166,11 +166,18 @@ export function createApp(
         rejectReason: outcome.rejectReason,
         // 監査役の結果（判定・理由の種類・失敗の種類・時間・使った量）。本文は含まない
         audit: outcome.audit,
+        goalOverride: outcome.goalOverride,
+        remarkRejectReason: outcome.remarkRejectReason,
+        remarkAudit: outcome.remarkAudit,
       };
       c.header(DEV_METRICS_HEADER, encodeURIComponent(JSON.stringify(metrics)));
     }
     if (outcome.rejectReason !== null) console.warn(`turn: text_rejected:${outcome.rejectReason}`);
     if (outcome.audit?.failure) console.warn(`turn: audit_failed:${outcome.audit.failure}`);
+    // ゴールを固定の順番に戻した理由と、振り返りの一言を捨てた理由。どちらも本文を含まない種類だけ（ADR-0007、Issue #200）
+    if (outcome.goalOverride !== null) console.warn(`turn: goal_overridden:${outcome.goalOverride}`);
+    if (outcome.remarkRejectReason !== null) console.warn(`turn: remark_rejected:${outcome.remarkRejectReason}`);
+    if (outcome.remarkAudit?.failure) console.warn(`turn: remark_audit_failed:${outcome.remarkAudit.failure}`);
     return c.json(outcome.response);
   });
 

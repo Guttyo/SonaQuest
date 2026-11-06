@@ -100,3 +100,29 @@ export function detectDistress(text: string): "symptom" | "self_harm" | null {
   if (hasSymptomComplaint(t)) return "symptom";
   return null;
 }
+
+/**
+ * 体調の訴えらしい入力の後に出す、確かめの問い（2026-11-07 のオーナーの答え。親のセッション経由。ADR-0011 の追記）。
+ * 体調の語は、薬の説明（「頭が痛いときに飲む薬」）にも出るので、すぐには中断しない。自傷のほのめかしは今までどおりすぐ中断する
+ */
+export const SYMPTOM_CHECK_TEXT = "現在の体調の訴えでしょうか？";
+/** 確かめの問いの間の入力欄の案内（Claude Code の下書き） */
+export const SYMPTOM_CHECK_HINT = "いまの体調のことなら「はい」、薬の説明などなら「いいえ」と答えてください";
+
+// [TODO-OWNER: 確かめの問いへの答えを「はい」とみなす言葉の一覧（Claude Code の下書き。文の頭が肯定の言葉で、否定の言葉を含まないもの）]
+const AFFIRMATIVE_HEADS: readonly string[] = [
+  "はい", "うん", "ええ", "そうです", "そう", "その通り", "そのとおり", "訴えです",
+];
+const NEGATIVE_TERMS: readonly string[] = [
+  "いいえ", "いや", "違", "ちが", "ではな", "じゃな", "ありません", "ない",
+];
+const AFFIRMATIVE = AFFIRMATIVE_HEADS.map(normalizeForMatch);
+const NEGATIVE = NEGATIVE_TERMS.map(normalizeForMatch);
+
+/** 確かめの問いへの答えが「はい」か。否定の言葉を含むものは「はい」とみなさない */
+export function isAffirmative(text: string): boolean {
+  const t = normalizeForMatch(text).replace(/[、。,.!！?？…・〜~]/g, "");
+  if (t.length === 0) return false;
+  if (NEGATIVE.some((w) => t.includes(w))) return false;
+  return AFFIRMATIVE.some((w) => t.startsWith(w));
+}

@@ -7,6 +7,15 @@
 /** ElevenLabs の読み上げが始まるまで待つ上限。過ぎたらブラウザの読み上げに切り替える（ADR-0033。オーナーに確かめる） */
 export const TTS_START_TIMEOUT_MS = 5_000;
 
+/**
+ * 長い文（振り返りの読み上げなど）は、ElevenLabs が音声を作るのに時間がかかる。150字を超える分は1字につき15ミリ秒、
+ * 最大7秒まで待つ時間を足す（2026-11-07、振り返りの約450字が5.3秒かかり、ブラウザの読み上げに切り替わった）
+ */
+export function startTimeoutFor(base: number, text: string): number {
+  const extra = Math.min(7_000, Math.max(0, text.length - 150) * 15);
+  return base + extra;
+}
+
 /** 読み上げに使っているもの。none は読み上げなし（画面の文だけで進む） */
 export type SpeakerEngine = "elevenlabs" | "browser" | "none";
 
@@ -150,7 +159,7 @@ export class Speaker {
     // 始まるまでが長いときは、待たずにブラウザの読み上げへ
     this.timer = setTimeout(() => {
       if (token === this.token) this.fallback(text, token, "timeout");
-    }, this.startTimeoutMs);
+    }, startTimeoutFor(this.startTimeoutMs, text));
     try {
       let blob = this.cache.get(text);
       if (blob === undefined) {

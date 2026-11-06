@@ -1,3 +1,4 @@
+import { RECHECK_CLOSING } from "./content";
 // Claude を使う進行の試験（Issue #15、docs/phase2-decisions.md、ADR-0025）。Claude の返事は作った値で渡す。
 
 import { describe, expect, it } from "vitest";
@@ -33,7 +34,7 @@ function reply(
   next: TurnResponse["next"],
   extra: Partial<Omit<TurnResponse, "next">> = {},
 ): TurnResponse {
-  return { emergency: "none", viewpoints: judged, next, recall: false, source_guess: null, ...extra };
+  return { emergency: "none", viewpoints: judged, next, recall: false, source_guess: null, remark: null, ...extra };
 }
 
 /** いまの状態に対する Claude の返事を渡す */
@@ -158,13 +159,26 @@ describe("Claude を使う進行", () => {
     expect(trainingReducer(again, result(waiting, null))).toBe(again);
   });
 
-  it("Claude が体調の訴えを見つけたら中断する（補助。ADR-0011）", () => {
+  it("Claude が体調の訴えを見つけたら確かめの問いを出し、「はい」で中断する（補助。ADR-0011 の追記）", () => {
     const waiting = run([{ type: "start" }, answer("ちょっと待って")]);
-    const next = trainingReducer(
+    const checking = trainingReducer(
       waiting,
       result(waiting, reply(ask("first_location"), { emergency: "symptom" })),
     );
-    expect(next.stage).toEqual({ name: "stopped", reason: "symptom" });
+    expect(checking.prompt?.type).toBe("symptom_check");
+    expect(trainingReducer(checking, answer("はい")).stage).toEqual({ name: "stopped", reason: "symptom" });
+  });
+
+  it("Claude が体調の訴えと見た後、確かめの問いに「いいえ」なら、その返事のまま続ける（送り直さない）", () => {
+    const waiting = run([{ type: "start" }, answer("頭痛薬を飲んでいます")]);
+    const checking = trainingReducer(
+      waiting,
+      result(waiting, reply(ask("first_location"), { emergency: "symptom" })),
+    );
+    const resumed = trainingReducer(checking, answer("いいえ"));
+    expect(resumed.waiting).toBe(false);
+    expect(resumed.prompt?.questionId).toBe("first_location");
+    expect(resumed.answers).toHaveLength(1);
   });
 
   it("Claude が自傷のほのめかしを見つけたら、自傷用の案内で中断する（ADR-0011）", () => {
@@ -177,7 +191,7 @@ describe("Claude を使う進行", () => {
   });
 
   it("語の照合で中断するときは、Claude に送らない（項目10）", () => {
-    const state = run([{ type: "start" }, answer("今、胸が苦しい")]);
+    const state = run([{ type: "start" }, answer("今、胸が苦しい"), answer("はい")]);
     expect(state.stage).toEqual({ name: "stopped", reason: "symptom" });
     expect(state.waiting).toBe(false);
     expect(state.answers).toHaveLength(0);
@@ -274,7 +288,7 @@ describe("Claude を使う進行", () => {
     expect(state.stage).toEqual({ name: "confirm" });
   });
 
-  it("後半の最後の問いは、思い出せなかったことを聞く（Issue #41）", () => {
+  it("後半は、代わりに伝えられる人の後に終わり、思い出せなかったことは聞かずに固定文で促す（2026-11-07）", () => {
     let state = run([{ type: "start" }]);
     const steps: [string, TurnResponse["next"]][] = [
       ["A薬", ask("first_location")],
@@ -290,18 +304,19 @@ describe("Claude を使う進行", () => {
     for (const [text, next] of [
       ["スマホの写真", ask("second_recent")],
       ["飲めています", ask("second_proxy")],
-      ["妻が知っています", ask("second_recheck")],
     ] as const) {
       state = trainingReducer(state, answer(text));
       state = trainingReducer(state, result(state, reply(next)));
     }
-    expect(currentQuestion(state)?.id).toBe("second_recheck");
-    state = trainingReducer(state, answer("量が思い出せなかった。手帳で確かめる"));
-    // 聞き返しを使っていないので、最後の問いの後も1回だけ聞き返せる
+    expect(currentQuestion(state)?.id).toBe("second_proxy");
+    state = trainingReducer(state, answer("妻が知っています"));
+    // 必ず聞くゴールを聞き終えたので、次の固定の質問は無い。聞き返しは使っていないので、1回だけ聞き返せる
     expect(buildTurnRequest(state)?.next_question_id).toBeNull();
     expect(buildTurnRequest(state)?.allow_clarify).toBe(true);
-    state = trainingReducer(state, result(state, reply({ type: "finish", question_id: null, text: null })));
+    // Claude が second_recheck を選んでも使わず、後半を終える
+    state = trainingReducer(state, result(state, reply(ask("second_recheck"))));
     expect(state.stage).toEqual({ name: "review" });
+    expect(state.closingAck).toContain(RECHECK_CLOSING);
   });
 
   it("思い出せないという回答に印を付け、③確認の初期選択の候補を持つ", () => {

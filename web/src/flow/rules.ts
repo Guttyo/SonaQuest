@@ -3,19 +3,21 @@
 import {
   FIRST_HALF_QUESTIONS,
   HANDOVER_QUESTION,
+  MEDICINES_FOLLOWUP_QUESTION,
   PREP_ACTIONS,
   PREP_SOURCES,
   PROXY_QUESTION,
   PUBLIC_SOURCES,
   type PublicSourceId,
   PROXY_QUESTION_AFTER_FAMILY,
+  RECENT_QUESTION_WITHOUT_NOTEBOOK,
   RECENT_QUESTION,
-  RECHECK_QUESTION,
   RECOVERY_QUESTION,
   VIEWPOINT_ORDER,
 } from "./content";
 import type {
   EventId,
+  Half,
   Judgment,
   Judgments,
   PrepActionId,
@@ -64,7 +66,69 @@ export function secondHalfQuestions(event: EventId): readonly Question[] {
   const opening = event === "handover" ? HANDOVER_QUESTION : RECOVERY_QUESTION;
   const proxy =
     event === "family_unreachable" ? PROXY_QUESTION_AFTER_FAMILY : PROXY_QUESTION;
-  return [opening, RECENT_QUESTION, proxy, RECHECK_QUESTION].slice(0, MAX_SECOND_HALF_ANSWERS);
+  // お薬手帳が自宅のときは、お薬手帳を前提にしない問いにする（2026-11-07）
+  const recent = event === "notebook_home" ? RECENT_QUESTION_WITHOUT_NOTEBOOK : RECENT_QUESTION;
+  // 「思い出せなかったことを、あとで何で確かめるか」は聞かず、後半の終わりに固定文で促す（2026-11-07 のオーナーの指摘。content.ts の RECHECK_CLOSING）
+  return [opening, recent, proxy].slice(0, MAX_SECOND_HALF_ANSWERS);
+}
+
+/**
+ * 前半で「ほかには？」の掘り下げ（MEDICINES_FOLLOWUP_QUESTION）を出してよい回数（Issue #200）。
+ * 掘り下げへの聞き返しの回答も数える（数えすぎる側。回答の上限は別に守られる）
+ */
+// [TODO-OWNER: 掘り下げの上限（Claude Code の下書き：前半で2回まで。content.ts の MEDICINES_FOLLOWUP_QUESTION のマーカーと同じ判断）]
+// → オーナー決定（2026-11-07、チャット）：「2回まで」。
+export const FOLLOWUP_LIMIT = 2;
+
+/** 聞き取りのゴールに向かって、次に何を聞いてよいか（Issue #200、ADR-0025 の B） */
+export interface GoalPlan {
+  /** Claude が次の質問（ゴール）として選んでよい質問ID */
+  choices: string[];
+  /** 固定の順番での次の質問。Claude の選んだゴールが使えないとき・Claude を使わないときに出す。半分の終わりは null */
+  fallback: string | null;
+  /** この半分を終えてよいか（まだ聞いていない、必ず聞くゴールが無い） */
+  canFinish: boolean;
+}
+
+/**
+ * その半分で、次に聞いてよい質問を決める。ブラウザと Workers の両方がこの関数を使い、同じ答えを出す（ADR-0028 の2・12）。
+ * asked は、その半分で回数に数える回答の質問IDを順に並べたもの（いま答えたものを含む。質問し直した入力は除く）。
+ *
+ * - 前半の必ず聞くゴール：今の薬（1問目、固定）、情報の在りか、ほかの薬、合わなかった薬・アレルギー。
+ *   掘り下げ（ほかには？）は、1問目の後に FOLLOWUP_LIMIT 回まで。
+ *   前半は、必ず聞くゴールをすべて聞くまで終えない。終えると③確認から④出来事へ進む（出来事を起こす時点。
+ *   情報の在りかは必ずその前に聞いている）
+ * - 後半の必ず聞くゴール：立て直し（最初、固定）、記録の新しさ、代わりに伝えられる人。思い出せなかったことの問いは、
+ *   残りの回数に余裕があるときだけ選べる（固定の進行では今までどおり最後に出す）
+ * - 必ず聞くゴールが残りの回数で聞ききれなくなるときは、掘り下げなどの選べるゴールを出さない
+ * - 固定の順番（fallback）は、今までの固定の質問の順番の、まだ聞いていない最初のもの。Claude を使わない進行は今までと同じになる
+ */
+export function planGoals(asked: readonly string[], half: Half, event: EventId | null): GoalPlan {
+  const max = half === "first" ? MAX_FIRST_HALF_ANSWERS : MAX_SECOND_HALF_ANSWERS;
+  const remaining = max - asked.length;
+  if (remaining <= 0) return { choices: [], fallback: null, canFinish: true };
+  const done = new Set(asked);
+  const order = (half === "first" ? firstHalfQuestions() : secondHalfQuestions(event ?? "handover")).map((q) => q.id);
+  const fallback = order.find((id) => !done.has(id)) ?? null;
+  const required = order.filter((id) => !done.has(id));
+  const optional: string[] = [];
+  if (half === "first") {
+    const followups = asked.filter((id) => id === MEDICINES_FOLLOWUP_QUESTION.id).length;
+    if (done.has(FIRST_HALF_QUESTIONS[0].id) && followups < FOLLOWUP_LIMIT) optional.push(MEDICINES_FOLLOWUP_QUESTION.id);
+  }
+  const slack = remaining - required.length;
+  return {
+    choices: [...required, ...(slack > 0 ? optional : [])],
+    fallback,
+    canFinish: required.length === 0,
+  };
+}
+
+/** その半分で聞いてよい質問ID（固定の質問と、前半の掘り下げ）。Workers が問い合わせを確かめるのに使う */
+export function questionIdsOf(half: Half, event: EventId | null): readonly string[] {
+  return half === "first"
+    ? [...firstHalfQuestions().map((q) => q.id), MEDICINES_FOLLOWUP_QUESTION.id]
+    : secondHalfQuestions(event ?? "handover").map((q) => q.id);
 }
 
 export function isAcceptableAnswer(text: string): boolean {
@@ -119,6 +183,21 @@ export interface NextStep {
   /** その観点に関係する準備行動のうち、規則で選んだ1つ */
   action: PrepActionId;
 }
+
+/**
+ * 出来事ごとに、優先して勧める準備行動（3つ）。3D の振り返りで読み上げる（2026-11-07 のオーナーの言葉
+ * 「今回はお薬手帳を忘れているので、財布に入れたりスマホに入れたり家族に教えたり、とかの3つくらい優先に選んで」）。
+ * 出来事で使えなくなったものに頼る行動は先にしない。ルールで決め、Claude には選ばせない
+ */
+// [TODO-OWNER: 出来事ごとに優先する準備行動の3つ（お薬手帳が自宅はオーナーの例、ほかの5つは Claude Code の下書き）]
+export const EVENT_PREP_PRIORITY: Record<EventId, readonly PrepActionId[]> = {
+  notebook_home: ["wallet_memo", "photo_and_paper", "tell_family"],
+  battery: ["wallet_memo", "notebook_bag", "tell_family"],
+  network: ["notebook_bag", "wallet_memo", "tell_family"],
+  family_unreachable: ["notebook_bag", "wallet_memo", "photo_and_paper"],
+  clinic_unreachable: ["notebook_bag", "photo_and_paper", "check_portal"],
+  handover: ["wallet_memo", "notebook_bag", "tell_family"],
+};
 
 /**
  * 手薄な観点ごとに、次の一手（準備行動）を1つ選ぶ（ADR-0054）。固定の表と規則だけで、Claude は使わない。

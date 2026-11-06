@@ -3,7 +3,7 @@
 // 断られたときは、サーバー側で別のモデルが答え直す設定（fallbacks: "default"）を使う。それでも断られたら固定の進行へ。
 
 import Anthropic from "@anthropic-ai/sdk";
-import { VIEWPOINT_IDS } from "../src/flow/turnContract";
+import { QUESTION_IDS, VIEWPOINT_IDS } from "../src/flow/turnContract";
 
 export const MODEL = "claude-opus-5-5";
 /** 断られたときに別のモデルで答え直す設定の beta（"default" の形で使う） */
@@ -12,7 +12,11 @@ export const CLAUDE_TIMEOUT_MS = 8000;
 
 const JUDGMENT = { type: "string", enum: ["confirmed", "aware_unconfirmed", "not_mentioned"] };
 
-/** Claude に返させる形。question_id は Claude に選ばせず、Workers が固定の順番から決める（ADR-0025 の A） */
+/**
+ * Claude に返させる形。next_goal_id は、閉じた一覧（固定の質問のID）から Claude が選ぶ次のゴール。null は「この半分を終える」。
+ * 今選んでよいかは Workers が planGoals で確かめ、合わなければ固定の順番の質問に戻す（Issue #200、ADR-0025 の B）。
+ * closing_remark は後半を終えるときだけの振り返りの一言（それ以外は null）
+ */
 export const CLAUDE_OUTPUT_SCHEMA = {
   type: "object",
   properties: {
@@ -24,7 +28,9 @@ export const CLAUDE_OUTPUT_SCHEMA = {
       additionalProperties: false,
     },
     next_type: { type: "string", enum: ["ask", "clarify", "redirect"] },
+    next_goal_id: { anyOf: [{ type: "string", enum: [...QUESTION_IDS] }, { type: "null" }] },
     text: { anyOf: [{ type: "string" }, { type: "null" }] },
+    closing_remark: { anyOf: [{ type: "string" }, { type: "null" }] },
     recall: { type: "boolean" },
     source_guess: {
       anyOf: [
@@ -33,7 +39,16 @@ export const CLAUDE_OUTPUT_SCHEMA = {
       ],
     },
   },
-  required: ["emergency", "viewpoints", "next_type", "text", "recall", "source_guess"],
+  required: [
+    "emergency",
+    "viewpoints",
+    "next_type",
+    "next_goal_id",
+    "text",
+    "closing_remark",
+    "recall",
+    "source_guess",
+  ],
   additionalProperties: false,
 } as const;
 
