@@ -109,6 +109,10 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
       {state.closingAck !== null && (
         <ListenerLine relief={state.event === "handover"}>{state.closingAck}</ListenerLine>
       )}
+      {/* 振り返りに添える Claude の一言（Issue #200）。文の検査と監査役を通ったものだけ。利用者の回答の要約ではない */}
+      {state.closingRemark !== null && (
+        <ListenerLine relief={state.event === "handover"}>{state.closingRemark}</ListenerLine>
+      )}
       {voiceOn && (
         <SpeakerControls
           snapshot={speech}

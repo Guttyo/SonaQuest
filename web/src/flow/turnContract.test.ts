@@ -33,6 +33,7 @@ const response: TurnResponse = {
   next: { type: "ask", question_id: "first_location", text: null },
   recall: false,
   source_guess: "notebook",
+  remark: null,
 };
 
 describe("入力の検査（Workers）", () => {

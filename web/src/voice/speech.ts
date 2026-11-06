@@ -21,13 +21,14 @@ import { nextSteps, undeterminedJudgments } from "../flow/rules";
 import { currentQuestion, type TrainingState } from "../flow/training";
 
 /**
- * 振り返りの先頭で読み上げる文（3D のとき。ADR-0054）。固定文だけで、利用者の回答は使わない。
+ * 振り返りの先頭で読み上げる文（3D のとき。ADR-0054）。固定文と、検査を通った Claude の受け止め・一言だけで、利用者の回答は使わない。
  * 受け止め → 見出し → 弱い観点の短い名前と判定（全部）→ 最初の1つの一言と次の一手。
  * 2つ目からの一言は読まない（長くなるので画面で読む）。判定が無い回はその知らせ、全部確認できた回はその一言
  */
 export function reviewSpeech(state: TrainingState): string | null {
   if (state.stage.name !== "review") return null;
-  const ack = state.closingAck ?? "";
+  // 受け止めの後に、Claude の一言（Issue #200。検査と監査役を通ったもの）を続ける
+  const ack = (state.closingAck ?? "") + (state.closingRemark ?? "");
   const judgments =
     state.ai === "on" && state.judgments !== null ? state.judgments : undeterminedJudgments();
   if (VIEWPOINT_ORDER.every((v) => judgments[v] === "undetermined")) {

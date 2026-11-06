@@ -1,6 +1,6 @@
 // 訓練の状態と遷移。状態はメモリにだけ持ち、保存しない（ADR-0007）。
 
-import { ACK_TEXT, AI_CONNECTED, CLARIFY_TEXTS, REDIRECT_TEXTS, ackFor } from "./content";
+import { ACK_TEXT, AI_CONNECTED, ALL_QUESTIONS, CLARIFY_TEXTS, REDIRECT_TEXTS, ackFor } from "./content";
 import { detectDistress, type StopReason } from "./emergency";
 import type { TrainingMode } from "./mode";
 import {
@@ -8,8 +8,10 @@ import {
   MAX_SECOND_HALF_ANSWERS,
   firstHalfQuestions,
   isAcceptableAnswer,
+  planGoals,
   secondHalfQuestions,
   selectEvent,
+  type GoalPlan,
 } from "./rules";
 import type { TurnRequest, TurnResponse } from "./turnContract";
 import type {
@@ -24,6 +26,10 @@ import type {
   TimingId,
 } from "./types";
 
+/**
+ * 訓練の段階。first・second の index は、その半分で何問目の質問を出しているか（0 から）。
+ * どの質問かは prompt.questionId で決まる（Issue #200 で、Claude が次のゴールを選ぶようになり、順番が固定でなくなった）
+ */
 export type Stage =
   | { name: "intro" }
   | { name: "first"; index: number }
@@ -65,6 +71,8 @@ export interface TrainingState {
   sourceGuess: SourceId | null;
   /** 前半・後半の最後の回答への受け止め。③確認と振り返りの冒頭に出す（ADR-0029 の2） */
   closingAck: string | null;
+  /** 振り返りの冒頭に添える Claude の一言（Issue #200）。検査と監査役を通ったものだけ。無ければ null */
+  closingRemark: string | null;
   /** 固定の進行に切り替えたときの入力の件数。その回答の後に1回だけ知らせを出す（ADR-0029 の4） */
   failedAfter: number | null;
 }
@@ -94,21 +102,27 @@ export const initialState: TrainingState = {
   judgments: null,
   sourceGuess: null,
   closingAck: null,
+  closingRemark: null,
   failedAfter: null,
 };
 
-/** 今の段階で出している固定の質問。質問を出していない段階では null */
+const QUESTION_BY_ID: ReadonlyMap<string, Question> = new Map(ALL_QUESTIONS.map((q) => [q.id, q]));
+
+/**
+ * 今の段階で出している固定の質問。質問を出していない段階では null。
+ * ふだんは今の発言（prompt）の質問IDから決める。発言が無いとき（試験で段階だけを作ったとき）は、固定の順番の index 番目
+ */
 export function currentQuestion(state: TrainingState): Question | null {
   const { stage } = state;
+  if ((stage.name === "first" || stage.name === "second") && state.prompt !== null) {
+    const q = QUESTION_BY_ID.get(state.prompt.questionId);
+    if (q !== undefined) return q;
+  }
   if (stage.name === "first") return firstHalfQuestions()[stage.index] ?? null;
   if (stage.name === "second" && state.event !== null) {
     return secondHalfQuestions(state.event)[stage.index] ?? null;
   }
   return null;
-}
-
-function questionsOf(half: Half, event: EventId | null): readonly Question[] {
-  return half === "first" ? firstHalfQuestions() : secondHalfQuestions(event ?? "handover");
 }
 
 function maxAnswersOf(half: Half): number {
@@ -124,26 +138,35 @@ function askPrompt(question: Question, text: string | null): Prompt {
   return { questionId: question.id, text: text ?? question.text, type: "ask" };
 }
 
+/** その半分の、次に聞いてよいゴール（rules.ts の planGoals。Workers と同じ関数。Issue #200） */
+function planOf(state: TrainingState, half: Half): GoalPlan {
+  const asked = state.answers.filter((a) => a.half === half && a.kind === "answer").map((a) => a.questionId);
+  return planGoals(asked, half, state.event);
+}
+
 /**
- * 回答の後に、次の固定の質問へ進む。半分の上限に達したか、固定の質問が尽きたら、
- * 前半は③確認、後半は振り返りへ進む（ADR-0019）。
+ * 回答の後に、次の質問へ進む。target は Claude が選び、確かめたゴール（質問ID）。省くと固定の順番の次の質問（fallback）。
+ * 次の質問が無ければ（半分の上限、必ず聞くゴールを聞き終えた）、前半は③確認、後半は振り返りへ進む（ADR-0019）。
  * text は Claude の文（次の質問の言い回し、または半分の最後の受け止め）。無ければ、
- * 固定の受け止めの一言と固定の質問文を使う（ADR-0029 の2・3）
+ * 固定の受け止めの一言と固定の質問文を使う（ADR-0029 の2・3）。remark は後半を終えるときの Claude の一言
  */
-function advance(state: TrainingState, text: string | null): TrainingState {
+function advance(
+  state: TrainingState,
+  text: string | null,
+  target: string | null = null,
+  remark: string | null = null,
+): TrainingState {
   const { stage } = state;
   if (stage.name !== "first" && stage.name !== "second") return state;
   const half = stage.name;
-  const questions = questionsOf(half, state.event);
-  const nextIndex = stage.index + 1;
-  const continues =
-    countedAnswers(state.answers, half) < maxAnswersOf(half) && nextIndex < questions.length;
-  if (continues) {
+  const nextId = target ?? planOf(state, half).fallback;
+  const question = nextId === null ? undefined : QUESTION_BY_ID.get(nextId);
+  if (question !== undefined) {
     return {
       ...state,
-      stage: { name: half, index: nextIndex },
+      stage: { name: half, index: stage.index + 1 },
       // 固定の受け止めは回答の数で替え、同じ言い方を続けない
-      prompt: askPrompt(questions[nextIndex], text ?? ackFor(state.answers.length) + questions[nextIndex].text),
+      prompt: askPrompt(question, text ?? ackFor(state.answers.length) + question.text),
     };
   }
   return {
@@ -151,19 +174,15 @@ function advance(state: TrainingState, text: string | null): TrainingState {
     stage: half === "first" ? { name: "confirm" } : { name: "review" },
     prompt: null,
     closingAck: text ?? ACK_TEXT,
+    closingRemark: half === "second" ? remark : null,
   };
 }
 
-/** 次の固定の質問のID。この回答で半分が終わるなら null */
+/** 固定の順番での次の質問のID。この回答で半分が終わるなら null */
 function nextQuestionId(state: TrainingState): string | null {
   const { stage } = state;
   if (stage.name !== "first" && stage.name !== "second") return null;
-  const questions = questionsOf(stage.name, state.event);
-  const nextIndex = stage.index + 1;
-  const continues =
-    countedAnswers(state.answers, stage.name) < maxAnswersOf(stage.name) &&
-    nextIndex < questions.length;
-  return continues ? questions[nextIndex].id : null;
+  return planOf(state, stage.name).fallback;
 }
 
 function alreadyRedirected(answers: readonly Answer[], questionId: string): boolean {
@@ -232,14 +251,22 @@ function applyTurn(state: TrainingState, result: TurnResponse): TrainingState {
       },
     };
   }
-  // 質問を進める。Claude の文は、次の固定の質問の言い回しか、半分の最後の受け止めのときだけ使う
-  const nextId = nextQuestionId(state);
-  const useText =
-    (type === "ask" && nextId !== null && question_id === nextId) ||
-    (type === "finish" && nextId === null)
-      ? text
-      : null;
-  return advance(judged, useText);
+  // 質問を進める。Claude が選んだゴールは、今選んでよいもの（planGoals の choices）のときだけ使う。
+  // 半分を終えるのは、必ず聞くゴールが残っていないときだけ。どちらでもなければ、固定の順番の次の質問へ（文は使わない）
+  const plan = planOf(state, stage.name);
+  if (type === "ask" && question_id !== null && plan.choices.includes(question_id)) {
+    return advance(judged, text, question_id);
+  }
+  if (type === "finish" && (plan.canFinish || plan.choices.length === 0)) {
+    return {
+      ...judged,
+      stage: stage.name === "first" ? { name: "confirm" } : { name: "review" },
+      prompt: null,
+      closingAck: text ?? ACK_TEXT,
+      closingRemark: stage.name === "second" ? result.remark : null,
+    };
+  }
+  return advance(judged, null);
 }
 
 export function trainingReducer(

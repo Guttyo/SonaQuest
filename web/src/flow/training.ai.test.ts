@@ -33,7 +33,7 @@ function reply(
   next: TurnResponse["next"],
   extra: Partial<Omit<TurnResponse, "next">> = {},
 ): TurnResponse {
-  return { emergency: "none", viewpoints: judged, next, recall: false, source_guess: null, ...extra };
+  return { emergency: "none", viewpoints: judged, next, recall: false, source_guess: null, remark: null, ...extra };
 }
 
 /** いまの状態に対する Claude の返事を渡す */

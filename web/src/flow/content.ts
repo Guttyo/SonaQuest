@@ -175,6 +175,18 @@ export const FIRST_HALF_QUESTIONS: readonly Question[] = [
   },
 ];
 
+/**
+ * 「ほかには？」の掘り下げ（Issue #200、ADR-0025 の B）。今の薬をすべて言えるよう、1問目の後に Claude が選んだときだけ出す。
+ * 固定の進行（Claude を使わない・失敗した）では出さない。Claude の言い回しが使えないときは、この固定文に戻す
+ */
+// [TODO-OWNER: 「ほかには？」の掘り下げの固定文と、同じ半分で掘り下げてよい回数（Claude Code の下書き：「ほかにも、使っている薬はありますか？」、2回まで。rules.ts の FOLLOWUP_LIMIT）]
+export const MEDICINES_FOLLOWUP_QUESTION: Question = {
+  id: "first_medicines_more",
+  viewpoint: "current",
+  answerAs: "fictional",
+  text: "ほかにも、使っている薬はありますか？",
+};
+
 /** 後半の最初の問い（立て直し）。必ず1回出す */
 export const RECOVERY_QUESTION: Question = {
   id: "second_recovery",
@@ -241,6 +253,7 @@ export const RECHECK_QUESTION: Question = {
 /** すべての固定の質問。/api/turn で受け付ける質問IDはこの中のものだけ */
 export const ALL_QUESTIONS: readonly Question[] = [
   ...FIRST_HALF_QUESTIONS,
+  MEDICINES_FOLLOWUP_QUESTION,
   RECOVERY_QUESTION,
   HANDOVER_QUESTION,
   RECENT_QUESTION,
@@ -261,6 +274,8 @@ export const CLARIFY_TEXTS: Record<string, string> = {
     "もう少し教えてください。その薬のことは、何を見れば確かめられますか？たとえば、お薬手帳、スマホのお薬手帳アプリ、薬の袋や説明書などです。",
   first_other:
     "もう少し教えてください。ほかでもらっている薬や市販の薬はありますか？たとえば、歯科でもらう薬や、ドラッグストアで買う薬などです。",
+  first_medicines_more:
+    "もう少し教えてください。いまお話しくださった薬のほかにも、使っている薬はありますか？",
   first_unrecorded:
     "もう少し教えてください。薬のアレルギーや、薬が合わなかったことはありますか？たとえば、最近やめた薬や、ときどきだけ飲む薬のように、お薬手帳に書かれていないことです。",
   second_recovery: "もう少し教えてください。ほかに、どうやって伝えられますか？",
@@ -283,6 +298,8 @@ export const REDIRECT_TEXTS: Record<string, string> = {
     "お話しくださってありがとうございます。いまは普段の薬のことを伺っています。その薬のことは、何を見れば確かめられますか？",
   first_other:
     "お話しくださってありがとうございます。いまは普段の薬のことを伺っています。ほかでもらっている薬や市販の薬はありますか？",
+  first_medicines_more:
+    "お話しくださってありがとうございます。いまは普段の薬のことを伺っています。ほかにも、使っている薬はありますか？",
   first_unrecorded:
     "お話しくださってありがとうございます。いまは普段の薬のことを伺っています。薬のアレルギーや、薬が合わなかったことはありますか？",
   second_recovery:
