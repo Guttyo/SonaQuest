@@ -120,6 +120,7 @@ function Preview() {
             action={screen.action}
             timing={screen.timing}
             judgments={sample.ai === "on" ? sample.judgments : null}
+            event={state.event}
             onRestart={() => setScreen({ name: "review" })}
           />
         )}

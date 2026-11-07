@@ -25,10 +25,10 @@ import {
   STRONG_POINTS_LABEL,
   TIMINGS,
   UNDETERMINED_NOTE,
-  VIEWPOINT_LABELS,
+  viewpointLabel,
   VIEWPOINT_ORDER,
-  VIEWPOINT_SHORT_LABELS,
-  WEAK_POINT_LINES,
+  viewpointShortLabel,
+  weakPointLine,
 } from "../flow/content";
 import {
   nextSteps,
@@ -133,7 +133,7 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
               <li key={s.viewpoint} className={i === 0 ? "next-step" : "next-step next-step-compact"}>
                 <div className="next-step-head">
                   <SourceIcon id={VIEWPOINT_ICON[s.viewpoint]} className="source-icon next-step-icon" />
-                  <span className="next-step-label">{VIEWPOINT_SHORT_LABELS[s.viewpoint]}</span>
+                  <span className="next-step-label">{viewpointShortLabel(s.viewpoint, state.event)}</span>
                   <span className="next-step-judgment">{JUDGMENT_LABELS[s.judgment]}</span>
                   {i === 0 && steps.length > 1 && (
                     <span className="next-step-tag">{NEXT_STEP_FIRST_TAG}</span>
@@ -141,7 +141,7 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
                 </div>
                 {i === 0 && (
                   <p className="next-step-why">
-                    {WEAK_POINT_LINES[s.viewpoint][s.judgment as "not_mentioned" | "aware_unconfirmed"]}
+                    {weakPointLine(s.viewpoint, s.judgment as "not_mentioned" | "aware_unconfirmed", state.event)}
                   </p>
                 )}
                 <div className="next-step-action">
@@ -172,7 +172,7 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
           {strong.map((v) => (
             <span key={v} className="strong-point">
               <span aria-hidden="true">✓ </span>
-              {VIEWPOINT_SHORT_LABELS[v]}
+              {viewpointShortLabel(v, state.event)}
             </span>
           ))}
         </p>
@@ -286,7 +286,7 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
         <dl className="viewpoints">
           {VIEWPOINT_ORDER.map((v) => (
             <div key={v} className="viewpoint">
-              <dt>{VIEWPOINT_LABELS[v]}</dt>
+              <dt>{viewpointLabel(v, state.event)}</dt>
               <dd>{JUDGMENT_LABELS[judgments[v]]}</dd>
             </div>
           ))}

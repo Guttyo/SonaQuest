@@ -130,8 +130,8 @@ describe("集計", () => {
     expect(unknownCounts(STOCK)).toEqual({ unconfirmed: 1, noPace: 1 });
   });
 
-  it("記録の形になっていない数は、未着と転記待ちの合計。通信なしの救護所の数", () => {
-    expect(pendingSummary(SYNC)).toEqual({ pending: 42 + 6 + 55, undelivered: 42 + 55, awaiting: 6, offlineSites: 2 });
+  it("記録の形になっていない数は、報告で分かった未着と転記待ちの合計。件数の報告が無い救護所は数に入れず、か所で数える（Issue #217）", () => {
+    expect(pendingSummary(SYNC)).toEqual({ pending: 42 + 6, undelivered: 42, awaiting: 6, offlineSites: 2, unknownSites: 1 });
   });
 
   it("入荷の件数は受領済みを除き、日付が未定のものを数える", () => {
@@ -149,7 +149,7 @@ describe("集計", () => {
   it("表のセル：救護所は日数、本部備蓄は有無、在庫 0 は「切れ」、null は「未確認」「算出不可」", () => {
     expect(heatCell(STOCK, "救護所A", "血糖降下薬B")).toMatchObject({ label: "2", level: "warn" });
     expect(heatCell(STOCK, HQ, "降圧薬A")).toMatchObject({ label: "有", level: "hq" });
-    expect(heatCell(STOCK, HQ, "抗てんかん薬C")).toMatchObject({ label: "切れ", level: "bad" });
+    expect(heatCell(STOCK, HQ, "抗てんかん薬C")).toMatchObject({ label: "在庫なし", level: "bad" });
     expect(heatCell(STOCK, "救護所D", "吸入薬D")).toMatchObject({ label: "未確認", level: "none" });
     expect(heatCell(STOCK, "救護所A", "骨粗鬆症薬G（週1）")).toMatchObject({ label: "算出不可", level: "none" });
     expect(heatCell(STOCK, "救護所A", "無い薬")).toBeNull();

@@ -5,6 +5,7 @@ import {
   DETAILS_SUMMARY,
   EVENTS,
   FIRST_HALF_QUESTIONS,
+  HANDOVER_ALTERNATIVE,
   HANDOVER_QUESTION,
   INTERRUPTION_NOTE,
   JUDGMENT_LABELS,
@@ -33,6 +34,8 @@ import {
 import { nextSteps, orderPrepActions, verifiedSourcesFor } from "../flow/rules";
 import { initialState, type TrainingState } from "../flow/training";
 import type { Answer, Judgments, PrepActionId } from "../flow/types";
+import { reviewSpeech } from "../voice/speech";
+import { Done, doneMemoText } from "./Done";
 import { Review } from "./Review";
 
 /** 試験は DOM の無い環境で動くので、文字列に描いて確かめる。回答はすべて架空の試験用の文 */
@@ -226,12 +229,13 @@ describe("まだ弱いところと、次の一手（ADR-0054）", () => {
     expect(section).not.toContain("試験の回答");
     for (const v of VIEWPOINT_ORDER) {
       for (const line of Object.values(WEAK_POINT_LINES[v])) {
-        expect(line.length).toBeLessThanOrEqual(40);
+        // 40字は Claude Code の下書きの目安。2026-11-07 のオーナーの文（Issue #163）に合わせて50字にした
+        expect(line.length).toBeLessThanOrEqual(50);
         expect(line).not.toMatch(/mg|錠|カプセル/);
       }
-      expect(VIEWPOINT_SHORT_LABELS[v].length).toBeLessThanOrEqual(12);
+      expect(VIEWPOINT_SHORT_LABELS[v].length).toBeLessThanOrEqual(14);
     }
-    for (const a of PREP_ACTIONS) expect(PREP_ACTION_EFFECTS[a.id].length).toBeLessThanOrEqual(40);
+    for (const a of PREP_ACTIONS) expect(PREP_ACTION_EFFECTS[a.id].length).toBeLessThanOrEqual(50);
   });
 
   it("全部「確認できた」の回：弱いところの一覧を出さず、固定の一言と判定の意味を出し、準備は選ばせる", () => {
@@ -339,11 +343,16 @@ describe("⑥振り返りの公的資料（A-06）", () => {
     expect(sourcesFor("tell_family")).toEqual([]);
   });
 
-  it("今の資料の一覧では、オーナーが確認済みにした3件だけを、対応する準備行動に出す", () => {
+  it("今の資料の一覧では、マイナポータルの FAQ 2件だけを出す（S1・S2 は確認するまで出さない）", () => {
     const urls = (id: PrepActionId) => verifiedSourcesFor(id).map((s) => s.url);
-    expect(urls("notebook_bag")).toEqual([PUBLIC_SOURCES.gov_online_prep.url]);
-    expect(urls("photo_and_paper")).toEqual([PUBLIC_SOURCES.fdma_ecollege_pack.url]);
-    expect(urls("check_portal")).toEqual([PUBLIC_SOURCES.myna_faq_medicine.url]);
+    // 2026-11-07 オーナーの答え「確認するまで出さない」
+    expect(urls("notebook_bag")).toEqual([]);
+    expect(urls("photo_and_paper")).toEqual([]);
+    // S6：No.6598 を足した（2026-11-07 オーナー、チャット）
+    expect(urls("check_portal")).toEqual([
+      PUBLIC_SOURCES.myna_faq_medicine.url,
+      PUBLIC_SOURCES.myna_faq_medicine_kinds.url,
+    ]);
     for (const id of ["wallet_memo", "tell_family", "pharmacy_contact"] as const) expect(urls(id)).toEqual([]);
     const html = render(battery);
     expect(html).toContain(REVIEW_SOURCES_HEADING);
@@ -381,5 +390,29 @@ describe("⑥振り返りの公的資料（A-06）", () => {
     const html = renderWith(battery);
     const cards = between(html, H.prep, heading);
     expect(cards).not.toContain("<a ");
+  });
+});
+
+describe("係の交代の回の「代わりの手段」（ADR-0064。2026-11-07 オーナー：「係の交代では、振り返りも「交代した相手への伝え直し」に合わせてください」）", () => {
+  it("交代の回は、観点の名前と一言を「交代した相手への伝え直し」にし、いつもの方法の代わりの手段の名前を出さない", () => {
+    const onlyAlternative = state({ ...handover, judgments: { ...allConfirmed, alternative: "aware_unconfirmed" } });
+    const html = render(onlyAlternative);
+    expect(html).toContain(HANDOVER_ALTERNATIVE.shortLabel);
+    expect(html).toContain(HANDOVER_ALTERNATIVE.label);
+    expect(html).toContain(HANDOVER_ALTERNATIVE.weak.aware_unconfirmed);
+    expect(html).not.toContain(VIEWPOINT_LABELS.alternative);
+    expect(html).not.toContain(WEAK_POINT_LINES.alternative.aware_unconfirmed);
+    const done = renderToStaticMarkup(
+      <Done action="notebook_bag" timing="today" judgments={mixed} event="handover" onRestart={() => {}} />,
+    );
+    expect(done).toContain(HANDOVER_ALTERNATIVE.shortLabel);
+    expect(doneMemoText("notebook_bag", "today", mixed, "handover")).toContain(HANDOVER_ALTERNATIVE.shortLabel);
+    expect(reviewSpeech(handover)).toContain(HANDOVER_ALTERNATIVE.shortLabel);
+  });
+
+  it("交代でない回は、今までの名前のまま", () => {
+    const html = render(battery);
+    expect(html).toContain(VIEWPOINT_LABELS.alternative);
+    expect(html).not.toContain(HANDOVER_ALTERNATIVE.shortLabel);
   });
 });

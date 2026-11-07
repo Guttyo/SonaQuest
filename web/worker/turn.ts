@@ -31,6 +31,7 @@ import type { Audit, AuditCategory, AuditResult } from "./audit";
 import { promptTextProblem, remarkTextProblem, type RejectReason } from "./checks";
 import type { CallClaude, ClaudeFailure, Usage } from "./claude";
 import { REMARK_PHRASES, SYSTEM_PROMPT, buildUserMessage } from "./prompt";
+import { remarkLabels, remarkPairingProblem } from "./remarkPairing";
 
 export interface ClaudeOutput {
   emergency: TurnResponse["emergency"];
@@ -115,6 +116,8 @@ export const REMARK_VOCABULARY: readonly string[] = [
   ...Object.values(VIEWPOINT_LABELS),
   ...Object.values(VIEWPOINT_SHORT_LABELS),
   ...Object.values(JUDGMENT_LABELS),
+  // 係の交代のときの「代わりの手段」の名前（ADR-0064）
+  ...remarkLabels("handover").map((l) => l.label),
 ];
 
 /** 監査役に、振り返りの一言の役目として渡す固定の文（利用者の回答は含まない。ADR-0030 の2） */
@@ -228,12 +231,15 @@ export function checkRemark(
   request: TurnRequest,
   next: TurnResponse["next"],
   remark: string | null,
+  viewpoints: ClaudeOutput["viewpoints"] | null = null,
 ): { remark: string | null; rejected: RejectReason | null } {
   const half = request.inputs[request.inputs.length - 1].half;
   if (remark === null || next.type !== "finish" || half !== "second") return { remark: null, rejected: null };
   // 案B（2026-11-07 オーナー「B を作る」）：一言用の検査。利用者が挙げた情報源・手段・人（続柄）の言葉に触れてよいので、
   // 繰り返しの照合は外し、固定の文（情報源の分類・質問文・出来事）の言葉も許す。監査役は必ず通す（runTurn）
-  const rejected = remarkTextProblem(remark, [...REMARK_VOCABULARY, ...REMARK_PHRASES, ...ALLOWED_VOCABULARY]);
+  let rejected = remarkTextProblem(remark, [...REMARK_VOCABULARY, ...REMARK_PHRASES, ...ALLOWED_VOCABULARY]);
+  // 観点ごとに使う言い回しを限る（ADR-0064）。判定が無いとき（試験の古い呼び方）は、つなぎ方の判定ができないので捨てる
+  if (rejected === null && (viewpoints === null || remarkPairingProblem(remark, viewpoints, request.event))) rejected = "pairing";
   return { remark: rejected === null ? remark : null, rejected };
 }
 
@@ -318,7 +324,7 @@ export async function runTurn(
   let next = chosen.next;
   let rejectReason: TextRejectReason | null = chosen.rejected;
   let report: AuditReport | null = null;
-  const remarkChecked = checkRemark(request, next, output.closing_remark);
+  const remarkChecked = checkRemark(request, next, output.closing_remark, output.viewpoints);
   let remark = remarkChecked.remark;
   let remarkRejectReason: TextRejectReason | null = remarkChecked.rejected;
   let remarkReport: AuditReport | null = null;

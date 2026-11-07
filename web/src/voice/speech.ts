@@ -19,8 +19,8 @@ import {
   RECALL_NOW,
   UNDETERMINED_NOTE,
   VIEWPOINT_ORDER,
-  VIEWPOINT_SHORT_LABELS,
-  WEAK_POINT_LINES,
+  viewpointShortLabel,
+  weakPointLine,
 } from "../flow/content";
 import { EVENT_PREP_PRIORITY, nextSteps, undeterminedJudgments } from "../flow/rules";
 import { currentQuestion, type TrainingState } from "../flow/training";
@@ -68,11 +68,11 @@ function reviewSpeechBody(state: TrainingState, withFirstStep: boolean): string 
   const steps = nextSteps(judgments);
   if (steps.length === 0) return ack + NO_WEAK_POINTS_NOTE;
   const names = steps
-    .map((s) => `${VIEWPOINT_SHORT_LABELS[s.viewpoint]}は${JUDGMENT_LABELS[s.judgment]}。`)
+    .map((s) => `${viewpointShortLabel(s.viewpoint, state.event)}は${JUDGMENT_LABELS[s.judgment]}。`)
     .join("");
   if (!withFirstStep) return `${ack}${NEXT_STEPS_HEADING}。${names}`;
   const first = steps[0];
-  const line = WEAK_POINT_LINES[first.viewpoint][first.judgment as "not_mentioned" | "aware_unconfirmed"];
+  const line = weakPointLine(first.viewpoint, first.judgment as "not_mentioned" | "aware_unconfirmed", state.event);
   const action = PREP_ACTIONS.find((a) => a.id === first.action)!.label;
   return `${ack}${NEXT_STEPS_HEADING}。${names}${line}${NEXT_STEP_LABEL}は、${action}。`;
 }

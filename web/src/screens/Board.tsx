@@ -175,6 +175,8 @@ function StatusText({ c }: { c: CaseRow }) {
 
 /** 一覧の状態の札では「見込み算出不可」を「算出不可」と短く出す。理由（1日あたりの出庫量が分からない）は「次の確認」と行の中で示す（Issue #160） */
 function stockStatusLabel(status: string): string {
+  if (status === "在庫切れ") return BOARD_OVERVIEW.outOfStock;
+  if (status === "在庫切れ見込み") return BOARD_OVERVIEW.forecast;
   return status === "見込み算出不可" ? BOARD_OVERVIEW.noPace : status;
 }
 
@@ -1145,7 +1147,7 @@ function SiteDetail({
               <div>
                 <dt>{BOARD_OVERVIEW.pending}</dt>
                 <dd>
-                  {fmt.format(sync.pending)} 件（{sync.pendingKind}）
+                  {sync.pending === null ? BOARD_TILES.pendingUnknown : `${fmt.format(sync.pending)} 件`}（{sync.pendingKind}）
                 </dd>
               </div>
             </dl>
@@ -1399,7 +1401,8 @@ export function Board({
     if (o.outOfStock > 0) m.push({ text: `${BOARD_LAYOUT.marks.outOfStock} ${fmt.format(o.outOfStock)}`, level: "bad" });
     if (charts.some((c) => c.site === site && c.undelivered > 0)) m.push({ text: BOARD_LAYOUT.marks.undelivered, level: "bad" });
     // 記録の未着・転記待ちは「やらないと物事が進まないもの」として黄（2026-11-06 オーナー決定、計画書 2.2・9章）
-    if (o.pending !== null && o.pending > 0) m.push({ text: BOARD_LAYOUT.marks.pending(o.pending), level: "warn" });
+    if (o.pending === null && state.sync.some((r) => r.site === o.site && r.pending === null)) m.push({ text: BOARD_LAYOUT.marks.pendingUnknown, level: "warn" });
+    else if (o.pending !== null && o.pending > 0) m.push({ text: BOARD_LAYOUT.marks.pending(o.pending), level: "warn" });
     if (o.pharmacistsShort > 0) m.push({ text: BOARD_LAYOUT.marks.pharmacistsShort(o.pharmacistsShort), level: "none" });
     const max = BOARD_LAYOUT.marks.max;
     return m.length <= max ? m : [...m.slice(0, max), { text: BOARD_LAYOUT.marks.more(m.length - max), level: "none" as const }];
@@ -1660,13 +1663,13 @@ export function Board({
                       </span>
                       <span className="board-tile-sub">{BOARD_TILES.proposalsSub(state.proposals.length - pendingProposals.length)}</span>
                     </div>
-                    <div className={`board-tile ${pending.pending > 0 ? "check" : "zero"}`}>
+                    <div className={`board-tile ${pending.pending > 0 || pending.unknownSites > 0 ? "check" : "zero"}`}>
                       <TileLabel full={BOARD_TILES.pending} short={BOARD_TILE_SHORT.pending} />
                       <span className="board-tile-big">
                         <span data-testid="pending-count">{fmt.format(pending.pending)}</span>
                         <span className="board-tile-of"> {BOARD_TILES.pendingUnit}</span>
                       </span>
-                      <span className="board-tile-sub">{BOARD_TILES.pendingSub(pending.undelivered, pending.awaiting)}</span>
+                      <span className="board-tile-sub">{BOARD_TILES.pendingSub(pending.undelivered, pending.awaiting, pending.unknownSites)}</span>
                     </div>
                     <div className={`board-tile${staleSites.length > 0 ? " stale check" : " zero"}`}>
                       <TileLabel full={BOARD_TILES.stale(BOARD_CHANGES.staleHours)} short={BOARD_TILE_SHORT.stale} />
@@ -1747,9 +1750,9 @@ export function Board({
                           <th className="num">{BOARD_OVERVIEW.patients}</th>
                           <th className="num">避難者数</th>
                           <th className="num">在庫でまかなえる日数</th>
-                          <th>在庫切れ・在庫切れ見込みの薬</th>
-                          <th>記録の届き方</th>
-                          <th className="num">記録の未着・転記待ち（件）</th>
+                          <th>在庫なし・在庫なしの見込みの薬</th>
+                          <th>記録の到着・入力状況</th>
+                          <th className="num">本部未反映の記録（件）</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1763,7 +1766,7 @@ export function Board({
                             </td>
                             <td>{r.critical.length === 0 ? "なし" : r.critical.join("、")}</td>
                             <td>{r.mode}</td>
-                            <td className="num">{r.pending === null ? "—" : r.pending > 0 ? <Pill level="warn">{fmt.format(r.pending)}</Pill> : fmt.format(r.pending)}</td>
+                            <td className="num">{r.pending === null ? <Pill level="warn">{BOARD_TILES.pendingUnknown}</Pill> : r.pending > 0 ? <Pill level="warn">{fmt.format(r.pending)}</Pill> : fmt.format(r.pending)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -2053,7 +2056,7 @@ export function Board({
                               <Pill level={r.mode === "オンライン" ? "ok" : r.mode === "紙で記録・通信なし" ? "bad" : "warn"}>{r.mode}</Pill>
                             </td>
                             <td>{mdhm(r.lastSync)}</td>
-                            <td className="num">{fmt.format(r.pending)}</td>
+                            <td className="num">{r.pending === null ? BOARD_TILES.pendingUnknown : fmt.format(r.pending)}</td>
                             <td>{r.pendingKind}</td>
                             <td>{r.note}</td>
                           </tr>

@@ -51,7 +51,8 @@ describe("振り返りの読み上げ（3D。ADR-0054）：固定文だけで、
     expect(text).not.toContain(WEAK_POINT_LINES.alternative.aware_unconfirmed);
     expect(text).toContain(PREP_ACTIONS.find((a) => a.id === "tell_family")!.label);
     expect(text).not.toContain("試験の回答");
-    expect(text.length).toBeLessThan(200);
+    // 2026-11-07 のオーナーの文（Issue #163）で見出し・一言・準備行動が長くなったので、目安を200字から240字にした
+    expect(text.length).toBeLessThan(240);
   });
 
   it("全部「確認できた」はその一言、判定が無い回は知らせだけ、振り返り以外は null", () => {
@@ -70,9 +71,9 @@ describe("出来事に合わせた準備行動の読み上げ（2026-11-07）", 
     const spoken = reviewSpeech(state)!;
     const prep = eventPrepSpeech(state);
     expect(prep.startsWith(EVENT_PREP_INTRO)).toBe(true);
-    expect(prep).toContain("1つ目、飲んでいる薬のメモを財布に入れる。");
-    expect(prep).toContain("2つ目、お薬手帳のページや薬の説明書をスマホで撮り、紙にも控える。");
-    expect(prep).toContain("3つ目、家族に、自分の薬の情報がどこにあるかを伝えておく。");
+    expect(prep).toContain("1つ目、今使っている薬の名前・量と、メモを更新した日を書いて財布に入れる。");
+    expect(prep).toContain("2つ目、最新のお薬手帳や薬の説明書をスマホで撮り、紙の写しも用意する。薬が変わったら更新する。");
+    expect(prep).toContain("3つ目、家族など頼れる人に、お薬の記録の場所と確認方法を伝えておく。");
     expect(spoken.endsWith(prep + PREP_SPEECH + CLOSING_SPEECH)).toBe(true);
   });
 

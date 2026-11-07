@@ -81,7 +81,8 @@ describe("答える範囲（ADR-0022 案B）", () => {
   });
 
   it("利用開始の文面は、架空にするのが薬の中身であることを示す（案Bと食い違わない）", () => {
-    expect(INTRO_LEAD).toContain("薬の中身は架空");
+    // 2026-11-07 オーナーの文（E1）：薬の名前・量・病名は架空で答える
+    expect(INTRO_LEAD).toContain("薬の名前・量・病名などは、実際の情報ではなく架空の内容で答えてください");
     expect(PROTOTYPE_LEAD).toContain("薬の中身は架空");
   });
 
@@ -90,7 +91,8 @@ describe("答える範囲（ADR-0022 案B）", () => {
     (q) => {
       expect(q.text).not.toContain("どうやって連絡がとれますか");
       expect(q.text).not.toContain("電話番号");
-      expect(q.text).toContain("続柄");
+      // 2026-11-07 オーナーの文：人は名前ではなく「関係」で聞く（もとは「続柄」）。相談先も聞く Q11 は、個人名や施設名を出さずに聞く
+      expect(q.text).toMatch(q.id === "second_proxy_other" ? /個人名や施設名は出さずに教えてください/ : /関係で教えてください/);
       expect(CONTACT_CHOICE_QUESTIONS.has(q.id)).toBe(true);
       // 連絡先そのものを書かせない案内は、回答欄に出る
       expect(ANSWER_HINTS[q.answerAs]).toContain("電話番号");
@@ -160,16 +162,15 @@ describe("思い出せないときの案内（ADR-0022）", () => {
   it("実際のお薬手帳や薬の袋を今ここで確認するよう促す", () => {
     expect(text).toContain("お薬手帳");
     expect(text).toContain("薬の袋");
-    expect(text).toContain("今ここで");
+    expect(text).toContain("今確認してもかまいません");
   });
 
   it("確認した内容の入力は求めない", () => {
-    expect(text).toContain("書く必要はありません");
+    expect(text).toContain("入力する必要はありません");
   });
 
-  it("定期的に訓練をして復習することを勧める", () => {
-    expect(text).toContain("定期的に");
-    expect(text).toContain("復習");
+  it("準備をしたら、もう一度訓練して確かめることを勧める（2026-11-07 オーナーの文）", () => {
+    expect(text).toContain("もう一度試してみましょう");
   });
 
   it("候補を示したり、言い当てようとしたりしない", () => {

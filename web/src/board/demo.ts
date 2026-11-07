@@ -553,13 +553,14 @@ function tick(state: DemoState, hours: number): DemoState {
       if (x !== null && (hit === null || x > hit)) hit = x;
     }
     if (hit === null) return r;
-    if (r.pending > 0) log.push({ at: hit, text: `${r.site}：記録 ${r.pending} 件が本部に届いた（${r.note}）` });
+    if (r.pending === null) log.push({ at: hit, text: `${r.site}：記録が本部に届いた（件数は報告が無かった。${r.note}）` });
+    else if (r.pending > 0) log.push({ at: hit, text: `${r.site}：記録 ${r.pending} 件が本部に届いた（${r.note}）` });
     return { ...r, lastSync: stampText(hit), pending: 0, pendingKind: "なし" as const };
   });
   for (const r of stock) {
     const before = state.stock.find((s) => s.site === r.site && s.item === r.item);
     if (before && before.onHand !== null && before.onHand > 0 && r.onHand === 0) {
-      log.push({ at: to, text: `${r.site}：${r.item} が在庫切れ`, kind: "在庫切れ", site: r.site });
+      log.push({ at: to, text: `${r.site}：${r.item} が在庫なし`, kind: "在庫切れ", site: r.site });
     }
   }
   return { ...state, minutes: to, stock, inbound, sync, log: [...log.sort((a, b) => b.at - a.at), ...state.log] };
@@ -618,9 +619,11 @@ function admit(
     }
   }
   const extra = state.extraPatients[a.site] ?? { patients: 0, chronic: 0 };
+  // 本部が数を知るのは報告で分かった分だけ（2026-11-07 オーナーの指摘、Issue #217）。通信なしの救護所で入力しても、
+  // 本部には届かないので数を増やさない（紙が届くか、報告があるまで分からない）。件数が未確認の行も未確認のまま
   const sync = state.sync.map((r) =>
-    r.site === a.site && r.mode !== "オンライン"
-      ? { ...r, pending: r.pending + 1, pendingKind: r.mode === "紙で記録・通信なし" ? ("未着" as const) : ("転記待ち" as const) }
+    r.site === a.site && r.mode !== "オンライン" && r.mode !== "紙で記録・通信なし" && r.pending !== null
+      ? { ...r, pending: r.pending + 1, pendingKind: "転記待ち" as const }
       : r,
   );
   const first = rxs[0];

@@ -141,7 +141,7 @@ describe("認識した文にも、送る前に緊急の照合がかかる（docs
     const state: TrainingState = { ...initialState, stage: { name: "event" }, event: "notebook_home" };
     expect(listenerSpeech(state)).toBe(EVENT_SPEECH.notebook_home);
     expect(listenerSpeech(state)).not.toContain("使えなくなったもの");
-    expect(EVENT_SPEECH.notebook_home).toContain("急いで避難したあまり");
+    expect(EVENT_SPEECH.notebook_home).toContain("安全のため、自宅には戻れない");
   });
 
   it("3D では、確かめの問いをそれだけ読み上げ、読み上げの切り替えの鍵も変わる（ADR-0011 の追記）", () => {

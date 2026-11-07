@@ -49,7 +49,7 @@ describe("時計を進める", () => {
     expect(find(s, HQ, "降圧薬A").onHand).toBe(3000);
     expect(find(s, "救護所D", "吸入薬D").onHand).toBeNull();
     expect(find(s, "救護所A", "骨粗鬆症薬G（週1）").onHand).toBe(12);
-    expect(s.log.some((l) => l.text.includes("救護所B：抗てんかん薬C が在庫切れ"))).toBe(true);
+    expect(s.log.some((l) => l.text.includes("救護所B：抗てんかん薬C が在庫なし"))).toBe(true);
     expect(stockStatus(find(s, "救護所B", "抗てんかん薬C"))).toBe("在庫切れ");
   });
 
@@ -97,14 +97,14 @@ describe("架空の問診を加える", () => {
     prescription: { item: "抗てんかん薬C", qty: 14, days: 7 },
   };
 
-  it("記録に架空の氏名と番号で加わり、文は入れたまま。今日の患者が1人増え、通信なしの救護所では未着の記録が1件増える", () => {
+  it("記録に架空の氏名と番号で加わり、文は入れたまま。今日の患者が1人増え、通信なしの救護所では本部が知らないので未着の数は増えない（Issue #217）", () => {
     const s = demoReducer(initialDemo(), add);
     expect(s.records).toHaveLength(1);
     expect(s.records[0]).toMatchObject({ id: "B-D01", site: "救護所B", name: "架空 太郎", at: 0 });
     expect(s.records[0].items[0].value).toBe("てんかんの薬を朝晩1錠ずつ");
     const today = patientsWithExtra(s).find((r) => r.date === "2026-11-05" && r.site === "救護所B");
     expect(today).toMatchObject({ patients: 41, chronic: 26 });
-    expect(s.sync.find((r) => r.site === "救護所B")).toMatchObject({ pending: 43, pendingKind: "未着" });
+    expect(s.sync.find((r) => r.site === "救護所B")).toMatchObject({ pending: 42, pendingKind: "未着" });
     expect(demoReducer(s, { ...add, name: "架空 花子" }).records[0].id).toBe("B-D02");
   });
 
