@@ -2,8 +2,8 @@
 // 素材（地図・写真・録画・ナレーション）は video/public/ に置く（Git の対象外）。
 // 置かれていない素材は描かず・鳴らさず、仮の画面（番号・時間・見出し語）のまま書き出せるようにする。
 import type { CSSProperties, FC, ReactNode } from "react";
-import { AbsoluteFill, Audio, Img, OffthreadVideo, Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
-import { ENDCARD_FRAMES, PUBLIC_URL_PLACEHOLDER, SECTIONS, SECTION_COUNT, type Section } from "./sections";
+import { AbsoluteFill, Audio, Easing, Img, OffthreadVideo, Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
+import { ENDCARD_FRAMES, FPS, PUBLIC_URL_PLACEHOLDER, SECTIONS, SECTION_COUNT, type Section, type Zoom } from "./sections";
 import { CLOSING_LINE } from "./slideText";
 import {
   ModelMapSlide,
@@ -13,7 +13,7 @@ import {
   QuakeCountOverlay,
   QuestionSlide,
 } from "./slides";
-import { COLORS, baseText, hasStaticFile } from "./theme";
+import { COLORS, MONO, baseText, hasStaticFile } from "./theme";
 
 /** スマホ幅の録画（390×844）を入れる枠。横長の画面の高さに収まるよう少し大きくする */
 const PHONE_SCALE = 1.06;
@@ -75,6 +75,7 @@ const WideFootage: FC<{ section: Section; label: string }> = ({ section, label }
           src={staticFile(section.footageFile)}
           muted={!section.footageAudio}
           volume={footageVolume(section)}
+          trimBefore={section.footageStartFrame}
           style={{ width: "100%", height: "100%", objectFit: "cover" }}
         />
       </AbsoluteFill>
@@ -90,6 +91,7 @@ const PhoneScreen: FC<{ section: Section }> = ({ section }) =>
       src={staticFile(section.footageFile)}
       muted={!section.footageAudio}
       volume={footageVolume(section)}
+      trimBefore={section.footageStartFrame}
       style={{ width: "100%", height: "100%", objectFit: "cover" }}
     />
   ) : (
@@ -217,11 +219,77 @@ const Caption: FC<{ section: Section; align: "left" | "right"; onDark: boolean }
         textShadow: onDark ? "0 2px 12px rgba(0,0,0,0.8)" : "0 2px 12px rgba(246,244,239,0.9)",
       }}
     >
-      <div style={{ fontSize: 30, opacity: 0.8 }}>
-        {section.number} ／ {SECTION_COUNT}　{section.timeLabel}
+      <div style={{ fontSize: 28, opacity: 0.8, fontFamily: MONO }}>
+        {section.number} / {SECTION_COUNT}  {section.timeLabel}
       </div>
       <div style={{ fontSize: 76, fontWeight: 700, marginTop: 8 }}>{section.headline}</div>
     </div>
+  );
+};
+
+/** 寄りの強さ（0〜1）：寄り始めの 0.6 秒で寄り、戻りの 0.6 秒で戻る。寄った後は止まる（一呼吸おく） */
+const zoomAmount = (frame: number, zoom: Zoom) => {
+  const from = zoom.from * FPS;
+  const to = zoom.to * FPS;
+  const ramp = Math.min(0.6 * FPS, (to - from) / 2);
+  const ease = { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.inOut(Easing.cubic) } as const;
+  return Math.min(interpolate(frame, [from, from + ramp], [0, 1], ease), interpolate(frame, [to - ramp, to], [1, 0], ease));
+};
+
+/** 01 クローズアップ：場面の画面（録画と枠）を、決め所で中心に向けて拡大する */
+const ZoomLayer: FC<{ zooms: Zoom[]; children: ReactNode }> = ({ zooms, children }) => {
+  const frame = useCurrentFrame();
+  let scale = 1;
+  let x = 0.5;
+  let y = 0.5;
+  for (const zoom of zooms) {
+    const t = zoomAmount(frame, zoom);
+    if (t > 0) {
+      scale = 1 + (zoom.scale - 1) * t;
+      x = zoom.x;
+      y = zoom.y;
+    }
+  }
+  return (
+    <AbsoluteFill style={{ transform: `scale(${scale})`, transformOrigin: `${x * 100}% ${y * 100}%` }}>{children}</AbsoluteFill>
+  );
+};
+
+/** 05 ログの早回し：「早送り」などの札 */
+const BadgeView: FC<{ section: Section }> = ({ section }) => {
+  const frame = useCurrentFrame();
+  return (
+    <>
+      {section.badges.map((badge) => {
+        const from = badge.from * FPS;
+        const to = badge.to * FPS;
+        const opacity = Math.min(
+          interpolate(frame, [from, from + 8], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }),
+          interpolate(frame, [to - 8, to], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }),
+        );
+        if (opacity <= 0) return null;
+        return (
+          <div
+            key={badge.text}
+            style={{
+              position: "absolute",
+              right: 96,
+              bottom: 96,
+              padding: "14px 28px",
+              borderRadius: 999,
+              backgroundColor: COLORS.ink,
+              color: COLORS.white,
+              fontFamily: MONO,
+              fontSize: 34,
+              fontWeight: 700,
+              opacity,
+            }}
+          >
+            {badge.text}
+          </div>
+        );
+      })}
+    </>
   );
 };
 
@@ -229,7 +297,8 @@ const Caption: FC<{ section: Section; align: "left" | "right"; onDark: boolean }
 const OverlayView: FC<{ section: Section }> = ({ section }) => {
   switch (section.overlay) {
     case "quakeCount":
-      return <QuakeCountOverlay />;
+      // 1分動画の地図の動画には題・「21回」・出典が入っているので、動画があるときは重ねない
+      return hasStaticFile(section.footageFile) ? null : <QuakeCountOverlay />;
     case "pipeline":
       return <PipelineOverlay />;
     case "patientTable":
@@ -253,6 +322,8 @@ const Beat: FC<{ section: Section }> = ({ section }) => {
       break;
     case "quakeMap":
       body = <WideFootage section={section} label="震源の地図の動画" />;
+      // 地図の動画に題があるので、見出し語は動画が無いときだけ出す
+      showCaption = !hasStaticFile(section.footageFile);
       break;
     case "photos":
       body = <PhotoSlides section={section} />;
@@ -272,8 +343,9 @@ const Beat: FC<{ section: Section }> = ({ section }) => {
   }
   return (
     <AbsoluteFill style={{ backgroundColor: COLORS.background }}>
-      {body}
+      <ZoomLayer zooms={section.zooms}>{body}</ZoomLayer>
       <OverlayView section={section} />
+      <BadgeView section={section} />
       {showCaption ? <Caption section={section} align={captionAlign} onDark={onDark} /> : null}
       <Narration section={section} />
       {section.number === SECTION_COUNT ? (

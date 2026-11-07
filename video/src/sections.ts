@@ -31,6 +31,15 @@ export type Voice = "ナレーター" | "ナレーター＋アプリの声";
  */
 export type Overlay = "quakeCount" | "pipeline" | "patientTable";
 
+/**
+ * 寄り（10のコツの 01 クローズアップ。提案 A）。場面の頭からの秒で、寄り始めから戻り終わりまでを持つ。
+ * x・y は寄る中心（画面の幅・高さに対する割合。0.5 が中央）。録画を撮った後に、決め所に合わせて直す。
+ */
+export type Zoom = { from: number; to: number; scale: number; x: number; y: number };
+
+/** 札（10のコツの 05 ログの早回し）。場面の頭からの秒 */
+export type Badge = { from: number; to: number; text: string };
+
 export type Section = {
   /** 場面の番号（1〜13） */
   number: number;
@@ -61,6 +70,15 @@ export type Section = {
   privateNarration: boolean;
   /** 横長・縦長の録画：video/public/ からの相対パス。置かれていなければ仮の画面のまま */
   footageFile: string | null;
+  /**
+   * 録画のどこから使うか（フレーム）。長い1本の録画（撮影の R1〜R4）から場面ごとに切り出すときに使う。
+   * 同じ録画を複数の場面で使い、開始位置だけ変えてよい。
+   */
+  footageStartFrame: number;
+  /** 寄り（01 クローズアップ）。無ければ寄らない */
+  zooms: Zoom[];
+  /** 画面に出す札（05 早回しの「早送り」など） */
+  badges: Badge[];
   /**
    * 写真の場面（photos）の写真：video/public/ からの相対パス。1つの要素が1カット（1枚か、横に並べる2枚）。
    * 拡張子を除いた中立の名前（photos/03-a など）で書く。jpg・png・webp のどれを置いてもよい（theme.ts の resolveImage）。
@@ -120,6 +138,9 @@ type Row = Omit<
   | "overlay"
   | "narrationDelayFrames"
   | "footageMutedRanges"
+  | "footageStartFrame"
+  | "zooms"
+  | "badges"
 > & {
   /** 場面の長さ（秒）。台本の表の時間の欄と同じ */
   seconds: number;
@@ -129,6 +150,10 @@ type Row = Omit<
   overlay?: Overlay;
   narrationDelayFrames?: number;
   footageMutedRanges?: Array<readonly [number, number]>;
+  /** 録画のどこから使うか（秒） */
+  footageStartSeconds?: number;
+  zooms?: Zoom[];
+  badges?: Badge[];
 };
 
 /**
@@ -212,6 +237,11 @@ const ROWS: Row[] = [
     overlay: "pipeline",
     narrationDelayFrames: SECTION5_NARRATION_FROM,
     footageMutedRanges: [[SECTION5_NARRATION_FROM, SECTION5_NARRATION_FROM + SECTION5_NARRATION_FRAMES]],
+    // 寄りの下書き：情報源を押す所と、電池切れの暗転〜立て直しの問いでスマホに寄る。録画に合わせて直す
+    zooms: [
+      { from: 6, to: 9, scale: 1.15, x: 0.25, y: 0.62 },
+      { from: 17, to: 26, scale: 1.18, x: 0.24, y: 0.5 },
+    ],
   },
   {
     seconds: 19,
@@ -220,6 +250,8 @@ const ROWS: Row[] = [
     screenNote: "S7 振り返りの「まだ弱いところ」→ S9 準備行動「飲んでいる薬のメモを財布に入れる」→「今週中」→ 終わりの画面",
     footageFile: "footage/06-phone.mp4",
     footageAudio: false,
+    // 寄りの下書き：振り返りの「まだ弱いところ」の札。録画に合わせて直す
+    zooms: [{ from: 0.5, to: 6, scale: 1.25, x: 0.24, y: 0.4 }],
   },
   {
     seconds: 13,
@@ -239,6 +271,8 @@ const ROWS: Row[] = [
     footageFile: "footage/08-board.mp4",
     footageAudio: false,
     overlay: "patientTable",
+    // 05 ログの早回し：自動で進める所（デモ時計の早送り）。録画に合わせて直す
+    badges: [{ from: 11, to: 17, text: "▶▶ デモの時間を早送り" }],
   },
   {
     seconds: 12,
@@ -309,6 +343,9 @@ export const SECTIONS: Section[] = ROWS.reduce<Section[]>((acc, row, i) => {
     overlay: row.overlay ?? null,
     narrationDelayFrames: row.narrationDelayFrames ?? 0,
     footageMutedRanges: row.footageMutedRanges ?? [],
+    footageStartFrame: Math.round((row.footageStartSeconds ?? 0) * FPS),
+    zooms: row.zooms ?? [],
+    badges: row.badges ?? [],
     // どの場面もナレーターの声。3・12番の原稿はリポジトリの外だが、合成した音声は同じ場所に置く
     narrationFile: `narration/${pad2(number)}.mp3`,
   });

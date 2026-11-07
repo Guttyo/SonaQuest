@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useState, type CSSProperties, type FC } from "react";
 import {
   AbsoluteFill,
+  Easing,
   Img,
   OffthreadVideo,
   Sequence,
@@ -28,7 +29,19 @@ import {
   type Section,
 } from "./sections";
 import { PIPELINE, QUAKE_COUNT, QUESTION_LINES } from "./slideText";
-import { COLORS, baseText, hasStaticFile, resolveImage } from "./theme";
+import { COLORS, MONO, baseText, hasStaticFile, resolveImage } from "./theme";
+
+/** 08 数値のカウントアップ：start から duration フレームで 0 → value に数える（はじめ速く、終わりはゆっくり） */
+const useCountUp = (value: number, start: number, duration: number) => {
+  const frame = useCurrentFrame();
+  return Math.round(
+    interpolate(frame, [start, start + duration], [0, value], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+      easing: Easing.out(Easing.cubic),
+    }),
+  );
+};
 
 /** 現れる動き（ばねで下から上がる）。動きを大きくしない */
 const useRise = (startFrame: number) => {
@@ -117,7 +130,8 @@ const QuakeCountPanel: FC = () => {
           opacity: interpolate(pop, [0, 0.2], [0, 1], { extrapolateRight: "clamp" }),
         }}
       >
-        {QUAKE_COUNT.value}
+        <span style={{ fontFamily: MONO }}>{useCountUp(QUAKE_COUNT.count, 0, Math.round(1.2 * fps))}</span>
+        {QUAKE_COUNT.unit}
       </div>
       <div style={{ fontSize: 22, color: COLORS.sub, marginTop: 8, ...rest }}>{QUAKE_COUNT.range}</div>
       <div style={{ fontSize: 22, color: COLORS.sub, ...rest }}>{QUAKE_COUNT.source}</div>
@@ -149,7 +163,7 @@ const PipelineDiagram: FC = () => {
       style={{
         ...baseText,
         position: "absolute",
-        left: 760,
+        left: 830,
         right: 64,
         top: 360,
         opacity: fadeOut,
@@ -252,6 +266,7 @@ export const PhotoSlides: FC<{ section: Section }> = ({ section }) => {
               <OffthreadVideo
                 src={staticFile(section.footageFile)}
                 muted
+                trimBefore={section.footageStartFrame}
                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
               />
             </AbsoluteFill>
@@ -281,7 +296,7 @@ const PhotoShot: FC<{ files: string[]; caption: string | null }> = ({ files, cap
             <div key={f} style={{ flex: 1, overflow: "hidden", borderRadius: present.length > 1 ? 16 : 0 }}>
               <Img
                 src={staticFile(f)}
-                style={{ width: "100%", height: "100%", objectFit: present.length > 1 ? "contain" : "cover", transform: `scale(${scale})` }}
+                style={{ width: "100%", height: "100%", objectFit: "contain", transform: `scale(${scale})` }}
               />
             </div>
           ))}
@@ -370,7 +385,9 @@ const PatientTablePlaceholder: FC = () => {
         }}
       >
         <div style={{ fontSize: 26, color: COLORS.white, backgroundColor: COLORS.ink, padding: "6px 18px", borderRadius: 8 }}>架空データ</div>
-        <div style={{ fontSize: 56, fontWeight: 700 }}>架空の患者 100 人の表</div>
+        <div style={{ fontSize: 56, fontWeight: 700 }}>
+          架空の患者 <span style={{ fontFamily: MONO, color: COLORS.accent }}>{useCountUp(100, 6, 45)}</span> 人の表
+        </div>
         <div style={{ fontSize: 26, color: COLORS.sub }}>名前・年齢・性別・使っているお薬（すべて架空）</div>
         <div style={{ fontSize: 22, color: COLORS.sub }}>差し込み枠：Issue #261 の部品を入れる（今は仮の画面）</div>
       </div>

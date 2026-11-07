@@ -6,6 +6,9 @@ import { getStaticFiles } from "remotion";
 export const FONT_FAMILY =
   '"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", "Noto Sans JP", system-ui, sans-serif';
 
+/** 等幅（10のコツの 09 フォントの使い分け）：数字・時刻・件数に使う。見出しと文はゴシック */
+export const MONO = 'ui-monospace, "Cascadia Mono", Consolas, "Courier New", "MS Gothic", monospace';
+
 export const COLORS = {
   background: "#f6f4ef",
   ink: "#1f2a33",
