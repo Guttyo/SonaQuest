@@ -2,7 +2,7 @@
 // 素材（地図・写真・録画・ナレーション）は video/public/ に置く（Git の対象外）。
 // 置かれていない素材は描かず・鳴らさず、仮の画面（番号・時間・見出し語）のまま書き出せるようにする。
 import type { CSSProperties, FC, ReactNode } from "react";
-import { AbsoluteFill, Audio, OffthreadVideo, Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
+import { AbsoluteFill, Audio, Img, OffthreadVideo, Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
 import { ENDCARD_FRAMES, PUBLIC_URL_PLACEHOLDER, SECTIONS, SECTION_COUNT, type Section } from "./sections";
 import { CLOSING_LINE } from "./slideText";
 import {
@@ -83,35 +83,83 @@ const WideFootage: FC<{ section: Section; label: string }> = ({ section, label }
   return <Placeholder section={section} label={label} style={{ position: "absolute", inset: 0 }} />;
 };
 
+/** スマホの画面の中身（録画か仮の画面） */
+const PhoneScreen: FC<{ section: Section }> = ({ section }) =>
+  hasStaticFile(section.footageFile) ? (
+    <OffthreadVideo
+      src={staticFile(section.footageFile)}
+      muted={!section.footageAudio}
+      volume={footageVolume(section)}
+      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+    />
+  ) : (
+    <Placeholder section={section} label="スマホ幅の録画" style={{ width: "100%", height: "100%" }} />
+  );
+
+/**
+ * iPhone のベゼルの画像（オーナーが渡した 978×2000 の透過 webp。画面の部分が抜けている）。
+ * video/public/（Git の対象外）に置く。無ければ CSS で描いた枠にする。
+ */
+const BEZEL_FILE = "frames/iphone-bezel.webp";
+const BEZEL_SIZE = { width: 978, height: 2000 } as const;
+/** ベゼルの画像の中の画面の位置（画像の画素）。録画はベゼルの内側の縁より少し大きく置き、縁はベゼルで隠す */
+const BEZEL_SCREEN = { left: 44, top: 42, width: 890, height: 1916, radius: 150 } as const;
+/** 横長の画面の中のベゼルの高さ（px） */
+const BEZEL_HEIGHT = 1010;
+
 /** スマホの枠に入れた縦の録画 */
-const PhoneFrame: FC<{ section: Section }> = ({ section }) => (
-  <div
-    style={{
-      position: "absolute",
-      left: 260,
-      top: (1080 - PHONE_HEIGHT - PHONE_BEZEL * 2) / 2,
-      width: PHONE_WIDTH,
-      height: PHONE_HEIGHT,
-      padding: PHONE_BEZEL,
-      borderRadius: 56,
-      backgroundColor: COLORS.frame,
-      boxShadow: "0 24px 60px rgba(0,0,0,0.25)",
-    }}
-  >
-    <div style={{ width: "100%", height: "100%", borderRadius: 42, overflow: "hidden", position: "relative" }}>
-      {hasStaticFile(section.footageFile) ? (
-        <OffthreadVideo
-          src={staticFile(section.footageFile)}
-          muted={!section.footageAudio}
-          volume={footageVolume(section)}
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-        />
-      ) : (
-        <Placeholder section={section} label="スマホ幅の録画" style={{ width: "100%", height: "100%" }} />
-      )}
+const PhoneFrame: FC<{ section: Section }> = ({ section }) => {
+  if (hasStaticFile(BEZEL_FILE)) {
+    const k = BEZEL_HEIGHT / BEZEL_SIZE.height;
+    return (
+      <div
+        style={{
+          position: "absolute",
+          left: 240,
+          top: (1080 - BEZEL_HEIGHT) / 2,
+          width: BEZEL_SIZE.width * k,
+          height: BEZEL_HEIGHT,
+          filter: "drop-shadow(0 24px 40px rgba(0,0,0,0.25))",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            left: BEZEL_SCREEN.left * k,
+            top: BEZEL_SCREEN.top * k,
+            width: BEZEL_SCREEN.width * k,
+            height: BEZEL_SCREEN.height * k,
+            borderRadius: BEZEL_SCREEN.radius * k,
+            overflow: "hidden",
+            backgroundColor: COLORS.white,
+          }}
+        >
+          <PhoneScreen section={section} />
+        </div>
+        <Img src={staticFile(BEZEL_FILE)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
+      </div>
+    );
+  }
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: 260,
+        top: (1080 - PHONE_HEIGHT - PHONE_BEZEL * 2) / 2,
+        width: PHONE_WIDTH,
+        height: PHONE_HEIGHT,
+        padding: PHONE_BEZEL,
+        borderRadius: 56,
+        backgroundColor: COLORS.frame,
+        boxShadow: "0 24px 60px rgba(0,0,0,0.25)",
+      }}
+    >
+      <div style={{ width: "100%", height: "100%", borderRadius: 42, overflow: "hidden", position: "relative" }}>
+        <PhoneScreen section={section} />
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // [TODO-OWNER: 最後のロゴの形（今は「SonaQuest」の文字だけの仮のもの）]
 /**
