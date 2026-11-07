@@ -1640,9 +1640,15 @@ export function Board({
             {/* 救護所の画面では、編集できるか・閲覧のみかを文字で出す（連絡のタブは除く。Issue #141） */}
             {!isHq && tab !== "chat" && <PermissionNote site={selected} />}
 
-            {/* 本部・全体（Issue #113）：見る順は 数字 → 確認・手配が必要な事項 → 地図。指標の札は上段に横一列 */}
+            {/* 本部・全体（Issue #113）：見る順は 地図 → 数字 → 確認・手配が必要な事項。指標の札は地図の下に横一列。
+                地図を一番上にした（Issue #235、2026-11-07 オーナー）。患者の受け入れは承認待ちの下 */}
             {isHq && tab === "overview" && (
               <>
+                <div className="board-overview-map">
+                  <BoardMap overview={overview} onSelect={select} selected={selected} live={state} reducedMotion={noAuto} />
+                  <p className="board-note">{BOARD_LAYOUT.mapHint}</p>
+                </div>
+
                 <section aria-label={BOARD_LAYOUT.hqSideLabel} className="board-kpis">
                   <div className="board-tiles board-kpi-row">
                     <div className={`board-tile board-tile-major ${anyOutOfStock ? "stop" : critical.length > 0 ? "check" : "zero"}`}>
@@ -1727,12 +1733,6 @@ export function Board({
                   <ProposalGroups state={state} proposals={pendingProposals} canDecide={canDecide} dispatch={dispatch} />
                   {!canDecide && pendingProposals.length > 0 && <p className="board-note">{BOARD_ORDERS.approveOnlyHq}</p>}
                 </Fold>
-
-                {/* 地図を「状況」と「次の対応」のすぐ後に近づける（Issue #159 第2段）。患者の受け入れはその下 */}
-                <div className="board-overview-map">
-                  <BoardMap overview={overview} onSelect={select} selected={selected} live={state} reducedMotion={noAuto} />
-                  <p className="board-note">{BOARD_LAYOUT.mapHint}</p>
-                </div>
 
                 <PatientArrivals state={state} />
 
