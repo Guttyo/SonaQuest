@@ -115,7 +115,7 @@ export const PatientTableVideo: FC = () => {
     <AbsoluteFill style={{ backgroundColor: "#ffffff", fontFamily: GOTHIC, color: INK, padding: "30px 96px", overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", opacity: headIn, height: 112 }}>
         <div>
-          <div style={{ fontSize: 46, fontWeight: 800 }}>救護所に到着した架空の患者 {SIM_PATIENTS.length} 人</div>
+          <div style={{ fontSize: 46, fontWeight: 800 }}>救護所に到着する架空の患者 {SIM_PATIENTS.length} 人</div>
           <div style={{ fontSize: 24, marginTop: 8, color: "#4b5563" }}>
             氏名は北海道の地名から作った架空の名前、お薬は仮名の品目です。実在の人・薬とは関係ありません。
           </div>
