@@ -4,7 +4,9 @@
 
 設定していないとき（`KARTE_AUDIT_AGENT_ID` が空か形が違う、`BOARD_CHAT_ENVIRONMENT_ID` か API キーが無い）のカルテ画面：要約の返事が `auditConfigured: false` になり、「AIで記録との一致をチェック」は押せない見た目で、そばに「監査役は、この環境では設定されていません（要約とコードでの確認だけ動きます）。」と出る。「監査なしで進める」を押すと、監査の入口を呼ばずに「監査できず」になり、人の確認に進める（Issue #244。文は下書き）。
 
-Claude Code はこの手順を実行しない。API キーと手元の秘密のファイルには触れない（CLAUDE.md 絶対ルール6）。**まだ実施していない**。
+Claude Code はこの手順を実行しない。API キーと手元の秘密のファイルには触れない（CLAUDE.md 絶対ルール6）。**2026-11-08 にオーナーが実施した**（Agent の ID は `web/wrangler.jsonc` の `vars`。Issue #266）。
+
+手順2の PowerShell の書き方（`docs/board-chat-setup.md`）でキーの行を拾えなかったときは、Node.js に秘密のファイルを直接読ませる：`node --env-file=<web の秘密のファイル> web\scripts\setup-karte-audit.ts --apply`（`<web の秘密のファイル>` は手元の Workers の秘密のファイル。先に空の `ANTHROPIC_API_KEY` の環境変数が残っていれば `Remove-Item Env:ANTHROPIC_API_KEY` で消す）。2026-11-08 はこの方法で作れた。
 
 ## 作るもの
 `web/worker/karteAuditAgent.ts` の定義から、Agent を1つだけ作る。
