@@ -234,7 +234,7 @@ describe("架空の患者 100 人（Issue #122）", () => {
     const names = SIM_PATIENTS.map((p) => p.name);
     expect(new Set(names).size).toBe(100);
     // 北海道の地名由来の架空の氏名（Issue #151）。表の先頭と、姓と名の間の空白
-    expect(names.slice(0, 6)).toEqual(["北海 太郎", "石狩 花子", "札幌 清二郎", "幌加内 そば太郎", "石狩 鮭太郎", "小樽 ルタ夫"]);
+    expect(names.slice(0, 6)).toEqual(["北海 太郎", "石狩 花子", "札幌 清二郎", "幌加内 そば太郎", "石狩 鮭次郎", "小樽 ルタ夫"]);
     expect(names[99]).toBe("弟子屈 湯太");
     for (const n of names) expect(n).toMatch(/^\S+ \S+$/);
     for (const n of names) expect(n.replace(" ", "").length).toBeLessThanOrEqual(8);
