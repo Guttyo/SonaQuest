@@ -94,8 +94,13 @@ export function App() {
           （戻るボタンはボードの中。Issue #113、2026-11-05 オーナー決定） */}
       {!onBoard && (
         <header className="app-header">
-          {/* 帯はアプリの名前。はじめにの題が「お薬の避難訓練」なので、同じ言葉を続けない（Issue #190、2026-11-06 オーナー、チャット） */}
-          <span className="app-title">SonaQuest</span>
+          {/* 帯は「お薬の避難訓練」。はじめにの題がロゴ（SonaQuest）になったので、帯は何の訓練かを示す
+              （Issue #263、2026-11-08 オーナー、チャット。Issue #190 の「帯はアプリの名前」を替えた。ADR-0066 の追記） */}
+          {/* 狭い幅で2行になるときは「お薬の／避難訓練」で分ける（語の途中で折り返さない） */}
+          <span className="app-title">
+            <span className="app-title-part">お薬の</span>
+            <span className="app-title-part">避難訓練</span>
+          </span>
           {/* BGM の操作はヘッダーの決まった1か所。中断の画面では出さない（B-03） */}
           {stage.name !== "stopped" && (
             <BgmControls

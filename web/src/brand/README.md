@@ -3,7 +3,7 @@
 | ファイル | 中身 |
 |---|---|
 | `sonaquest-logo.svg` | 文字だけの版 |
-| `sonaquest-logo-subtitle.svg` | 下に「お薬の避難訓練」を添えた版 |
+| `sonaquest-logo-subtitle.svg` | 下に名前の由来「ソナクエスト：備える（準備）＋クエスト」を添えた版 |
 | `logoData.ts` | 図形・大きさ・色（アプリと動画が読む） |
 | `SonaQuestLogo.tsx` | React の部品（`withSubtitle` で副題つき） |
 

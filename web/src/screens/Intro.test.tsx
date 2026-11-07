@@ -111,11 +111,13 @@ describe("はじめにの1画面目：答え方をカードで選ぶ（A-14、Is
     expect(choose.slice(next, board)).toMatch(/^>次へ<\/button><button type="button" class="secondary board-entry"><svg[\s\S]*<\/svg><span>$/);
   });
 
-  it("題はロゴ：「SonaQuest」と読み上げる画像と、文字のままの副題「お薬の避難訓練」（Issue #263）", () => {
+  it("題はロゴ：「SonaQuest」と読み上げる画像と、文字のままの副題（名前の由来。Issue #263）", () => {
     const h1 = choose.slice(choose.indexOf("<h1"), choose.indexOf("</h1>"));
     expect(h1).toContain('id="intro-title"');
     expect(h1).toContain('role="img" aria-label="SonaQuest"');
-    expect(h1).toContain('<span class="intro-subtitle">お薬の避難訓練</span>');
+    expect(h1).toContain(
+      '<span class="intro-subtitle"><span class="intro-subtitle-part">ソナクエスト：</span><span class="intro-subtitle-part">備える（準備）＋クエスト</span></span>',
+    );
   });
 
   it("並び：問いかけ → 題 → カード → Coming soon → 次へ", () => {

@@ -17,10 +17,10 @@ import {
 
 interface Props {
   className?: string;
-  /** 下に「お薬の避難訓練」を添える（動画のタイトルと締めの版）。省くと文字だけ */
+  /** 下に名前の由来（副題）を添える（動画のタイトルと締めの版）。省くと文字だけ */
   withSubtitle?: boolean;
   /**
-   * 読み上げの名前。省くと「SonaQuest」（副題つきなら「SonaQuest お薬の避難訓練」）。
+   * 読み上げの名前。省くと「SonaQuest」（副題つきなら「SonaQuest」と副題）。
    * 空の文字にすると飾りとして扱い、読み上げない（近くに同じ文字があるとき）
    */
   label?: string;

@@ -19,11 +19,11 @@ export const LOGO_COLOR_WORD = "#154d3b";
 export const LOGO_COLOR_ACCENT = "#2f7d63";
 
 /** 副題を添えた版。副題は文字のまま置き、書体は端末のゴシック（ADR-0037） */
-export const LOGO_SUBTITLE = "お薬の避難訓練";
-export const LOGO_SUBTITLE_HEIGHT = 129.05;
-export const LOGO_SUBTITLE_BASELINE = 121.45;
-export const LOGO_SUBTITLE_SIZE = 30;
-export const LOGO_SUBTITLE_SPACING = 3.6;
+export const LOGO_SUBTITLE = "ソナクエスト：備える（準備）＋クエスト";
+export const LOGO_SUBTITLE_HEIGHT = 121.05;
+export const LOGO_SUBTITLE_BASELINE = 114.41;
+export const LOGO_SUBTITLE_SIZE = 22;
+export const LOGO_SUBTITLE_SPACING = 0.88;
 export const LOGO_SUBTITLE_WEIGHT = 700;
 export const LOGO_SUBTITLE_FONT_FAMILY =
   "'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'BIZ UDPGothic', 'Yu Gothic UI', Meiryo, 'Noto Sans JP', sans-serif";

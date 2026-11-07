@@ -9,7 +9,7 @@ Python の標準ライブラリだけで TrueType（glyf）を読む。依存は
 書き出すもの（どれも手で直さない。直すときはこのスクリプトを直して実行し直す）：
     web/src/brand/logoData.ts                  … 図形・大きさ・色（アプリと動画が読む）
     web/src/brand/sonaquest-logo.svg           … 文字だけの版
-    web/src/brand/sonaquest-logo-subtitle.svg  … 下に「お薬の避難訓練」を添えた版
+    web/src/brand/sonaquest-logo-subtitle.svg  … 下に名前の由来（副題）を添えた版
 
 Manrope は SIL Open Font License 1.1（Copyright 2018 The Manrope Project Authors）。
 """
@@ -35,14 +35,15 @@ PAD_EM = 0.04
 COLOR_WORD = "#154d3b"
 COLOR_ACCENT = "#2f7d63"
 
-# 副題（文字のまま置く。書体は端末のゴシック。ADR-0037・ADR-0051 の決定4）
-SUBTITLE = "お薬の避難訓練"
+# 副題（文字のまま置く。書体は端末のゴシック。ADR-0037・ADR-0051 の決定4）。
+# 名前の由来（2026-11-08 オーナー、チャット。ADR-0066 の追記）
+SUBTITLE = "ソナクエスト：備える（準備）＋クエスト"
 SUBTITLE_FONT_FAMILY = (
     "'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'BIZ UDPGothic', 'Yu Gothic UI', "
     "Meiryo, 'Noto Sans JP', sans-serif"
 )
-SUBTITLE_SIZE_EM = 0.30  # 副題の文字の大きさ（ロゴの 1em に対して）
-SUBTITLE_SPACING_EM = 0.12  # 副題の字間（副題の文字の大きさに対して）
+SUBTITLE_SIZE_EM = 0.22  # 副題の文字の大きさ（ロゴの 1em に対して）
+SUBTITLE_SPACING_EM = 0.04  # 副題の字間（副題の文字の大きさに対して）
 SUBTITLE_GAP_EM = 0.16  # ロゴの下端から副題の上端まで
 SUBTITLE_WEIGHT = 700
 
