@@ -56,13 +56,13 @@ describe("2026-11-06 オーナー決定の帯の短い言い方（Issue #143、�
 describe("2026-11-06 オーナー決定の色（Issue #143、計画書 9章）", () => {
   it("記録の未着・転記待ちは1件以上なら黄（本部の数字の札・左の一覧の印）", () => {
     expect(html).toMatch(/class="board-tile check"><span class="board-tile-label"><span class="board-label-full">記録の未着・転記待ち/);
-    expect(pane(html)).toMatch(/class="board-pane-mark warn">記録の未着・転記待ち \d+件/);
-    expect(pane(html)).not.toMatch(/class="board-pane-mark none">記録の未着・転記待ち/);
+    expect(pane(html)).toMatch(/class="board-pane-mark warn">本部未反映の記録 \d+件/);
+    expect(pane(html)).not.toMatch(/class="board-pane-mark none">本部未反映の記録/);
   });
 
   it("在庫の表の凡例：赤は「切れ」だけ。目安の2日先までは黄", () => {
     const stock = render(HQ, "stock");
-    expect(stock).toContain('<span class="cell bad">切れ</span>');
+    expect(stock).toContain('<span class="cell bad">在庫なし</span>');
     expect(stock).toContain('<span class="cell warn">5日未満</span>');
     expect(stock).not.toContain("3日未満");
   });
@@ -96,12 +96,12 @@ describe("ボードの題とレイアウト（Issue #107）", () => {
     expect(p).toContain('class="board-pane-item hq current" aria-current="true" data-pane="本部備蓄"');
     // 印：いちばん大事な状態1つと「ほか N 件」（Issue #159 第2段）。救護所B は記録の未着・転記待ち＋ほか（薬剤師の不足）。救護所C は在庫切れ。患者数はペインに出さない
     const b = p.slice(p.indexOf('data-pane="救護所B"'), p.indexOf('data-pane="救護所C"'));
-    expect(b).toContain('<span class="board-pane-mark warn">記録の未着・転記待ち 42件</span><span class="board-pane-mark none">ほか 1 件</span>');
+    expect(b).toContain('<span class="board-pane-mark warn">本部未反映の記録 42件</span><span class="board-pane-mark none">ほか 1件</span>');
     expect(b.match(/class="board-pane-mark /g)).toHaveLength(2);
     // 救護所A は薬剤師の不足だけなので、その印がそのまま出る（職種を残す。2026-11-05 オーナー決定）
     expect(p.slice(p.indexOf('data-pane="救護所A"'), p.indexOf('data-pane="救護所D"'))).toContain('<span class="board-pane-mark none">薬剤師 1人不足</span>');
     expect(b).not.toContain("今日の患者");
-    expect(p.slice(p.indexOf('data-pane="救護所C"'))).toContain('<span class="board-pane-mark bad">在庫切れ 1</span>');
+    expect(p.slice(p.indexOf('data-pane="救護所C"'))).toContain('<span class="board-pane-mark bad">在庫なし 1</span>');
     // 最終報告が古い救護所（B・D）は、文字の注意が付く。A・C には付かない
     const stale = `<span class="board-stale">${BOARD_CHANGES.stale(BOARD_CHANGES.staleHours)}</span>`;
     expect(b).toContain(stale);
@@ -278,7 +278,7 @@ describe("在庫・発注・搬送・記録・デモのタブ", () => {
     const heat = panel(render(HQ, "stock"));
     expect(heat.match(/<th class="site">/g)).toHaveLength(5);
     expect(heat.match(/<td class="item">/g)).toHaveLength(ITEMS.length);
-    expect(heat).toContain(">切れ<");
+    expect(heat).toContain(">在庫なし<");
     expect(heat).toContain(">算出不可<");
     const b = panel(render("救護所B", "stock"));
     expect(b.match(/<tr>/g)?.length).toBe(1 + ITEMS.length);
@@ -297,7 +297,7 @@ describe("在庫・発注・搬送・記録・デモのタブ", () => {
 
   it("記録：本部は記録の届き方の表と救護所ごとのカルテの件数。救護所は「カルテを入力する」のボタンとカルテ（入力欄は専用画面へ。Issue #114）", () => {
     const r = panel(render(HQ, "records"));
-    expect(r).toContain("記録の届き方（通信の状態）");
+    expect(r).toContain("記録の到着・入力状況");
     expect(r).toContain("カルテ 1 件");
     const a = panel(render("救護所A", "records"));
     expect(a).not.toContain("<form");
@@ -334,7 +334,7 @@ describe("デモの状態を渡すと、登録 → 提案 → 承認が画面に
     const h = render(HQ, "overview", s1);
     // 左の一覧は、いちばん大事な状態1つ（在庫切れ）と「ほか N 件」。未交付あり・記録の未着・薬剤師の不足は「ほか 3 件」にまとまる（Issue #159 第2段）
     const bPane = pane(h).slice(pane(h).indexOf('data-pane="救護所B"'), pane(h).indexOf('data-pane="救護所C"'));
-    expect(bPane).toContain('<span class="board-pane-mark bad">在庫切れ 1</span>');
+    expect(bPane).toContain('<span class="board-pane-mark bad">在庫なし 1</span>');
     expect(bPane).toContain(`>${BOARD_LAYOUT.marks.more(3)}<`);
     expect(bPane).not.toContain(`>${BOARD_LAYOUT.marks.undelivered}<`);
     const p = panel(h).slice(panel(h).indexOf('data-proposal="P-03"'));
@@ -490,7 +490,7 @@ describe("直近1時間で変わったこと・最終報告・一番大きな数
     expect(panel(render("救護所A"))).toContain('data-testid="site-last-report">2 時間前<');
     // 古い報告の注意は、救護所の数字の欄にも文字で付く（救護所D は 21 時間前）
     const d = panel(render("救護所D"));
-    expect(d).toContain('<div class="stale"><dt>最終報告</dt>');
+    expect(d).toContain('<div class="stale"><dt>最終更新</dt>');
     expect(d).toContain(`<span class="board-stale">${BOARD_CHANGES.stale(BOARD_CHANGES.staleHours)}</span>`);
     expect(panel(render("救護所A"))).not.toContain("board-stale");
   });

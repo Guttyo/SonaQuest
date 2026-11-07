@@ -80,7 +80,7 @@ export const ACCESS_LOG_TEXT = {
 // [TODO-OWNER: カルテの確認状態の名前・ボタン・説明と、見本の AI 下書き・見本の指摘の文（Claude Code の下書き。AI 要約と監査の本体は Issue #142）]
 // → オーナー決定（2026-11-06、チャット）：カルテの確認状態の末尾「（確認待ち）」は「（人のレビュー待ち）」にする（「人が確認済み」はそのまま）。「要約、要約の監査はAIエージェントがやっるけれど、最終的な確認は人間がやるので、人間のレビュー待ちとか。要確認でもいいね。」
 export const CHART_REVIEW_TEXT = {
-  title: "AI 下書きと確認",
+  title: "AI下書きの確認",
   status: {
     none: "AI 下書きなし",
     ai_draft: "AI下書き（人のレビュー待ち）",
@@ -92,21 +92,21 @@ export const CHART_REVIEW_TEXT = {
   },
   /** カルテの見出しの印（下書きがあって人がまだ確認していない） */
   pendingFlag: "人のレビュー待ち",
-  makeDraft: "AI 下書きを作る（見本）",
-  sendAudit: "AI 監査に出す",
-  confirm: "内容を確かめて、確認済みにする",
-  auditing: "監査の結果を待っています。",
+  makeDraft: "AI下書きを表示（見本）",
+  sendAudit: "AIで記録との一致をチェック",
+  confirm: "内容を確認し、確認済みにする",
+  auditing: "AIのチェック結果を待っています。",
   confirmedBy: (staff: string, site: string, at: string) => `${site}の${staff}が ${at} に確認`,
-  waiting: "監査で指摘が無くても、人が確認するまで確定しません。",
-  unavailable: "AI の監査が使えないため、監査なしで人が確かめます。",
-  findings: "監査の指摘",
-  findingWhere: "箇所",
-  findingKind: "種類",
+  waiting: "AIの指摘がなくても、人が内容を確認するまで確定しません。",
+  unavailable: "AIを利用できないため、人が元の記録と照らして確認してください。",
+  findings: "AIによる指摘",
+  findingWhere: "該当箇所",
+  findingKind: "指摘の種類",
   findingReason: "理由",
-  sampleNote: "固定の見本の下書きです。この患者の記録から作ったものではありません。",
-  aiStop: "AI を止めた状態にする（デモ）",
-  aiStopNote: "止めると、監査は「監査できず」になります。下書きから人の確認済みまでは進めます。",
-  readOnly: "このカルテの救護所でログインしている人だけが、下書き・監査・確認の操作をできます。",
+  sampleNote: "操作を体験するための固定サンプルです。表示中の患者の記録から生成したものではありません。",
+  aiStop: "AIが使えない状態を試す（デモ）",
+  aiStopNote: "AIを利用できない状態を再現します。下書きの表示と、人による確認は引き続き行えます。",
+  readOnly: "下書きの表示・AIチェック・確認済みへの変更は、このカルテの救護所に所属する利用者だけが操作できます。",
 } as const;
 
 /** 見本の AI 下書き（固定の文。患者の記録から作らない。Issue #142 の要約が入るまでの受け口の確認用） */
