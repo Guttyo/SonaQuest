@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { INTAKE_RECORDS } from "./data";
 import { applyAuditResult, chartsFor, demoReducer, initialDemo, type DemoState } from "./demo";
-import { auditResultAfterStop, awaitingHuman, chartSite, sampleAudit, sampleDraft } from "./review";
+import { auditResultAfterStop, awaitingHuman, chartSite, confirmable, discardable, sampleAudit, sampleDraft, unresolvedCodeFindings, type ChartSummaryDraft } from "./review";
 
 const A = { site: "救護所A" as const, staff: "見本 青葉" };
 const B = { site: "救護所B" as const, staff: "見本 若葉" };
@@ -112,5 +112,71 @@ describe("カルテの確認状態（Issue #141）", () => {
     s = applyAuditResult(s, key, auditResultAfterStop(ok, true));
     expect(s.chartReview[key].status).toBe("audit_unavailable");
     expect(s.chartReview[key].session).toBe("deleted");
+  });
+});
+
+describe("コードでの確認の指摘が残る下書き（Issue #253）", () => {
+  // 誤りを混ぜた例のように、1段目のコードでの確認が「会話にない引用」を見つけた下書き
+  const flagged: ChartSummaryDraft = {
+    source: "extractive",
+    lines: [{ label: "情報の在りか", text: "お薬手帳は車の中にある", quote: "お薬手帳は車の中にある" }],
+    planted: true,
+    codeFindings: [{ where: "情報の在りか", kind: "根拠なし", reason: "引用が会話の本人の発言に見つかりません", line: 0 }],
+    unsupportedLines: [0],
+    auditConfigured: false,
+  };
+  const clean: ChartSummaryDraft = { ...flagged, planted: false, codeFindings: [], unsupportedLines: [] };
+
+  function audited(draft: ChartSummaryDraft, result: Parameters<typeof applyAuditResult>[2]) {
+    const { state, key } = withChart();
+    let s = demoReducer(state, { type: "chart_draft", key, actor: A, draft });
+    s = demoReducer(s, { type: "chart_audit_start", key, actor: A });
+    return { s: applyAuditResult(s, key, result), key };
+  }
+
+  it("監査できず（監査なしで進めた）でも、指摘が残る間は確認済みにできない", () => {
+    const { s, key } = audited(flagged, { ok: false, failure: "not_configured", session: "not_created" });
+    const r = s.chartReview[key];
+    expect(r.status).toBe("audit_unavailable");
+    expect(unresolvedCodeFindings(r)).toBe(true);
+    expect(confirmable(r)).toBe(false);
+    expect(demoReducer(s, { type: "chart_confirm", key, actor: A }).chartReview[key].status).toBe("audit_unavailable");
+  });
+
+  it("監査済み（指摘なし）でも、コードでの確認の指摘が残る間は確認済みにできない", () => {
+    const { s, key } = audited(flagged, { ok: true, findings: [] });
+    expect(s.chartReview[key].status).toBe("audited");
+    expect(confirmable(s.chartReview[key])).toBe(false);
+    expect(demoReducer(s, { type: "chart_confirm", key, actor: A }).chartReview[key].status).toBe("audited");
+  });
+
+  it("指摘のない下書きは、今までどおり確認済みにできる（codeFindings が無い見本の下書きも同じ）", () => {
+    const { s, key } = audited(clean, { ok: false, failure: "not_configured" });
+    expect(confirmable(s.chartReview[key])).toBe(true);
+    expect(discardable(s.chartReview[key])).toBe(false);
+    expect(demoReducer(s, { type: "chart_confirm", key, actor: A }).chartReview[key].status).toBe("human_confirmed");
+    const sample = audited(sampleDraft("x"), { ok: true, findings: [] });
+    expect(confirmable(sample.s.chartReview[sample.key])).toBe(true);
+  });
+
+  it("指摘のある下書きは差し戻せる。差し戻すと下書きなしに戻り、作り直せる", () => {
+    const { s, key } = audited(flagged, { ok: false, failure: "not_configured" });
+    expect(discardable(s.chartReview[key])).toBe(true);
+    const back = demoReducer(s, { type: "chart_discard", key, actor: A });
+    expect(back.chartReview[key]).toBeUndefined();
+    const again = demoReducer(back, { type: "chart_draft", key, actor: A, draft: clean });
+    expect(again.chartReview[key].status).toBe("ai_draft");
+  });
+
+  it("差し戻しは、下書きのとき（監査の前）もできる。監査中・ほかの救護所の人・指摘のない下書きは差し戻せない", () => {
+    const { state, key } = withChart();
+    const drafted = demoReducer(state, { type: "chart_draft", key, actor: A, draft: flagged });
+    expect(demoReducer(drafted, { type: "chart_discard", key, actor: A }).chartReview[key]).toBeUndefined();
+    expect(demoReducer(drafted, { type: "chart_discard", key, actor: B })).toBe(drafted);
+    const auditing = demoReducer(drafted, { type: "chart_audit_start", key, actor: A });
+    expect(discardable(auditing.chartReview[key])).toBe(false);
+    expect(demoReducer(auditing, { type: "chart_discard", key, actor: A })).toBe(auditing);
+    const ok = audited(clean, { ok: true, findings: [] });
+    expect(demoReducer(ok.s, { type: "chart_discard", key: ok.key, actor: A })).toBe(ok.s);
   });
 });
