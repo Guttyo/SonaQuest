@@ -560,7 +560,8 @@ function tick(state: DemoState, hours: number): DemoState {
   });
   for (const r of stock) {
     const before = state.stock.find((s) => s.site === r.site && s.item === r.item);
-    if (before && before.onHand !== null && before.onHand > 0 && r.onHand === 0) {
+    // 画面に出す数（切り捨て）が 0 になったときに知らせる（Issue #252。0.9錠は画面では在庫なし）
+    if (before && before.onHand !== null && Math.floor(before.onHand) >= 1 && r.onHand !== null && Math.floor(r.onHand) < 1) {
       log.push({ at: to, text: `${r.site}：${r.item} が在庫なし`, kind: "在庫切れ", site: r.site });
     }
   }
