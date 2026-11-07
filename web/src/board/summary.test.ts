@@ -19,6 +19,7 @@ import {
   caseRows,
   criticalItems,
   daysLeft,
+  shownOnHand,
   heatCell,
   inboundSummary,
   levelOf,
@@ -101,6 +102,27 @@ describe("残り日数と状態（0 と不明を混ぜない）", () => {
     expect(levelOf(daysLeft(r) ?? 0)).toBe("warn");
     // 4.96 日は 5.0 と表示されても、目安の2日先より短いので黄のまま
     expect(levelOf(COVER_GUIDE_DAYS + 2 - 0.04)).toBe("warn");
+  });
+
+  it("小数の在庫は画面に出す数（切り捨て）で日数・状態・色を出す。1単位未満は在庫切れ（Issue #252）", () => {
+    // 0.9錠・1日1錠：画面は 0錠なので、あと0.9日ではなく在庫切れ
+    const a = stock("救護所B", 0.9, 1);
+    expect(shownOnHand(0.9)).toBe(0);
+    expect(daysLeft(a)).toBe(0);
+    expect(stockStatus(a)).toBe("在庫切れ");
+    expect(heatCell([a], "救護所B", "x")).toMatchObject({ label: "在庫なし", level: "bad" });
+    expect(criticalItems([a])).toEqual([{ site: "救護所B", item: "x", days: 0 }]);
+    expect(shelterRows([a], [], [], []).find((r) => r.site === "救護所B")?.critical).toEqual(["x（在庫なし）"]);
+    // 2.5本・1日2本：画面は 2本なので 1日（2.5÷2＝1.25 ではない）
+    const b = stock("救護所A", 2.5, 2);
+    expect(shownOnHand(2.5)).toBe(2);
+    expect(daysLeft(b)).toBe(1);
+    expect(stockStatus(b)).toBe("在庫切れ見込み");
+    expect(heatCell([b], "救護所A", "x")).toMatchObject({ label: "1", level: "warn" });
+    expect(caseRows([b], [], [], [], [])[0]).toMatchObject({ status: "在庫切れ見込み", days: 1 });
+    // 1.0 ちょうどは 1錠として残る
+    expect(stockStatus(stock("救護所A", 1, 1))).toBe("在庫切れ見込み");
+    expect(daysLeft(stock("救護所A", 1, 1))).toBe(1);
   });
 
   it("段階：0 日（切れ）だけ赤、目安の2日先までは黄（3日未満も黄。2026-11-06 オーナー決定）", () => {
