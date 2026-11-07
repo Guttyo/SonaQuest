@@ -229,26 +229,47 @@ export function buildTurnRequest(state: TrainingState): TurnRequest | null {
   };
 }
 
+/**
+ * 「思い出せない」と答えた質問の観点を、その訓練の間「確認できた」にしない（Issue #245、ADR-0017 の追記）。
+ * answers の recall（Claude の判定）が true の回答について、その質問の観点（content.ts の viewpoint）が
+ * confirmed なら aware_unconfirmed に下げる。毎回すべての回答から計算するので、後の回で Claude が confirmed を返しても戻らない。
+ * 同じ観点の別の質問に具体的に答えた後も戻さない（「覚えていない」ことが1つでもあれば、まだ確かめることがある）。
+ * confirmed 以外（not_mentioned など）は変えない。医学的な正しさは判断しない
+ */
+export function capRecallJudgments(judgments: Judgments, answers: readonly Answer[]): Judgments {
+  const capped: Judgments = { ...judgments };
+  for (const a of answers) {
+    if (a.kind !== "answer" || !a.recall) continue;
+    const viewpoint = QUESTION_BY_ID.get(a.questionId)?.viewpoint;
+    if (viewpoint !== undefined && capped[viewpoint] === "confirmed") capped[viewpoint] = "aware_unconfirmed";
+  }
+  return capped;
+}
+
 /** Claude の返事を受け取って、次の発言と段階を決める。値の範囲はブラウザでも確かめる */
 function applyTurn(state: TrainingState, result: TurnResponse): TrainingState {
   const { stage } = state;
   if (stage.name !== "first" && stage.name !== "second") return state;
   const last = state.answers[state.answers.length - 1];
   const earlier = state.answers.slice(0, -1);
+  const recalled = [...earlier, { ...last, recall: result.recall }];
 
   const judged: TrainingState = {
     ...state,
-    judgments: result.viewpoints,
+    judgments: capRecallJudgments(result.viewpoints, recalled),
     // 毎回それまでの回答をすべて送るので、最新の候補（無ければ null）をそのまま使う
     sourceGuess: result.source_guess,
-    answers: [...earlier, { ...last, recall: result.recall }],
+    answers: recalled,
   };
 
   const { type, question_id, text } = result.next;
   if (type === "redirect" && question_id === last.questionId && !alreadyRedirected(earlier, last.questionId)) {
+    const redirected: Answer[] = [...earlier, { ...last, recall: result.recall, kind: "redirected" }];
     return {
       ...judged,
-      answers: [...earlier, { ...last, recall: result.recall, kind: "redirected" }],
+      // 質問し直した入力は回答に数えないので、その recall では下げない
+      judgments: capRecallJudgments(result.viewpoints, redirected),
+      answers: redirected,
       prompt: {
         questionId: last.questionId,
         text: text ?? REDIRECT_TEXTS[last.questionId] ?? last.prompt,
