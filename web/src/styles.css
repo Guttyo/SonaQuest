@@ -1562,6 +1562,12 @@ body,
   .dialogue-stage-figure > .stage-figure-enter {
     grid-column: 2;
   }
+
+  /* 後半で「頼りにしているもの」などの札が出たら、右の列が狭すぎて舞台が --stage-h を超えるので、
+     これまでどおり係を左に置き、横の列を広く取る */
+  .dialogue-stage-figure:has(.source-chip) {
+    display: flex;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
