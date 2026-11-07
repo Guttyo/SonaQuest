@@ -15,11 +15,22 @@ import {
   Scene,
   SphereGeometry,
   TorusGeometry,
+  BoxGeometry,
   WebGLRenderer,
   type BufferGeometry,
 } from "three";
 import { paletteFor, type PuppetPalette } from "./palette";
-import { blendPose, nodAt, poseAt, type Pose } from "./pose";
+import type { ListenerGesture } from "./gesture";
+import {
+  blendGesture,
+  blendPose,
+  gesturePoseAt,
+  nodAt,
+  poseAt,
+  REST_GESTURE,
+  type GesturePose,
+  type Pose,
+} from "./pose";
 import type { ListenerActivity } from "./types";
 
 /**
@@ -32,6 +43,8 @@ export interface PuppetHandle {
   update(activity: ListenerActivity, relief: boolean): void;
   /** 回答を受け取ったときに、1回うなずく */
   nod(): void;
+  /** 待つ間の身ぶり（Issue #221）。null で身ぶりをやめる */
+  gesture(gesture: ListenerGesture | null): void;
   /** 描画を止めて、描画の領域を画面から外す。片づけはこの後に行う */
   detach(): void;
 }
@@ -66,6 +79,15 @@ class PuppetStage {
   /** うなずき始めた時刻（秒）。うなずいていないときは -Infinity */
   private nodStart = -Infinity;
   private palette: PuppetPalette | null = null;
+  /** 待つ間の身ぶり（Issue #221）と、始めた時刻（秒） */
+  private gestureName: ListenerGesture | null = null;
+  private gestureStart = 0;
+  private gesturePose: GesturePose = REST_GESTURE;
+  /** 肩を軸にした腕（左・右の順） */
+  private readonly armPivots: Group[] = [];
+  /** 手に持つもの（お薬手帳・スマホ）。身ぶりのときだけ大きくして見せる */
+  private readonly handbookProp = new Group();
+  private readonly phoneProp = new Group();
 
   constructor() {
     const dpr = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
@@ -194,11 +216,22 @@ class PuppetStage {
       this.root.add(m);
       return m;
     };
+    // 腕は肩を軸にした入れ物に入れ、身ぶり（Issue #221）で持ち上げられるようにする。
+    // 下ろしたときの位置と傾きは前と同じ（腕の中心から、腕の向きに沿って shoulder だけ上が肩）
     const arms = (radius: number, length: number, x: number, y: number, tilt: number) => {
+      const shoulder = 0.25;
       for (const side of [-1, 1]) {
-        const arm = add(this.mesh(new CapsuleGeometry(radius, length, 4, 8), "body"));
-        arm.position.set(side * x, y, 0.12);
-        arm.rotation.z = side * tilt;
+        const angle = side * tilt;
+        const dx = -Math.sin(angle) * shoulder;
+        const dy = Math.cos(angle) * shoulder;
+        const pivot = new Group();
+        pivot.position.set(side * x + dx, y + dy, 0.12);
+        this.root.add(pivot);
+        const arm = this.mesh(new CapsuleGeometry(radius, length, 4, 8), "body");
+        arm.position.set(-dx, -dy, 0);
+        arm.rotation.z = angle;
+        pivot.add(arm);
+        this.armPivots.push(pivot);
       }
     };
     // ずんぐりした体に、緑の襟と、クリーム色のおなか
@@ -210,6 +243,35 @@ class PuppetStage {
     belly.scale.set(1, 1.1, 0.36);
     belly.position.set(0, -1.12, 0.74);
     arms(0.16, 0.3, 0.92, -0.96, 0.7);
+    this.buildProps();
+  }
+
+  /**
+   * 手に持つもの（Issue #221）。箱の形だけで、文字・記号・薬の絵は入れない。
+   * お薬手帳は襟と同じ色の表紙に白い帯、スマホは目と同じ濃い色の本体に白い画面
+   */
+  private buildProps(): void {
+    const cover = this.mesh(new BoxGeometry(0.62, 0.78, 0.06), "accent");
+    this.handbookProp.add(cover);
+    const label = this.mesh(new BoxGeometry(0.4, 0.14, 0.02), "highlight");
+    label.position.set(0, 0.16, 0.04);
+    this.handbookProp.add(label);
+    this.handbookProp.position.set(0, -0.78, 0.95);
+    this.handbookProp.rotation.x = -0.35;
+
+    const body = this.mesh(new BoxGeometry(0.3, 0.54, 0.05), "eye");
+    this.phoneProp.add(body);
+    const screen = this.mesh(new BoxGeometry(0.24, 0.44, 0.02), "highlight");
+    screen.position.set(0, 0, 0.03);
+    this.phoneProp.add(screen);
+    this.phoneProp.position.set(0.42, -0.62, 0.95);
+    this.phoneProp.rotation.x = -0.4;
+
+    for (const prop of [this.handbookProp, this.phoneProp]) {
+      prop.scale.setScalar(0.001);
+      prop.visible = false;
+      this.root.add(prop);
+    }
   }
 
   /** 丸い耳と口まわり（動物の目印。医療者の帽子や記号にはしない） */
@@ -244,6 +306,12 @@ class PuppetStage {
 
   nod(): void {
     this.nodStart = performance.now() / 1000;
+  }
+
+  setGesture(gesture: ListenerGesture | null): void {
+    if (gesture === this.gestureName) return;
+    this.gestureName = gesture;
+    this.gestureStart = performance.now() / 1000;
   }
 
   setState(activity: ListenerActivity, relief: boolean): void {
@@ -306,10 +374,26 @@ class PuppetStage {
     this.lastFrame = now;
     const t = now / 1000;
     this.pose = blendPose(this.pose, poseAt(this.activity, t), dt);
+    this.gesturePose = blendGesture(this.gesturePose, gesturePoseAt(this.gestureName, t - this.gestureStart), dt);
     // うなずきは状態の姿勢に足す（なめらかにする前の値に足すと、うなずきが鈍るため）
-    this.applyPose({ ...this.pose, headNod: this.pose.headNod + nodAt(t - this.nodStart) });
+    this.applyPose({ ...this.pose, headNod: this.pose.headNod + nodAt(t - this.nodStart) + this.gesturePose.headNod });
+    this.applyGesture(this.gesturePose);
     this.renderer.render(this.scene, this.camera);
   };
+
+  /** 待つ間の身ぶり（Issue #221）。体を回し、腕を持ち上げ、手に持つものを見せる */
+  private applyGesture(g: GesturePose): void {
+    this.root.rotation.y = g.spin;
+    const [left, right] = this.armPivots;
+    if (left) left.rotation.z = -g.armLeft;
+    if (right) right.rotation.z = g.armRight;
+    const show = (prop: Group, amount: number) => {
+      prop.visible = amount > 0.02;
+      prop.scale.setScalar(Math.max(0.001, amount));
+    };
+    show(this.handbookProp, g.handbook);
+    show(this.phoneProp, g.phone);
+  }
 
   private applyPose(pose: Pose): void {
     this.root.rotation.z = pose.sway;
@@ -371,6 +455,9 @@ export function attachPuppet(
     nod() {
       if (!detached) stage.nod();
     },
+    gesture(gesture) {
+      if (!detached) stage.setGesture(gesture);
+    },
     detach() {
       if (detached) return;
       detached = true;
@@ -378,6 +465,7 @@ export function attachPuppet(
         stage.dispose();
         return;
       }
+      stage.setGesture(null);
       stage.unmount();
       sharedInUse = false;
       disposeTimer = setTimeout(() => {

@@ -1742,6 +1742,140 @@ body,
   }
 }
 
+/* 返事を長く待つ間の身ぶり（Issue #221）。考え中が3秒を超えたら data-gesture が付く（puppet3d/gesture.ts）。
+   手帳・スマホを見る → 手を振る → くるっと回る → 万歳。動きを減らす設定では data-gesture を付けない。
+   手に持つもの（.p2d-prop）は、身ぶりのときだけ見せる */
+.puppet2d .p2d-spin {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+
+.puppet2d .p2d-arm {
+  transition: transform 300ms ease;
+}
+
+.puppet2d .p2d-prop {
+  opacity: 0;
+  transition: opacity 250ms ease;
+}
+
+.puppet2d[data-gesture="handbook"] .p2d-prop-handbook,
+.puppet2d[data-gesture="phone"] .p2d-prop-phone {
+  opacity: 1;
+}
+
+/* 手帳を見る：両手を内へ寄せて手帳を持ち、のぞき込む */
+.puppet2d[data-gesture="handbook"] .p2d-arm-left {
+  transform: rotate(-38deg);
+}
+
+.puppet2d[data-gesture="handbook"] .p2d-arm-right {
+  transform: rotate(38deg);
+}
+
+.puppet2d[data-gesture="handbook"] .p2d-head,
+.puppet2d[data-gesture="phone"] .p2d-head {
+  transform: rotate(-3deg) translateY(2px);
+}
+
+.puppet2d[data-gesture="handbook"] .p2d-eyes,
+.puppet2d[data-gesture="phone"] .p2d-eyes {
+  transform: translate(1px, 2px);
+}
+
+/* スマホを見る：右手でスマホを持ち上げる */
+.puppet2d[data-gesture="phone"] .p2d-arm-left {
+  transform: rotate(0deg);
+}
+
+.puppet2d[data-gesture="phone"] .p2d-arm-right {
+  transform: rotate(-28deg);
+}
+
+/* 手を振る：右手を上げて左右に振る */
+.puppet2d[data-gesture="wave"] .p2d-arm-left {
+  transform: rotate(0deg);
+}
+
+.puppet2d[data-gesture="wave"] .p2d-arm-right {
+  animation: p2d-wave 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes p2d-wave {
+  from {
+    transform: rotate(-135deg);
+  }
+  to {
+    transform: rotate(-165deg);
+  }
+}
+
+/* くるっと回る：体ごと1回、左右に裏返るように回る */
+.puppet2d[data-gesture="spin"] .p2d-spin {
+  animation: p2d-spin 1.2s ease-in-out both;
+}
+
+@keyframes p2d-spin {
+  0% {
+    transform: scaleX(1);
+  }
+  25% {
+    transform: scaleX(0.05);
+  }
+  50% {
+    transform: scaleX(-1);
+  }
+  75% {
+    transform: scaleX(-0.05);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+/* 万歳：両手を2回上げる */
+.puppet2d[data-gesture="banzai"] .p2d-arm-left {
+  animation: p2d-banzai-left 1.2s ease-in-out 2;
+}
+
+.puppet2d[data-gesture="banzai"] .p2d-arm-right {
+  animation: p2d-banzai-right 1.2s ease-in-out 2;
+}
+
+@keyframes p2d-banzai-left {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  45%,
+  60% {
+    transform: rotate(160deg);
+  }
+}
+
+@keyframes p2d-banzai-right {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  45%,
+  60% {
+    transform: rotate(-160deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .puppet2d .p2d-arm,
+  .puppet2d .p2d-prop {
+    transition: none;
+  }
+
+  .puppet2d[data-gesture] .p2d-spin,
+  .puppet2d[data-gesture] .p2d-arm {
+    animation: none;
+  }
+}
+
 /* 吹き出しの横の小さな顔（光の丸の代わり） */
 .puppet2d-face {
   flex: none;

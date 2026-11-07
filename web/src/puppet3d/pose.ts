@@ -1,3 +1,4 @@
+import type { ListenerGesture } from "./gesture";
 import type { ListenerActivity } from "./types";
 
 /**
@@ -115,6 +116,72 @@ export function blendPose(current: Pose, target: Pose, dt: number): Pose {
     mouth: mix(current.mouth, target.mouth, fast),
     lookUp: mix(current.lookUp, target.lookUp, slow),
     eyeOpen: target.eyeOpen,
+  };
+}
+
+/**
+ * 待つ間の身ぶりの姿勢（Issue #221）。状態の姿勢に重ねて使う。角度はラジアン。
+ * 腕は肩を軸に、外へ持ち上げる量（0 で下ろしたまま）
+ */
+export interface GesturePose {
+  /** 体全体の、縦の軸のまわりの回転（くるっと回る） */
+  spin: number;
+  armLeft: number;
+  armRight: number;
+  /** 頭を前に倒す量（手帳やスマホを見る）。状態のうなずきに足す */
+  headNod: number;
+  /** 手に持つものの見え方（0〜1） */
+  handbook: number;
+  phone: number;
+}
+
+export const REST_GESTURE: GesturePose = { spin: 0, armLeft: 0, armRight: 0, headNod: 0, handbook: 0, phone: 0 };
+
+/** 万歳で腕を上げる角度 */
+export const BANZAI_RAISE = 2.3;
+
+/**
+ * 身ぶりを始めてからの秒数で、身ぶりの姿勢を返す。身ぶりが無いときは REST_GESTURE。
+ * 回るのは最初の約1.2秒で1回だけ（回り終えると 0 に戻るので、なめらかにしなくても飛ばない）
+ */
+export function gesturePoseAt(gesture: ListenerGesture | null, elapsed: number): GesturePose {
+  if (gesture === null || !(elapsed >= 0)) return REST_GESTURE;
+  switch (gesture) {
+    case "handbook":
+      // 両手で手帳を持ち、のぞき込む
+      return { ...REST_GESTURE, armLeft: 0.55, armRight: 0.55, headNod: 0.28, handbook: 1 };
+    case "phone":
+      // 右手でスマホを持ち、画面を見る
+      return { ...REST_GESTURE, armRight: 0.95, headNod: 0.24, phone: 1 };
+    case "wave":
+      // 右手を上げて、左右に振る
+      return { ...REST_GESTURE, armRight: 2.0 + 0.35 * Math.sin(elapsed * TAU * 1.6) };
+    case "spin": {
+      const SPIN_SECONDS = 1.2;
+      const k = Math.min(1, elapsed / SPIN_SECONDS);
+      // ゆっくり始まり、ゆっくり止まる
+      const eased = k * k * (3 - 2 * k);
+      return { ...REST_GESTURE, spin: k >= 1 ? 0 : eased * TAU, armLeft: 0.4, armRight: 0.4 };
+    }
+    case "banzai": {
+      // 両手を2回上げる
+      const lift = Math.abs(Math.sin(elapsed * Math.PI * 1.2));
+      return { ...REST_GESTURE, armLeft: BANZAI_RAISE * lift, armRight: BANZAI_RAISE * lift };
+    }
+  }
+}
+
+/** 身ぶりの姿勢を、少しずつ近づける（回る量はそのまま使う） */
+export function blendGesture(current: GesturePose, target: GesturePose, dt: number): GesturePose {
+  const k = 1 - Math.exp(-dt * 10);
+  const mix = (a: number, b: number) => a + (b - a) * k;
+  return {
+    spin: target.spin,
+    armLeft: mix(current.armLeft, target.armLeft),
+    armRight: mix(current.armRight, target.armRight),
+    headNod: mix(current.headNod, target.headNod),
+    handbook: mix(current.handbook, target.handbook),
+    phone: mix(current.phone, target.phone),
   };
 }
 

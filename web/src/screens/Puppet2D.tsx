@@ -1,4 +1,5 @@
 import { paletteFor } from "../puppet3d/palette";
+import type { ListenerGesture } from "../puppet3d/gesture";
 import type { ListenerActivity } from "../puppet3d/types";
 
 /**
@@ -15,11 +16,14 @@ export function Puppet2D({
   activity,
   relief,
   nodKey = 0,
+  gesture = null,
 }: {
   activity: ListenerActivity;
   relief: boolean;
   /** 増えるたびに、頭を1回うなずかせる（回答を受け取ったとき。0 ではうなずかない） */
   nodKey?: number;
+  /** 返事を長く待つ間の身ぶり（Issue #221）。null で身ぶりをしない */
+  gesture?: ListenerGesture | null;
 }) {
   return (
     <div
@@ -31,7 +35,14 @@ export function Puppet2D({
       data-activity={activity}
       data-relief={relief ? "true" : "false"}
     >
-      <PuppetSvg activity={activity} relief={relief} nodKey={nodKey} viewBox="0 0 120 100" className="puppet2d" />
+      <PuppetSvg
+        activity={activity}
+        relief={relief}
+        nodKey={nodKey}
+        gesture={gesture}
+        viewBox="0 0 120 100"
+        className="puppet2d"
+      />
     </div>
   );
 }
@@ -44,7 +55,14 @@ export function Puppet2D({
 export function Puppet2DFace({ activity = "idle" }: { activity?: ListenerActivity }) {
   return (
     <span className="puppet2d-face" data-activity={activity}>
-      <PuppetSvg activity={activity} relief={false} nodKey={0} viewBox="30 10 60 58" className="puppet2d puppet2d-static" />
+      <PuppetSvg
+        activity={activity}
+        relief={false}
+        nodKey={0}
+        gesture={null}
+        viewBox="30 10 60 58"
+        className="puppet2d puppet2d-static"
+      />
     </span>
   );
 }
@@ -55,12 +73,14 @@ function PuppetSvg({
   activity,
   relief,
   nodKey,
+  gesture,
   viewBox,
   className,
 }: {
   activity: ListenerActivity;
   relief: boolean;
   nodKey: number;
+  gesture: ListenerGesture | null;
   viewBox: string;
   className: string;
 }) {
@@ -73,7 +93,9 @@ function PuppetSvg({
       aria-hidden="true"
       focusable="false"
       data-activity={activity}
+      data-gesture={gesture ?? undefined}
     >
+      <g className="p2d-spin">
       <g className="p2d-sway">
         {/* 短い腕（手袋人形の親指と小指） */}
         <rect className="p2d-arm p2d-arm-left" x="18" y="66" width="14" height="22" rx="7" fill={p.body} {...line} />
@@ -114,6 +136,16 @@ function PuppetSvg({
             </g>
           </g>
         </g>
+        {/* 手に持つもの（Issue #221）。身ぶりのときだけ見せる。文字・記号・薬の絵は入れない */}
+        <g className="p2d-prop p2d-prop-handbook">
+          <rect x="47" y="64" width="26" height="30" rx="2" fill={p.accent} {...line} />
+          <rect x="52" y="69" width="16" height="5" rx="1" fill={p.highlight} />
+        </g>
+        <g className="p2d-prop p2d-prop-phone">
+          <rect x="78" y="62" width="13" height="22" rx="2.5" fill={p.eye} {...line} />
+          <rect x="80.5" y="65" width="8" height="15" rx="1" fill={p.highlight} />
+        </g>
+      </g>
       </g>
     </svg>
   );
