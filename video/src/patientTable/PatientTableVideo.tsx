@@ -3,8 +3,6 @@
 // 見せる 20 人は、名前の遊び心が伝わる人を選んで並べる（2026-11-08 オーナー、チャット：「動画で見せる20人を選んで」）。
 // 19 人は web/src/board/patients.ts の 100 人から名前で引き（boardMap/ と同じ読み方）、年齢・性別・お薬もそこから出す。
 // 「北海 シマ海老蔵」だけは動画だけの架空の人（2026-11-08 オーナー、チャット：「北海シマ海老蔵にしよう」）。アプリの 100 人には入っていない。
-// 「石狩 鮭次郎」は、名簿の「石狩 鮭太郎」を動画でだけ名前を替えて出す（石狩市の公認キャラクター「さけ太郎」を思わせるため。
-// 2026-11-08 オーナー、チャット：「太郎がだめなら次郎に」）。年齢・性別・お薬は名簿の「石狩 鮭太郎」のまま。
 // 人物・氏名・年齢・服薬はすべて架空。氏名は北海道の地名から作った遊び心のある架空の名前（Issue #151）、お薬は data.ts の仮名の品目。
 // けが・体調の列と、1日の量は出さない（アプリはけがの重さ・緊急度を判断しない。量は用法・用量に見えるため）。
 // 本編（SonaQuestVideo・sections.ts）への組み込みは、本編の組み直しの Issue（#262）で行う。音は入れない。
@@ -28,10 +26,7 @@ const ROW_STAGGER = 2.5;
 /** 動画だけの架空の人（アプリの 100 人には入っていない。年齢・お薬は動画のための架空の値） */
 const VIDEO_ONLY: SimPatient = { no: 0, name: "北海 シマ海老蔵", sex: "男性", age: 58, meds: [{ item: "降圧薬A", perDay: 1 }], condition: "なし" };
 
-/** 動画でだけ名前を替える人（動画に出す名前 → web/src/board/patients.ts の名前） */
-const VIDEO_RENAMES: Readonly<Record<string, string>> = { "石狩 鮭次郎": "石狩 鮭太郎" };
-
-/** 見せる順の名前（「北海 シマ海老蔵」と VIDEO_RENAMES のほかは、web/src/board/patients.ts の 100 人の名前と同じ字） */
+/** 見せる順の名前（「北海 シマ海老蔵」のほかは、web/src/board/patients.ts の 100 人の名前と同じ字） */
 export const PICKED_NAMES: readonly string[] = [
   "北海 太郎",
   VIDEO_ONLY.name,
@@ -59,10 +54,9 @@ export const PICKED_NAMES: readonly string[] = [
 export function pickedRows(names: readonly string[]): SimPatient[] {
   return names.map((name) => {
     if (name === VIDEO_ONLY.name) return VIDEO_ONLY;
-    const source = VIDEO_RENAMES[name] ?? name;
-    const p = SIM_PATIENTS.find((x) => x.name === source);
-    if (!p) throw new Error(`架空の患者の名簿に無い名前：${source}`);
-    return source === name ? p : { ...p, name };
+    const p = SIM_PATIENTS.find((x) => x.name === name);
+    if (!p) throw new Error(`架空の患者の名簿に無い名前：${name}`);
+    return p;
   });
 }
 
