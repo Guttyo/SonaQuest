@@ -47,6 +47,16 @@ afterEach(() => {
 });
 
 describe("/api/karte/transcript-summary", () => {
+  it("監査役の ID があれば auditConfigured は true で、ID は返さない（Issue #244）", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const { app } = fakes();
+    const e: Env = { ...env, BOARD_CHAT_ENVIRONMENT_ID: "env_0123456789abcdef", KARTE_AUDIT_AGENT_ID: "agent_karte0123456789" };
+    const text = await (await post(app, { transcript: TRANSCRIPT }, e)).text();
+    expect((JSON.parse(text) as TranscriptSummaryResponse).auditConfigured).toBe(true);
+    expect(text).not.toContain("agent_");
+    expect(text).not.toContain("env_");
+  });
+
   it("文字起こしを要約させ、1段目のコードでの確認の指摘を添えて返す。ログは件数と所要時間だけで本文を出さない", async () => {
     const info = vi.spyOn(console, "info").mockImplementation(() => {});
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -57,6 +67,8 @@ describe("/api/karte/transcript-summary", () => {
     expect(body.source).toBe("model");
     expect(body.summary).toEqual(good);
     expect(body.findings).toEqual([]);
+    // 監査役の設定が無い環境では false（Issue #244）
+    expect(body.auditConfigured).toBe(false);
     expect(sent).toHaveLength(1);
     expect(sent[0].transcript).toBe(TRANSCRIPT);
     const logged = [...info.mock.calls, ...warn.mock.calls].flat().join("\n");

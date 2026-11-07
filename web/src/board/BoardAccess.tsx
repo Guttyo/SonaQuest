@@ -10,7 +10,8 @@ import { BOARD_BAND } from "./text";
 import { confirmable, type AuditFinding, type ChartReview, type ChartSummaryDraft } from "./review";
 import { PLANTED_NOTICE, SAMPLE_NOTICE } from "./karte/contract";
 import { findSample } from "./karte/samples";
-import { AUDIT_SESSION_LABELS, KARTE_ASPECT_LABELS, KARTE_PANEL_TEXT } from "./karte/text";
+import { auditNotConfigured } from "./karte/client";
+import { AUDIT_SESSION_LABELS, KARTE_ASPECT_LABELS, KARTE_AUDIT_NOT_CONFIGURED_TEXT, KARTE_PANEL_TEXT } from "./karte/text";
 
 export type ChartOp = "draft" | "draft_planted" | "audit" | "confirm";
 
@@ -306,6 +307,9 @@ export function ChartReviewPanel({ chart }: { chart: PatientChart }) {
   const review = a.reviews[chart.key];
   const editable = a.canEdit(chart.site);
   const status = review?.status;
+  // この環境に監査役が設定されていない抽出型の下書き（Issue #244）。AI を止めた状態は今までどおり「監査できず（AI を止めた）」に進む
+  const auditOff = status === "ai_draft" && auditNotConfigured(review?.draft) && !a.aiStopped;
+  const reasonId = `audit-off-${chart.site}-${chart.id}`;
   return (
     <section className="board-review" aria-label={CHART_REVIEW_TEXT.title} data-review={status ?? "none"}>
       <h4>
@@ -355,10 +359,24 @@ export function ChartReviewPanel({ chart }: { chart: PatientChart }) {
               </button>
             </>
           )}
-          {status === "ai_draft" && (
+          {status === "ai_draft" && !auditOff && (
             <button type="button" className="secondary" disabled={a.busy} onClick={() => a.chartOp(chart, "audit")}>
               {CHART_REVIEW_TEXT.sendAudit}
             </button>
+          )}
+          {auditOff && (
+            <>
+              {/* 押せない見た目の監査のボタンと理由の1行。人の確認に進めるよう、Worker を呼ばずに「監査できず」へ進むボタンを添える */}
+              <button type="button" className="secondary" disabled aria-describedby={reasonId} data-audit-off>
+                {CHART_REVIEW_TEXT.sendAudit}
+              </button>
+              <button type="button" className="secondary" disabled={a.busy} data-audit-skip onClick={() => a.chartOp(chart, "audit")}>
+                {KARTE_AUDIT_NOT_CONFIGURED_TEXT.skip}
+              </button>
+              <span className="board-note" id={reasonId} data-testid="audit-not-configured">
+                {KARTE_AUDIT_NOT_CONFIGURED_TEXT.reason}
+              </span>
+            </>
           )}
           {confirmable(review) && (
             <button type="button" className="board-approve" disabled={a.busy} onClick={() => a.chartOp(chart, "confirm")}>

@@ -194,6 +194,25 @@ describe("/api/karte/audit", () => {
     expect(state.audited).toEqual([]);
   });
 
+  it("要約の返事に、監査役が使えるか（auditConfigured）だけを添える。ID・キーは返さない（Issue #244）", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const { app } = fakes();
+    const summaryOf = async (e: Env, planted: boolean) =>
+      (await (await post(app, "summary", planted ? { sampleId: sample.id, planted: true } : { sampleId: sample.id }, e)).json()) as KarteSummaryResponse;
+    for (const planted of [false, true]) {
+      const on = await summaryOf(env, planted);
+      expect(on.auditConfigured, `planted=${planted}`).toBe(true);
+      expect(JSON.stringify(on)).not.toContain("agent_");
+      expect(JSON.stringify(on)).not.toContain("env_");
+      expect(JSON.stringify(on)).not.toContain("test-key");
+      expect((await summaryOf({ ...env, KARTE_AUDIT_AGENT_ID: "" }, planted)).auditConfigured, `planted=${planted}`).toBe(false);
+      expect((await summaryOf({ ...env, KARTE_AUDIT_AGENT_ID: "agent_x" }, planted)).auditConfigured, `planted=${planted}`).toBe(false);
+      expect((await summaryOf({ ...env, BOARD_CHAT_ENVIRONMENT_ID: undefined }, planted)).auditConfigured, `planted=${planted}`).toBe(false);
+    }
+    // 誤りを混ぜた例はキーが無くても返すが、監査役はキーが無いと使えない
+    expect((await summaryOf({ ...env, ANTHROPIC_API_KEY: undefined }, true)).auditConfigured).toBe(false);
+  });
+
   it("時間切れは「監査できず」で、後片付けは続いている（pending）", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const { app } = fakes(undefined, () => ({ ok: false, failure: "timeout", session: "pending" }));
