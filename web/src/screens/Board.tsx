@@ -41,6 +41,8 @@ import {
   caseRows,
   criticalItems,
   daysLeft,
+  needFor,
+  undeliveredNext,
   heatCell,
   levelOf,
   pendingSummary,
@@ -1962,6 +1964,11 @@ export function Board({
                             <td className="num">{d === null ? "—" : `${roundDays(d)} 日`}</td>
                             <td>
                               <Pill level={st === "在庫切れ" ? "bad" : st === "余裕あり" ? "ok" : "warn"}>{stockStatusLabel(st)}</Pill>
+                              {(() => {
+                                // 受領しても未交付は残る。残り日数は未交付を引く前の値（2026-11-08 の外部の通しレビュー）
+                                const need = needFor(state.needs, r.site, r.item);
+                                return need && <div className="board-case-form">{undeliveredNext(need.qty, r.unit)}</div>;
+                              })()}
                             </td>
                             <td className="num">{hq ? qty(hq.onHand, hq.unit) : "—"}</td>
                           </tr>
