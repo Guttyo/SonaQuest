@@ -1,0 +1,48 @@
+<!-- アプリの BGM（web/src/bgm/bgm.ts）を OfflineAudioContext で書き出すページ。capture.mjs が開く。音は保存しない（PCM を base64 で返すだけ） -->
+<!doctype html><meta charset="utf-8"><body><pre id="out">wait</pre>
+<script src="bgm.js"></script>
+<script>
+(async () => {
+  const DUR = 72, SR = 48000;
+  const off = new OfflineAudioContext(1, SR * DUR, SR);
+  let fake = 0;
+  let timers = [];
+  let nextId = 1;
+  const ctx = {
+    get currentTime() { return fake; },
+    state: "running",
+    destination: off.destination,
+    createGain: () => off.createGain(),
+    createOscillator: () => off.createOscillator(),
+    resume: async () => {}, suspend: async () => {}, close: async () => {},
+  };
+  const bgm = new SQBGM.Bgm({
+    createContext: () => ctx,
+    setTimer: (fn, ms) => { const id = nextId++; timers.push({ id, t: fake + ms / 1000, fn }); return id; },
+    clearTimer: (id) => { timers = timers.filter((x) => x.id !== id); },
+    reducedMotion: false,
+  });
+  bgm.toggle();
+  while (fake < DUR - 0.1) {
+    fake += 0.05;
+    const due = timers.filter((x) => x.t <= fake);
+    timers = timers.filter((x) => x.t > fake);
+    for (const d of due) d.fn();
+  }
+  const buf = await off.startRendering();
+  const data = buf.getChannelData(0);
+  const pcm = new Int16Array(data.length);
+  let peak = 0;
+  for (let i = 0; i < data.length; i++) peak = Math.max(peak, Math.abs(data[i]));
+  const k = peak > 0 ? 0.9 / peak : 1;
+  for (let i = 0; i < data.length; i++) pcm[i] = Math.max(-32768, Math.min(32767, Math.round(data[i] * k * 32767)));
+  const header = new ArrayBuffer(44); const v = new DataView(header);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, "RIFF"); v.setUint32(4, 36 + pcm.byteLength, true); w(8, "WAVE"); w(12, "fmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, SR, true);
+  v.setUint32(28, SR * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, "data"); v.setUint32(40, pcm.byteLength, true);
+  const blob = new Blob([header, pcm.buffer]);
+  const b64 = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result.split(",")[1]); fr.readAsDataURL(blob); });
+  document.getElementById("out").textContent = "PEAK=" + peak.toFixed(4) + "\nB64=" + b64;
+})().catch((e) => { document.getElementById("out").textContent = "ERR " + e; });
+</script>

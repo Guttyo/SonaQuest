@@ -14,6 +14,7 @@ import {
 } from "./slides";
 import { COLORS, MONO, baseText, hasStaticFile } from "./theme";
 import { QuoteScene } from "./quoteSlide";
+import { Soundtrack } from "./soundtrack";
 
 /** スマホ幅の録画（390×844）を入れる枠。横長の画面の高さに収まるよう少し大きくする */
 const PHONE_SCALE = 1.06;
@@ -666,6 +667,7 @@ const Beat: FC<{ section: Section }> = ({ section }) => {
 
 export const SonaQuestVideo: FC = () => (
   <AbsoluteFill style={{ backgroundColor: COLORS.background }}>
+    <Soundtrack />
     {SECTIONS.map((section) => (
       <Sequence
         key={section.number}

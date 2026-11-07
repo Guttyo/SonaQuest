@@ -78,6 +78,9 @@ npm --prefix video run narration -- --force --only 2,5
 | 11 | `footage/11-phone.mp4`・`11-chat.mp4`・`11-karte.mp4` | モデルの使い分けで並べる、訓練・掲示板・カルテの録画（各9秒）。札は `src/modelMap.ts` から重ねる |
 | 12 | `photos/12-a`・`12-b`、`private/12-quote.json`（無ければ `private/12-caption.txt`） | 協力者の集合写真の後に、試用した人のコメントの一枚。JSON に `photoNote`・`heading`・`name`・`portrait`・`source`・`pages`（`**…**` は太字）を書く。名前とコメントはリポジトリに書かない |
 | 1〜13 | `narration/NN.mp3` | 手順3で合成したナレーション |
+| 4〜6 | `bgm/app-training.wav` | アプリの BGM（`web/src/bgm/bgm.ts`）をそのまま書き出したもの。`node video/scripts/capture-app-bgm/capture.mjs` で作る（ヘッドレスの Chrome を使う） |
+| 1〜3・7〜13 | `bgm/opening.wav`・`board.wav`・`models.wav`・`ending.wav` | コードで合成した BGM（`video/scripts/compose-bgm.mjs`）。置き方と大きさは `src/soundtrack.tsx` |
+| 全体 | `sfx/tap.wav`・`whoosh.wav`・`battery-off.wav`・`confirm.wav`・`pop.wav` | 効果音（コードで合成）。タップ・章の題・電池切れ・承認と確認・テロップの時刻に鳴る |
 
 - 写真と感想の文は、元の名前を使わず、上の中立の名前で置きます（元のファイル名をリポジトリに書かないため）。
 - タップの寄りと波紋は `src/sections.ts` の `taps`（場面の頭からの秒と、録画の CSS の座標）、下のテロップは `telops`、章の題は `chapter` に書きます。撮影の記録（録画と一緒に書き出す JSON の `clicks`）の時刻を場面の時間に写して使います。
