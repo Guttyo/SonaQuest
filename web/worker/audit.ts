@@ -7,7 +7,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { Usage } from "./claude";
 
 export const AUDIT_MODEL = "claude-haiku-5-5";
-/** 監査役を待つ時間。話し相手の文の8秒（項目9）と合わせても、画面の待ち時間の上限に収まるようにする */
+/** 監査役を待つ時間。話し相手の文の15秒（項目9。Issue #219）と合わせても、画面の待ち時間の上限に収まるようにする */
 export const AUDIT_TIMEOUT_MS = 6000;
 
 /** 監査役が文を止めた理由の種類。本文を含まないので、ログに出してよい */
