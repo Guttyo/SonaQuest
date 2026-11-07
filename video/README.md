@@ -76,7 +76,7 @@ npm --prefix video run narration -- --force --only 2,5
 | 7 | `photos/07-a`・`07-b`・`07-c`、`footage/07-board.mp4` | 当時の本部と救護所の写真（3秒ずつ）の後に、ボードの全体の録画 |
 | 8〜10 | `footage/08-board.mp4` など | ボードの横長の録画（1920×1080）。8番は 4〜9 秒に架空の患者の表（`src/patientTable/PatientTableVideo.tsx`）が重なる |
 | 11 | `footage/11-phone.mp4`・`11-chat.mp4`・`11-karte.mp4` | モデルの使い分けで並べる、訓練・掲示板・カルテの録画（各9秒）。札は `src/modelMap.ts` から重ねる |
-| 12 | `photos/12-a`・`12-b`、`private/12-caption.txt` | 協力者の写真と、試用した人の写真。2枚目に感想の一節（テキストファイルの文をそのまま出す） |
+| 12 | `photos/12-a`・`12-b`、`private/12-quote.json`（無ければ `private/12-caption.txt`） | 協力者の集合写真の後に、試用した人のコメントの一枚。JSON に `photoNote`・`heading`・`name`・`portrait`・`source`・`pages`（`**…**` は太字）を書く。名前とコメントはリポジトリに書かない |
 | 1〜13 | `narration/NN.mp3` | 手順3で合成したナレーション |
 
 - 写真と感想の文は、元の名前を使わず、上の中立の名前で置きます（元のファイル名をリポジトリに書かないため）。

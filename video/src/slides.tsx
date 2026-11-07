@@ -217,7 +217,7 @@ const Arrow: FC<{ start: number }> = ({ start }) => {
 /* ---------- 3・7・12番：写真の場面 ---------- */
 
 /** video/public/ のテキストファイルを読む（12番の感想の一節。文はリポジトリに置かない） */
-const useStaticText = (file: string | null): string | null => {
+export const useStaticText = (file: string | null): string | null => {
   const exists = hasStaticFile(file);
   const [text, setText] = useState<string | null>(null);
   const [handle] = useState(() => (exists ? delayRender("写真の場面の文を読む") : null));

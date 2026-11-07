@@ -10,7 +10,7 @@ export const FONT_FAMILY =
 export const MONO = 'ui-monospace, "Cascadia Mono", Consolas, "Courier New", "MS Gothic", monospace';
 
 export const COLORS = {
-  background: "#f6f4ef",
+  background: "#fbf7ea",
   ink: "#1f2a33",
   sub: "#5b6770",
   frame: "#1f2a33",

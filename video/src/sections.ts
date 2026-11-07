@@ -117,6 +117,16 @@ export type Section = {
   /** 画面に重ねる Remotion の部品 */
   overlay: Overlay | null;
   /**
+   * 12番のコメントの一枚の中身：video/public/ からの相対パスの JSON（Git の対象外。名前・コメント・出典・写真）。
+   * 置かれていなければ写真の場面のまま。
+   */
+  quoteFile: string | null;
+  /**
+   * スマホの場面で iPhone のベゼルを出すか。ベゼルは最初の4番だけにし、5・6・13番は画面だけを少し大きく出す
+   * （2026-11-08 オーナー：「iPhoneのベゼルは1回だせばいいんじゃないかな」）。
+   */
+  bezel: boolean;
+  /**
    * 素材の録画の音を鳴らすか。アプリのソナの声を聞かせる5番だけ鳴らす（録画の音声をそのまま使う）。
    * ほかの録画の音は消し、ナレーションだけにする（docs/demo-script.md「声の割り当て」）。
    */
@@ -198,6 +208,8 @@ type Row = Omit<
   | "taps"
   | "telops"
   | "chapter"
+  | "quoteFile"
+  | "bezel"
 > & {
   /** 場面の長さ（秒）。台本の表の時間の欄と同じ */
   seconds: number;
@@ -216,6 +228,8 @@ type Row = Omit<
   taps?: Tap[];
   telops?: Telop[];
   chapter?: { text: string; at: number };
+  quoteFile?: string;
+  bezel?: boolean;
 };
 
 /**
@@ -286,6 +300,7 @@ const ROWS: Row[] = [
     footageFile: "footage/04-phone.mp4",
     footageAudio: false,
     chapter: { text: CHAPTERS.training, at: 0 },
+    bezel: true,
     taps: [
       { at: 4.48, x: 287, y: 422 },
       { at: 6.39, x: 195, y: 615 },
@@ -395,16 +410,16 @@ const ROWS: Row[] = [
     screenNote: "カルテ：見本の会話 → 要約（引用に寄る）→ 監査の指摘 →「人が確認済み」",
     footageFile: "footage/10-board.mp4",
     footageAudio: false,
-    // 要約を作る → 記録との一致をチェック（監査）→ 確認済みにする
+    // 録画の区間：0〜2.8 要約を作る、2.8〜 要約が出た所 → 記録との一致をチェック（監査）→ 確認済みにする → 最後の絵を止める
     taps: [
-      { at: 0.43, x: 507, y: 775 },
-      { at: 5.15, x: 509, y: 827 },
-      { at: 9.5, x: 514, y: 828 },
+      { at: 0.63, x: 507, y: 775 },
+      { at: 3.15, x: 509, y: 827 },
+      { at: 11.2, x: 514, y: 828 },
     ],
     telops: [
-      { from: 1.5, to: 4.8, text: TELOPS.summary },
-      { from: 6.0, to: 9.2, text: TELOPS.audit },
-      { from: 10.0, to: 12.8, text: TELOPS.human },
+      { from: 2.9, to: 6.2, text: TELOPS.summary },
+      { from: 6.8, to: 10.6, text: TELOPS.audit },
+      { from: 11.4, to: 13, text: TELOPS.human },
     ],
   },
   {
@@ -425,6 +440,7 @@ const ROWS: Row[] = [
     privateNarration: true,
     photoShots: [["photos/12-a"], ["photos/12-b"]],
     captionFile: "private/12-caption.txt",
+    quoteFile: "private/12-quote.json",
   },
   {
     seconds: 10,
@@ -467,6 +483,8 @@ export const SECTIONS: Section[] = ROWS.reduce<Section[]>((acc, row, i) => {
     taps: row.taps ?? [],
     telops: row.telops ?? [],
     chapter: row.chapter ?? null,
+    quoteFile: row.quoteFile ?? null,
+    bezel: row.bezel ?? false,
     // どの場面もナレーターの声。3・12番の原稿はリポジトリの外だが、合成した音声は同じ場所に置く
     narrationFile: `narration/${pad2(number)}.mp3`,
   });

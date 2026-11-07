@@ -8,12 +8,12 @@ import { CLOSING_LINE } from "./slideText";
 import {
   ModelsDemo,
   PatientTableOverlay,
-  PhotoSlides,
   PipelineOverlay,
   QuakeCountOverlay,
   QuestionSlide,
 } from "./slides";
 import { COLORS, MONO, baseText, hasStaticFile } from "./theme";
+import { QuoteScene } from "./quoteSlide";
 
 /** スマホ幅の録画（390×844）を入れる枠。横長の画面の高さに収まるよう少し大きくする */
 const PHONE_SCALE = 1.06;
@@ -141,14 +141,28 @@ const PHONE_FOOTAGE_SCALE = (HEIGHT - STATUS_BAR - HOME_BAR) / 844;
 const PHONE_FOOTAGE_WIDTH = 390 * PHONE_FOOTAGE_SCALE;
 const PHONE_SIDE = (BEZEL_SCREEN.width * BEZEL_K - PHONE_FOOTAGE_WIDTH) / 2;
 
+/** ベゼルの画面の中心（横）。ベゼルなしの画面も同じ中心に置く */
+const PHONE_CENTER_X = BEZEL_LEFT + (BEZEL_SCREEN.left + BEZEL_SCREEN.width / 2) * BEZEL_K;
+/** ベゼルなしの画面（5・6・13番）：上下に少し余白を残して高さいっぱい */
+const PLAIN_MARGIN = 20;
+const PLAIN_SCALE = (HEIGHT - PLAIN_MARGIN * 2) / 844;
+const PLAIN_WIDTH = 390 * PLAIN_SCALE;
+const PLAIN_LEFT = PHONE_CENTER_X - PLAIN_WIDTH / 2;
+
 /** スマホの録画の CSS の座標 → 横長の画面の座標（寄りの中心と波紋で同じものを使う） */
-const phoneToFrame = (x: number, y: number) => ({
-  x: BEZEL_LEFT + BEZEL_SCREEN.left * BEZEL_K + PHONE_SIDE + x * PHONE_FOOTAGE_SCALE,
-  y: BEZEL_TOP + BEZEL_SCREEN.top * BEZEL_K + STATUS_BAR + y * PHONE_FOOTAGE_SCALE,
-});
+const phoneToFrame = (section: Section, x: number, y: number) =>
+  section.bezel && hasStaticFile(BEZEL_FILE)
+    ? {
+        x: BEZEL_LEFT + BEZEL_SCREEN.left * BEZEL_K + PHONE_SIDE + x * PHONE_FOOTAGE_SCALE,
+        y: BEZEL_TOP + BEZEL_SCREEN.top * BEZEL_K + STATUS_BAR + y * PHONE_FOOTAGE_SCALE,
+      }
+    : { x: PLAIN_LEFT + x * PLAIN_SCALE, y: PLAIN_MARGIN + y * PLAIN_SCALE };
+
+/** スマホの画面の左の端（寄ったときに左の列にかからないよう、ずらす量を決めるのに使う） */
+const phoneLeftEdge = (section: Section) => (section.bezel && hasStaticFile(BEZEL_FILE) ? BEZEL_LEFT : PLAIN_LEFT);
 
 /** 録画の座標 → 横長の画面の座標。ボードの録画は 1920×1080 の CSS の画面をそのまま全面に置いている */
-const tapToFrame = (section: Section, tap: Tap) => (section.screen === "phone" ? phoneToFrame(tap.x, tap.y) : { x: tap.x, y: tap.y });
+const tapToFrame = (section: Section, tap: Tap) => (section.screen === "phone" ? phoneToFrame(section, tap.x, tap.y) : { x: tap.x, y: tap.y });
 
 /** 偽のステータスバー（時刻と電池の形だけ。録画の中の情報ではない） */
 const StatusBar: FC = () => (
@@ -179,6 +193,26 @@ const StatusBar: FC = () => (
 
 /** スマホの枠に入れた縦の録画 */
 const PhoneFrame: FC<{ section: Section }> = ({ section }) => {
+  if (!section.bezel) {
+    return (
+      <div
+        style={{
+          position: "absolute",
+          left: PLAIN_LEFT,
+          top: PLAIN_MARGIN,
+          width: PLAIN_WIDTH,
+          height: 844 * PLAIN_SCALE,
+          borderRadius: 28,
+          overflow: "hidden",
+          backgroundColor: APP_CREAM,
+          border: "2px solid rgba(31,42,51,0.12)",
+          boxShadow: "0 24px 48px rgba(0,0,0,0.18)",
+        }}
+      >
+        <PhoneScreen section={section} />
+      </div>
+    );
+  }
   if (hasStaticFile(BEZEL_FILE)) {
     const k = BEZEL_K;
     return (
@@ -373,7 +407,7 @@ const ChapterFlash: FC<{ section: Section }> = ({ section }) => {
   );
   const scale = interpolate(t, [0, dur], [1.04, 1], { extrapolateRight: "clamp" });
   return (
-    <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", backgroundColor: "rgba(246,244,239,0.93)", opacity }}>
+    <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", backgroundColor: "rgba(251,247,234,0.93)", opacity }}>
       <div style={{ ...baseText, fontSize: 100, fontWeight: 800, color: COLORS.ink, transform: `scale(${scale})` }}>{section.chapter.text}</div>
       <div style={{ width: 160, height: 8, borderRadius: 4, backgroundColor: COLORS.accent, marginTop: 28 }} />
     </AbsoluteFill>
@@ -458,7 +492,7 @@ const ZoomLayer: FC<{ section: Section; children: ReactNode }> = ({ section, chi
   // スマホの場面：寄ったスマホが左の列（題とテロップ）にかからないよう、右へずらす
   let shift = 0;
   if (section.screen === "phone") {
-    const phoneLeft = camera.x + (BEZEL_LEFT - camera.x) * camera.scale;
+    const phoneLeft = camera.x + (phoneLeftEdge(section) - camera.x) * camera.scale;
     shift = Math.max(0, LEFT_COLUMN.left + LEFT_COLUMN.width + 24 - phoneLeft);
   }
   return (
@@ -594,7 +628,9 @@ const Beat: FC<{ section: Section }> = ({ section }) => {
       showCaption = !hasStaticFile(section.footageFile);
       break;
     case "photos":
-      body = <PhotoSlides section={section} />;
+      body = <QuoteScene section={section} />;
+      // コメントの一枚は自分の見出しを持つので、左上の題は出さない
+      if (section.quoteFile && hasStaticFile(section.quoteFile)) showCaption = false;
       break;
     case "board":
       body = <WideFootage section={section} label="ボードの横長の録画（1920×1080）" />;
