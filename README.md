@@ -178,6 +178,7 @@ docs/roadmap.md        提出後の課題（提出版の実装には含まない
 docs/dev-logs/         テーマごとの開発記録（経過と教訓）
 docs/reviews/          外部レビュー・助言の記録（何を聞き、何を言われたか）
 web/                   画面（React / TypeScript / Vite）。src/flow/ に進行のルールと固定文
+web/src/brand/         ロゴ（文字を図形にした SVG と部品。アプリと動画が読む）
 web/worker/            Cloudflare Workers（Hono）の /api/turn・/api/tts。Claude の呼び出しと、出力・文の検査、監査役、読み上げの中継
 web/experiments/       モデルの比較実験の材料（架空の回答）と実行の台本、測った値
 ```
@@ -190,3 +191,5 @@ web/experiments/       モデルの比較実験の材料（架空の回答）と
 ## ライセンス
 <!-- オーナー決定（2026-11-02）：MITを基本とする。外部素材（キャラクター等）は個別に利用条件を確認する。LICENSE ファイルはマーカー解除後に追加する。 -->
 MIT（予定）。外部素材を使う場合は、それぞれの利用条件に従います。
+
+ロゴの文字は、書体 Manrope（Copyright 2018 The Manrope Project Authors、SIL Open Font License 1.1）の字形を図形にしたものです。フォントファイルは含みません（`web/src/brand/README.md`）。

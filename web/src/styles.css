@@ -87,6 +87,11 @@ body {
   font-weight: var(--fw-bold);
 }
 
+/* 帯の題「お薬の避難訓練」を語の切れ目でだけ折り返す（Issue #263） */
+.app-title-part {
+  display: inline-block;
+}
+
 .stop-button {
   min-height: 44px;
   padding: 0 14px;
@@ -2784,6 +2789,32 @@ body,
   flex: none;
   width: 96px;
   height: 96px;
+}
+
+/* はじめにの題のロゴ（Issue #263、ADR-0066）。ロゴは帯の幅に合わせて縮み、広い画面では 320px で止める。
+   副題（名前の由来）は文字のまま、ロゴの語と同じ深い緑（--go-press。--mint の上で約8:1）。狭い幅では「：」の後で折り返す */
+.intro-title-logo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.intro-logo {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+}
+
+.intro-subtitle {
+  display: block;
+  font-size: var(--fs-sub);
+  line-height: var(--lh-tight);
+  color: var(--go-press);
+}
+
+.intro-subtitle-part {
+  display: inline-block;
 }
 
 /* 答え方の2枚のカード。幅があれば横に並べ、絵を上、題と説明を下に置く。選んでいるカードは深い緑の太い枠と ✓ で示す */
