@@ -1769,6 +1769,7 @@
 - 限界：
   - 接続元ごとの上限なので、多くの接続元から呼ばれたときの合計は P9 で受ける。
   - 同じ IP を多くの人が使う場所では、正常な利用者も拒否されうる（ADR-0035 の限界と同じ）。
-  - 公開環境で 429 が出ることは、まだ確かめていない（デプロイが要る。デプロイはオーナーの承認の後）。手元の `wrangler dev` でも、公開の切り替えと API キーがそろわないと回数制限の手前で閉じるので、本物のオブジェクトでは確かめていない。試験は偽の名前空間で行った。
+  - 同時に送ったときは確かめていない（下の「確かめたこと」は逐次）。
   - Durable Objects の利用が、Cloudflare の料金にどう数えられるかは、オーナーが契約の画面で確かめる（Claude Code は確かめていない）。
+- 確かめたこと（2026-11-07、公開環境。オーナーの「デプロイして」「設定して」の後）：別々の接続から `/api/turn` に12回送ると、1〜10回目は 200、11・12回目は 429 だった。続けて 2D の訓練を Claude ありで最後まで通し、8回とも 200。`wrangler tail` のログは種類だけだった（safety-test-plan P7・P1）。
 - 影響：`web/worker/strictLimiter.ts`（新規）・`strictLimiter.test.ts`（新規）、`web/worker/index.ts`、`web/worker/app.ts`（コメント）、`web/worker/turn.test.ts`（入口が出す名前）、`web/wrangler.jsonc`、docs/safety-test-plan.md（P7）、docs/STATUS.md（D-01）。ADR-0035 の決定1 はこの ADR で替えた。
