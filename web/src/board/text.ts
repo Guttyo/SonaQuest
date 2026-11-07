@@ -37,7 +37,7 @@ export const BOARD_LAYOUT = {
     supply: "発注・搬送",
     records: "記録（カルテ）",
     demo: "デモ",
-    chat: "連絡",
+    chat: "掲示板チャット",
   },
   siteTabs: {
     overview: "詳細",
@@ -51,6 +51,8 @@ export const BOARD_LAYOUT = {
     pharmacistsShort: (n: number) => `薬剤師 ${n}人不足`,
     undelivered: "薬の未交付あり",
     pending: (n: number) => `本部未反映の記録 ${n}件`,
+    /** 件数の報告が無い救護所（ゼロと分ける。2026-11-07 オーナーの指摘、Issue #217） */
+    pendingUnknown: "本部未反映の記録 件数未確認",
     proposals: "承認待ちの提案",
     more: (n: number) => `ほか ${n}件`,
     max: 1,
@@ -149,7 +151,7 @@ export const BOARD_CHANGES = {
     { kind: "提案", name: "提案" },
     { kind: "承認", name: "承認" },
     { kind: "受領", name: "受領" },
-    { kind: "在庫切れ", name: "在庫切れ" },
+    { kind: "在庫切れ", name: "在庫なし" },
   ],
   sep: "、",
   lastReport: "最終更新",
@@ -178,10 +180,10 @@ export const BOARD_LEAD_TILE = {
 
 /** 本部の数字の列の、1024 幅で入らないときの短い見出し（Issue #143。2026-11-06 オーナー決定「いいね、それで行こう。」） */
 export const BOARD_TILE_SHORT = {
-  critical: "在庫切れ・見込み",
+  critical: "在庫なし・見込み",
   proposals: "承認待ち",
-  pending: "未着・転記待ち",
-  stale: "報告が古い",
+  pending: "本部未反映",
+  stale: "更新が古い",
 } as const;
 
 /** 上の帯の短い言い方（Issue #143。2026-11-06 オーナー決定「いいね、それで行こう。」）。読み上げには全文を残す */
@@ -196,18 +198,21 @@ export const BOARD_BAND = {
  * 数字の単位（件・か所・人）と、何を数えたかを札の中で読めるようにする
  */
 export const BOARD_TILES = {
-  critical: "在庫切れ・不足見込み",
+  critical: "在庫なし・不足見込み",
   criticalUnit: "件（拠点×品目）",
   criticalSum: (critical: number, unconfirmed: number, noPace: number, total: number) =>
     `${critical}件 ＋ 未確認 ${unconfirmed}件 ＋ 算出不可 ${noPace}件 ＝ 確認・手配が必要な事項 ${total}件`,
   proposals: "承認待ちの発注提案",
   proposalsUnit: "件",
   proposalsSub: (approved: number) => `承認済み ${approved}件`,
-  pending: "記録の未着・転記待ち",
+  pending: "本部未反映の記録",
   pendingUnit: "件",
-  pendingSub: (undelivered: number, awaiting: number) =>
-    `未着 ${undelivered}・転記待ち ${awaiting}。問診の記録の件数（人数ではない。最後に届いた後の分）`,
-  stale: (hours: number) => `${hours}時間以上 報告がない救護所`,
+  /** 件数の報告が無い救護所の、数の代わりに出す文字（0 と分ける。Issue #217） */
+  pendingUnknown: "未確認",
+  /** 件数は、報告で分かった分だけ（2026-11-07 オーナーの指摘、Issue #217）。件数の報告が無い救護所は数に入れず、か所数で示す */
+  pendingSub: (undelivered: number, awaiting: number, unknownSites: number) =>
+    `未着 ${undelivered}・転記待ち ${awaiting}${unknownSites > 0 ? `・件数未確認 ${unknownSites}か所` : ""}。報告で分かった問診の記録の件数（人数ではない。最後に届いた後の分）`,
+  stale: (hours: number) => `${hours}時間以上 更新がない救護所`,
   staleUnit: "か所",
   staleNone: "なし",
   activity: "今日の活動",
@@ -224,12 +229,12 @@ export const BOARD_ENTRY_LABEL = "地域本部の医薬品ボードを見る（�
 /** 確認・手配が必要な品目の一覧（Issue #101）。画面の先頭に置く */
 export const BOARD_CASES = {
   title: "確認・手配が必要な事項",
-  note: "並び順は業務のルール：在庫切れ → 未確認（在庫のデータが届いていない）→ 在庫切れの見込みが近い順 → 算出不可（在庫はあるが1日あたりの出庫量が分からない）。臨床の緊急度は表さない。「在庫切れ」の表示だけで緊急度を表さない。照会中・到着未定の数量は現地の在庫に足していない。",
+  note: "並び順は業務のルール：在庫なし → 未確認（在庫のデータが届いていない）→ 在庫がもつ日数の短い順 → 算出不可（在庫はあるが1日あたりの出庫量が分からない）。臨床の緊急度は表さない。「在庫なし」の表示だけで緊急度を表さない。照会中・到着未定の数量は現地の在庫に足していない。",
   /** 本部の全体の表の列（Issue #113） */
   table: { site: "拠点", what: "確認が必要なこと", now: "現在の状況", next: "次の確認" },
   /** 状態の札を短くする（折り返さないように。Issue #113） */
   daysLeft: (days: number) => `あと${days}日`,
-  forecastPrefix: "在庫切れ見込み、",
+  forecastPrefix: "在庫なしの見込み、",
   proposal: "発注の提案",
   /** 提案の状態「提案」は、承認待ちの意味 */
   awaiting: "承認待ち",
@@ -261,8 +266,8 @@ export const BOARD_OVERVIEW = {
   patients: "本日の延べ患者数",
   pharmacists: "薬剤師",
   short: "不足",
-  outOfStock: "在庫切れ",
-  forecast: "在庫切れ見込み",
+  outOfStock: "在庫なし",
+  forecast: "在庫なしの見込み",
   unconfirmed: "未確認",
   noPace: "算出不可",
   route: "経路",
@@ -371,7 +376,7 @@ export const BOARD_MAP = {
   legendBlocked: "通行止め",
   legendHq: "本部",
   legendSite: "救護所",
-  outOfStock: "在庫切れ",
+  outOfStock: "在庫なし",
   /** 職種は残し、在庫切れより目立たせない（2026-11-05 オーナー決定） */
   pharmacistsShort: (n: number) => `薬剤師 ${n}人不足`,
   statusTitle: "本部の周りの状況",
@@ -385,7 +390,7 @@ export const BOARD_MAP = {
 
 /** 救護所ごとの一覧（1タップ目：救護所、2タップ目：品目） */
 export const BOARD_GROUPS = {
-  note: "救護所ごとにまとめた。救護所の行を開くと確認・手配が必要な品目、品目の行を開くと連絡先・入荷・経路。並びは、在庫切れと不足が多い順。",
+  note: "救護所ごとにまとめた。救護所の行を開くと確認・手配が必要な品目、品目の行を開くと連絡先・入荷・経路。並びは、在庫なしと不足が多い順。",
   empty: "確認・手配が必要な品目はない",
   items: "品目",
 } as const;
@@ -453,20 +458,20 @@ export const INTAKE_IMAGE = {
 // 決定済み：動く地図の文言（Claude Code の下書き。凡例・道筋の案内・動いているものの説明・「架空・模擬」の書き方）
 // → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（ボードの文言）
 export const BOARD_MAP_LIVE = {
-  legendGlowBad: "光（赤）：在庫切れがある",
-  legendGlowWarn: "光（黄）：在庫切れ見込み・薬剤師の不足・最終報告が古い",
+  legendGlowBad: "光（赤）：在庫なしがある",
+  legendGlowWarn: "光（黄）：在庫なしの見込み・薬剤師の不足・最終更新が古い",
   legendShipment: "便：搬送中の便",
   legendVehicle: "車：医療チームの車（模擬）",
   glowReason: {
-    在庫切れ: (n: number) => `在庫切れ ${n}`,
-    切れる見込み: (n: number) => `在庫切れ見込み ${n}`,
+    在庫切れ: (n: number) => `在庫なし ${n}`,
+    切れる見込み: (n: number) => `在庫なしの見込み ${n}`,
     薬剤師の不足: (n: number) => `薬剤師 不足 ${n}`,
-    最終報告が古い: (h: number) => `最終報告 ${h} 時間前`,
+    最終報告が古い: (h: number) => `最終更新 ${h} 時間前`,
   },
   glowTitle: "要確認の救護所",
   glowNone: "要確認の救護所はない",
   /** 最終報告が古いとみなす時間（仮の値）の注記 */
-  staleNote: (h: number) => `「最終報告が古い」は ${h} 時間以上たったもの（デモの仮の目安）。光は状態を知らせるだけで、優先順位は決めない。`,
+  staleNote: (h: number) => `「最終更新が古い」は ${h} 時間以上たったもの（デモの仮の目安）。光は状態を知らせるだけで、優先順位は決めない。`,
   routeHint: "拠点にカーソルを置くか焦点を当てる、または「本部からの経路」の行を押すと、本部からの道筋が浮かび上がる。",
   routeLine: (site: string, status: string, via: string, minutes: number | null) =>
     `本部 → ${site}：${status}。${via}${minutes !== null ? `（約${minutes}分）` : ""}`,
@@ -550,8 +555,8 @@ export const BOARD_TIMELINE = {
   legendUndecided: "点線：到着未定",
   empty: "確認・手配が必要な行はない",
   stock: {
-    在庫切れ: "在庫切れ（いま）",
-    在庫切れ見込み: (at: string) => `在庫切れ見込み ${at}`,
+    在庫切れ: "在庫なし（いま）",
+    在庫切れ見込み: (at: string) => `在庫なしの見込み ${at}`,
     未確認: "在庫のデータが届いていない（区間なし）",
     見込み算出不可: "1日あたりの出庫量が分からず、見込みを出せない（区間なし）",
   },

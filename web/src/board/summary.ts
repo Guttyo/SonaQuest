@@ -281,14 +281,18 @@ export interface PendingSummary {
   /** 届いたが記録の形になっていない数 */
   awaiting: number;
   offlineSites: number;
+  /** 件数の報告が無い（未確認の）救護所の数。上の数には入れない（Issue #217） */
+  unknownSites: number;
 }
 
 export function pendingSummary(sync: readonly SyncRow[]): PendingSummary {
+  const sum = (rows: readonly SyncRow[]) => rows.reduce((a, r) => a + (r.pending ?? 0), 0);
   return {
-    pending: sync.reduce((a, r) => a + r.pending, 0),
-    undelivered: sync.filter((r) => r.pendingKind === "未着").reduce((a, r) => a + r.pending, 0),
-    awaiting: sync.filter((r) => r.pendingKind === "転記待ち").reduce((a, r) => a + r.pending, 0),
+    pending: sum(sync),
+    undelivered: sum(sync.filter((r) => r.pendingKind === "未着")),
+    awaiting: sum(sync.filter((r) => r.pendingKind === "転記待ち")),
     offlineSites: sync.filter((r) => r.mode === "紙で記録・通信なし").length,
+    unknownSites: sync.filter((r) => r.pending === null).length,
   };
 }
 

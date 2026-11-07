@@ -29,6 +29,8 @@ function lastReportAt(state: DemoState, site: SiteId): number | null {
 export function pendingSplit(state: DemoState, site: SiteId): { notArrived: number | null; awaitingEntry: number | null } {
   const row = state.sync.find((s) => s.site === site);
   if (row === undefined) return { notArrived: null, awaitingEntry: null };
+  // 件数の報告が無い（未確認）ときは、その種類の数を null にする（Issue #217。0 と分ける）
+  if (row.pending === null) return row.pendingKind === "未着" ? { notArrived: null, awaitingEntry: 0 } : { notArrived: 0, awaitingEntry: null };
   if (row.pending === 0 || row.pendingKind === "なし") return { notArrived: 0, awaitingEntry: 0 };
   return row.pendingKind === "未着" ? { notArrived: row.pending, awaitingEntry: 0 } : { notArrived: 0, awaitingEntry: row.pending };
 }

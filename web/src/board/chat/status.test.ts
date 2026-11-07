@@ -18,10 +18,10 @@ describe("未着と転記待ちを分ける", () => {
     }
   });
 
-  it("架空データの始まりでは、救護所B・Dは未着だけ、救護所Cは転記待ちだけになる", () => {
+  it("架空データの始まりでは、救護所Bは未着だけ、救護所Dは未着の件数が不明（報告なし。Issue #217）、救護所Cは転記待ちだけになる", () => {
     expect(site("B").notArrivedRecords).toBeGreaterThan(0);
     expect(site("B").awaitingEntryRecords).toBe(0);
-    expect(site("D").notArrivedRecords).toBeGreaterThan(0);
+    expect(site("D").notArrivedRecords).toBeNull();
     expect(site("D").awaitingEntryRecords).toBe(0);
     expect(site("C").notArrivedRecords).toBe(0);
     expect(site("C").awaitingEntryRecords).toBeGreaterThan(0);

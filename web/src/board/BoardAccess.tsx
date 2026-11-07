@@ -5,7 +5,7 @@ import { createContext, useContext, useState, type FormEvent } from "react";
 import { HQ, type SiteId } from "./data";
 import { clockText, type PatientChart } from "./demo";
 import { LOGIN_SITES, siteLabel, staffFor, type AccessEntry, type DemoSession } from "./access";
-import { ACCESS_LOG_TEXT, BOARD_LOGIN, BOARD_PERMISSION, CHART_REVIEW_TEXT } from "./accessText";
+import { ACCESS_LOG_TEXT, BOARD_LOGIN, BOARD_PERMISSION, CHART_REVIEW_TEXT, SAMPLE_SOURCE } from "./accessText";
 import { BOARD_BAND } from "./text";
 import { confirmable, type AuditFinding, type ChartReview, type ChartSummaryDraft } from "./review";
 import { PLANTED_NOTICE, SAMPLE_NOTICE } from "./karte/contract";
@@ -225,6 +225,19 @@ function DraftView({ draft, findings }: { draft: ChartSummaryDraft; findings: re
             </div>
           ))}
         </dl>
+        {/* 比較元の会話（Issue #217）。指摘が正しいかを利用者が確かめられるように、開いたまま出す */}
+        <details className="board-review-conversation" open data-sample-source>
+          <summary>{SAMPLE_SOURCE.title}</summary>
+          <p className="board-note">{SAMPLE_SOURCE.note}</p>
+          <ul>
+            {SAMPLE_SOURCE.lines.map((t, i) => (
+              <li key={i}>
+                <span className="board-review-label">{t.who}</span>
+                {t.text}
+              </li>
+            ))}
+          </ul>
+        </details>
       </>
     );
   }

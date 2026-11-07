@@ -130,8 +130,8 @@ describe("集計", () => {
     expect(unknownCounts(STOCK)).toEqual({ unconfirmed: 1, noPace: 1 });
   });
 
-  it("記録の形になっていない数は、未着と転記待ちの合計。通信なしの救護所の数", () => {
-    expect(pendingSummary(SYNC)).toEqual({ pending: 42 + 6 + 55, undelivered: 42 + 55, awaiting: 6, offlineSites: 2 });
+  it("記録の形になっていない数は、報告で分かった未着と転記待ちの合計。件数の報告が無い救護所は数に入れず、か所で数える（Issue #217）", () => {
+    expect(pendingSummary(SYNC)).toEqual({ pending: 42 + 6, undelivered: 42, awaiting: 6, offlineSites: 2, unknownSites: 1 });
   });
 
   it("入荷の件数は受領済みを除き、日付が未定のものを数える", () => {

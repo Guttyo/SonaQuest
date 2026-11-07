@@ -25,7 +25,7 @@ import {
 } from "../board/text";
 import { Board, type BoardTab } from "./Board";
 import { sessionFor, type DemoSession } from "../board/access";
-import { ACCESS_LOG_TEXT, BOARD_LOGIN, BOARD_PERMISSION, CHART_REVIEW_TEXT } from "../board/accessText";
+import { ACCESS_LOG_TEXT, BOARD_LOGIN, BOARD_PERMISSION, CHART_REVIEW_TEXT, SAMPLE_SOURCE } from "../board/accessText";
 import { AccessLogPanel, loginSubmitLabel } from "../board/BoardAccess";
 import { PLANTED_NOTICE, SAMPLE_NOTICE } from "../board/karte/contract";
 import { auditToResult, summaryToDraft } from "../board/karte/client";
@@ -55,9 +55,11 @@ describe("2026-11-06 オーナー決定の帯の短い言い方（Issue #143、�
 
 describe("2026-11-06 オーナー決定の色（Issue #143、計画書 9章）", () => {
   it("記録の未着・転記待ちは1件以上なら黄（本部の数字の札・左の一覧の印）", () => {
-    expect(html).toMatch(/class="board-tile check"><span class="board-tile-label"><span class="board-label-full">記録の未着・転記待ち/);
+    expect(html).toMatch(/class="board-tile check"><span class="board-tile-label"><span class="board-label-full">本部未反映の記録/);
     expect(pane(html)).toMatch(/class="board-pane-mark warn">本部未反映の記録 \d+件/);
     expect(pane(html)).not.toMatch(/class="board-pane-mark none">本部未反映の記録/);
+    // 件数の報告が無い救護所D は、0 ではなく「件数未確認」と出す（Issue #217）
+    expect(pane(html)).toContain(`<span class="board-pane-mark warn">${BOARD_LAYOUT.marks.pendingUnknown}</span>`);
   });
 
   it("在庫の表の凡例：赤は「切れ」だけ。目安の2日先までは黄", () => {
@@ -138,7 +140,7 @@ describe("本部（HQ）の全体", () => {
     expect(html).toContain(`data-testid="critical-count">${criticalItems(STOCK).length}</span>`);
     expect(html).toContain(`data-testid="pending-count">${pendingSummary(SYNC).pending}</span>`);
     expect(html).toContain(`data-testid="proposal-count">2</span>`);
-    expect(html).toContain("未着 97・転記待ち 6");
+    expect(html).toContain("未着 42・転記待ち 6・件数未確認 1か所");
     // 在庫の10件と確認・手配の12件の関係を同じ札で読める
     expect(html).toContain(`${criticalItems(STOCK).length}件 ＋ 未確認 1件 ＋ 算出不可 1件 ＝ 確認・手配が必要な事項 ${cases.length}件`);
     expect(html).toContain('data-testid="stale-count">2</span>');
@@ -165,7 +167,7 @@ describe("本部（HQ）の全体", () => {
     expect(t).toContain(`<thead><tr>${heads.map((h) => `<th>${h}</th>`).join("")}</tr></thead>`);
     expect((t.match(/data-case="([^"]+)"/g) ?? []).map((x) => x.slice(11, -1))).toEqual(cases.map((c) => `${c.site}|${c.item}`));
     const first = t.slice(t.indexOf("<tr data-case"), t.indexOf("</tr>", t.indexOf("<tr data-case")));
-    expect(first).toContain('<span class="board-pill bad">在庫切れ</span>');
+    expect(first).toContain('<span class="board-pill bad">在庫なし</span>');
     expect(first).toContain("骨粗鬆症薬G（週1）");
     expect(first).toContain(`${BOARD_CASES.proposal}：${BOARD_CASES.awaiting}`);
     expect(first).toContain(`${BOARD_CASES.table.next}</span>卸の回答を確認する</td>`);
@@ -183,7 +185,7 @@ describe("本部（HQ）の全体", () => {
     // 狭い幅で見出し行の代わりに見せる列名が、各セルにある（Issue #113 の PR レビュー）
     for (const h of heads) expect(first).toContain(`<span class="board-action-k" aria-hidden="true">${h}</span>`);
     // 在庫切れ見込みの札は「あと N 日」だけ（読み上げには状態の名前を添える）
-    expect(t).toMatch(/<span class="board-pill warn"><span class="visually-hidden">在庫切れ見込み、<\/span>あと[\d.]+日<\/span>/);
+    expect(t).toMatch(/<span class="board-pill warn"><span class="visually-hidden">在庫なしの見込み、<\/span>あと[\d.]+日<\/span>/);
     // 説明はヘルプの開閉の中
     expect(p).toContain(`<details class="board-help"><summary>${BOARD_CASES.help}</summary>`);
   });
@@ -234,7 +236,7 @@ describe("救護所の詳細（左のペインか図で選ぶ）", () => {
     expect(t).toContain(`<th>${BOARD_GROUPS.items}</th>`);
     expect(t).not.toContain('class="board-link"');
     const first = t.slice(t.indexOf("<tr data-case"), t.indexOf('<tr data-case', t.indexOf("<tr data-case") + 1));
-    expect(first).toContain(">在庫切れ</span>");
+    expect(first).toContain(">在庫なし</span>");
     expect(first).toContain("骨粗鬆症薬G（週1）");
     expect(first).toContain("<dt>現地</dt><dd>0錠</dd>");
     expect(first).toContain("<dt>本部</dt><dd>0錠</dd>");
@@ -282,7 +284,7 @@ describe("在庫・発注・搬送・記録・デモのタブ", () => {
     expect(heat).toContain(">算出不可<");
     const b = panel(render("救護所B", "stock"));
     expect(b.match(/<tr>/g)?.length).toBe(1 + ITEMS.length);
-    expect(b).toContain(">在庫切れ見込み</span>");
+    expect(b).toContain(">在庫なしの見込み</span>");
   });
 
   it("発注・搬送：本部は全部の提案と入荷・搬送の表。救護所はその救護所向けだけ", () => {
@@ -716,6 +718,9 @@ describe("デモ用ログイン・救護所ごとの権限・カルテの確認�
     // 監査の指摘ありは赤（stop）。ほかの確認待ちは黄（wait）（Issue #143、計画書 2.2）
     expect(h).toContain('class="board-review-status stop"');
     expect(h).toContain("会話にない内容");
+    // 固定サンプルの下書きには、指摘を確かめられるよう比較元の会話を開いたまま添える（Issue #217）
+    expect(h).toContain(`<details class="board-review-conversation" open="" data-sample-source="true"><summary>${SAMPLE_SOURCE.title}</summary>`);
+    for (const l of SAMPLE_SOURCE.lines) expect(h).toContain(l.text);
     const other = panel(render("救護所B", "records", found, sessionFor("救護所A")));
     expect(other).not.toContain(CHART_REVIEW_TEXT.confirm);
     expect(other).toContain("data-readonly-review");

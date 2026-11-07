@@ -54,7 +54,7 @@ describe("架空の町の模式図（Issue #105）", () => {
 
   it("拠点に不足の印（在庫切れ・薬剤師の不足）が文字で付く", () => {
     const c = html.slice(html.indexOf('data-site="救護所C"'), html.indexOf("</g>", html.indexOf('data-site="救護所C"')) + 100);
-    expect(c).toContain("在庫切れ 1");
+    expect(c).toContain("在庫なし 1");
     const b = html.slice(html.indexOf('data-site="救護所B"'));
     expect(b.slice(0, 1200)).toContain("薬剤師 1人不足");
   });
@@ -76,7 +76,7 @@ describe("動く地図（Issue #128）", () => {
     expect(html).toContain('data-glow-site="救護所B" data-level="warn"');
     expect(html).not.toContain('data-glow-site="本部備蓄"');
     const b = overview.find((o) => o.site === "救護所B")!;
-    expect(html).toContain(`救護所B：在庫切れ見込み ${b.forecast}・薬剤師 不足 ${b.pharmacistsShort}・最終報告 15 時間前`);
+    expect(html).toContain(`救護所B：在庫なしの見込み ${b.forecast}・薬剤師 不足 ${b.pharmacistsShort}・最終更新 15 時間前`);
     expect(html).toContain(BOARD_MAP_LIVE.staleNote(STALE_REPORT_HOURS));
     // 光の色は状態の色（赤・黄）だけ
     const glows = html.slice(html.indexOf('class="board-map-glows"'), html.indexOf('class="board-map-site'));
