@@ -7,6 +7,7 @@ export type StopReason = "manual" | "symptom" | "self_harm";
 
 // [TODO-OWNER: 体調の訴え・自傷のほのめかしとして照合する語の一覧（Claude Codeの下書き）]
 // → オーナー決定（2026-11-07、チャット、Issue #207）：自傷のほのめかしの照合語（`SELF_HARM_TERMS`）は「このまま採る（推奨）」。体調の訴えの照合語は、まだ決めていない（誤検出の修正の後に決定の行を足す）
+// → オーナー決定（2026-11-07、チャット、Issue #217）：「このまま採る」（体調の訴えの照合語 `SYMPTOM_TERMS`。Issue #206 の誤検出の修正の後の一覧）
 // 語は現在形や「〜て」の形で書く。「具合が悪くなった」「痛くない」のような過去・否定の言い方には
 // できるだけ当たらないようにする（safety-test-plan E9）。カタカナはひらがなに直して照合する。
 
@@ -111,6 +112,7 @@ export const SYMPTOM_CHECK_TEXT = "現在の体調の訴えでしょうか？";
 export const SYMPTOM_CHECK_HINT = "いまの体調のことなら「はい」、薬の説明などなら「いいえ」と答えてください";
 
 // [TODO-OWNER: 確かめの問いへの答えを「はい」とみなす言葉の一覧（Claude Code の下書き。文の頭が肯定の言葉で、否定の言葉を含まないもの）]
+// → オーナー決定（2026-11-07、チャット、Issue #217）：「このまま採る」（「はい」とみなす言葉 `AFFIRMATIVE_HEADS` と、否定の言葉 `NEGATIVE_TERMS`）
 const AFFIRMATIVE_HEADS: readonly string[] = [
   "はい", "うん", "ええ", "そうです", "そう", "その通り", "そのとおり", "訴えです",
 ];
