@@ -1,37 +1,19 @@
-// 提出動画の本体（Issue #28、ADR-0051）。sections.ts の8場面（可変の尺）を <Sequence> で並べる。
-// 素材（実写・地図・録画・ナレーション）は video/public/ に置く（Git の対象外）。
+// 提出動画の本体（Issue #28・#262、ADR-0051）。sections.ts の13場面（可変の尺）を <Sequence> で並べる。
+// 素材（地図・写真・録画・ナレーション）は video/public/ に置く（Git の対象外）。
 // 置かれていない素材は描かず・鳴らさず、仮の画面（番号・時間・見出し語）のまま書き出せるようにする。
 import type { CSSProperties, FC, ReactNode } from "react";
+import { AbsoluteFill, Audio, OffthreadVideo, Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
+import { ENDCARD_FRAMES, PUBLIC_URL_PLACEHOLDER, SECTIONS, SECTION_COUNT, type Section } from "./sections";
+import { CLOSING_LINE } from "./slideText";
 import {
-  AbsoluteFill,
-  Audio,
-  OffthreadVideo,
-  Sequence,
-  getStaticFiles,
-  interpolate,
-  staticFile,
-  useCurrentFrame,
-} from "remotion";
-import {
-  ENDCARD_FRAMES,
-  PUBLIC_URL_PLACEHOLDER,
-  SECTIONS,
-  SECTION_COUNT,
-  type Section,
-} from "./sections";
-
-/** 端末のゴシックの並び（web/src/styles.css と同じ考え。外部のフォント配信もフォントファイルも使わない） */
-const FONT_FAMILY =
-  '"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", "Noto Sans JP", system-ui, sans-serif';
-
-const COLORS = {
-  background: "#f6f4ef",
-  ink: "#1f2a33",
-  sub: "#5b6770",
-  frame: "#1f2a33",
-  placeholder: "#e3dfd6",
-  accent: "#2f6f8f",
-} as const;
+  ModelMapSlide,
+  PatientTableOverlay,
+  PhotoSlides,
+  PipelineOverlay,
+  QuakeCountOverlay,
+  QuestionSlide,
+} from "./slides";
+import { COLORS, baseText, hasStaticFile } from "./theme";
 
 /** スマホ幅の録画（390×844）を入れる枠。横長の画面の高さに収まるよう少し大きくする */
 const PHONE_SCALE = 1.06;
@@ -39,28 +21,14 @@ const PHONE_WIDTH = Math.round(390 * PHONE_SCALE);
 const PHONE_HEIGHT = Math.round(844 * PHONE_SCALE);
 const PHONE_BEZEL = 14;
 
-/** video/public/ にその名前のファイルがあるか。無い素材は描かない（描くと書き出しが落ちる） */
-const hasStaticFile = (name: string | null): name is string => {
-  if (name === null) return false;
-  return getStaticFiles().some((f) => f.name === name);
-};
-
-const baseText: CSSProperties = { fontFamily: FONT_FAMILY, color: COLORS.ink };
-
 /**
- * 録画の音の大きさ。アプリの声とナレーターの声が重ならないようにする。
- * - ナレーションを遅らせる場面（3番）では、ナレーションが始まるところで録画の音を消す。
- * - 録画の音を後から開ける場面（4番）では、footageAudioFromFrames まで録画の音を消す。
- * どちらも無ければ 1（鳴らすかどうかは muted で決める）。
+ * 録画の音の大きさ。アプリの声とナレーターの声が重ならないよう、footageMutedRanges の区間だけ消す。
+ * 区間が無ければ 1（鳴らすかどうかは muted で決める）。
  */
 const footageVolume = (section: Section) => {
-  const { narrationDelayFrames, footageAudioFromFrames } = section;
-  if (narrationDelayFrames <= 0 && footageAudioFromFrames <= 0) return 1;
-  return (frame: number) => {
-    if (frame < footageAudioFromFrames) return 0;
-    if (narrationDelayFrames > 0 && frame >= narrationDelayFrames) return 0;
-    return 1;
-  };
+  const ranges = section.footageMutedRanges;
+  if (ranges.length === 0) return 1;
+  return (frame: number) => (ranges.some(([start, end]) => frame >= start && frame < end) ? 0 : 1);
 };
 
 /** ナレーション。narrationDelayFrames だけ遅らせて鳴らす（場面の終わりで切れる） */
@@ -98,7 +66,7 @@ const Placeholder: FC<{ section: Section; label: string; style?: CSSProperties }
   </div>
 );
 
-/** 横長の素材（実写・地図・ボードの録画）。無ければ仮の画面 */
+/** 横長の素材（地図・ボードの録画）。無ければ仮の画面 */
 const WideFootage: FC<{ section: Section; label: string }> = ({ section, label }) => {
   if (hasStaticFile(section.footageFile)) {
     return (
@@ -145,38 +113,15 @@ const PhoneFrame: FC<{ section: Section }> = ({ section }) => (
   </div>
 );
 
-/** 7番：技術と安全の一枚（図は後で作る。今は仮の文字） */
-const TechSafety: FC = () => (
-  <AbsoluteFill style={{ ...baseText, flexDirection: "row", padding: "180px 120px 120px", gap: 60 }}>
-    {[
-      { title: "アプリの中の Claude", note: "（図は後で作る。仮の文字）" },
-      { title: "開発の Claude Code", note: "（図は後で作る。仮の文字）" },
-    ].map((col) => (
-      <div
-        key={col.title}
-        style={{
-          flex: 1,
-          backgroundColor: COLORS.placeholder,
-          borderRadius: 24,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 20,
-        }}
-      >
-        <div style={{ fontSize: 52, fontWeight: 700 }}>{col.title}</div>
-        <div style={{ fontSize: 26, color: COLORS.sub }}>{col.note}</div>
-      </div>
-    ))}
-  </AbsoluteFill>
-);
-
 // [TODO-OWNER: 最後のロゴの形（今は「SonaQuest」の文字だけの仮のもの）]
-/** 最後の場面（8番）の末尾：ロゴと公開 URL の札 */
+/**
+ * 最後の場面（13番）の締めの画面：締めの文、ロゴ、公開 URL の札。
+ * ロゴは Issue #263 で web/ に作る（動画とアプリのはじめにで使う）。それまでは仮の文字。
+ */
 const EndCard: FC = () => {
   const frame = useCurrentFrame();
   const opacity = interpolate(frame, [0, 15], [0, 1], { extrapolateRight: "clamp" });
+  const logoOpacity = interpolate(frame, [45, 65], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   return (
     <AbsoluteFill
       style={{
@@ -188,39 +133,43 @@ const EndCard: FC = () => {
         opacity,
       }}
     >
-      <div style={{ fontSize: 140, fontWeight: 800, letterSpacing: 2, color: COLORS.accent }}>SonaQuest</div>
-      <div style={{ fontSize: 48, color: COLORS.ink }}>お薬の避難訓練</div>
-      <div
-        style={{
-          fontSize: 44,
-          padding: "16px 40px",
-          borderRadius: 16,
-          border: `3px solid ${COLORS.ink}`,
-        }}
-      >
-        {PUBLIC_URL_PLACEHOLDER}
+      <div style={{ fontSize: 60, fontWeight: 700, color: COLORS.ink }}>{CLOSING_LINE}</div>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 24, opacity: logoOpacity }}>
+        <div style={{ fontSize: 140, fontWeight: 800, letterSpacing: 2, color: COLORS.accent }}>SonaQuest</div>
+        <div style={{ fontSize: 44, color: COLORS.ink }}>お薬の避難訓練</div>
+        <div
+          style={{
+            fontSize: 36,
+            padding: "12px 36px",
+            borderRadius: 16,
+            border: `3px solid ${COLORS.ink}`,
+          }}
+        >
+          {PUBLIC_URL_PLACEHOLDER}
+        </div>
       </div>
     </AbsoluteFill>
   );
 };
 
 /** 場面の番号・時間・見出し語（音を消して見る人向け） */
-const Caption: FC<{ section: Section; align: "left" | "right" }> = ({ section, align }) => {
+const Caption: FC<{ section: Section; align: "left" | "right"; onDark: boolean }> = ({ section, align, onDark }) => {
   const frame = useCurrentFrame();
   const opacity = interpolate(frame, [0, 12], [0, 1], { extrapolateRight: "clamp" });
   return (
     <div
       style={{
         ...baseText,
+        color: onDark ? COLORS.white : COLORS.ink,
         position: "absolute",
         top: 72,
         [align]: 96,
         textAlign: align,
         opacity,
-        textShadow: "0 2px 12px rgba(246,244,239,0.9)",
+        textShadow: onDark ? "0 2px 12px rgba(0,0,0,0.8)" : "0 2px 12px rgba(246,244,239,0.9)",
       }}
     >
-      <div style={{ fontSize: 30, color: COLORS.sub }}>
+      <div style={{ fontSize: 30, opacity: 0.8 }}>
         {section.number} ／ {SECTION_COUNT}　{section.timeLabel}
       </div>
       <div style={{ fontSize: 76, fontWeight: 700, marginTop: 8 }}>{section.headline}</div>
@@ -228,16 +177,38 @@ const Caption: FC<{ section: Section; align: "left" | "right" }> = ({ section, a
   );
 };
 
+/** 画面に重ねる部品 */
+const OverlayView: FC<{ section: Section }> = ({ section }) => {
+  switch (section.overlay) {
+    case "quakeCount":
+      return <QuakeCountOverlay />;
+    case "pipeline":
+      return <PipelineOverlay />;
+    case "patientTable":
+      return <PatientTableOverlay />;
+    case null:
+      return null;
+  }
+};
+
 /** 1場面分の画面 */
 const Beat: FC<{ section: Section }> = ({ section }) => {
   let body: ReactNode;
   let captionAlign: "left" | "right" = "left";
+  // 見出し語を出さない画面（画面そのものが大きな文字のもの）
+  let showCaption = true;
+  let onDark = false;
   switch (section.screen) {
-    case "liveAction":
-      body = <WideFootage section={section} label="本人の実写（差し込み枠）" />;
+    case "question":
+      body = <QuestionSlide section={section} />;
+      showCaption = false;
       break;
     case "quakeMap":
       body = <WideFootage section={section} label="震源の地図の動画" />;
+      break;
+    case "photos":
+      body = <PhotoSlides section={section} />;
+      onDark = true;
       break;
     case "board":
       body = <WideFootage section={section} label="ボードの横長の録画（1920×1080）" />;
@@ -246,17 +217,19 @@ const Beat: FC<{ section: Section }> = ({ section }) => {
       body = <PhoneFrame section={section} />;
       captionAlign = "right";
       break;
-    case "techSafety":
-      body = <TechSafety />;
+    case "models":
+      body = <ModelMapSlide />;
+      showCaption = false;
       break;
   }
   return (
     <AbsoluteFill style={{ backgroundColor: COLORS.background }}>
       {body}
-      <Caption section={section} align={captionAlign} />
+      <OverlayView section={section} />
+      {showCaption ? <Caption section={section} align={captionAlign} onDark={onDark} /> : null}
       <Narration section={section} />
       {section.number === SECTION_COUNT ? (
-        <Sequence from={section.durationInFrames - ENDCARD_FRAMES} durationInFrames={ENDCARD_FRAMES} layout="none">
+        <Sequence from={section.durationInFrames - ENDCARD_FRAMES} durationInFrames={ENDCARD_FRAMES} layout="none" name="締めの画面">
           <EndCard />
         </Sequence>
       ) : null}

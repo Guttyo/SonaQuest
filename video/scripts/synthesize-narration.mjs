@@ -1,10 +1,11 @@
 // 提出動画のナレーションを ElevenLabs で合成する（Issue #28、ADR-0051）。
 // 使い方（リポジトリの直下から）：
-//   npm --prefix video run narration                 … 2〜9番のうち、まだ mp3 が無いものを合成
+//   npm --prefix video run narration                 … 13場面のうち、まだ mp3 が無いものを合成
 //   npm --prefix video run narration -- --force      … 既にある mp3 も上書き
 //   npm --prefix video run narration -- --only 2,5   … そのビートだけ
 //
-// 読むもの：video/.env（Node.js 標準の process.loadEnvFile。dotenv は使わない）、video/narration/NN.txt
+// 読むもの：video/.env（Node.js 標準の process.loadEnvFile。dotenv は使わない）、video/narration/NN.txt、
+//   3・12番だけ video/public/private/narration/NN.txt（リポジトリの外の原稿。無ければ飛ばす）
 // 書くもの：video/public/narration/NN.mp3（Git の対象外）
 // ログに出すのは番号・件数・所要時間・HTTP の状態・エラーの種類だけ。キー・声の ID・本文は出さない。
 import { existsSync } from "node:fs";
@@ -16,6 +17,7 @@ import {
   envFilePath,
   formatLogLine,
   formatSummaryLine,
+  isPrivateBeat,
   missingEnvGuide,
   narrationAudioPath,
   narrationTextPath,
@@ -68,9 +70,17 @@ const main = async () => {
       continue;
     }
 
+    const textPath = narrationTextPath(videoDir, beat);
+    if (isPrivateBeat(beat) && !existsSync(textPath)) {
+      // リポジトリの外の原稿は、オーナーが置くまで無い。失敗にしない
+      console.log(formatLogLine({ beat, result: "privateMissing" }));
+      counts.skipped += 1;
+      continue;
+    }
+
     let text;
     try {
-      text = normalizeText(await readFile(narrationTextPath(videoDir, beat), "utf8"), beat);
+      text = normalizeText(await readFile(textPath, "utf8"), beat);
     } catch (error) {
       // ファイルが無いときは code（ENOENT など）。normalizeText のエラーは自分で作った文で、本文を含まない
       console.error(formatLogLine({ beat, result: "inputError", errorName: error?.code ?? error?.name }));
