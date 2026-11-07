@@ -29,9 +29,9 @@ import { ACCESS_LOG_TEXT, BOARD_LOGIN, BOARD_PERMISSION, CHART_REVIEW_TEXT, SAMP
 import { AccessLogPanel, loginSubmitLabel } from "../board/BoardAccess";
 import { PLANTED_NOTICE, SAMPLE_NOTICE } from "../board/karte/contract";
 import { auditToResult, NOT_CONFIGURED_AUDIT, summaryToDraft } from "../board/karte/client";
-import { checkSummary, maskForbidden } from "../board/karte/codeCheck";
+import { CODE_FINDING_LABELS, checkSummary, maskForbidden } from "../board/karte/codeCheck";
 import { findSample, patientUtterances, plantedSummary } from "../board/karte/samples";
-import { AUDIT_SESSION_LABELS, KARTE_AUDIT_NOT_CONFIGURED_TEXT, KARTE_PANEL_TEXT } from "../board/karte/text";
+import { AUDIT_SESSION_LABELS, KARTE_AUDIT_NOT_CONFIGURED_TEXT, KARTE_PANEL_TEXT, KARTE_UNRESOLVED_TEXT } from "../board/karte/text";
 
 /** 試験は DOM の無い環境で動くので、拠点とタブを最初の値で渡して文字列に描き、画面の切り替えを確かめる */
 const render = (site: SiteId = HQ, tab: BoardTab = "overview", state = initialDemo(), session: DemoSession | null = sessionFor(site)) =>
@@ -680,10 +680,46 @@ describe("デモ用ログイン・救護所ごとの権限・カルテの確認�
     );
     s = demoReducer(s, { type: "chart_audit_result", key: keyB, result });
     h = panel(render("救護所B", "records", s, b));
-    expect(h).toContain(CHART_REVIEW_TEXT.status.audited_findings(1));
+    // コードでの確認の指摘が残るので、監査済みでも「指摘あり・未解決」と出し、確認済みにできない（Issue #253）
+    expect(h).toContain(KARTE_UNRESOLVED_TEXT.status(draft.codeFindings!.length));
     expect(h).toContain(KARTE_PANEL_TEXT.auditFindings);
     expect(h).toContain(AUDIT_SESSION_LABELS.deleted);
-    expect(h).toContain(CHART_REVIEW_TEXT.confirm);
+    expect(h).not.toContain(CHART_REVIEW_TEXT.confirm);
+    expect(h).toContain(KARTE_UNRESOLVED_TEXT.discard);
+  });
+
+  it("誤りを混ぜた例 → 監査なしで進める でも、コードでの確認の指摘が残る間は確認済みにできず、差し戻して作り直せる（Issue #253）", () => {
+    const b = sessionFor("救護所B");
+    const sample = findSample("karte-01")!;
+    const summary = plantedSummary(sample);
+    const findings = checkSummary(summary, patientUtterances(sample));
+    const draft = summaryToDraft({ sampleId: sample.id, source: "planted", summary: maskForbidden(summary, findings), findings, auditConfigured: false }, true)!;
+    expect(draft.codeFindings!.some((f) => f.reason === CODE_FINDING_LABELS.quote_not_found)).toBe(true);
+    let s = demoReducer(added(), { type: "chart_draft", key: keyB, actor: b, draft });
+    let h = panel(render("救護所B", "records", s, b));
+    // 下書きの時点で「指摘あり・未解決」（赤）と差し戻しのボタンを出す
+    expect(h).toContain(KARTE_UNRESOLVED_TEXT.status(draft.codeFindings!.length));
+    expect(h).toContain('class="board-review-status stop"');
+    expect(h).toContain("data-discard-draft");
+    // 監査なしで進める（Worker を呼ばずに「監査できず」）
+    s = demoReducer(s, { type: "chart_audit_start", key: keyB, actor: b });
+    s = demoReducer(s, { type: "chart_audit_result", key: keyB, result: NOT_CONFIGURED_AUDIT });
+    h = panel(render("救護所B", "records", s, b));
+    expect(h).toContain(KARTE_UNRESOLVED_TEXT.status(draft.codeFindings!.length));
+    expect(h).not.toContain(CHART_REVIEW_TEXT.status.audit_unavailable);
+    expect(h).toContain(KARTE_UNRESOLVED_TEXT.note);
+    expect(h).not.toContain(CHART_REVIEW_TEXT.confirm);
+    expect(h).toContain(KARTE_UNRESOLVED_TEXT.discard);
+    // 画面を通さず確認済みにしようとしても変わらない
+    expect(demoReducer(s, { type: "chart_confirm", key: keyB, actor: b }).chartReview[keyB].status).toBe("audit_unavailable");
+    // ほかの救護所の人には差し戻しのボタンも出さない
+    expect(panel(render("救護所B", "records", s, sessionFor("救護所A")))).not.toContain("data-discard-draft");
+    // 差し戻すと下書きなしに戻り、作るボタンがまた出る
+    s = demoReducer(s, { type: "chart_discard", key: keyB, actor: b });
+    h = panel(render("救護所B", "records", s, b));
+    expect(h).toContain(CHART_REVIEW_TEXT.status.none);
+    expect(h).toContain(KARTE_PANEL_TEXT.makeSummary);
+    expect(h).not.toContain("data-discard-draft");
   });
 
   it("監査役が設定されていない環境では、監査のボタンを押せない見た目にし、理由の1行と監査なしで進めるボタンを出す（Issue #244）", () => {

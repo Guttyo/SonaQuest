@@ -24,6 +24,7 @@ import {
 import { DEFAULT_ARRIVAL_SEED, DISPENSE_DAYS, arrivalPlan, dispenseQty, hasCondition, simPatient, type PlannedArrival } from "./patients";
 import {
   confirmReview,
+  discardReview,
   receiveAudit,
   sampleDraft,
   startAudit,
@@ -207,7 +208,9 @@ export type DemoAction =
   | { type: "chart_audit_start"; key: string; actor: ChartActor }
   /** 監査の結果（Issue #142 の監査役、または見本）。監査中のカルテにだけ効く */
   | { type: "chart_audit_result"; key: string; result: ChartAuditResult }
-  | { type: "chart_confirm"; key: string; actor: ChartActor };
+  | { type: "chart_confirm"; key: string; actor: ChartActor }
+  /** コードでの確認の指摘が残る下書きを差し戻す（捨てる。Issue #253） */
+  | { type: "chart_discard"; key: string; actor: ChartActor };
 
 /** 記録が本部に届く架空の時刻（1日の中の分）。搬送便・連絡員・定時報告の時刻 */
 const SYNC_TIMES: Readonly<Record<string, readonly number[]>> = {
@@ -744,6 +747,13 @@ export function demoReducer(state: DemoState, action: DemoAction): DemoState {
       return applyAuditResult(state, action.key, action.result);
     case "chart_confirm":
       return withReview(state, action.key, action.actor, (r) => confirmReview(r, action.key, action.actor, state.minutes));
+    case "chart_discard": {
+      // 差し戻すと、そのカルテの下書き・監査を外し「AI 下書きなし」に戻す（作り直せる）。差し戻せないときは変えない
+      if (discardReview(state.chartReview[action.key], action.key, action.actor) !== null) return state;
+      const chartReview = { ...state.chartReview };
+      delete chartReview[action.key];
+      return { ...state, chartReview };
+    }
     case "approve_proposal":
       return refreshProposals(approve({ ...state, rev: state.rev + 1 }, action.id));
     case "reject_proposal":
