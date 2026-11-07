@@ -1,18 +1,21 @@
-// ナレーション合成の部品の試験（Issue #28、ADR-0051）。node:test だけを使う（依存を足さない）。
+// ナレーション合成の部品の試験（Issue #28・#262、ADR-0051）。node:test だけを使う（依存を足さない）。
 // 本物の ElevenLabs は呼ばない。video/.env も読まない。
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import {
+  ALL_NARRATION_BEATS,
   DEFAULT_MODEL_ID,
   NARRATION_BEATS,
+  PRIVATE_NARRATION_BEATS,
   OUTPUT_FORMAT,
   beatId,
   buildTtsRequest,
   envFilePath,
   formatLogLine,
   formatSummaryLine,
+  isPrivateBeat,
   missingEnvGuide,
   narrationAudioPath,
   narrationTextPath,
@@ -29,8 +32,12 @@ const FAKE_TEXT = "これは試験のための架空の原稿です。";
 // 判断待ちの印（文字列を分けて書き、リポジトリの印の一覧に試験の文字が混ざらないようにする）
 const OWNER_MARK = ["TODO", "OWNER"].join("-");
 
-test("ナレーションは 2〜8番の7件（1番は本人の生声で合成しない）", () => {
-  assert.deepEqual(NARRATION_BEATS, [2, 3, 4, 5, 6, 7, 8]);
+test("ナレーションは13場面すべて。原稿をリポジトリに置くのは11件で、3・12番はリポジトリの外", () => {
+  assert.deepEqual(NARRATION_BEATS, [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 13]);
+  assert.deepEqual(PRIVATE_NARRATION_BEATS, [3, 12]);
+  assert.deepEqual(ALL_NARRATION_BEATS, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+  assert.equal(isPrivateBeat(3), true);
+  assert.equal(isPrivateBeat(4), false);
 });
 
 test("ファイル名は2桁の番号で組み立てる", () => {
@@ -39,6 +46,9 @@ test("ファイル名は2桁の番号で組み立てる", () => {
   assert.throws(() => beatId(0));
   assert.throws(() => beatId(1.5));
   assert.equal(narrationTextPath("/v", 2), path.join("/v", "narration", "02.txt"));
+  // リポジトリの外の原稿は video/public/（Git の対象外）の下
+  assert.equal(narrationTextPath("/v", 3), path.join("/v", "public", "private", "narration", "03.txt"));
+  assert.equal(narrationTextPath("/v", 12), path.join("/v", "public", "private", "narration", "12.txt"));
   assert.equal(narrationAudioPath("/v", 9), path.join("/v", "public", "narration", "09.mp3"));
   assert.equal(envFilePath("/v"), path.join("/v", ".env"));
 });
@@ -48,9 +58,10 @@ test("音声の置き場所は Remotion の sections.ts と同じ名前（narrat
   assert.match(sections, /narration\/\$\{pad2\(number\)\}\.mp3/);
 });
 
-test("2〜9番の原稿がそろい、どれも空でなく、判断待ちの印が無い", () => {
+test("リポジトリに置く原稿がそろい、どれも空でなく、判断待ちの印が無い。3・12番の原稿はリポジトリに無い", () => {
   const files = readdirSync(path.join(videoDir, "narration")).filter((f) => f.endsWith(".txt")).sort();
   assert.deepEqual(files, NARRATION_BEATS.map((b) => `${beatId(b)}.txt`));
+  for (const beat of PRIVATE_NARRATION_BEATS) assert.ok(!files.includes(`${beatId(beat)}.txt`));
   for (const beat of NARRATION_BEATS) {
     const text = normalizeText(readFileSync(narrationTextPath(videoDir, beat), "utf8"), beat);
     assert.ok(text.length > 0);
@@ -60,10 +71,12 @@ test("2〜9番の原稿がそろい、どれも空でなく、判断待ちの印
 });
 
 test("引数：--force と --only", () => {
-  assert.deepEqual(parseArgs([]), { force: false, beats: NARRATION_BEATS });
-  assert.deepEqual(parseArgs(["--force"]), { force: true, beats: NARRATION_BEATS });
+  assert.deepEqual(parseArgs([]), { force: false, beats: ALL_NARRATION_BEATS });
+  assert.deepEqual(parseArgs(["--force"]), { force: true, beats: ALL_NARRATION_BEATS });
   assert.deepEqual(parseArgs(["--only", "5,2,5"]), { force: false, beats: [2, 5] });
-  assert.throws(() => parseArgs(["--only", "1"]));
+  assert.deepEqual(parseArgs(["--only", "12,3"]), { force: false, beats: [3, 12] });
+  assert.throws(() => parseArgs(["--only", "14"]));
+  assert.throws(() => parseArgs(["--only", "0"]));
   assert.throws(() => parseArgs(["--only"]));
   assert.throws(() => parseArgs(["--nope"]));
 });
@@ -158,6 +171,13 @@ test("上限（10,000 文字）ちょうどは通り、超えると送らずに�
 
 test("原稿（narration/NN.txt）は docs/demo-script.md の台本の表のナレーションと同じ", () => {
   const script = readFileSync(path.join(videoDir, "..", "docs", "demo-script.md"), "utf8");
+  for (const beat of PRIVATE_NARRATION_BEATS) {
+    // 3・12番の原稿は台本にも書かない（CLAUDE.md 絶対ルール8）
+    const row = script.split("\n").find((line) => line.startsWith(`| ${beat} | `));
+    assert.ok(row, `台本の表に ${beat} 番の行がある`);
+    const cells = row.split("|").map((c) => c.trim());
+    assert.ok(!cells[5].startsWith("「"), `${beat} 番のナレーションの欄に原稿を書かない`);
+  }
   for (const beat of NARRATION_BEATS) {
     const row = script.split("\n").find((line) => line.startsWith(`| ${beat} | `));
     assert.ok(row, `台本の表に ${beat} 番の行がある`);
@@ -167,4 +187,57 @@ test("原稿（narration/NN.txt）は docs/demo-script.md の台本の表のナ�
     const text = normalizeText(readFileSync(narrationTextPath(videoDir, beat), "utf8"), beat);
     assert.equal(text, quoted.slice(1, -1), `${beat} 番の原稿が台本と食い違う`);
   }
+});
+
+test("場面の秒（sections.ts）は13場面・合計180秒で、台本の表の時間の欄と同じ", () => {
+  const sections = readFileSync(path.join(videoDir, "src", "sections.ts"), "utf8");
+  const seconds = [...sections.matchAll(/^\s*seconds: (\d+),$/gm)].map((m) => Number(m[1]));
+  assert.equal(seconds.length, 13);
+  assert.equal(seconds.reduce((a, b) => a + b, 0), 180);
+  const script = readFileSync(path.join(videoDir, "..", "docs", "demo-script.md"), "utf8");
+  const clock = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+  let start = 0;
+  seconds.forEach((sec, i) => {
+    const beat = i + 1;
+    const row = script.split("\n").find((line) => line.startsWith(`| ${beat} | `));
+    assert.ok(row, `台本の表に ${beat} 番の行がある`);
+    const time = row.split("|").map((c) => c.trim())[2];
+    assert.equal(time, `${clock(start)}–${clock(start + sec)}`, `${beat} 番の時間が sections.ts と食い違う`);
+    start += sec;
+  });
+});
+
+test("モデルの使い分けの一枚（src/modelMap.ts）のモデルは web/worker の定数の値と同じ", () => {
+  const modelMap = readFileSync(path.join(videoDir, "src", "modelMap.ts"), "utf8");
+  const refs = [...modelMap.matchAll(/modelId: "([^"]+)", source: "([^"]+)", constant: "([^"]+)"/g)];
+  // 訓練の言い回し・監査役、掲示板、カルテの要約・監査、文字起こしの要約
+  assert.equal(refs.length, 6);
+  const seen = new Set();
+  for (const [, modelId, source, constant] of refs) {
+    const code = readFileSync(path.join(videoDir, "..", source), "utf8");
+    const m = new RegExp(`export const ${constant} = (?:\{ id: )?"([^"]+)"`).exec(code);
+    assert.ok(m, `${source} に ${constant} がある`);
+    assert.equal(modelId, m[1], `${source} の ${constant} と一枚のモデルが食い違う`);
+    seen.add(constant);
+  }
+  assert.deepEqual([...seen].sort(), ["AUDIT_MODEL", "BOARD_CHAT_MODEL", "KARTE_AUDIT_MODEL", "KARTE_SUMMARY_MODEL", "MODEL"]);
+});
+
+test("モデルの一枚で取り違えない：在庫・発注はコード、掲示板と文字起こしの要約は監査役を通らない", () => {
+  const modelMap = readFileSync(path.join(videoDir, "src", "modelMap.ts"), "utf8");
+  const rowOf = (role) => {
+    const start = modelMap.indexOf(`role: "${role}`);
+    assert.ok(start >= 0, `${role} の行がある`);
+    const end = modelMap.indexOf("role: ", start + 6);
+    return modelMap.slice(start, end < 0 ? undefined : end);
+  };
+  const stock = rowOf("在庫・残り日数・発注の提案");
+  assert.doesNotMatch(stock, /modelId/);
+  assert.match(stock, /Claude ではない/);
+  const chat = rowOf("掲示板");
+  assert.doesNotMatch(chat, /AUDIT_MODEL|claude-haiku/);
+  assert.match(chat, /監査役は通らない/);
+  const transcript = rowOf("HQ：聞き取りの文字起こし");
+  assert.doesNotMatch(transcript, /KARTE_AUDIT_MODEL|AUDIT_MODEL/);
+  assert.match(transcript, /監査には回さない/);
 });

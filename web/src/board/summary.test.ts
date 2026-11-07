@@ -18,6 +18,7 @@ import {
 import {
   caseRows,
   criticalItems,
+  needFor,
   daysLeft,
   shownOnHand,
   heatCell,
@@ -184,6 +185,28 @@ describe("集計", () => {
       expect(x.points).toHaveLength(5);
       expect(x.points.map((p) => p.date)).toEqual([...x.points.map((p) => p.date)].sort());
     }
+  });
+});
+
+describe("受領後も未交付を見せる（2026-11-08 の外部の通しレビュー）", () => {
+  const row = (onHand: number): StockRow => ({ ...STOCK.find((r) => r.site === "救護所B" && r.item === "抗てんかん薬C")!, onHand });
+  const needs = [
+    { site: "救護所B" as const, item: "抗てんかん薬C", qty: 24, by: "2026-11-06 08:00" },
+    { site: "救護所B" as const, item: "抗てんかん薬C", qty: 30, by: "2026-11-05 15:30" },
+  ];
+
+  it("必要な数は同じ救護所・品目を合計し、時刻はいちばん早いもの", () => {
+    expect(needFor(needs, "救護所B", "抗てんかん薬C")).toEqual({ site: "救護所B", item: "抗てんかん薬C", qty: 54, by: "2026-11-05 15:30" });
+    expect(needFor(needs, "救護所A", "抗てんかん薬C")).toBeNull();
+  });
+
+  it("入荷で余裕ありになっても、未交付が残る行は一覧に残り、次の確認で未交付と日数の意味を示す", () => {
+    const c = caseRows([row(80)], [], needs, [], []);
+    expect(c).toHaveLength(1);
+    expect(c[0]).toMatchObject({ status: "余裕あり", need: { qty: 54 } });
+    expect(c[0].next).toBe("未交付 54錠の交付を確認する（残り日数は未交付を引く前の値）");
+    // 未交付が無ければ、今までどおり余裕ありは出さない
+    expect(caseRows([row(80)], [], [], [], [])).toEqual([]);
   });
 });
 

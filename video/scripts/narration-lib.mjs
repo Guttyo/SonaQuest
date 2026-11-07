@@ -5,8 +5,18 @@
 // ログに出してよいのは、ビートの番号・件数・所要時間・HTTP の状態・エラーの種類（name）だけ。
 import path from "node:path";
 
-/** ナレーションを合成する場面（1番は本人の生声なので無い。8場面。ADR-0051 の追記） */
-export const NARRATION_BEATS = [2, 3, 4, 5, 6, 7, 8];
+/** 原稿をリポジトリ（video/narration/NN.txt）に置く場面（13場面の版。Issue #262） */
+export const NARRATION_BEATS = [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 13];
+/**
+ * 原稿をリポジトリの外に置く場面（3番：本人の経験、12番：協力者と試用した人の感想。CLAUDE.md 絶対ルール8）。
+ * 原稿は video/public/private/narration/NN.txt（Git の対象外）にオーナーが置く。
+ */
+export const PRIVATE_NARRATION_BEATS = [3, 12];
+/** 合成できる場面のすべて（番号の順） */
+export const ALL_NARRATION_BEATS = [...NARRATION_BEATS, ...PRIVATE_NARRATION_BEATS].sort((a, b) => a - b);
+
+/** 原稿がリポジトリの外の場面か */
+export const isPrivateBeat = (beat) => PRIVATE_NARRATION_BEATS.includes(beat);
 
 /**
  * 既定のモデル：eleven_v4。ElevenLabs の文書（elevenlabs.io/docs/models）が、ナレーション・動画の収録には
@@ -23,7 +33,7 @@ export const OUTPUT_FORMAT = "mp3_44100_64";
 export const TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/";
 /**
  * 1リクエストの文字数の上限（ElevenLabs の text-to-speech の上限 10,000 文字）。
- * 各ビートは約100字なので分けずに送る。上限を超える原稿は送らずにエラーで止める。
+ * 各場面は100字前後なので分けずに送る。上限を超える原稿は送らずにエラーで止める。
  */
 export const MAX_TEXT_LENGTH = 10_000;
 /** ElevenLabs を待つ上限 */
@@ -42,8 +52,11 @@ export const beatId = (beat) => {
   return String(beat).padStart(2, "0");
 };
 
-/** 原稿のファイル：video/narration/NN.txt */
-export const narrationTextPath = (videoDir, beat) => path.join(videoDir, "narration", `${beatId(beat)}.txt`);
+/** 原稿のファイル：video/narration/NN.txt。リポジトリの外の場面は video/public/private/narration/NN.txt */
+export const narrationTextPath = (videoDir, beat) =>
+  isPrivateBeat(beat)
+    ? path.join(videoDir, "public", "private", "narration", `${beatId(beat)}.txt`)
+    : path.join(videoDir, "narration", `${beatId(beat)}.txt`);
 
 /** 書き出す音声：video/public/narration/NN.mp3（Remotion の staticFile("narration/NN.mp3")） */
 export const narrationAudioPath = (videoDir, beat) =>
@@ -58,7 +71,7 @@ export const envFilePath = (videoDir) => path.join(videoDir, ".env");
  * --only 2,5：そのビートだけ合成する
  */
 export const parseArgs = (argv) => {
-  const options = { force: false, beats: [...NARRATION_BEATS] };
+  const options = { force: false, beats: [...ALL_NARRATION_BEATS] };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === "--force") {
@@ -69,7 +82,7 @@ export const parseArgs = (argv) => {
       if (!value) throw new Error("--only の後にビートの番号（例：2,5）を書いてください");
       const beats = value.split(",").map((s) => Number(s.trim()));
       for (const b of beats) {
-        if (!NARRATION_BEATS.includes(b)) throw new Error(`--only に使える番号は ${NARRATION_BEATS.join(",")} です`);
+        if (!ALL_NARRATION_BEATS.includes(b)) throw new Error(`--only に使える番号は ${ALL_NARRATION_BEATS.join(",")} です`);
       }
       options.beats = [...new Set(beats)].sort((a, b) => a - b);
     } else {
@@ -125,6 +138,7 @@ const RESULT_LABELS = Object.freeze({
   httpError: "失敗（HTTP の状態）",
   networkError: "失敗（通信）",
   inputError: "失敗（原稿）",
+  privateMissing: "原稿が未配置なので飛ばした（リポジトリの外の原稿。video/public/private/narration/）",
 });
 
 /**

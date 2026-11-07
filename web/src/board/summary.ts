@@ -111,7 +111,7 @@ export interface CaseRow {
   hqInbound: InboundRow[];
   /** この救護所向けの搬送・融通（その品目）。受領済みは含めない */
   siteInbound: InboundRow[];
-  /** 救護所から届いた、必要な数と時刻 */
+  /** 救護所から届いた、必要な数（未交付を含む。同じ救護所・品目の合計）と、いちばん早い時刻 */
   need: NeedRow | null;
   /** 入荷・融通の状態の短い文（一覧に出す） */
   supply: string;
@@ -163,7 +163,24 @@ export function nextAction(
 }
 
 /**
- * 確認・手配が必要な品目の一覧。余裕ありを除き、在庫切れ → 未確認 → 見込みが近い順 → 見込み算出不可。
+ * 救護所・品目ごとの、必要な数（未交付を含む）の合計といちばん早い時刻。無ければ null。
+ * 発注の提案の「未交付・必要な数」（demo.ts の suggestOrders）と同じ足し方。受領しても減らない（交付は人が確かめる。2026-11-08 の外部の通しレビュー）
+ */
+export function needFor(needs: readonly NeedRow[], site: SiteId, item: string): NeedRow | null {
+  const rows = needs.filter((n) => n.site === site && n.item === item);
+  if (rows.length === 0) return null;
+  const qty = rows.reduce((a, n) => a + n.qty, 0);
+  if (qty <= 0) return null;
+  return { site, item, qty, by: rows.map((n) => n.by).sort()[0] };
+}
+
+/** 余裕ありでも未交付・必要な数が残っているときの次の確認（2026-11-08 の外部の通しレビュー。文は Claude Code の下書き） */
+export function undeliveredNext(qty: number, unit: string): string {
+  return `未交付 ${qty}${unit}の交付を確認する（残り日数は未交付を引く前の値）`;
+}
+
+/**
+ * 確認・手配が必要な品目の一覧。余裕ありを除き（未交付・必要な数が残るものは余裕ありでも残す）、在庫切れ → 未確認 → 見込みが近い順 → 見込み算出不可。
  * 判定は丸める前の値で行う。照会中・到着未定の数量は現地の在庫に足さない（表示するだけ）
  */
 export function caseRows(
@@ -183,6 +200,7 @@ export function caseRows(
       const info = sites.find((s) => s.site === r.site);
       const offline = sync.find((s) => s.site === r.site)?.mode === "紙で記録・通信なし";
       const hqOnHand = hq ? hq.onHand : null;
+      const need = needFor(needs, r.site, r.item);
       return {
         site: r.site,
         item: r.item,
@@ -193,12 +211,15 @@ export function caseRows(
         hqOnHand,
         hqInbound,
         siteInbound,
-        need: needs.find((n) => n.site === r.site && n.item === r.item) ?? null,
+        need,
         supply: supplyText(hqInbound, siteInbound, r.unit),
-        next: nextAction(status, hqOnHand, hqInbound, siteInbound, info, offline),
+        next:
+          status === "余裕あり" && need
+            ? undeliveredNext(need.qty, r.unit)
+            : nextAction(status, hqOnHand, hqInbound, siteInbound, info, offline),
       };
     })
-    .filter((c) => c.status !== "余裕あり")
+    .filter((c) => c.status !== "余裕あり" || c.need !== null)
     .sort((a, b) => {
       const o = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
       if (o !== 0) return o;
