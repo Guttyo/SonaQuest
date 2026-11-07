@@ -7,13 +7,13 @@ import { clockText, type PatientChart } from "./demo";
 import { LOGIN_SITES, siteLabel, staffFor, type AccessEntry, type DemoSession } from "./access";
 import { ACCESS_LOG_TEXT, BOARD_LOGIN, BOARD_PERMISSION, CHART_REVIEW_TEXT, SAMPLE_SOURCE } from "./accessText";
 import { BOARD_BAND } from "./text";
-import { confirmable, type AuditFinding, type ChartReview, type ChartSummaryDraft } from "./review";
+import { confirmable, discardable, unresolvedCodeFindings, type AuditFinding, type ChartReview, type ChartSummaryDraft } from "./review";
 import { PLANTED_NOTICE, SAMPLE_NOTICE } from "./karte/contract";
 import { findSample } from "./karte/samples";
 import { auditNotConfigured } from "./karte/client";
-import { AUDIT_SESSION_LABELS, KARTE_ASPECT_LABELS, KARTE_AUDIT_NOT_CONFIGURED_TEXT, KARTE_PANEL_TEXT } from "./karte/text";
+import { AUDIT_SESSION_LABELS, KARTE_ASPECT_LABELS, KARTE_AUDIT_NOT_CONFIGURED_TEXT, KARTE_PANEL_TEXT, KARTE_UNRESOLVED_TEXT } from "./karte/text";
 
-export type ChartOp = "draft" | "draft_planted" | "audit" | "confirm";
+export type ChartOp = "draft" | "draft_planted" | "audit" | "confirm" | "discard";
 
 /** 権限の確認の最後の結果（画面に文字で出す） */
 export interface PermissionNotice {
@@ -170,6 +170,10 @@ export function PermissionResult({ notice }: { notice: PermissionNotice | null }
 
 function statusText(review: ChartReview | undefined): string {
   if (review === undefined) return CHART_REVIEW_TEXT.status.none;
+  // コードでの確認の指摘が残る下書きは、監査の結果より先に「指摘あり・未解決」と出す（Issue #253）
+  if (review.status !== "human_confirmed" && review.status !== "ai_auditing" && unresolvedCodeFindings(review)) {
+    return KARTE_UNRESOLVED_TEXT.status(review.draft.codeFindings?.length ?? 0);
+  }
   if (review.status === "audited") {
     return review.findings.length > 0 ? CHART_REVIEW_TEXT.status.audited_findings(review.findings.length) : CHART_REVIEW_TEXT.status.audited_clean;
   }
@@ -181,6 +185,7 @@ function statusClass(review: ChartReview | undefined): "stop" | "wait" | "done" 
   if (review === undefined) return "none";
   if (review.status === "human_confirmed") return "done";
   if (review.status === "audited" && review.findings.length > 0) return "stop";
+  if (unresolvedCodeFindings(review)) return "stop";
   return "wait";
 }
 
@@ -376,6 +381,16 @@ export function ChartReviewPanel({ chart }: { chart: PatientChart }) {
               <span className="board-note" id={reasonId} data-testid="audit-not-configured">
                 {KARTE_AUDIT_NOT_CONFIGURED_TEXT.reason}
               </span>
+            </>
+          )}
+          {discardable(review) && (
+            <>
+              <span className="board-note" data-testid="code-unresolved">
+                {KARTE_UNRESOLVED_TEXT.note}
+              </span>
+              <button type="button" className="secondary" disabled={a.busy} data-discard-draft onClick={() => a.chartOp(chart, "discard")}>
+                {KARTE_UNRESOLVED_TEXT.discard}
+              </button>
             </>
           )}
           {confirmable(review) && (
