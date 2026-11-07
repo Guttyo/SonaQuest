@@ -553,8 +553,9 @@ function tick(state: DemoState, hours: number): DemoState {
       if (x !== null && (hit === null || x > hit)) hit = x;
     }
     if (hit === null) return r;
-    if (r.pending === null) log.push({ at: hit, text: `${r.site}：記録が本部に届いた（件数は報告が無かった。${r.note}）` });
-    else if (r.pending > 0) log.push({ at: hit, text: `${r.site}：記録 ${r.pending} 件が本部に届いた（${r.note}）` });
+    // 届いた後の文なので、届く前の予定（note）は添えない（Issue #243。文は Claude Code の下書き）
+    if (r.pending === null) log.push({ at: hit, text: `${r.site}：記録が本部に届いた（件数の報告は無かった。届いた分を反映した）` });
+    else if (r.pending > 0) log.push({ at: hit, text: `${r.site}：記録 ${r.pending} 件が本部に届いた（${r.pendingKind}だった分を反映した）` });
     return { ...r, lastSync: stampText(hit), pending: 0, pendingKind: "なし" as const };
   });
   for (const r of stock) {

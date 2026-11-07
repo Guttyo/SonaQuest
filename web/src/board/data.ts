@@ -381,14 +381,19 @@ export interface SyncRow {
   pending: number | null;
   /** その内訳。未着（紙が届いていない）か、転記待ち（届いたが記録の形にしていない） */
   pendingKind: "未着" | "転記待ち" | "なし";
+  /**
+   * 未反映の記録が本部にどう届くか（届く手段・次の予定）。画面の文は syncStatusText（text.ts）が
+   * pending・pendingKind・mode から組み立て、この文は未反映が残っているときだけ後ろに添える（Issue #243）
+   */
   note: string;
 }
 
+// 記録の届き方の文（note）は Claude Code の下書き（Issue #243）
 export const SYNC: readonly SyncRow[] = [
-  { site: "救護所A", mode: "紙で記録・衛星回線で日報", lastSync: "2026-11-05 06:00", pending: 0, pendingKind: "なし", note: "朝の定時報告で届いた" },
+  { site: "救護所A", mode: "紙で記録・衛星回線で日報", lastSync: "2026-11-05 06:00", pending: 0, pendingKind: "なし", note: "衛星回線の日報で届いた記録を本部で入力する" },
   { site: "救護所B", mode: "紙で記録・通信なし", lastSync: "2026-11-04 18:00", pending: 42, pendingKind: "未着", note: "件数は連絡員の口頭の報告（11/04 18:00）。夕方の搬送便で紙を回収する予定" },
-  { site: "救護所C", mode: "紙で記録・携帯が断続的", lastSync: "2026-11-05 08:10", pending: 6, pendingKind: "転記待ち", note: "写真で届いた記録の転記待ち" },
-  { site: "救護所D", mode: "紙で記録・通信なし", lastSync: "2026-11-04 12:00", pending: null, pendingKind: "未着", note: "件数の報告はまだない。連絡員が本部へ持ち帰る予定" },
+  { site: "救護所C", mode: "紙で記録・携帯が断続的", lastSync: "2026-11-05 08:10", pending: 6, pendingKind: "転記待ち", note: "写真で届いた記録を本部で入力する" },
+  { site: "救護所D", mode: "紙で記録・通信なし", lastSync: "2026-11-04 12:00", pending: null, pendingKind: "未着", note: "連絡員が本部へ持ち帰る予定" },
   { site: "本部備蓄", mode: "オンライン", lastSync: "2026-11-05 09:30", pending: 0, pendingKind: "なし", note: "本部で入力" },
 ];
 
