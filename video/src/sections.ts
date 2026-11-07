@@ -16,7 +16,8 @@ export const HEIGHT = 1080;
  * - photos：写真を順に見せる（3・7・12番）。1枚の場面と、2枚を横に並べる場面がある。最後に横長の録画を続けられる
  * - phone：スマホ幅（390×844）の録画を縦の枠に入れて横長の中に置く（4〜6・13番）
  * - board：ボードの横長の録画（1920×1080。8〜10番）
- * - models：モデルの使い分けの一枚（11番。Remotion で描く）
+ * - models：モデルの使い分け（11番）。訓練・掲示板・カルテの録画（footage/11-*.mp4）を並べ、モデルの流れの札を重ねる
+ *   （2026-11-08 オーナー：「デモ＞プレゼン」。流れの図は要所に残してよい）
  */
 export type ScreenKind = "question" | "quakeMap" | "photos" | "phone" | "board" | "models";
 
@@ -27,7 +28,7 @@ export type Voice = "ナレーター" | "ナレーター＋アプリの声";
  * 画面に重ねる Remotion の部品。
  * - quakeCount：「21回」と出典（2番）
  * - pipeline：スマホの横の空きに出す、訓練の文の経路の図（5番。訓練の文に限る）
- * - patientTable：架空の患者 100 人の表を差し込む枠（8番。部品は Issue #261 で作る。今は仮の画面）
+ * - patientTable：架空の患者 100 人の表（8番。Issue #261 の PatientTableVideo を差し込む）
  */
 export type Overlay = "quakeCount" | "pipeline" | "patientTable";
 
@@ -36,6 +37,20 @@ export type Overlay = "quakeCount" | "pipeline" | "patientTable";
  * x・y は寄る中心（画面の幅・高さに対する割合。0.5 が中央）。録画を撮った後に、決め所に合わせて直す。
  */
 export type Zoom = { from: number; to: number; scale: number; x: number; y: number };
+
+/**
+ * タップ（2026-11-08 オーナー：「ズームインとかしてタップしてズームアウトして…変化を見る」）。
+ * at は場面の頭からの秒、x・y は録画の CSS の座標（スマホは 390×844、ボードは 1920×1080）。
+ * 撮影の記録（media/RN.json の clicks）を場面の時間に写した値。3秒より近いタップは1回の寄りにまとめる。
+ * zoom: false は波紋だけ（場面の頭すぎる・終わりすぎるタップ）。
+ */
+export type Tap = { at: number; x: number; y: number; zoom?: boolean };
+
+/**
+ * 下のテロップ（2026-11-08 オーナー：「強調したいところは、デモ動画の最中にでも…下の方に、小さく…テロップ」）。
+ * 場面の頭からの秒。文は Claude Code の下書き（下のマーカー）。
+ */
+export type Telop = { from: number; to: number; text: string };
 
 /** 札（10のコツの 05 ログの早回し）。場面の頭からの秒 */
 export type Badge = { from: number; to: number; text: string };
@@ -79,6 +94,15 @@ export type Section = {
   zooms: Zoom[];
   /** 画面に出す札（05 早回しの「早送り」など） */
   badges: Badge[];
+  /** タップの寄りと波紋。無ければ出さない */
+  taps: Tap[];
+  /** 下のテロップ。無ければ出さない */
+  telops: Telop[];
+  /**
+   * 大きな場面の切り替わり（訓練・本部のボード）の頭に、約1秒、章の題を録画の上に重ねる。
+   * 1枚のスライドを足すと 180 秒が延びるので、録画に重ねる形にした。
+   */
+  chapter: { text: string; at: number } | null;
   /**
    * 写真の場面（photos）の写真：video/public/ からの相対パス。1つの要素が1カット（1枚か、横に並べる2枚）。
    * 拡張子を除いた中立の名前（photos/03-a など）で書く。jpg・png・webp のどれを置いてもよい（theme.ts の resolveImage）。
@@ -131,6 +155,28 @@ const HEADLINES = [
   "普段からの練習を、備えに",
 ] as const;
 
+// [TODO-OWNER: デモの最中の下のテロップと、章の題の文（Claude Code の下書き。2026-11-08 オーナーの「大事なところはテロップ」に合わせた）]
+/** 章の題（大きな場面の切り替わりの頭に約1秒） */
+const CHAPTERS = {
+  training: "お薬の避難訓練",
+  board: "本部の医薬品ボード（架空データ）",
+} as const;
+
+/** 下のテロップの文。モデルの名前は modelMap.ts と同じ */
+const TELOPS = {
+  mode: "文字で答えるか、自分の声で答えるかを選べる",
+  event: "想定外の出来事：スマートフォンの電池が切れた",
+  recovery: "立て直しの問いは固定文。Claude には作らせない",
+  review: "5つの観点ごとに、話せたこと・まだ弱いところ",
+  prep: "準備を1つ選び、いつやるかを決めて終わる",
+  fictional: "人も数もすべて架空のデータ",
+  approve: "発注の提案はコードの計算。承認するのは人（本部）",
+  agents: "本部と救護所A〜Dの5つの役を、Managed Agents が演じる",
+  summary: "Claude Sonnet 5.5：本人の言葉を写した抽出型の要約",
+  audit: "別のモデル（Managed Agents）が、記録との一致を監査",
+  human: "最後は人が確かめて「確認済み」にする",
+} as const;
+
 type Row = Omit<
   Section,
   | "number"
@@ -149,6 +195,9 @@ type Row = Omit<
   | "footageStartFrame"
   | "zooms"
   | "badges"
+  | "taps"
+  | "telops"
+  | "chapter"
 > & {
   /** 場面の長さ（秒）。台本の表の時間の欄と同じ */
   seconds: number;
@@ -164,6 +213,9 @@ type Row = Omit<
   footageStartSeconds?: number;
   zooms?: Zoom[];
   badges?: Badge[];
+  taps?: Tap[];
+  telops?: Telop[];
+  chapter?: { text: string; at: number };
 };
 
 /**
@@ -191,9 +243,9 @@ const SECTION5_NARRATION_FROM = 9 * FPS;
 export const PIPELINE_FROM_FRAMES = Math.round(0.5 * FPS);
 export const PIPELINE_TO_FRAMES = SECTION5_NARRATION_FROM;
 
-/** 8番で、架空の患者の表を差し込む区間（ボードの全体を4秒見せた後）。Issue #261 の部品の長さに合わせて直す */
+/** 8番で、架空の患者の表（Issue #261 の PatientTableVideo、5秒＝150 フレーム）を差し込む区間（ボードの全体を4秒見せた後） */
 export const PATIENT_TABLE_FROM_FRAMES = 4 * FPS;
-export const PATIENT_TABLE_FRAMES = 6 * FPS;
+export const PATIENT_TABLE_FRAMES = 150;
 
 /** 写真の後に録画を続ける場面（7番）で、写真1カットに使う長さ */
 export const PHOTO_SHOT_FRAMES = 3 * FPS;
@@ -233,6 +285,12 @@ const ROWS: Row[] = [
     screenNote: "ロゴ → S1 はじめに（2D／3D を選ぶ）",
     footageFile: "footage/04-phone.mp4",
     footageAudio: false,
+    chapter: { text: CHAPTERS.training, at: 0 },
+    taps: [
+      { at: 4.48, x: 287, y: 422 },
+      { at: 6.39, x: 195, y: 615 },
+    ],
+    telops: [{ from: 3.5, to: 7.8, text: TELOPS.mode }],
   },
   {
     seconds: 30,
@@ -251,10 +309,18 @@ const ROWS: Row[] = [
       { file: "voice/05-sona-1.mp3", fromSeconds: 0.2 },
       { file: "voice/05-sona-2.mp3", fromSeconds: 18.8 },
     ],
-    // 寄り：情報源を押す所と、電池切れ〜立て直しの問いでスマホに寄る
-    zooms: [
-      { from: 10.5, to: 14.5, scale: 1.15, x: 0.25, y: 0.5 },
-      { from: 18.2, to: 26.6, scale: 1.18, x: 0.24, y: 0.5 },
+    // 寄り：電池切れ〜立て直しの問いでスマホに寄る（情報源を押す所はタップの寄り）
+    zooms: [{ from: 18.2, to: 26.6, scale: 1.18, x: 0.49, y: 0.5 }],
+    // 答える（9.46）はナレーションの頭なので波紋だけ。情報源「スマートフォン」→「これで進む」で寄る
+    taps: [
+      { at: 9.46, x: 195, y: 808, zoom: false },
+      { at: 12.17, x: 195, y: 422 },
+      { at: 14.22, x: 195, y: 746 },
+      { at: 29.84, x: 195, y: 808, zoom: false },
+    ],
+    telops: [
+      { from: 15.0, to: 18.2, text: TELOPS.event },
+      { from: 19.0, to: 26.6, text: TELOPS.recovery },
     ],
   },
   {
@@ -265,7 +331,17 @@ const ROWS: Row[] = [
     footageFile: "footage/06-phone.mp4",
     footageAudio: false,
     // 寄りの下書き：振り返りの「まだ弱いところ」の札。録画に合わせて直す
-    zooms: [{ from: 0.5, to: 6, scale: 1.25, x: 0.24, y: 0.4 }],
+    zooms: [{ from: 0.5, to: 6, scale: 1.25, x: 0.49, y: 0.4 }],
+    // 準備行動「財布に入れる」→「今週中」→「これに決める」
+    taps: [
+      { at: 8.97, x: 195, y: 422 },
+      { at: 11.0, x: 195, y: 422 },
+      { at: 13.34, x: 195, y: 422 },
+    ],
+    telops: [
+      { from: 0.8, to: 6, text: TELOPS.review },
+      { from: 8.5, to: 15, text: TELOPS.prep },
+    ],
   },
   {
     seconds: 13,
@@ -275,6 +351,8 @@ const ROWS: Row[] = [
     footageFile: "footage/07-board.mp4",
     footageAudio: false,
     photoShots: [["photos/07-a"], ["photos/07-b"], ["photos/07-c"]],
+    // 写真の3カット（9秒）の後、ボードの録画に替わる所で章の題を出す
+    chapter: { text: CHAPTERS.board, at: 9 },
   },
   {
     seconds: 23,
@@ -286,7 +364,16 @@ const ROWS: Row[] = [
     footageAudio: false,
     overlay: "patientTable",
     // 05 ログの早回し：自動で進める所（デモ時計の早送り）。録画に合わせて直す
-    badges: [{ from: 11, to: 17, text: "▶▶ デモの時間を早送り" }],
+    // 録画の区間：0〜5.5 全体、5.5〜13 受け入れと早送り（4〜9 は患者の表が重なる）、13〜 発注・搬送 → 承認 → 搬送 → 受領
+    badges: [{ from: 9, to: 13, text: "▶▶ デモの時間を早送り" }],
+    taps: [
+      { at: 13.04, x: 555, y: 156 },
+      { at: 16.01, x: 413, y: 660 },
+    ],
+    telops: [
+      { from: 1.2, to: 4, text: TELOPS.fictional },
+      { from: 13.5, to: 19, text: TELOPS.approve },
+    ],
   },
   {
     seconds: 12,
@@ -295,6 +382,11 @@ const ROWS: Row[] = [
     screenNote: "掲示板：救護所の報告と本部の返事を1組だけ寄せて見せる",
     footageFile: "footage/09-board.mp4",
     footageAudio: false,
+    taps: [
+      { at: 0.23, x: 489, y: 579, zoom: false },
+      { at: 6.79, x: 643, y: 992 },
+    ],
+    telops: [{ from: 1.0, to: 6, text: TELOPS.agents }],
   },
   {
     seconds: 13,
@@ -303,12 +395,23 @@ const ROWS: Row[] = [
     screenNote: "カルテ：見本の会話 → 要約（引用に寄る）→ 監査の指摘 →「人が確認済み」",
     footageFile: "footage/10-board.mp4",
     footageAudio: false,
+    // 要約を作る → 記録との一致をチェック（監査）→ 確認済みにする
+    taps: [
+      { at: 0.43, x: 507, y: 775 },
+      { at: 5.15, x: 509, y: 827 },
+      { at: 9.5, x: 514, y: 828 },
+    ],
+    telops: [
+      { from: 1.5, to: 4.8, text: TELOPS.summary },
+      { from: 6.0, to: 9.2, text: TELOPS.audit },
+      { from: 10.0, to: 12.8, text: TELOPS.human },
+    ],
   },
   {
     seconds: 9,
     voice: "ナレーター",
     screen: "models",
-    screenNote: "モデルの使い分けの一枚：左に訓練、右にボード、下に Claude Code",
+    screenNote: "モデルの使い分け：訓練・掲示板・カルテの実際の画面を並べ、それぞれにモデルの流れの札を重ねる。下に Claude Code",
     footageFile: null,
     footageAudio: false,
   },
@@ -361,6 +464,9 @@ export const SECTIONS: Section[] = ROWS.reduce<Section[]>((acc, row, i) => {
     footageStartFrame: Math.round((row.footageStartSeconds ?? 0) * FPS),
     zooms: row.zooms ?? [],
     badges: row.badges ?? [],
+    taps: row.taps ?? [],
+    telops: row.telops ?? [],
+    chapter: row.chapter ?? null,
     // どの場面もナレーターの声。3・12番の原稿はリポジトリの外だが、合成した音声は同じ場所に置く
     narrationFile: `narration/${pad2(number)}.mp3`,
   });

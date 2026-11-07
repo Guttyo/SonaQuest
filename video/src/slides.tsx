@@ -1,6 +1,6 @@
 // Remotion で描く仮の部品（Issue #262）：冒頭の問い、「21回」、訓練の文の経路の図、写真の場面、
 // 架空の患者の表の枠、モデルの使い分けの一枚。どれも依存を足さず、remotion の部品だけで描く。
-import { Fragment, useEffect, useState, type CSSProperties, type FC } from "react";
+import { Fragment, useEffect, useState, type CSSProperties, type FC, type ReactNode } from "react";
 import {
   AbsoluteFill,
   Easing,
@@ -30,6 +30,7 @@ import {
 } from "./sections";
 import { PIPELINE, QUAKE_COUNT, QUESTION_LINES } from "./slideText";
 import { COLORS, MONO, baseText, hasStaticFile, resolveImage } from "./theme";
+import { PatientTableVideo } from "./patientTable/PatientTableVideo";
 
 /** 08 数値のカウントアップ：start から duration フレームで 0 → value に数える（はじめ速く、終わりはゆっくり） */
 const useCountUp = (value: number, start: number, duration: number) => {
@@ -163,14 +164,15 @@ const PipelineDiagram: FC = () => {
       style={{
         ...baseText,
         position: "absolute",
-        left: 830,
-        right: 64,
-        top: 360,
+        // スマホ（中央の左寄り）の右の空き。縦に並べて大きく見せる
+        left: 1270,
+        right: 72,
+        top: 170,
         opacity: fadeOut,
       }}
     >
-      <div style={{ fontSize: 36, fontWeight: 700, marginBottom: 28, ...title }}>{PIPELINE.title}</div>
-      <div style={{ display: "flex", alignItems: "stretch", gap: 12 }}>
+      <div style={{ fontSize: 40, fontWeight: 700, marginBottom: 24, ...title }}>{PIPELINE.title}</div>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 8 }}>
         {PIPELINE.steps.map((step, i) => (
           <Fragment key={step.title}>
             {i > 0 ? <Arrow start={i * STEP_GAP_FRAMES} /> : null}
@@ -178,7 +180,7 @@ const PipelineDiagram: FC = () => {
           </Fragment>
         ))}
       </div>
-      <div style={{ fontSize: 24, color: COLORS.sub, marginTop: 24, ...useRise(PIPELINE.steps.length * STEP_GAP_FRAMES) }}>
+      <div style={{ fontSize: 26, color: COLORS.sub, marginTop: 20, ...useRise(PIPELINE.steps.length * STEP_GAP_FRAMES) }}>
         {PIPELINE.note}
       </div>
     </div>
@@ -190,8 +192,7 @@ const PipelineStep: FC<{ start: number; title: string; sub: string; last: boolea
   return (
     <div
       style={{
-        flex: 1,
-        padding: "20px 14px",
+        padding: "18px 24px",
         borderRadius: 18,
         backgroundColor: last ? COLORS.white : COLORS.accent,
         color: last ? COLORS.ink : COLORS.white,
@@ -202,15 +203,15 @@ const PipelineStep: FC<{ start: number; title: string; sub: string; last: boolea
         ...rise,
       }}
     >
-      <div style={{ fontSize: 25, fontWeight: 700, whiteSpace: "nowrap" }}>{title}</div>
-      <div style={{ fontSize: 19, lineHeight: 1.4, opacity: 0.92 }}>{sub}</div>
+      <div style={{ fontSize: 34, fontWeight: 700, whiteSpace: "nowrap" }}>{title}</div>
+      <div style={{ fontSize: 24, lineHeight: 1.4, opacity: 0.92 }}>{sub}</div>
     </div>
   );
 };
 
 const Arrow: FC<{ start: number }> = ({ start }) => {
   const rise = useRise(start);
-  return <div style={{ alignSelf: "center", fontSize: 36, color: COLORS.sub, ...rise }}>→</div>;
+  return <div style={{ alignSelf: "center", fontSize: 32, lineHeight: 1, color: COLORS.sub, ...rise }}>↓</div>;
 };
 
 /* ---------- 3・7・12番：写真の場面 ---------- */
@@ -359,41 +360,12 @@ const MissingPanel: FC<{ lines: string[] }> = ({ lines }) => (
  * 今は仮の画面。部品が main に入ったら、PatientTablePlaceholder をその部品に置き換える。
  */
 export const PatientTableOverlay: FC = () => (
-  <Sequence from={PATIENT_TABLE_FROM_FRAMES} durationInFrames={PATIENT_TABLE_FRAMES} layout="none" name="架空の患者の表（差し込み枠）">
-    <PatientTablePlaceholder />
+  <Sequence from={PATIENT_TABLE_FROM_FRAMES} durationInFrames={PATIENT_TABLE_FRAMES} layout="none" name="架空の患者の表（Issue #261）">
+    <AbsoluteFill>
+      <PatientTableVideo />
+    </AbsoluteFill>
   </Sequence>
 );
-
-const PatientTablePlaceholder: FC = () => {
-  const rise = useRise(0);
-  return (
-    <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", backgroundColor: "rgba(31,42,51,0.35)" }}>
-      <div
-        style={{
-          ...baseText,
-          width: 1280,
-          height: 720,
-          borderRadius: 24,
-          backgroundColor: COLORS.white,
-          border: `3px dashed ${COLORS.sub}`,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 20,
-          ...rise,
-        }}
-      >
-        <div style={{ fontSize: 26, color: COLORS.white, backgroundColor: COLORS.ink, padding: "6px 18px", borderRadius: 8 }}>架空データ</div>
-        <div style={{ fontSize: 56, fontWeight: 700 }}>
-          架空の患者 <span style={{ fontFamily: MONO, color: COLORS.accent }}>{useCountUp(100, 6, 45)}</span> 人の表
-        </div>
-        <div style={{ fontSize: 26, color: COLORS.sub }}>名前・年齢・性別・使っているお薬（すべて架空）</div>
-        <div style={{ fontSize: 22, color: COLORS.sub }}>差し込み枠：Issue #261 の部品を入れる（今は仮の画面）</div>
-      </div>
-    </AbsoluteFill>
-  );
-};
 
 /* ---------- 11番：モデルの使い分けの一枚 ---------- */
 
@@ -424,73 +396,123 @@ const ModelChip: FC<{ chip: Chip }> = ({ chip }) => (
   </div>
 );
 
-export const ModelMapSlide: FC = () => {
-  const title = useRise(0);
+/**
+ * 11番：モデルの使い分け。説明の一枚ではなく、訓練・掲示板・カルテの実際の画面（録画）を並べ、
+ * それぞれにモデルの流れの札を重ねる（2026-11-08 オーナー：「デモ＞プレゼン」「そのフローみたいなところは…入れてもいい」）。
+ * 札の中身は modelMap.ts（MODEL_COLUMNS）から作る。録画は video/public/footage/11-*.mp4（Git の対象外）。
+ */
+const MODEL_FOOTAGE = {
+  phone: "footage/11-phone.mp4",
+  chat: "footage/11-chat.mp4",
+  karte: "footage/11-karte.mp4",
+} as const;
+
+/** 横長の録画（1920×1080）の一部を切り取って見せる。crop は録画の CSS の座標 */
+const CroppedFootage: FC<{ file: string; crop: { x: number; y: number; w: number; h: number }; width: number }> = ({ file, crop, width }) => {
+  const scale = width / crop.w;
+  const height = Math.round(crop.h * scale);
   return (
-    <AbsoluteFill style={{ ...baseText, backgroundColor: COLORS.background, padding: "64px 72px 48px", gap: 28 }}>
-      <div style={{ fontSize: 56, fontWeight: 700, ...title }}>{MODEL_MAP_TITLE}</div>
-      <div style={{ flex: 1, display: "flex", gap: 32 }}>
-        {MODEL_COLUMNS.map((column, ci) => (
-          <ModelColumnView key={column.title} title={column.title} rows={column.rows} start={Math.round((0.3 + ci * 0.5) * FPS)} wide={ci === 1} />
-        ))}
+    <div style={{ position: "relative", width, height, overflow: "hidden", borderRadius: 16, border: `2px solid ${COLORS.frame}22`, backgroundColor: COLORS.white }}>
+      {hasStaticFile(file) ? (
+        <OffthreadVideo
+          src={staticFile(file)}
+          muted
+          style={{ position: "absolute", left: -crop.x * scale, top: -crop.y * scale, width: 1920 * scale, height: 1080 * scale }}
+        />
+      ) : null}
+    </div>
+  );
+};
+
+/** 札を左から右（vertical なら上から下）へ、順に出す */
+const ChipChain: FC<{ chain: Chip[]; start: number; vertical?: boolean; note?: string }> = ({ chain, start, vertical, note }) => (
+  <div style={{ display: "flex", flexDirection: vertical ? "column" : "row", alignItems: vertical ? "stretch" : "center", gap: 8, flexWrap: "wrap" }}>
+    {chain.map((chip, i) => (
+      <Fragment key={`${chipTitle(chip)}-${i}`}>
+        {i > 0 ? (
+          <div style={{ alignSelf: "center", fontSize: 26, color: COLORS.sub, ...useRise(start + i * STEP_GAP_FRAMES - 4) }}>{vertical ? "↓" : "→"}</div>
+        ) : null}
+        <div style={useRise(start + i * STEP_GAP_FRAMES)}>
+          <ModelChip chip={chip} />
+        </div>
+      </Fragment>
+    ))}
+    {note ? (
+      <div style={{ alignSelf: vertical ? "flex-start" : "center", fontSize: 20, fontWeight: 700, color: COLORS.ink, ...useRise(start + chain.length * STEP_GAP_FRAMES) }}>
+        ※ {note}
+      </div>
+    ) : null}
+  </div>
+);
+
+const Panel: FC<{ start: number; title: string; role: string; width: number; children: ReactNode }> = ({ start, title, role, width, children }) => (
+  <div
+    style={{
+      width,
+      boxSizing: "border-box",
+      backgroundColor: COLORS.white,
+      borderRadius: 24,
+      padding: "20px 22px",
+      display: "flex",
+      flexDirection: "column",
+      gap: 14,
+      boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
+      ...useRise(start),
+    }}
+  >
+    <div>
+      <div style={{ fontSize: 30, fontWeight: 700 }}>{title}</div>
+      <div style={{ fontSize: 21, color: COLORS.sub, marginTop: 4 }}>{role}</div>
+    </div>
+    {children}
+  </div>
+);
+
+export const ModelsDemo: FC = () => {
+  const [training, board] = MODEL_COLUMNS;
+  const trainingChain = training.rows.flatMap((row) => row.chain);
+  const trainingNote = training.rows.map((row) => row.note).filter(Boolean)[0];
+  const chatRow = board.rows[1];
+  const karteRow = board.rows[2];
+  const s = (sec: number) => Math.round(sec * FPS);
+  return (
+    <AbsoluteFill style={{ ...baseText, backgroundColor: COLORS.background, padding: "36px 52px 32px", gap: 22 }}>
+      <div style={{ fontSize: 52, fontWeight: 700, ...useRise(0) }}>{MODEL_MAP_TITLE}</div>
+      <div style={{ flex: 1, display: "flex", gap: 22, alignItems: "flex-start" }}>
+        <Panel start={s(0.2)} title={training.title} role={training.rows[0].role} width={560}>
+          <div style={{ display: "flex", gap: 18 }}>
+            <div style={{ width: 300, height: Math.round((300 * 844) / 390), borderRadius: 28, overflow: "hidden", border: `6px solid ${COLORS.frame}`, flexShrink: 0, backgroundColor: COLORS.white }}>
+              {hasStaticFile(MODEL_FOOTAGE.phone) ? (
+                <OffthreadVideo src={staticFile(MODEL_FOOTAGE.phone)} muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : null}
+            </div>
+            <ChipChain chain={trainingChain} start={s(0.8)} vertical note={trainingNote} />
+          </div>
+        </Panel>
+        <Panel start={s(0.6)} title={board.title} role={chatRow.role} width={605}>
+          <CroppedFootage file={MODEL_FOOTAGE.chat} crop={{ x: 1180, y: 380, w: 710, h: 640 }} width={561} />
+          <ChipChain chain={chatRow.chain} start={s(1.6)} note={chatRow.note} />
+        </Panel>
+        <Panel start={s(1.0)} title={board.title} role={karteRow.role} width={605}>
+          <CroppedFootage file={MODEL_FOOTAGE.karte} crop={{ x: 360, y: 230, w: 640, h: 600 }} width={561} />
+          <ChipChain chain={karteRow.chain} start={s(2.4)} note={karteRow.note} />
+        </Panel>
       </div>
       <div
         style={{
           display: "flex",
           alignItems: "center",
           gap: 24,
-          padding: "18px 28px",
+          padding: "16px 28px",
           borderRadius: 18,
           backgroundColor: COLORS.ink,
           color: COLORS.white,
-          ...useRise(Math.round(1.5 * FPS)),
+          ...useRise(s(3.4)),
         }}
       >
         <div style={{ fontSize: 28, fontWeight: 700 }}>{DEVELOPMENT_ROW.title}</div>
         <div style={{ fontSize: 26 }}>{DEVELOPMENT_ROW.body}</div>
       </div>
     </AbsoluteFill>
-  );
-};
-
-const ModelColumnView: FC<{ title: string; rows: (typeof MODEL_COLUMNS)[number]["rows"]; start: number; wide: boolean }> = ({
-  title,
-  rows,
-  start,
-  wide,
-}) => {
-  const rise = useRise(start);
-  return (
-    <div
-      style={{
-        flex: wide ? 1.45 : 1,
-        backgroundColor: COLORS.white,
-        borderRadius: 24,
-        padding: "24px 28px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 18,
-        boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
-        ...rise,
-      }}
-    >
-      <div style={{ fontSize: 34, fontWeight: 700 }}>{title}</div>
-      {rows.map((row) => (
-        <div key={row.role} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ fontSize: 22, color: COLORS.sub }}>{row.role}</div>
-          <div style={{ display: "flex", alignItems: "stretch", gap: 8, flexWrap: "wrap" }}>
-            {row.chain.map((chip, i) => (
-              <Fragment key={`${chipTitle(chip)}-${i}`}>
-                {i > 0 ? <div style={{ alignSelf: "center", fontSize: 26, color: COLORS.sub }}>→</div> : null}
-                <ModelChip chip={chip} />
-              </Fragment>
-            ))}
-            {row.note ? (
-              <div style={{ alignSelf: "center", fontSize: 20, fontWeight: 700, color: COLORS.ink, marginLeft: 8 }}>※ {row.note}</div>
-            ) : null}
-          </div>
-        </div>
-      ))}
-    </div>
   );
 };

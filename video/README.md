@@ -74,11 +74,13 @@ npm --prefix video run narration -- --force --only 2,5
 | 4〜6・13 | `frames/iphone-bezel.webp` | スマホの枠の画像（オーナーが渡した iPhone のベゼル。978×2000 の透過 webp）。無ければ CSS で描いた枠になる |
 | 4〜6・13 | `footage/04-phone.mp4` など | スマホ幅（390×844）の録画。スマホの枠に入る。録画に音は無い。5番のソナの声は `voice/05-sona-1.mp3`・`05-sona-2.mp3`（公開 URL の `/api/tts` で合成。アプリと同じ声）を `sections.ts` の `appVoice` の時刻に重ねる |
 | 7 | `photos/07-a`・`07-b`・`07-c`、`footage/07-board.mp4` | 当時の本部と救護所の写真（3秒ずつ）の後に、ボードの全体の録画 |
-| 8〜10 | `footage/08-board.mp4` など | ボードの横長の録画（1920×1080）。8番は 4〜10 秒に架空の患者の表の枠が重なる |
+| 8〜10 | `footage/08-board.mp4` など | ボードの横長の録画（1920×1080）。8番は 4〜9 秒に架空の患者の表（`src/patientTable/PatientTableVideo.tsx`）が重なる |
+| 11 | `footage/11-phone.mp4`・`11-chat.mp4`・`11-karte.mp4` | モデルの使い分けで並べる、訓練・掲示板・カルテの録画（各9秒）。札は `src/modelMap.ts` から重ねる |
 | 12 | `photos/12-a`・`12-b`、`private/12-caption.txt` | 協力者の写真と、試用した人の写真。2枚目に感想の一節（テキストファイルの文をそのまま出す） |
 | 1〜13 | `narration/NN.mp3` | 手順3で合成したナレーション |
 
 - 写真と感想の文は、元の名前を使わず、上の中立の名前で置きます（元のファイル名をリポジトリに書かないため）。
+- タップの寄りと波紋は `src/sections.ts` の `taps`（場面の頭からの秒と、録画の CSS の座標）、下のテロップは `telops`、章の題は `chapter` に書きます。撮影の記録（録画と一緒に書き出す JSON の `clicks`）の時刻を場面の時間に写して使います。
 - 長い1本の録画（撮影の R1〜R4）から場面ごとに切り出すときは、録画のファイルを変えずに、`src/sections.ts` の場面の行に `footageFile`（同じファイルでよい）と `footageStartSeconds`（録画のどこから使うか）を書きます。再エンコードは要りません。
 
 ### 10のコツから取り入れた表現（Issue #262）
