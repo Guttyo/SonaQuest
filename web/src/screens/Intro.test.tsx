@@ -65,7 +65,9 @@ describe("はじめにの1画面目：答え方をカードで選ぶ（A-14、Is
   });
 
   it("カードの絵は飾りで、意味は文字で示す（aria-hidden）", () => {
-    const svgs = choose.match(/<svg[^>]*>/g) ?? [];
+    // 題のロゴ（Issue #263）は文字の代わりなので、読み上げる画像（role="img"）。ほかの絵は飾り
+    const svgs = (choose.match(/<svg[^>]*>/g) ?? []).filter((svg) => !svg.includes('role="img"'));
+    expect(choose.match(/<svg[^>]*role="img"[^>]*>/g)).toHaveLength(1);
     // 上の帯の絵（Issue #183）・2D・3D・C-01 の鍵・ボードへの入口（Issue #162）。問診モードは文だけで、絵は無い（Issue #101）
     expect(svgs).toHaveLength(5);
     for (const svg of svgs) expect(svg).toContain('aria-hidden="true"');
@@ -107,6 +109,13 @@ describe("はじめにの1画面目：答え方をカードで選ぶ（A-14、Is
     expect(board).toBeLessThan(choose.indexOf(text));
     // 「次へ」とボードのボタンの間に、ほかの部品を置かない
     expect(choose.slice(next, board)).toMatch(/^>次へ<\/button><button type="button" class="secondary board-entry"><svg[\s\S]*<\/svg><span>$/);
+  });
+
+  it("題はロゴ：「SonaQuest」と読み上げる画像と、文字のままの副題「お薬の避難訓練」（Issue #263）", () => {
+    const h1 = choose.slice(choose.indexOf("<h1"), choose.indexOf("</h1>"));
+    expect(h1).toContain('id="intro-title"');
+    expect(h1).toContain('role="img" aria-label="SonaQuest"');
+    expect(h1).toContain('<span class="intro-subtitle">お薬の避難訓練</span>');
   });
 
   it("並び：問いかけ → 題 → カード → Coming soon → 次へ", () => {
