@@ -37,7 +37,7 @@ export interface Env extends TtsEnv, BoardChatEnv, KarteEnv {
    */
   PUBLIC_TURN?: string;
   /**
-   * 回数制限の binding（wrangler.jsonc の ratelimits。ADR-0035、safety-test-plan P7）。
+   * 回数制限（ADR-0035、ADR-0065、safety-test-plan P7）。入口（index.ts）が、Durable Object の binding（RATE_COUNTER）から作って渡す。
    * 公開の切り替え（PUBLIC_TURN=1）のときは必須で、無ければ /api/turn を閉じる
    */
   TURN_LIMITER?: RateLimiter;
