@@ -14,22 +14,21 @@
   "observability": {
     "enabled": false
   },
-  // 回数制限（ADR-0035、safety-test-plan P7）。接続元の IP ごとに、60秒で10回まで（Issue #57 のオーナー決定）。
-  // Cloudflare の拠点ごとに数える近似の制限。namespace_id はアカウント内で重ならない数字の文字列（同じ値の binding は数を共有する）。
-  // 値を変えたら、デプロイし直すまで反映されない。公開の切り替え（PUBLIC_TURN=1）のときだけ使う
-  "ratelimits": [
-    {
-      "name": "TURN_LIMITER",
-      "namespace_id": "5701",
-      "simple": { "limit": 10, "period": 60 }
-    }
-  ],
+  // 回数制限（ADR-0035、ADR-0065、safety-test-plan P7）。接続元の IP ごとに、60秒で10回まで（Issue #57 のオーナー決定）。
+  // もとは Rate Limiting binding（ratelimits）だったが、拠点ごとの近似で、公開環境では別々の接続の要求を止められなかった（Issue #65）。
+  // キーごとに Durable Object を1つ持ち、世界全体で1か所で数える（数はメモリだけで、storage は使わない）。
+  // 上限と期間は web/worker/strictLimiter.ts。公開の切り替え（PUBLIC_TURN=1）のときだけ使う
+  "durable_objects": {
+    "bindings": [{ "name": "RATE_COUNTER", "class_name": "RateCounter" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RateCounter"] }],
   // ボードの掲示板チャット（B-07、ADR-0047）の Managed Agents の ID。秘密ではない。
   // オーナーが setup スクリプト（npm --prefix web run setup:board-chat）で作り、出た値をここに入れる（手順は docs/board-chat-setup.md）。
   // 空のままなら、チャットはルールで組んだ固定の掲示だけになる。API キーはここに書かない（secrets）。
   // 注意：この ID を入れてデプロイすると、PUBLIC_TURN=1 の公開環境では利用者が Managed Agents を呼べて課金が生じる。
-  // 接続元ごとの回数制限（P7）は公開環境で効かないことが分かっている（Issue #65、safety-test-plan P7）ので、
-  // 公開時の課金の上限は Claude API の月の支出の上限（P9）だけ。デプロイはオーナーの承認の後（docs/board-chat-setup.md）
+  // 接続元ごとの回数制限（P7）は、ADR-0065 で Durable Objects で数える形にした（公開環境で効くことは、デプロイの後に確かめる）。
+  // 回数制限は1つの接続元ごとなので、多くの接続元からの呼び出しの合計を抑えるのは Claude API の月の支出の上限（P9）。
+  // デプロイはオーナーの承認の後（docs/board-chat-setup.md）
   "vars": {
     "BOARD_CHAT_ENVIRONMENT_ID": "env_0196dKYCHE3iBj5cc6Yt58M8",
     "BOARD_CHAT_AGENT_HQ": "agent_01YFjq19JrePAN1fmSeQ5ytD",

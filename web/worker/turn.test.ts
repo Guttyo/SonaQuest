@@ -312,8 +312,9 @@ describe("/api/turn の入口", () => {
     log.mockRestore();
   });
 
-  it("Workers の入口は default だけを出す（ほかの名前があると Workers が起動しない）", () => {
-    expect(Object.keys(entry)).toEqual(["default"]);
+  it("Workers の入口は default と、wrangler.jsonc に書いた Durable Object のクラスだけを出す（ほかの名前があると Workers が起動しない。ADR-0065）", () => {
+    expect(Object.keys(entry).sort()).toEqual(["RateCounter", "default"]);
+    expect(typeof entry.RateCounter).toBe("function");
   });
 
   it("/api の知らない道は 404", async () => {
