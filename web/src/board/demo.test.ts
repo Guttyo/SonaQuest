@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { HQ, INBOUND, STOCK, SYNC } from "./data";
 import { chartUndelivered, chartsFor, clockText, demoReducer, initialDemo, minutesAt, patientsWithExtra, prescriptionTotals, type DemoAction } from "./demo";
 import { caseRows, stockStatus } from "./summary";
+import { syncStatusText } from "./text";
 import { ITEMS, SHELTERS, SITES } from "./data";
 import { arrivalRows, changesSince, FICTIONAL_NAMES, type DemoState } from "./demo";
 import {
@@ -77,6 +78,18 @@ describe("時計を進める", () => {
     expect(s.sync.find((r) => r.site === "救護所C")).toMatchObject({ pending: 0, lastSync: "2026-11-05 14:00" });
     expect(s.sync.find((r) => r.site === "救護所A")?.lastSync).toBe(SYNC.find((r) => r.site === "救護所A")?.lastSync);
     expect(s.log.some((l) => l.text.includes("救護所B：記録 42 件が本部に届いた"))).toBe(true);
+  });
+
+  it("記録が届いた後は、受領状況の文とログが「転記待ち」「件数の報告はまだない」「予定」のままにならない（Issue #243）", () => {
+    const before = initialDemo();
+    expect(syncStatusText(before.sync.find((r) => r.site === "救護所D")!)).toContain("件数の報告はまだない");
+    expect(syncStatusText(before.sync.find((r) => r.site === "救護所C")!)).toContain("転記待ち 6 件");
+    const s = demoReducer(before, { type: "tick", hours: 7 });
+    for (const site of ["救護所C", "救護所D"] as const) {
+      const text = syncStatusText(s.sync.find((r) => r.site === site)!);
+      expect(text).toBe("届いた分は反映済み");
+      for (const l of s.log.filter((x) => x.text.startsWith(`${site}：記録`))) expect(l.text).not.toContain("予定");
+    }
   });
 
   it("最初に戻すと元の架空データに戻る", () => {
@@ -299,6 +312,18 @@ describe("架空の患者の到着（Issue #122）", () => {
     // 「直近1時間で変わったこと」は到着として数え（ここでは幅を広げてデモの開始から数える）、記録の文に氏名を入れない
     expect(changesSince(on.log, on.minutes, undefined, Infinity).到着).toBe(now.length);
     for (const p of SIM_PATIENTS) expect(on.log.some((l) => l.text.includes(p.name))).toBe(false);
+  });
+
+  it("100人が到着した後も、受領状況の文は件数と内訳に合う（Issue #243）", () => {
+    const s = hours(start(), 400);
+    for (const r of s.sync) {
+      const text = syncStatusText(r);
+      if (r.mode === "オンライン") expect(text).toBe("本部で入力");
+      else if (r.pending === 0) expect(text).toBe("届いた分は反映済み");
+      else if (r.pending === null) expect(text).toContain("件数の報告はまだない");
+      else expect(text).toContain(`${r.pendingKind} ${r.pending} 件`);
+      if (r.pending !== null) expect(text).not.toContain("件数の報告はまだない");
+    }
   });
 
   it("100人全員が到着したら止まる。各品目は 渡せた数＋未交付＝3日分 で、未交付はすべて需要に載っている", () => {
