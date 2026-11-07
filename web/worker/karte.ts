@@ -63,6 +63,15 @@ export function karteAuditConfig(env: KarteEnv): KarteAuditConfig | null {
   return { environmentId, agentId };
 }
 
+/**
+ * 監査役が使えるか（Issue #244）。監査の入口と同じ条件（Environment と Agent の ID の形、API キー）で決める。
+ * 要約の返事に添えて、画面が押す前に「この環境では使えない」と示せるようにする。ID・キーそのものは返さない
+ */
+export function auditConfigured(env: KarteEnv): boolean {
+  const apiKey = env.ANTHROPIC_API_KEY;
+  return karteAuditConfig(env) !== null && apiKey !== undefined && apiKey !== "";
+}
+
 export interface KarteDeps {
   readBody: (request: Request, maxBytes: number) => Promise<string | null>;
   makeSummarizer?: (apiKey: string, model: string) => Summarize;
@@ -121,7 +130,13 @@ export function createKarteApp(deps: KarteDeps) {
       // デモ用に誤りを混ぜた固定の要約。AI を呼ばないので、キーも回数制限も要らない
       const summary = plantedSummary(sample);
       const findings = checkSummary(summary, utterances);
-      const response: KarteSummaryResponse = { sampleId: sample.id, source: "planted", summary: maskForbidden(summary, findings), findings };
+      const response: KarteSummaryResponse = {
+        sampleId: sample.id,
+        source: "planted",
+        summary: maskForbidden(summary, findings),
+        findings,
+        auditConfigured: auditConfigured(c.env),
+      };
       return c.json(response);
     }
 
@@ -153,6 +168,7 @@ export function createKarteApp(deps: KarteDeps) {
       source: "model",
       summary: maskForbidden(result.summary, findings),
       findings,
+      auditConfigured: auditConfigured(c.env),
     };
     return c.json(response);
   });
@@ -186,7 +202,12 @@ export function createKarteApp(deps: KarteDeps) {
     const findings = checkSummary(result.summary, transcriptUtterances(request.transcript));
     // 件数と所要時間だけ（文字起こし・要約の本文は出さない。ADR-0007）
     console.info(`karte: transcript_summary items=${result.summary.items.length} findings=${findings.length} ${ms}ms`);
-    const response: TranscriptSummaryResponse = { source: "model", summary: maskForbidden(result.summary, findings), findings };
+    const response: TranscriptSummaryResponse = {
+      source: "model",
+      summary: maskForbidden(result.summary, findings),
+      findings,
+      auditConfigured: auditConfigured(c.env),
+    };
     return c.json(response);
   });
 

@@ -61,7 +61,9 @@ export interface Question {
 
 /**
  * 利用者の回答。text は入力そのもので、書き換えない（ADR-0009）。
- * redirected は関係のない話として受け止めて質問し直した入力で、回答の回数に数えない（ADR-0025）
+ * redirected は関係のない話として受け止めて質問し直した入力で、回答の回数に数えない（ADR-0025）。
+ * event_reasked は、出来事で使えなくなった手段に頼る回答として固定文で聞き返した入力で、回答の回数に数えず、
+ * Claude にも送らない（Issue #246、ADR-0016 の追記）。どちらも振り返りには原文のまま出る
  */
 export interface Answer {
   questionId: string;
@@ -69,7 +71,7 @@ export interface Answer {
   text: string;
   /** その入力の直前にソナが言った文（固定文か、検査を通った Claude の文） */
   prompt: string;
-  kind: "answer" | "redirected";
+  kind: "answer" | "redirected" | "event_reasked";
   /** 思い出せないという回答だったか（Claude の判定。docs/phase2-decisions.md 項目7） */
   recall: boolean;
 }

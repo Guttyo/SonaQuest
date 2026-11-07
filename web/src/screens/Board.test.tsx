@@ -28,10 +28,10 @@ import { sessionFor, type DemoSession } from "../board/access";
 import { ACCESS_LOG_TEXT, BOARD_LOGIN, BOARD_PERMISSION, CHART_REVIEW_TEXT, SAMPLE_SOURCE } from "../board/accessText";
 import { AccessLogPanel, loginSubmitLabel } from "../board/BoardAccess";
 import { PLANTED_NOTICE, SAMPLE_NOTICE } from "../board/karte/contract";
-import { auditToResult, summaryToDraft } from "../board/karte/client";
+import { auditToResult, NOT_CONFIGURED_AUDIT, summaryToDraft } from "../board/karte/client";
 import { checkSummary, maskForbidden } from "../board/karte/codeCheck";
 import { findSample, patientUtterances, plantedSummary } from "../board/karte/samples";
-import { AUDIT_SESSION_LABELS, KARTE_PANEL_TEXT } from "../board/karte/text";
+import { AUDIT_SESSION_LABELS, KARTE_AUDIT_NOT_CONFIGURED_TEXT, KARTE_PANEL_TEXT } from "../board/karte/text";
 
 /** 試験は DOM の無い環境で動くので、拠点とタブを最初の値で渡して文字列に描き、画面の切り替えを確かめる */
 const render = (site: SiteId = HQ, tab: BoardTab = "overview", state = initialDemo(), session: DemoSession | null = sessionFor(site)) =>
@@ -684,6 +684,36 @@ describe("デモ用ログイン・救護所ごとの権限・カルテの確認�
     expect(h).toContain(KARTE_PANEL_TEXT.auditFindings);
     expect(h).toContain(AUDIT_SESSION_LABELS.deleted);
     expect(h).toContain(CHART_REVIEW_TEXT.confirm);
+  });
+
+  it("監査役が設定されていない環境では、監査のボタンを押せない見た目にし、理由の1行と監査なしで進めるボタンを出す（Issue #244）", () => {
+    const b = sessionFor("救護所B");
+    const sample = findSample("karte-02")!;
+    const off = summaryToDraft({ sampleId: sample.id, source: "model", summary: sample.expected, findings: [], auditConfigured: false }, false)!;
+    let s = demoReducer(added(), { type: "chart_draft", key: keyB, actor: b, draft: off });
+    let h = panel(render("救護所B", "records", s, b));
+    expect(h).toMatch(new RegExp(`<button type="button" class="secondary" disabled="" aria-describedby="[^"]+" data-audit-off="true">${CHART_REVIEW_TEXT.sendAudit}</button>`));
+    expect(h).toContain(KARTE_AUDIT_NOT_CONFIGURED_TEXT.reason);
+    expect(h).toContain(KARTE_AUDIT_NOT_CONFIGURED_TEXT.skip);
+    expect(h).toContain("data-audit-skip");
+    // 「監査なしで進める」は、Worker を呼ばずに今までの流れ（AI監査中 → 監査できず）を通り、人の確認に進める
+    s = demoReducer(s, { type: "chart_audit_start", key: keyB, actor: b });
+    s = demoReducer(s, { type: "chart_audit_result", key: keyB, result: NOT_CONFIGURED_AUDIT });
+    h = panel(render("救護所B", "records", s, b));
+    expect(h).toContain(CHART_REVIEW_TEXT.status.audit_unavailable);
+    expect(h).toContain(KARTE_PANEL_TEXT.failure.not_configured);
+    expect(h).toContain(AUDIT_SESSION_LABELS.not_created);
+    expect(h).toContain(CHART_REVIEW_TEXT.confirm);
+    expect(h).not.toContain(KARTE_AUDIT_NOT_CONFIGURED_TEXT.skip);
+    s = demoReducer(s, { type: "chart_confirm", key: keyB, actor: b });
+    expect(s.chartReview[keyB].status).toBe("human_confirmed");
+
+    // 監査役が設定されている環境では、今までどおり押せる監査のボタンだけを出す
+    const on = summaryToDraft({ sampleId: sample.id, source: "model", summary: sample.expected, findings: [], auditConfigured: true }, false)!;
+    const onHtml = panel(render("救護所B", "records", demoReducer(added(), { type: "chart_draft", key: keyB, actor: b, draft: on }), b));
+    expect(onHtml).toContain(`<button type="button" class="secondary">${CHART_REVIEW_TEXT.sendAudit}</button>`);
+    expect(onHtml).not.toContain("data-audit-off");
+    expect(onHtml).not.toContain(KARTE_AUDIT_NOT_CONFIGURED_TEXT.reason);
   });
 
   it("監査役が時間切れなら「監査できず」と理由とセッションの後片付けを出し、人の確認に進める", () => {

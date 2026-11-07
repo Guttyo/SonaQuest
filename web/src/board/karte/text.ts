@@ -49,3 +49,10 @@ export const KARTE_PANEL_TEXT = {
     ai_stopped: "AI を止めた状態です。",
   } as Readonly<Record<string, string>>,
 } as const;
+
+/** 監査役がこの環境で設定されていないときの文（Issue #244）。監査のボタンを押せない見た目にし、そばに理由の1行を出す */
+// [TODO-OWNER: 監査役が設定されていないときの理由の1行と、監査なしで進めるボタンの文（Claude Code の下書き）]
+export const KARTE_AUDIT_NOT_CONFIGURED_TEXT = {
+  reason: "監査役は、この環境では設定されていません（要約とコードでの確認だけ動きます）。",
+  skip: "監査なしで進める（「監査できず」として記録）",
+} as const;
