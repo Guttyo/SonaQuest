@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useWaitGesture } from "../puppet3d/gesture";
 import { PuppetView } from "../puppet3d/PuppetView";
 import { ACTIVITY_LABELS, type ListenerActivity, type ListenerMode } from "../puppet3d/types";
 import { useRenderMode } from "../puppet3d/useRenderMode";
@@ -49,15 +50,17 @@ export function ListenerStage({
   children?: ReactNode;
 }) {
   const shown = useRenderMode(mode);
+  // 返事を長く待つ間の身ぶり（Issue #221）。考え中が3秒を超えたら出し、返事が来たらすぐやめる
+  const gesture = useWaitGesture(activity);
   return (
     <div className="dialogue-stage">
       <div className="dialogue-stage-figure">
         <div className="stage-figure-enter">
           {shown === "3d" ? (
-            <PuppetView activity={activity} relief={relief} nodKey={nodKey} />
+            <PuppetView activity={activity} relief={relief} nodKey={nodKey} gesture={gesture} />
           ) : (
             // 2D はパペットの 2D 版（Issue #47、ADR-0038）。うなずきは頭だけを作り直して出す
-            <Puppet2D activity={activity} relief={relief} nodKey={nodKey} />
+            <Puppet2D activity={activity} relief={relief} nodKey={nodKey} gesture={gesture} />
           )}
         </div>
         <div className="dialogue-stage-side">

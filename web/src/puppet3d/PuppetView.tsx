@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { loadStage, peekStage } from "./loader";
 import type { PuppetHandle } from "./stage";
+import type { ListenerGesture } from "./gesture";
 import { markPuppetFailed } from "./support";
 import type { ListenerActivity } from "./types";
 
@@ -14,11 +15,14 @@ export function PuppetView({
   activity,
   relief,
   nodKey = 0,
+  gesture = null,
 }: {
   activity: ListenerActivity;
   relief: boolean;
   /** 増えるたびに1回うなずく（回答を受け取ったとき。0 ではうなずかない） */
   nodKey?: number;
+  /** 返事を長く待つ間の身ぶり（Issue #221）。null で身ぶりをしない */
+  gesture?: ListenerGesture | null;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<PuppetHandle | null>(null);
@@ -60,6 +64,10 @@ export function PuppetView({
   useEffect(() => {
     handleRef.current?.update(activity, relief);
   }, [activity, relief]);
+
+  useEffect(() => {
+    handleRef.current?.gesture(gesture);
+  }, [gesture, ready]);
 
   // 読み込みの途中で回答を受け取ったときは、描けるようになってからうなずく。
   // 出たときにすでに受け取っていた分（appliedNod の初期値）はうなずき直さない
