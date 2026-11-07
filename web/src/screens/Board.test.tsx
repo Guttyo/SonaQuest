@@ -146,14 +146,14 @@ describe("本部（HQ）の全体", () => {
     expect(html).toContain('data-testid="stale-count">2</span>');
   });
 
-  it("見る順は 指標 → 救護所の不足状況（補助）→ 確認・手配が必要な事項（表）→ 承認待ちの提案 → 地図 → 患者の受け入れ（Issue #113、#159 第2段）。模式図の拠点は押せる", () => {
+  it("見る順は 地図 → 指標 → 救護所の不足状況（補助）→ 確認・手配が必要な事項（表）→ 承認待ちの提案 → 患者の受け入れ（Issue #113、#159 第2段、#235）。模式図の拠点は押せる", () => {
     const p = panel(html);
     const order = [
+      'class="board-map-site',
       'data-testid="critical-count"',
       'data-testid="sites-short-stock"',
       'data-testid="action-table"',
       'id="board-hq-orders"',
-      'class="board-map-site',
       'class="board-fold board-arrivals"',
     ].map((x) => p.indexOf(x));
     expect(order.every((x) => x >= 0)).toBe(true);
