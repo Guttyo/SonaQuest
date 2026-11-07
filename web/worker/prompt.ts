@@ -6,10 +6,11 @@ import {
   EVENTS,
   JUDGMENT_LABELS,
   SOURCE_OPTIONS,
-  VIEWPOINT_SHORT_LABELS,
+  viewpointShortLabel,
 } from "../src/flow/content";
 import { planGoals } from "../src/flow/rules";
-import type { TurnRequest } from "../src/flow/turnContract";
+import { VIEWPOINT_IDS, type TurnRequest } from "../src/flow/turnContract";
+import { REMARK_PHRASE_RULES } from "./remarkPairing";
 
 // 決定済み：Claude へのシステムプロンプト（Claude Codeの下書き。判定の基準は PRD の下書きをもとにした）
 // → オーナー決定（2026-11-07、チャット、Issue #207）：「下書きのまま採る（推奨）」（訓練の Claude の守り）
@@ -80,13 +81,18 @@ text の決まり：
 # 振り返りの一言（closing_remark）
 "remark_requested" が true で、この後半を終える（next_type が ask で next_goal_id が null）ときだけ作ります。それ以外は null にします。
 - 訓練の最後に、5つの観点のうち、話せた観点と、まだ考える余地がある観点を、1〜2文・80字以内で短く伝える一言にする。あなたが付けた viewpoints の判定と食い違わないようにする。
-- 観点は、"remark_vocabulary" にある観点の名前（「お薬の情報を確認できるもの」「代わりの手段」「今使っている薬と記録の一致」「記録に載っていないこと」「代わりに伝える人」など）だけで言う。
-- 文は、"remark_phrases" にある決まった言い回し（「話せていました」「自分のお薬情報がどこに記録されているのか把握できていましたね」「いつもの確認方法が使えないとき、ほかの方法でお薬の情報を確認できるか」「今のうちに確かめておくと安心です」など）と、観点の名前を「は、」「と」でつないで作る。「いつもの確認方法が使えないとき、ほかの方法でお薬の情報を確認できるか、今のうちに確かめておくと安心です。」のように続けてよい。ほかの言い回しを足さない。
+- 観点は、"remark_vocabulary" にある観点の名前（「お薬の情報を確認できるもの」「代わりの手段」「今使っている薬と記録の一致」「記録に載っていないこと」「代わりに伝える人」など。係の交代の回は「代わりの手段」の代わりに「交代した相手への伝え直し」）だけで言う。
+- 文は、"remark_phrases" にある決まった言い回しと、観点の名前を「は、」「と」でつないで作る。ほかの言い回しを足さない。
+- 言い回しごとに、つないでよい観点が決まっている。"viewpoint" に観点の名前があるものは、その観点にだけ使う（ほかの観点の名前につながない。例：「記録に載っていないことは、いつもの確認方法が使えないとき、…」は書かない）。"use_for" が「確認できた観点」のものは confirmed の観点にだけ、「まだ確認できていない観点」のものは aware_unconfirmed か not_mentioned の観点にだけつなぐ。「観点をつながない」ものは、あいさつと前置きにだけ使う。観点の名前は、必ずどれかの言い回しにつなぐ。アプリがつなぎ方を確かめ、合わない一言は捨てる。
 - 利用者が挙げた情報源・手段・人（続柄）の言葉（例：お薬手帳、スマホ、家族）には触れてよい。回答の要約・言い換えはしない。薬の名前・量・病名・何の薬か、人の名前・電話番号は書かない。
 - 準備することの提案（〜しておきましょう、〜を用意しましょう）、薬や体調の助言、正しいかどうかの評価を、"remark_phrases" の外の言葉で書かない。準備のことは、アプリが固定の文で出す。
 - 「確認できた」は、説明できたという意味で、正しさの保証ではないことに気をつけ、「正しい」「十分」とは言わない。
 - 「大丈夫」「安心」など、体調や薬について安心させる言い方を使わない。ただし "remark_phrases" の「今のうちに確かめておくと安心です」は、お薬の情報を確かめることを勧める決まった言い回しなので、そのまま使ってよい。
-- 例：「お話しくださってありがとうございました。自分のお薬情報がどこに記録されているのか把握できていましたね。いつもの確認方法が使えないとき、ほかの方法でお薬の情報を確認できるか、今のうちに確かめておくと安心です。」
+- 例（どれも1〜2文・80字以内）：
+  - 「お話しくださってありがとうございました。自分のお薬情報がどこに記録されているのか把握できていましたね。」
+  - 「代わりの手段は、いつもの確認方法が使えないとき、ほかの方法でお薬の情報を確認できるか、今のうちに確かめておくと安心です。」
+  - 「今回の訓練では、お薬の情報を確認できるものは、話せていました。代わりに伝える人は、今のうちに確かめておくと安心です。」
+  - 係の交代の回：「交代した相手への伝え直しは、話せていました。」
 
 # recall
 直前の回答が、薬の中身や情報の在りかなどを「思い出せない」「覚えていない」「わからない」と言うものなら true。候補で補ったり、思い出させようとしたりしません。
@@ -187,8 +193,19 @@ export function buildUserMessage(request: TurnRequest): string {
     remark_requested: last.half === "second" && (plan.canFinish || plan.choices.length === 0),
     ...(last.half === "second"
       ? {
-          remark_vocabulary: [...Object.values(VIEWPOINT_SHORT_LABELS), ...Object.values(JUDGMENT_LABELS)],
-          remark_phrases: REMARK_PHRASES,
+          // 係の交代の回は「代わりの手段」の名前を「交代した相手への伝え直し」に替える（ADR-0064）
+          remark_vocabulary: [
+            ...VIEWPOINT_IDS.map((v) => viewpointShortLabel(v, request.event)),
+            ...Object.values(JUDGMENT_LABELS),
+          ],
+          // 言い回しごとに、つないでよい観点と判定を渡す（ADR-0064。つなぎ方は remarkPairing.ts が確かめる）
+          remark_phrases: REMARK_PHRASE_RULES.filter((p) => !(p.notOnHandover === true && request.event === "handover")).map(
+            (p) => ({
+              text: p.text,
+              viewpoint: p.viewpoint === null ? null : viewpointShortLabel(p.viewpoint, request.event),
+              use_for: p.when === "confirmed" ? "確認できた観点" : p.when === "open" ? "まだ確認できていない観点" : "観点をつながない",
+            }),
+          ),
         }
       : {}),
   };

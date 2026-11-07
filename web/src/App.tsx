@@ -156,6 +156,7 @@ export function App() {
             action={stage.action}
             timing={stage.timing}
             judgments={state.ai === "on" ? state.judgments : null}
+            event={state.event}
             onRestart={() => dispatch({ type: "restart" })}
           />
         )}

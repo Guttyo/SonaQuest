@@ -5,7 +5,8 @@ import { MEDICINES_FOLLOWUP_QUESTION } from "../src/flow/content";
 import type { TurnRequest } from "../src/flow/turnContract";
 import type { Audit, AuditResult } from "./audit";
 import type { CallClaude, ClaudeResult } from "./claude";
-import { buildUserMessage } from "./prompt";
+import { REMARK_PHRASES, SYSTEM_PROMPT, buildUserMessage } from "./prompt";
+import { REMARK_PHRASE_RULES } from "./remarkPairing";
 import { REMARK_PURPOSE, chooseNext, followsGoalRules, parseClaudeOutput, runTurn, type ClaudeOutput } from "./turn";
 
 const input = (question_id: string, half: "first" | "second" = "first", text = "架空の回答です") => ({
@@ -176,7 +177,7 @@ describe("振り返りの一言（案B：一言用の検査。監査役は必ず
     for (const ok of [
       "お薬手帳のことは話せていました。",
       "家族に頼めることも話せていました。",
-      "スマホのほかに、いつもの確認方法が使えないとき、ほかの方法でお薬の情報を確認できるか、今のうちに確かめておくと安心です。",
+      "家族のことも話せていました。記録に載っていないことは、今のうちに確かめておくと安心です。",
     ]) {
       const outcome = await runTurn(req, fake({ ...finish, closing_remark: ok }), null);
       if (!outcome.ok) throw new Error("ok のはず");
@@ -208,11 +209,87 @@ describe("振り返りの一言（案B：一言用の検査。監査役は必ず
     expect(outcome.remarkRejectReason).toBe("audit_personal_info");
   });
 
-  it("言い換えた言い回し「いつもの確認方法が使えないとき、ほかの方法でお薬の情報を確認できるか」は、禁止表現に当たらずに通る（2026-11-07 オーナー決定）", async () => {
-    const text = "記録に載っていないことは、いつもの確認方法が使えないとき、ほかの方法でお薬の情報を確認できるか、今のうちに確かめておくと安心です。";
-    const outcome = await runTurn(secondDone, fake({ ...finish, closing_remark: text }), null);
+  it("言い換えた言い回し「いつもの確認方法が使えないとき、ほかの方法でお薬の情報を確認できるか」は、まだ確認できていない「代わりの手段」につなげば通る（2026-11-07 オーナー決定）", async () => {
+    const text = "代わりの手段は、いつもの確認方法が使えないとき、ほかの方法でお薬の情報を確認できるか、今のうちに確かめておくと安心です。";
+    const open = { ...finish, viewpoints: { ...output.viewpoints, alternative: "aware_unconfirmed" as const }, closing_remark: text };
+    const outcome = await runTurn(secondDone, fake(open), null);
     if (!outcome.ok) throw new Error("ok のはず");
     expect(outcome.remarkRejectReason).toBeNull();
+    expect(outcome.response.remark).toBe(text);
+  });
+
+  it("観点ごとの言い回しを、ほかの観点や合わない判定につないだ一言は捨てる（2026-11-07 オーナー：「どの観点につないでもよい、という扱いにはしないでください」）", async () => {
+    const open = { ...output.viewpoints, alternative: "aware_unconfirmed" as const };
+    for (const [bad, viewpoints] of [
+      // 「記録に載っていないこと」と「代わりの確認方法」は別の観点
+      ["記録に載っていないことは、いつもの確認方法が使えないとき、ほかの方法でお薬の情報を確認できるか、今のうちに確かめておくと安心です。", open],
+      // 代わりの手段が確認できた回に、まだの言い回しを使う
+      ["代わりの手段は、いつもの確認方法が使えないとき、ほかの方法でお薬の情報を確認できるか、今のうちに確かめておくと安心です。", output.viewpoints],
+      // 確認していない観点に「話せていました」
+      ["記録に載っていないことは、話せていました。", output.viewpoints],
+      // 確認できた観点に「今のうちに確かめておくと安心です」
+      ["代わりに伝える人は、今のうちに確かめておくと安心です。", output.viewpoints],
+      // 在りかの言い回しを、在りかが確認できていない回に使う
+      ["自分のお薬情報がどこに記録されているのか把握できていましたね。", { ...output.viewpoints, location: "not_mentioned" as const }],
+      // どの言い回しにもつながらない観点の名前
+      ["お話しくださってありがとうございました。代わりに伝える人。", output.viewpoints],
+    ] as const) {
+      const outcome = await runTurn(secondDone, fake({ ...finish, viewpoints, closing_remark: bad }), null);
+      if (!outcome.ok) throw new Error("ok のはず");
+      expect(outcome.response.remark, bad).toBeNull();
+      expect(outcome.remarkRejectReason, bad).toBe("pairing");
+    }
+  });
+
+  it("係の交代の回は、「代わりの手段」の名前と、いつもの方法の代わりを聞く言い回しを使わず、「交代した相手への伝え直し」で言う（ADR-0064）", async () => {
+    const handover: TurnRequest = {
+      ...secondDone,
+      inputs: secondDone.inputs.map((i) => (i.question_id === "second_recovery" ? { ...i, question_id: "second_handover" } : i)),
+      event: "handover",
+      source: null,
+    };
+    for (const bad of [
+      "代わりの手段は、話せていました。",
+      "交代した相手への伝え直しは、いつもの確認方法が使えないとき、ほかの方法でお薬の情報を確認できるか、今のうちに確かめておくと安心です。",
+    ]) {
+      const outcome = await runTurn(handover, fake({ ...finish, closing_remark: bad }), null);
+      if (!outcome.ok) throw new Error("ok のはず");
+      expect(outcome.response.remark, bad).toBeNull();
+      expect(outcome.remarkRejectReason, bad).toBe("pairing");
+    }
+    const ok = "交代した相手への伝え直しは、話せていました。";
+    const outcome = await runTurn(handover, fake({ ...finish, closing_remark: ok }), null);
+    if (!outcome.ok) throw new Error("ok のはず");
+    expect(outcome.remarkRejectReason).toBeNull();
+    expect(outcome.response.remark).toBe(ok);
+  });
+
+  it("Claude に渡す言い回しは、観点と判定の割り当てつきで、係の交代の回はいつもの方法の代わりの言い回しを渡さない", () => {
+    expect(REMARK_PHRASE_RULES.map((p) => p.text)).toEqual(REMARK_PHRASES);
+    const payload = (req: TurnRequest) => {
+      const message = buildUserMessage(req);
+      return JSON.parse(message.slice(message.indexOf("{")));
+    };
+    const battery = payload(secondDone);
+    expect(battery.remark_vocabulary).toContain("代わりの手段");
+    expect(battery.remark_phrases).toContainEqual({
+      text: "いつもの確認方法が使えないとき、ほかの方法でお薬の情報を確認できるか",
+      viewpoint: "代わりの手段",
+      use_for: "まだ確認できていない観点",
+    });
+    const handover = payload({ ...secondDone, event: "handover", source: null });
+    expect(handover.remark_vocabulary).toContain("交代した相手への伝え直し");
+    expect(handover.remark_vocabulary).not.toContain("代わりの手段");
+    expect(JSON.stringify(handover.remark_phrases)).not.toContain("いつもの確認方法");
+  });
+
+  it("プロンプトの一言の例は、どれも80字以内（「1〜2文・80字以内」の指定に合わせる）", () => {
+    const examples = SYSTEM_PROMPT.split("# 振り返りの一言")[1].split("# recall")[0].match(/^\s+- .*?「(.+)」$/gm) ?? [];
+    expect(examples.length).toBeGreaterThanOrEqual(3);
+    for (const line of examples) {
+      const text = line.slice(line.indexOf("「") + 1, line.lastIndexOf("」"));
+      expect([...text].length, text).toBeLessThanOrEqual(80);
+    }
   });
 
   it("準備の助言・安心させる言い方の一言は捨てる", async () => {

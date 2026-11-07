@@ -5,6 +5,7 @@ import {
   DETAILS_SUMMARY,
   EVENTS,
   FIRST_HALF_QUESTIONS,
+  HANDOVER_ALTERNATIVE,
   HANDOVER_QUESTION,
   INTERRUPTION_NOTE,
   JUDGMENT_LABELS,
@@ -33,6 +34,8 @@ import {
 import { nextSteps, orderPrepActions, verifiedSourcesFor } from "../flow/rules";
 import { initialState, type TrainingState } from "../flow/training";
 import type { Answer, Judgments, PrepActionId } from "../flow/types";
+import { reviewSpeech } from "../voice/speech";
+import { Done, doneMemoText } from "./Done";
 import { Review } from "./Review";
 
 /** 試験は DOM の無い環境で動くので、文字列に描いて確かめる。回答はすべて架空の試験用の文 */
@@ -387,5 +390,29 @@ describe("⑥振り返りの公的資料（A-06）", () => {
     const html = renderWith(battery);
     const cards = between(html, H.prep, heading);
     expect(cards).not.toContain("<a ");
+  });
+});
+
+describe("係の交代の回の「代わりの手段」（ADR-0064。2026-11-07 オーナー：「係の交代では、振り返りも「交代した相手への伝え直し」に合わせてください」）", () => {
+  it("交代の回は、観点の名前と一言を「交代した相手への伝え直し」にし、いつもの方法の代わりの手段の名前を出さない", () => {
+    const onlyAlternative = state({ ...handover, judgments: { ...allConfirmed, alternative: "aware_unconfirmed" } });
+    const html = render(onlyAlternative);
+    expect(html).toContain(HANDOVER_ALTERNATIVE.shortLabel);
+    expect(html).toContain(HANDOVER_ALTERNATIVE.label);
+    expect(html).toContain(HANDOVER_ALTERNATIVE.weak.aware_unconfirmed);
+    expect(html).not.toContain(VIEWPOINT_LABELS.alternative);
+    expect(html).not.toContain(WEAK_POINT_LINES.alternative.aware_unconfirmed);
+    const done = renderToStaticMarkup(
+      <Done action="notebook_bag" timing="today" judgments={mixed} event="handover" onRestart={() => {}} />,
+    );
+    expect(done).toContain(HANDOVER_ALTERNATIVE.shortLabel);
+    expect(doneMemoText("notebook_bag", "today", mixed, "handover")).toContain(HANDOVER_ALTERNATIVE.shortLabel);
+    expect(reviewSpeech(handover)).toContain(HANDOVER_ALTERNATIVE.shortLabel);
+  });
+
+  it("交代でない回は、今までの名前のまま", () => {
+    const html = render(battery);
+    expect(html).toContain(VIEWPOINT_LABELS.alternative);
+    expect(html).not.toContain(HANDOVER_ALTERNATIVE.shortLabel);
   });
 });

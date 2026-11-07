@@ -140,7 +140,8 @@ export interface TextCheckContext {
 }
 
 /** 文を捨てた理由の種類。本文を含まないので、公開する版でもログに出してよい（ADR-0029 の1） */
-export type RejectReason = "length" | "forbidden" | "unknown_term" | "repeat";
+/** pairing：振り返りの一言で、観点と決まった言い回しのつなぎ方が合わない（remarkPairing.ts。ADR-0064） */
+export type RejectReason = "length" | "forbidden" | "unknown_term" | "repeat" | "pairing";
 
 /**
  * 復唱なら許す禁止表現：名前の直後の「ですね」など（推測の確かめの形）、「〜の薬ですね」、病名らしい語、よくある病気の言葉。

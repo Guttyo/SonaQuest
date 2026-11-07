@@ -238,7 +238,8 @@ export const SCENE_INTRO =
   "発災の翌日。避難所の救護所に来ました。入口では、診察の前に、普段飲んでいる薬を確認しています。受付のソナが、あなたに声をかけます。";
 
 // [TODO-OWNER: 固定の質問文（Claude Codeの下書き。前半3問、立て直しの問い、係の交代のときの問い、後半の残りの問い）]
-// → オーナー決定（2026-11-07、チャット、Issue #163）：「以下を修正し、書いていない番号は「下書きのまま」で進めてください」。ADR-0046 に合わない文は「意味を保って縮める」（Q1・Q6・Q7・Q8〜Q12。Q6・Q7・Q12 はオーナーの文のまま、Q1・Q8〜Q11 は Claude Code が縮めた）
+// → オーナー決定（2026-11-07、チャット、Issue #163）：「以下を修正し、書いていない番号は「下書きのまま」で進めてください」。ADR-0046 に合わない文は「意味を保って縮める」（Q1・Q6・Q7・Q8〜Q12。Q6・Q7・Q12 はオーナーの文のまま、Q1・Q8〜Q10 は Claude Code が縮めた）
+// → オーナー決定（2026-11-07、チャット、Issue #163）：「短縮した Q1・Q8・Q9・Q10はそのまま採用してください」。Q11 は「ご家族のほかに、お薬の情報を伝えられる人や相談先はありますか？個人名や施設名は出さずに教えてください。」
 
 // 質問の流れは公的な手引きの聞き取りの順番に合わせた（README「参考にした公式資料」）：
 // 普段の薬があるか・中身 → 何で確かめられるか → ほかの医療機関の薬・市販薬・アレルギー・副作用
@@ -246,7 +247,8 @@ export const SCENE_INTRO =
 // 薬の名前・量・病名は聞いてよいが、答えは判定も記録もしない（ADR-0021）。
 
 // [TODO-OWNER: Issue #41 で足した固定の質問（Claude Code の下書き）：前半の4問目（記録に載っていないこと）と後半の4問目（思い出せなかったこと）の文面、観点、誰のこととして答えるか。あわせて、増えた4回の枠の分け方（半分ごとに、固定の質問を1問足し、残りの1回を聞き返しの余裕にする）]
-// → オーナー決定（2026-11-07、チャット、Issue #163）：「以下を修正し、書いていない番号は「下書きのまま」で進めてください」。ADR-0046 に合わない文は「意味を保って縮める」（Q4 は Claude Code が縮めた、Q12 はオーナーの文。観点・枠の分け方は下書きのまま）
+// → オーナー決定（2026-11-07、チャット、Issue #163）：「以下を修正し、書いていない番号は「下書きのまま」で進めてください」。ADR-0046 に合わない文は「意味を保って縮める」（Q4・Q12 はオーナーの文。観点・枠の分け方は下書きのまま）
+// → オーナー決定（2026-11-07、チャット、Issue #163）：Q4 は「薬のアレルギーや、薬を使って具合が悪くなった経験はありますか？」。「記録の有無は、必要に応じて聞き返してください」
 
 /**
  * 前半（②問い）の固定の4問。回答は最大5回（ADR-0019）で、残りの1回は聞き返しの余裕。
@@ -288,8 +290,9 @@ export const FIRST_HALF_QUESTIONS: readonly Question[] = [
     viewpoint: "unrecorded",
     answerAs: "fictional",
     // Issue #110：前の問いから移したアレルギー・合わなかった薬を聞く。「最近やめた薬」などは聞き返しの例にした
-    // 2026-11-07 オーナーの文（Q4）を縮めた。もとの例「最近やめた薬・ときどき飲む薬」は、アレルギーの問いと食い違うので外した（オーナーの指摘）
-    text: "薬のアレルギーや、薬を使って具合が悪くなった経験はありますか？あれば、記録にあるかも教えてください。",
+    // 2026-11-07 オーナーの文（Q4）。もとの例「最近やめた薬・ときどき飲む薬」は、アレルギーの問いと食い違うので外した（オーナーの指摘）。
+    // 記録にあるかは1問1問いに合わせて問いから外し、聞き返しの固定文（CLARIFY_TEXTS.first_unrecorded）で聞く（オーナー「記録の有無は、必要に応じて聞き返してください」）
+    text: "薬のアレルギーや、薬を使って具合が悪くなった経験はありますか？",
   },
 ];
 
@@ -373,8 +376,8 @@ export const PROXY_QUESTION_AFTER_FAMILY: Question = {
   id: "second_proxy_other",
   viewpoint: "proxy",
   answerAs: "self",
-  // 2026-11-07 オーナーの文（Q11）を60字（ADR-0046）に縮め、例「ヘルパーさん」「かかりつけ薬局」は聞き返しに移した
-  text: "ご家族のほかに、お薬の情報を伝えられる人や相談先はありますか？名前ではなく、関係で教えてください。",
+  // 2026-11-07 オーナーの文（Q11）。例「ヘルパーさん」「かかりつけ薬局」は聞き返しに移した。相談先も聞くので「関係で」ではなく、個人名や施設名を出さない聞き方にした（オーナー）
+  text: "ご家族のほかに、お薬の情報を伝えられる人や相談先はありますか？個人名や施設名は出さずに教えてください。",
   examples: "ヘルパーさん、かかりつけ薬局",
 };
 
@@ -811,6 +814,44 @@ export const WEAK_POINT_LINES: Record<
     aware_unconfirmed: "頼れる人に、お薬の情報や記録の場所を伝えられるか確認してみましょう。",
   },
 };
+
+/**
+ * 係の交代（出来事 handover）のときの「代わりの手段」の観点の見せ方。交代は情報源が使えなくなる出来事ではないので、
+ * 判定は「交代した係にも伝え直せたか」で付ける（ADR-0064）。そのまま「代わりの手段：確認できた」と出すと、
+ * いつもの方法が使えないときの代わりの手段まで確かめたように読めるので、名前と一言を替える
+ * （2026-11-07 オーナー、チャット：「係の交代では、振り返りも「交代した相手への伝え直し」に合わせてください」）。
+ */
+// [TODO-OWNER: 係の交代のときの観点の名前（一覧の名前）と、弱いときの一言2つ（Claude Code の下書き。短い名前「交代した相手への伝え直し」はオーナーの言葉）]
+export const HANDOVER_ALTERNATIVE = {
+  label: "交代した相手に、お薬の情報を伝え直せるか",
+  shortLabel: "交代した相手への伝え直し",
+  weak: {
+    not_mentioned: "係が交代したときに、もう一度伝える方法を考えましょう。",
+    aware_unconfirmed: "交代した相手にも、同じ記録を見せられるか確かめましょう。",
+  },
+} as const;
+
+const isHandoverAlternative = (v: ViewpointId, event: EventId | null) =>
+  v === "alternative" && event === "handover";
+
+/** 一覧に出す観点の名前（係の交代のときだけ「代わりの手段」を替える） */
+export function viewpointLabel(v: ViewpointId, event: EventId | null): string {
+  return isHandoverAlternative(v, event) ? HANDOVER_ALTERNATIVE.label : VIEWPOINT_LABELS[v];
+}
+
+/** 観点の短い名前（係の交代のときだけ「代わりの手段」を替える） */
+export function viewpointShortLabel(v: ViewpointId, event: EventId | null): string {
+  return isHandoverAlternative(v, event) ? HANDOVER_ALTERNATIVE.shortLabel : VIEWPOINT_SHORT_LABELS[v];
+}
+
+/** 弱いときの一言（係の交代のときだけ「代わりの手段」を替える） */
+export function weakPointLine(
+  v: ViewpointId,
+  judgment: "not_mentioned" | "aware_unconfirmed",
+  event: EventId | null,
+): string {
+  return isHandoverAlternative(v, event) ? HANDOVER_ALTERNATIVE.weak[judgment] : WEAK_POINT_LINES[v][judgment];
+}
 
 /** 準備行動が何を強くするかの一言（カードと終わりの画面に出す） */
 export const PREP_ACTION_EFFECTS: Record<PrepActionId, string> = {

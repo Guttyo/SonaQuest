@@ -91,8 +91,8 @@ describe("答える範囲（ADR-0022 案B）", () => {
     (q) => {
       expect(q.text).not.toContain("どうやって連絡がとれますか");
       expect(q.text).not.toContain("電話番号");
-      // 2026-11-07 オーナーの文：名前ではなく「関係」で聞く（もとは「続柄」）
-      expect(q.text).toContain("関係で教えてください");
+      // 2026-11-07 オーナーの文：人は名前ではなく「関係」で聞く（もとは「続柄」）。相談先も聞く Q11 は、個人名や施設名を出さずに聞く
+      expect(q.text).toMatch(q.id === "second_proxy_other" ? /個人名や施設名は出さずに教えてください/ : /関係で教えてください/);
       expect(CONTACT_CHOICE_QUESTIONS.has(q.id)).toBe(true);
       // 連絡先そのものを書かせない案内は、回答欄に出る
       expect(ANSWER_HINTS[q.answerAs]).toContain("電話番号");
