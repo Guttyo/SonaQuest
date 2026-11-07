@@ -1335,6 +1335,7 @@ export function Board({
     return true;
   }
   async function chartOp(chart: PatientChart, op: ChartOp) {
+    // 差し戻し（Issue #253）は下書きを作り直す操作なので、Worker の約束の種類を増やさず「chart_summary」で確かめる
     const kind: AuthorizeKind = op === "audit" ? "chart_audit" : op === "confirm" ? "chart_confirm" : "chart_summary";
     const who = await guarded(chart.site, kind, chart.id);
     if (who === null) return;
@@ -1380,6 +1381,10 @@ export function Board({
         // 見本の下書き・AI を止めた状態は、見本の監査。少し待ってから結果を返す。AI を止めた状態なら「監査できず」
         window.setTimeout(() => done(sampleAudit(chart.key, live.current.aiStopped)), SAMPLE_AUDIT_MS);
       }
+    } else if (op === "discard") {
+      // アクセス記録の出来事の種類（8種類）は増やさず、「カルテを編集した」として残す
+      dispatch({ type: "chart_discard", key: chart.key, actor });
+      logAccess("chart_edit", chart.id, who);
     } else {
       dispatch({ type: "chart_confirm", key: chart.key, actor });
       logAccess("human_confirm", chart.id, who);

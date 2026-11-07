@@ -104,9 +104,35 @@ export function auditResultAfterStop(result: ChartAuditResult, aiStopped: boolea
   return result.session === undefined ? { ok: false, failure: "ai_stopped" } : { ok: false, failure: "ai_stopped", session: result.session };
 }
 
-/** 人が確認済みにできる状態か（監査済みか監査できずのとき） */
+/**
+ * コードでの確認（1段目、karte/codeCheck.ts）の指摘が残っている下書きか（Issue #253）。
+ * 会話にない引用・足された量や名前・禁止表現・観点の抜けなどが残ったまま、人が確認済みにしないために見る。
+ * 行ごとの直しはしないので、指摘は下書きを差し戻す（捨てて作り直す）まで残る
+ */
+export function unresolvedCodeFindings(review: ChartReview | undefined): boolean {
+  return (review?.draft.codeFindings?.length ?? 0) > 0;
+}
+
+/** 人が確認済みにできる状態か（監査済みか監査できずのときで、コードでの確認の指摘が残っていない。Issue #253） */
 export function confirmable(review: ChartReview | undefined): boolean {
+  if (unresolvedCodeFindings(review)) return false;
   return review?.status === "audited" || review?.status === "audit_unavailable";
+}
+
+/** 下書きを差し戻せるか（コードでの確認の指摘が残っていて、監査中でも確認済みでもない。Issue #253） */
+export function discardable(review: ChartReview | undefined): boolean {
+  if (review === undefined || !unresolvedCodeFindings(review)) return false;
+  return review.status !== "ai_auditing" && review.status !== "human_confirmed";
+}
+
+/**
+ * 下書きを差し戻す（捨てる）。そのカルテの救護所でログインしている人だけ。捨てると「AI 下書きなし」に戻り、作り直せる。
+ * 差し戻せないとき・救護所が違うときは、そのまま返す（null は「捨てた」）
+ */
+export function discardReview(review: ChartReview | undefined, chartKey: string, actor: { site: SiteId }): ChartReview | undefined | null {
+  if (!discardable(review)) return review;
+  if (chartSite(chartKey) !== actor.site) return review;
+  return null;
 }
 
 /** 人が確認済みにする。そのカルテの救護所でログインしている人だけ（違えば変えない） */
