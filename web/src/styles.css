@@ -1559,6 +1559,23 @@ body,
     width: 200px;
     height: 160px;
   }
+
+  /* 広い画面では係を真ん中に置き、名前と読み上げの操作は右の列に置く（舞台の高さは変えない）。
+     スマホ幅は右の列が狭すぎるので、これまでどおり係を左に置く */
+  .dialogue-stage-figure {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+
+  .dialogue-stage-figure > .stage-figure-enter {
+    grid-column: 2;
+  }
+
+  /* 後半で「頼りにしているもの」などの札が出たら、右の列が狭すぎて舞台が --stage-h を超えるので、
+     これまでどおり係を左に置き、横の列を広く取る */
+  .dialogue-stage-figure:has(.source-chip) {
+    display: flex;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2782,7 +2799,8 @@ body,
 
 .intro-modes .mode-card {
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  text-align: center;
   gap: 8px;
   min-height: 0;
   padding: 14px 12px 16px;
