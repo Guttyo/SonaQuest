@@ -176,7 +176,7 @@ describe("振り返りの一言（案B：一言用の検査。監査役は必ず
     for (const ok of [
       "お薬手帳のことは話せていました。",
       "家族に頼めることも話せていました。",
-      "スマホのほかにもお薬の情報の置き場所があるか、今のうちに確かめておくと安心です。",
+      "スマホのほかに、いつもの確認方法が使えないとき、ほかの方法でお薬の情報を確認できるか、今のうちに確かめておくと安心です。",
     ]) {
       const outcome = await runTurn(req, fake({ ...finish, closing_remark: ok }), null);
       if (!outcome.ok) throw new Error("ok のはず");
@@ -208,8 +208,8 @@ describe("振り返りの一言（案B：一言用の検査。監査役は必ず
     expect(outcome.remarkRejectReason).toBe("audit_personal_info");
   });
 
-  it("言い換えた言い回し「ほかにもお薬の情報の置き場所があるか」は、禁止表現に当たらずに通る", async () => {
-    const text = "記録に無い情報は、ほかにもお薬の情報の置き場所があるか、今のうちに確かめておくと安心です。";
+  it("言い換えた言い回し「いつもの確認方法が使えないとき、ほかの方法でお薬の情報を確認できるか」は、禁止表現に当たらずに通る（2026-11-07 オーナー決定）", async () => {
+    const text = "記録に載っていないことは、いつもの確認方法が使えないとき、ほかの方法でお薬の情報を確認できるか、今のうちに確かめておくと安心です。";
     const outcome = await runTurn(secondDone, fake({ ...finish, closing_remark: text }), null);
     if (!outcome.ok) throw new Error("ok のはず");
     expect(outcome.remarkRejectReason).toBeNull();

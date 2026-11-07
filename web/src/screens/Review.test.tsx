@@ -226,12 +226,13 @@ describe("まだ弱いところと、次の一手（ADR-0054）", () => {
     expect(section).not.toContain("試験の回答");
     for (const v of VIEWPOINT_ORDER) {
       for (const line of Object.values(WEAK_POINT_LINES[v])) {
-        expect(line.length).toBeLessThanOrEqual(40);
+        // 40字は Claude Code の下書きの目安。2026-11-07 のオーナーの文（Issue #163）に合わせて50字にした
+        expect(line.length).toBeLessThanOrEqual(50);
         expect(line).not.toMatch(/mg|錠|カプセル/);
       }
-      expect(VIEWPOINT_SHORT_LABELS[v].length).toBeLessThanOrEqual(12);
+      expect(VIEWPOINT_SHORT_LABELS[v].length).toBeLessThanOrEqual(14);
     }
-    for (const a of PREP_ACTIONS) expect(PREP_ACTION_EFFECTS[a.id].length).toBeLessThanOrEqual(40);
+    for (const a of PREP_ACTIONS) expect(PREP_ACTION_EFFECTS[a.id].length).toBeLessThanOrEqual(50);
   });
 
   it("全部「確認できた」の回：弱いところの一覧を出さず、固定の一言と判定の意味を出し、準備は選ばせる", () => {
@@ -339,11 +340,16 @@ describe("⑥振り返りの公的資料（A-06）", () => {
     expect(sourcesFor("tell_family")).toEqual([]);
   });
 
-  it("今の資料の一覧では、オーナーが確認済みにした3件だけを、対応する準備行動に出す", () => {
+  it("今の資料の一覧では、マイナポータルの FAQ 2件だけを出す（S1・S2 は確認するまで出さない）", () => {
     const urls = (id: PrepActionId) => verifiedSourcesFor(id).map((s) => s.url);
-    expect(urls("notebook_bag")).toEqual([PUBLIC_SOURCES.gov_online_prep.url]);
-    expect(urls("photo_and_paper")).toEqual([PUBLIC_SOURCES.fdma_ecollege_pack.url]);
-    expect(urls("check_portal")).toEqual([PUBLIC_SOURCES.myna_faq_medicine.url]);
+    // 2026-11-07 オーナーの答え「確認するまで出さない」
+    expect(urls("notebook_bag")).toEqual([]);
+    expect(urls("photo_and_paper")).toEqual([]);
+    // S6：No.6598 を足した（2026-11-07 オーナー、チャット）
+    expect(urls("check_portal")).toEqual([
+      PUBLIC_SOURCES.myna_faq_medicine.url,
+      PUBLIC_SOURCES.myna_faq_medicine_kinds.url,
+    ]);
     for (const id of ["wallet_memo", "tell_family", "pharmacy_contact"] as const) expect(urls(id)).toEqual([]);
     const html = render(battery);
     expect(html).toContain(REVIEW_SOURCES_HEADING);
