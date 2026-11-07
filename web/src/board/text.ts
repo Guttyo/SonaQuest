@@ -1,6 +1,8 @@
 // 地域本部の医薬品ボード（試作）の固定文（Issue #97、ADR-0042）。Claude Code の下書き。
 // 公的な制度の説明は書かない。薬の正誤・処方の判断に見える言い方をしない。
 
+import type { SyncRow } from "./data";
+
 // 決定済み：ボードの画面の文言（Claude Code の下書き。題・説明・各欄の見出し・注意書き）
 // → オーナー決定（2026-11-05、チャット）：はじめにのボタンは「地域本部の医薬品ボードを見る（試作）」。在庫の状態は「在庫切れ」「未確認」「見込み算出不可」と文字で示し、色は補助に使う。見出しの直下は「架空データ」と集計時点を短く表示する（ほかの文言は下書きのまま、判断待ち）。
 // → オーナー決定（2026-11-06、チャット）：画面の「試作」を「架空データ」に変える。はじめにのボタンは「地域本部の医薬品ボードを見る（架空データ）」。
@@ -132,6 +134,19 @@ export function orderQtyText(qty: number, unit: string): string {
   const sheets = (qty % 100) / 10;
   const parts = [boxes > 0 ? `${n.format(boxes)}箱` : "", sheets > 0 ? `${sheets}シート` : ""].filter(Boolean);
   return `${parts.join("＋")}（${n.format(qty)}錠）`;
+}
+
+/**
+ * 「記録の到着・入力状況」の表の「受領状況・次の予定」の文（Issue #243）。固定の文にせず、
+ * 本部未反映の件数（pending）・内訳（pendingKind）・記録と通信（mode）から組み立てる。
+ * 届く手段・次の予定（note）は、未反映が残っているか件数が不明なときだけ添える。
+ * 文は Claude Code の下書き
+ */
+export function syncStatusText(r: Pick<SyncRow, "mode" | "pending" | "pendingKind" | "note">): string {
+  if (r.mode === "オンライン") return "本部で入力";
+  if (r.pending === 0) return "届いた分は反映済み";
+  const head = r.pending === null ? "件数の報告はまだない" : `${r.pendingKind === "転記待ち" ? "転記待ち" : "未着"} ${r.pending} 件`;
+  return r.note ? `${head}。${r.note}` : head;
 }
 
 /**
@@ -421,7 +436,8 @@ export const BOARD_SECTIONS = {
   trendNote: "発災翌日からの日ごとの延べ人数。線の右端が救護所の名前。",
   inbound: "入荷・融通の予定",
   inboundNote: "供給元からの納品、本部備蓄からの搬送、救護所どうしの融通。",
-  demand: "需要予測と在庫",
+  // 「開始時点の参考値」は Claude Code の下書き（Issue #243。需要予測はデモの時計で動かない）
+  demand: "需要予測と在庫（開始時点の参考値）",
   demandNote:
     "避難者数と、普段の薬を継続して必要とする人の割合を仮定し、1日に必要な量と在庫がもつ日数を推計しています。点線は、デモ用に設定した目安です。",
   sync: "記録の到着・入力状況",

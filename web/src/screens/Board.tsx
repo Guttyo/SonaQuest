@@ -67,6 +67,7 @@ import {
   BOARD_MOCK_BADGE,
   BOARD_ORDERS,
   orderQtyText,
+  syncStatusText,
   BOARD_CHANGES,
   BOARD_LEAD_TILE,
   BOARD_TILE_SHORT,
@@ -2058,7 +2059,7 @@ export function Board({
                             <td>{mdhm(r.lastSync)}</td>
                             <td className="num">{r.pending === null ? BOARD_TILES.pendingUnknown : fmt.format(r.pending)}</td>
                             <td>{r.pendingKind}</td>
-                            <td>{r.note}</td>
+                            <td>{syncStatusText(r)}</td>
                           </tr>
                         ))}
                       </tbody>
