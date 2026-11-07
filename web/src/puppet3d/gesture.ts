@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { currentMatchMedia, prefersReducedMotion } from "./support";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { currentMatchMedia, prefersReducedMotion, subscribeReducedMotion } from "./support";
 import type { ListenerActivity } from "./types";
 
 /**
@@ -28,15 +28,20 @@ export function gestureAt(elapsedMs: number): ListenerGesture | null {
   return WAIT_GESTURES[index];
 }
 
+const reducedMotionNow = () => prefersReducedMotion(currentMatchMedia());
+const serverFalse = () => false;
+
 /**
  * 考え中が続いている間の身ぶり。考え中でなくなったら（返事が来た・中断した）すぐ null に戻す。
- * 動きを減らす設定のときは null のまま
+ * 動きを減らす設定のときは null のまま。待っている途中で設定が変わっても、その場でやめる（PR #222 のレビュー）
  */
 export function useWaitGesture(activity: ListenerActivity): ListenerGesture | null {
   const [gesture, setGesture] = useState<ListenerGesture | null>(null);
   const thinking = activity === "thinking";
+  const reducedMotion = useSyncExternalStore(subscribeReducedMotion, reducedMotionNow, serverFalse);
+  const active = thinking && !reducedMotion;
   useEffect(() => {
-    if (!thinking || prefersReducedMotion(currentMatchMedia())) return;
+    if (!active) return;
     const start = Date.now();
     let timer: ReturnType<typeof setTimeout> | null = null;
     const tick = () => {
@@ -51,6 +56,6 @@ export function useWaitGesture(activity: ListenerActivity): ListenerGesture | nu
       if (timer !== null) clearTimeout(timer);
       setGesture(null);
     };
-  }, [thinking]);
-  return thinking ? gesture : null;
+  }, [active]);
+  return active ? gesture : null;
 }
