@@ -8,6 +8,7 @@ import {
   INTRO_LEAD,
   INTRO_NOTE_POINTS,
   INTRO_POINTS,
+  MODE_REQUIRED_HINT,
   PRIVACY_EXTERNAL,
   PRIVACY_OWN,
   PRIVACY_VOICE,
@@ -29,8 +30,9 @@ function escapeHtml(text: string): string {
     .replace(/'/g, "&#x27;");
 }
 
-/** 試験は DOM の無い環境で動くので、文字列に描いて確かめる。window が無いので初期選択は 2D */
+/** 試験は DOM の無い環境で動くので、文字列に描いて確かめる。initialMode を省くと、どちらも選んでいない状態（Issue #240） */
 const choose = renderToStaticMarkup(<Intro onStart={() => {}} />);
+const choose2d = renderToStaticMarkup(<Intro onStart={() => {}} initialMode="2d" />);
 const choose3d = renderToStaticMarkup(<Intro onStart={() => {}} initialMode="3d" />);
 const notes2d = renderToStaticMarkup(<Intro onStart={() => {}} initialView="notes" initialMode="2d" />);
 const notes3d = renderToStaticMarkup(<Intro onStart={() => {}} initialView="notes" initialMode="3d" />);
@@ -51,10 +53,10 @@ const REQUIRED = [
 const radios = choose.match(/<input[^>]*type="radio"[^>]*>/g) ?? [];
 
 describe("はじめにの1画面目：答え方をカードで選ぶ（A-14、Issue #51）", () => {
-  it("2D と 3D のカードを選べ、既定は 2D", () => {
+  it("2D と 3D のカードを選べ、最初はどちらも選ばれていない（Issue #240）", () => {
     expect(radios).toHaveLength(2);
     expect(radios[0]).toContain('value="2d"');
-    expect(radios[0]).toContain('checked=""');
+    expect(radios[0]).not.toContain("checked");
     expect(radios[1]).toContain('value="3d"');
     expect(radios[1]).not.toContain("checked");
     expect(radios[1]).not.toContain("disabled");
@@ -88,7 +90,7 @@ describe("はじめにの1画面目：答え方をカードで選ぶ（A-14、Is
 
   it("「次へ」が主ボタンで、その直下にボードへのボタン、その下に問診モード（将来構想）の説明の文（Issue #101）", () => {
     const text = escapeHtml(COMING_SOON_INTAKE);
-    expect(choose).toContain('<button type="button" class="primary">次へ</button>');
+    expect(choose2d).toContain('<button type="button" class="primary">次へ</button>');
     // Issue #162：絵（読み上げない）と文字の入口。塗りつぶしの primary にはしない
     expect(choose).toMatch(
       new RegExp(
@@ -284,8 +286,33 @@ describe("はじめにの初期選択の受け渡し（Issue #83）", () => {
     expect(radios3d[1]).toContain('checked=""');
   });
 
-  it("initialMode を省くと、URL を読まずに既定の 2D", () => {
-    expect(radios[0]).toContain('checked=""');
+  it("initialMode を省くと、URL を読まずに、どちらも選ばれていない", () => {
+    expect(radios[0]).not.toContain("checked");
     expect(radios[1]).not.toContain("checked");
+  });
+});
+
+describe("答え方を選ぶまで「次へ」を押せない（Issue #240、ADR-0036 の追記5）", () => {
+  it("選ぶ前は「次へ」が押せず、理由の一言を出し、ボタンから参照する", () => {
+    expect(choose).toContain(
+      '<p id="mode-required-hint" class="mode-required-hint">' + escapeHtml(MODE_REQUIRED_HINT) + "</p>",
+    );
+    expect(choose).toContain(
+      '<button type="button" class="primary" disabled="" aria-describedby="mode-required-hint">次へ</button>',
+    );
+    // 一言は「次へ」のすぐ上
+    expect(choose.indexOf(escapeHtml(MODE_REQUIRED_HINT))).toBeLessThan(choose.indexOf(">次へ</button>"));
+  });
+
+  it("2D か 3D を選んだ状態では「次へ」が押せ、理由の一言は出さない", () => {
+    for (const html of [choose2d, choose3d]) {
+      expect(html).toContain('<button type="button" class="primary">次へ</button>');
+      expect(html).not.toContain(escapeHtml(MODE_REQUIRED_HINT));
+      expect(html).not.toContain("mode-required-hint");
+    }
+  });
+
+  it("ボードへのボタンは、選ぶ前でも押せる（訓練の外の画面）", () => {
+    expect(choose).toMatch(/<button type="button" class="secondary board-entry">/);
   });
 });

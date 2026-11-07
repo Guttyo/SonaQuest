@@ -187,6 +187,14 @@ button.secondary.board-entry {
   color: var(--ink-soft);
 }
 
+/* はじめにの1画面目、答え方を選ぶ前に押せない「次へ」の上に出す一言（Issue #240）。色だけでなく文字で伝える */
+.mode-required-hint {
+  margin: 0;
+  text-align: center;
+  font-size: var(--fs-caption);
+  color: var(--ink-soft);
+}
+
 .notice {
   padding: 10px 12px;
   border-radius: 8px;

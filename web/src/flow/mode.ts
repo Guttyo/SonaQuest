@@ -13,16 +13,17 @@ export function modeFromSearch(search: string): TrainingMode {
 }
 
 /**
- * はじめにの1画面目の初期選択（Issue #83、ADR-0036 の追記3）。
- * ページを開いて最初の表示（session が 0）だけ、URL の `?mode=3d` を予備として読む。
- * 「はじめに戻る」で戻った後（restart で session が 1 以上）は、URL にかかわらず既定の 2D。利用者はカードで選び直す
+ * はじめにの1画面目の初期選択（Issue #83、ADR-0036 の追記3・追記5）。
+ * ページを開いて最初の表示（session が 0）だけ、URL の `?mode=3d` を予備として読み、3D を選んだ状態にする。
+ * それ以外（`?mode=3d` が無い、はじめに戻った後）は、どちらも選んでいない状態（null）。利用者がカードで選ぶまで「次へ」は押せない（Issue #240）
  */
-export function introInitialMode(search: string, session: number): TrainingMode {
-  return session === 0 ? modeFromSearch(search) : "2d";
+export function introInitialMode(search: string, session: number): TrainingMode | null {
+  if (session !== 0) return null;
+  return new URLSearchParams(search).get("mode") === "3d" ? "3d" : null;
 }
 
-/** いまの URL から、はじめにの初期選択を決める。ブラウザの外（試験など）では 2D */
-export function currentIntroMode(session: number): TrainingMode {
-  if (typeof window === "undefined") return "2d";
+/** いまの URL から、はじめにの初期選択を決める。ブラウザの外（試験など）では選んでいない状態 */
+export function currentIntroMode(session: number): TrainingMode | null {
+  if (typeof window === "undefined") return null;
   return introInitialMode(window.location.search, session);
 }

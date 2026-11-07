@@ -205,6 +205,8 @@ export const MODE_CHOSEN_LABEL = "選んでいる答え方：";
  * 1画面目はカードで選ぶだけ、2画面目「はじめる前に」に必ず見せる説明の全文と「訓練をはじめる」。文言は Claude Code の下書き
  */
 export const NEXT_LABEL = "次へ";
+/** 答え方を選ぶ前、押せない「次へ」の上に出す一言（Issue #240。Claude Code の下書き） */
+export const MODE_REQUIRED_HINT = "答え方を選ぶと、「次へ」を押せます";
 export const NOTES_TITLE = "はじめる前に";
 export const BACK_LABEL = "答え方を選び直す";
 

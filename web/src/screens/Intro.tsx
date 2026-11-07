@@ -5,6 +5,7 @@ import {
   MODE_CHOSEN_LABEL,
   MODE_LEGEND,
   MODE_OPTIONS,
+  MODE_REQUIRED_HINT,
   NEXT_LABEL,
   NOTES_TITLE,
 } from "../flow/content";
@@ -23,22 +24,23 @@ interface Props {
   /** 試験・見本のため。省くと1画面目（choose） */
   initialView?: IntroView;
   /**
-   * 1画面目の初期選択。省くと 2D。App が currentIntroMode で決めて渡す
-   * （最初の表示だけ URL の ?mode=3d を読み、はじめに戻った後は 2D。Issue #83、ADR-0036 の追記3）
+   * 1画面目の初期選択。省くと、どちらも選んでいない状態。App が currentIntroMode で決めて渡す
+   * （最初の表示だけ URL の ?mode=3d を読み、それ以外は選んでいない状態。Issue #83・#240、ADR-0036 の追記3・追記5）
    */
-  initialMode?: TrainingMode;
+  initialMode?: TrainingMode | null;
 }
 
 /**
  * はじめにの画面（A-14、Issue #51。2026-11-05 オーナー決定「2画面目に全文」、ADR-0036）。
  * 1画面目：問いかけ → 題 → 2D／3D の大きなカード（中はラジオ）→ C-01 の鍵付きの押せないカード → 次へ。長い文は置かない。
+ * カードを選ぶまで「次へ」は押せず、その上に理由の一言を出す（Issue #240）。
  * 2画面目「はじめる前に」：選んだ答え方 → 必ず見せる説明の全文（文は変えない。3D なら声の送信先を先頭に）→ 訓練をはじめる／選び直す。
  * 「訓練をはじめる」は2画面目にだけあり、1画面目から訓練は始められない。色はクリーム・ミント・オレンジのまま（ADR-0020）
  */
 export function Intro({ onStart, onOpenBoard, initialView = "choose", initialMode }: Props) {
-  // 選んだ値と画面はメモリにだけ持ち、保存しない（ADR-0007）。やり直すと部品ごと作り直され、1画面目の既定の 2D に戻る。
+  // 選んだ値と画面はメモリにだけ持ち、保存しない（ADR-0007）。やり直すと部品ごと作り直され、どちらも選んでいない状態に戻る。
   // 「答え方を選び直す」は画面だけを戻すので、選んだ値はそのまま
-  const [mode, setMode] = useState<TrainingMode>(initialMode ?? "2d");
+  const [mode, setMode] = useState<TrainingMode | null>(initialMode ?? null);
   const [view, setView] = useState<IntroView>(initialView);
   const chosen = MODE_OPTIONS.find((option) => option.id === mode) ?? MODE_OPTIONS[0];
 
@@ -69,7 +71,7 @@ export function Intro({ onStart, onOpenBoard, initialView = "choose", initialMod
           災害で普段の情報源が使えなくなったとき、自分の薬のことをどう伝えるかを、約5〜10分の対話で体験し、伝える準備を振り返って復習します。
         </p>
         <IntroNotes voiceProminent={mode === "3d"} />
-        <button type="button" className="primary" onClick={() => onStart(mode)}>
+        <button type="button" className="primary" onClick={() => onStart(chosen.id)}>
           訓練をはじめる
         </button>
         <button type="button" className="secondary" onClick={() => setView("choose")}>
@@ -127,8 +129,20 @@ export function Intro({ onStart, onOpenBoard, initialView = "choose", initialMod
         </span>
       </p>
 
-      {/* 訓練はここからは始められない。2画面目で必ず見せる説明を読んでから */}
-      <button type="button" className="primary" onClick={() => setView("notes")}>
+      {/* 訓練はここからは始められない。2画面目で必ず見せる説明を読んでから。
+          答え方を選ぶまで「次へ」は押せない（Issue #240）。押せない理由は見える一言で示し、ボタンからも aria-describedby で参照する */}
+      {mode === null && (
+        <p id="mode-required-hint" className="mode-required-hint">
+          {MODE_REQUIRED_HINT}
+        </p>
+      )}
+      <button
+        type="button"
+        className="primary"
+        disabled={mode === null}
+        aria-describedby={mode === null ? "mode-required-hint" : undefined}
+        onClick={() => setView("notes")}
+      >
         {NEXT_LABEL}
       </button>
 
