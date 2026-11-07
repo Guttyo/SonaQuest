@@ -1,6 +1,16 @@
 // 訓練の状態と遷移。状態はメモリにだけ持ち、保存しない（ADR-0007）。
 
-import { ACK_TEXT, AI_CONNECTED, ALL_QUESTIONS, CLARIFY_TEXTS, RECHECK_CLOSING, REDIRECT_TEXTS, ackFor } from "./content";
+import {
+  ACK_TEXT,
+  AI_CONNECTED,
+  ALL_QUESTIONS,
+  CLARIFY_TEXTS,
+  EVENT_REASK,
+  RECHECK_CLOSING,
+  RECOVERY_QUESTION,
+  REDIRECT_TEXTS,
+  ackFor,
+} from "./content";
 import { SYMPTOM_CHECK_TEXT, detectDistress, isAffirmative, type StopReason } from "./emergency";
 import type { TrainingMode } from "./mode";
 import {
@@ -8,6 +18,7 @@ import {
   MAX_SECOND_HALF_ANSWERS,
   firstHalfQuestions,
   isAcceptableAnswer,
+  needsEventReask,
   planGoals,
   secondHalfQuestions,
   selectEvent,
@@ -323,10 +334,36 @@ function acceptAnswer(state: TrainingState, question: Question, half: Half, text
       recall: false,
     },
   ];
+  const reasked = eventReask(state, question, half, answers);
+  if (reasked !== null) return reasked;
   if (state.ai === "on") {
     return { ...state, answers, waiting: true };
   }
   return advance({ ...state, answers }, null);
+}
+
+/**
+ * 出来事の直後の「代わりの手段」の問いへの回答が、使えなくなった手段に頼っているときの、固定文での聞き返し（Issue #246、ADR-0016 の追記）。
+ * Claude を呼ばない（ai が on・off・failed のどれでも同じ）。1つの訓練で1回だけ。係の交代では出さない。
+ * 止めた入力は event_reasked にして、回答の回数に数えず、Claude にも送らない（振り返りには原文のまま出る）。
+ * 当てはまらなければ null
+ */
+function eventReask(
+  state: TrainingState,
+  question: Question,
+  half: Half,
+  answers: readonly Answer[],
+): TrainingState | null {
+  if (half !== "second" || question.id !== RECOVERY_QUESTION.id || state.event === null) return null;
+  const reask = EVENT_REASK[state.event];
+  if (reask === null || state.answers.some((a) => a.kind === "event_reasked")) return null;
+  const last = answers[answers.length - 1];
+  if (!needsEventReask(state.event, last.text)) return null;
+  return {
+    ...state,
+    answers: [...answers.slice(0, -1), { ...last, kind: "event_reasked" }],
+    prompt: { questionId: question.id, text: reask.text, type: "clarify" },
+  };
 }
 
 /** 確かめの問い「現在の体調の訴えでしょうか？」を出す。元の問いは resume に残す */

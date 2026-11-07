@@ -373,7 +373,8 @@ describe("Claude を使う進行", () => {
         state = { ...state, mode };
         state = run([{ type: "confirm", source: "notebook" }, { type: "continue_after_event" }], state);
         for (const [text, next] of [
-          ["紙の手帳を見せます", ask("second_recent")],
+          // お薬手帳が自宅にある出来事なので、手帳に頼らない手段にする（#246 の固定文の聞き返しに当たらないように）
+          ["薬の袋を見せます", ask("second_recent")],
           ["先月の記録です", ask("second_proxy")],
           ["妻が知っています", { type: "finish", question_id: null, text: null }],
         ] as const) {
