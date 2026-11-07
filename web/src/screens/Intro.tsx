@@ -11,6 +11,8 @@ import {
 } from "../flow/content";
 import type { TrainingMode } from "../flow/mode";
 import { BOARD_ENTRY_LABEL, COMING_SOON_INTAKE } from "../board/text";
+import { LOGO_SUBTITLE } from "../brand/logoData";
+import { SonaQuestLogo } from "../brand/SonaQuestLogo";
 import { IntroNotes } from "./IntroNotes";
 import { ModeIcon } from "./ModeIcon";
 
@@ -87,8 +89,17 @@ export function Intro({ onStart, onOpenBoard, initialView = "choose", initialMod
       <div className="intro-hero">
         <div className="intro-hero-text">
           <p className="tagline">もしもの時、自分の薬のことを伝えられますか？</p>
-          <h1 id="intro-title" ref={titleRef} tabIndex={-1}>
-            お薬の避難訓練
+          {/* 題はロゴ（Issue #263、ADR-0066）。ロゴは「SonaQuest」と読み上げ、副題（名前の由来）は文字のまま（書体は端末のゴシック） */}
+          <h1 id="intro-title" className="intro-title-logo" ref={titleRef} tabIndex={-1}>
+            <SonaQuestLogo className="intro-logo" />
+            <span className="intro-subtitle">
+              {/* 「：」の後で折り返せるよう、2つに分けて置く（文字は LOGO_SUBTITLE のまま） */}
+              {LOGO_SUBTITLE.split(/(?<=：)/).map((part) => (
+                <span key={part} className="intro-subtitle-part">
+                  {part}
+                </span>
+              ))}
+            </span>
           </h1>
         </div>
         <IntroHeroArt />
