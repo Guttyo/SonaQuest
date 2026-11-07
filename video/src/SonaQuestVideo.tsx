@@ -41,6 +41,19 @@ const Narration: FC<{ section: Section }> = ({ section }) => {
   );
 };
 
+/** アプリの声（ソナの声）。録画に音が無いので、合成した声を場面の決まった時刻に重ねる。素材が無ければ鳴らさない */
+const AppVoice: FC<{ section: Section }> = ({ section }) => (
+  <>
+    {section.appVoice
+      .filter((v) => hasStaticFile(v.file))
+      .map((v) => (
+        <Sequence key={v.file} from={v.fromFrames} layout="none" name="アプリの声">
+          <Audio src={staticFile(v.file)} />
+        </Sequence>
+      ))}
+  </>
+);
+
 /** 素材が無いときの仮の画面の中身 */
 const Placeholder: FC<{ section: Section; label: string; style?: CSSProperties }> = ({ section, label, style }) => (
   <div
@@ -348,6 +361,7 @@ const Beat: FC<{ section: Section }> = ({ section }) => {
       <BadgeView section={section} />
       {showCaption ? <Caption section={section} align={captionAlign} onDark={onDark} /> : null}
       <Narration section={section} />
+      <AppVoice section={section} />
       {section.number === SECTION_COUNT ? (
         <Sequence from={section.durationInFrames - ENDCARD_FRAMES} durationInFrames={ENDCARD_FRAMES} layout="none" name="締めの画面">
           <EndCard />

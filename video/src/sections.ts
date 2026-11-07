@@ -105,6 +105,13 @@ export type Section = {
    * ナレーションが終わったら録画の音を戻し、電池切れの後のソナの問いをアプリの声で聞かせる。
    */
   footageMutedRanges: Array<readonly [number, number]>;
+  /**
+   * 場面に重ねるアプリの声（ソナの声）。5番だけ。画面の録画（ヘッドレスの Chrome の screencast）には音が入らないので、
+   * 録画に映るソナの文を、公開 URL の /api/tts（アプリと同じ ElevenLabs の声）で合成して重ねる
+   * （2026-11-08 オーナー：「elevenslabだからそれで合成してもらってもいいよ」）。
+   * file は video/public/ の中（Git の対象外）、fromFrames は場面の頭からのフレーム
+   */
+  appVoice: Array<{ file: string; fromFrames: number }>;
 };
 
 // [TODO-OWNER: 字幕の代わりの見出し語を各ビートに置くか、置くなら下の headline の文でよいか（docs/demo-script.md「オーナーに決めてほしいこと」の3）]
@@ -138,6 +145,7 @@ type Row = Omit<
   | "overlay"
   | "narrationDelayFrames"
   | "footageMutedRanges"
+  | "appVoice"
   | "footageStartFrame"
   | "zooms"
   | "badges"
@@ -150,6 +158,8 @@ type Row = Omit<
   overlay?: Overlay;
   narrationDelayFrames?: number;
   footageMutedRanges?: Array<readonly [number, number]>;
+  /** アプリの声（秒で書く。fromSeconds は場面の頭から） */
+  appVoice?: Array<{ file: string; fromSeconds: number }>;
   /** 録画のどこから使うか（秒） */
   footageStartSeconds?: number;
   zooms?: Zoom[];
@@ -167,14 +177,12 @@ export const QUESTION_BLACKOUT_FRAMES = Math.round(1.5 * FPS);
 export const QUAKE_COUNT_FROM_FRAMES = 4 * FPS;
 
 /**
- * 5番の時間の見込み（録画とナレーションの長さに合わせてオーナーが直す）。
- * - 0〜：ソナが1問目を話す（アプリの声）→ 文字で答える
- * - SECTION5_NARRATION_FROM：ナレーション「薬の写真は、スマホに入っている。…ところが……」（約35字、約7秒）。
- *   この間だけ録画の音を消す
- * - その後：電池切れの暗転 → ソナ「では、ほかにどうやって伝えられますか？」（アプリの声）→ 2秒の無音 → 答え直す
+ * 5番の時間（2026-11-08 の R1 の録画に合わせた）。
+ * - 0〜：ソナが1問目を話す（アプリの声を appVoice で重ねる）→ 文字で答える
+ * - SECTION5_NARRATION_FROM：ナレーション「薬の写真は、スマホに入っている。…ところが……」（約8秒）
+ * - その後：電池切れの暗転 → ソナの立て直しの問い（アプリの声）→ 2秒の無音 → 答え直す
  */
 const SECTION5_NARRATION_FROM = 9 * FPS;
-const SECTION5_NARRATION_FRAMES = 8 * FPS;
 
 /**
  * 5番の横の経路の図を出す区間。ソナの1問目（Claude が言い回しを作る文）の間だけ出す。
@@ -233,14 +241,20 @@ const ROWS: Row[] = [
     screenNote:
       "3D：ソナが1問目を話す → 文字で答える → 情報源「スマートフォン」→ 電池切れの暗転 → ソナ「では、ほかにどうやって伝えられますか？」→ 2秒の無音 → 答え直す",
     footageFile: "footage/05-phone.mp4",
-    footageAudio: true,
+    // 録画に音は無い。ソナの声は appVoice で重ねる（ナレーションの 9〜17秒とは重ならない）
+    footageAudio: false,
     overlay: "pipeline",
     narrationDelayFrames: SECTION5_NARRATION_FROM,
-    footageMutedRanges: [[SECTION5_NARRATION_FROM, SECTION5_NARRATION_FROM + SECTION5_NARRATION_FRAMES]],
-    // 寄りの下書き：情報源を押す所と、電池切れの暗転〜立て直しの問いでスマホに寄る。録画に合わせて直す
+    // 録画（2026-11-08、R1 の4回目）の区間：0〜4 ソナの1問目、4〜10 文字で答える、10〜14.8 情報源「スマートフォン」、
+    // 14.8〜18.2 電池切れ、18.2〜24.6 立て直しの問い、24.6〜26.6 無音、26.6〜 答え直す
+    appVoice: [
+      { file: "voice/05-sona-1.mp3", fromSeconds: 0.2 },
+      { file: "voice/05-sona-2.mp3", fromSeconds: 18.8 },
+    ],
+    // 寄り：情報源を押す所と、電池切れ〜立て直しの問いでスマホに寄る
     zooms: [
-      { from: 6, to: 9, scale: 1.15, x: 0.25, y: 0.62 },
-      { from: 17, to: 26, scale: 1.18, x: 0.24, y: 0.5 },
+      { from: 10.5, to: 14.5, scale: 1.15, x: 0.25, y: 0.5 },
+      { from: 18.2, to: 26.6, scale: 1.18, x: 0.24, y: 0.5 },
     ],
   },
   {
@@ -343,6 +357,7 @@ export const SECTIONS: Section[] = ROWS.reduce<Section[]>((acc, row, i) => {
     overlay: row.overlay ?? null,
     narrationDelayFrames: row.narrationDelayFrames ?? 0,
     footageMutedRanges: row.footageMutedRanges ?? [],
+    appVoice: (row.appVoice ?? []).map((v) => ({ file: v.file, fromFrames: Math.round(v.fromSeconds * FPS) })),
     footageStartFrame: Math.round((row.footageStartSeconds ?? 0) * FPS),
     zooms: row.zooms ?? [],
     badges: row.badges ?? [],

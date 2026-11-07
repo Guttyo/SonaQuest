@@ -72,7 +72,7 @@ npm --prefix video run narration -- --force --only 2,5
 | 2 | `footage/02-quake-map.mp4` | 震源の地図のアニメーション（10秒）。「21回」と出典は Remotion で重ねる |
 | 3 | `photos/03-a`・`03-b`・`03-c` | 本人の経験の写真（`03-a` と `03-b` を横に並べ、次に `03-c`）。拡張子は jpg・png・webp のどれでもよい |
 | 4〜6・13 | `frames/iphone-bezel.webp` | スマホの枠の画像（オーナーが渡した iPhone のベゼル。978×2000 の透過 webp）。無ければ CSS で描いた枠になる |
-| 4〜6・13 | `footage/04-phone.mp4` など | スマホ幅（390×844）の録画。スマホの枠に入る。5番だけ録画の音（アプリのソナの声）を鳴らし、ナレーションの間（`sections.ts` の `SECTION5_NARRATION_FROM`・`SECTION5_NARRATION_FRAMES`）だけ消す |
+| 4〜6・13 | `footage/04-phone.mp4` など | スマホ幅（390×844）の録画。スマホの枠に入る。録画に音は無い。5番のソナの声は `voice/05-sona-1.mp3`・`05-sona-2.mp3`（公開 URL の `/api/tts` で合成。アプリと同じ声）を `sections.ts` の `appVoice` の時刻に重ねる |
 | 7 | `photos/07-a`・`07-b`・`07-c`、`footage/07-board.mp4` | 当時の本部と救護所の写真（3秒ずつ）の後に、ボードの全体の録画 |
 | 8〜10 | `footage/08-board.mp4` など | ボードの横長の録画（1920×1080）。8番は 4〜10 秒に架空の患者の表の枠が重なる |
 | 12 | `photos/12-a`・`12-b`、`private/12-caption.txt` | 協力者の写真と、試用した人の写真。2枚目に感想の一節（テキストファイルの文をそのまま出す） |
@@ -135,4 +135,4 @@ npm --prefix video run typecheck
 - 見出し語を置くか、置くならその文（`video/src/sections.ts` のマーカー）。
 - 最後のロゴの形と公開 URL・QR（`video/src/SonaQuestVideo.tsx`・`sections.ts` のマーカー）。
 - 2番の地震の回数は `docs/demo-script.md` のマーカーで決め、決まったら `video/narration/02.txt` と `src/slideText.ts` の `QUAKE_COUNT` を直してから合成する。
-- 場面ごとの長さ（`src/sections.ts` の `seconds`）と、1番の問いを出す時刻（`QUESTION_BLACKOUT_FRAMES`）、2番の「21回」を出す時刻（`QUAKE_COUNT_FROM_FRAMES`）、5番で録画の音を消す区間（`SECTION5_NARRATION_FROM`・`SECTION5_NARRATION_FRAMES`）は、合成したナレーションと録画の長さに合わせて直す。
+- 場面ごとの長さ（`src/sections.ts` の `seconds`）と、1番の問いを出す時刻（`QUESTION_BLACKOUT_FRAMES`）、2番の「21回」を出す時刻（`QUAKE_COUNT_FROM_FRAMES`）、5番のナレーションの始まり（`SECTION5_NARRATION_FROM`）とソナの声の時刻（`appVoice`）は、合成したナレーションと録画の長さに合わせて直す。
