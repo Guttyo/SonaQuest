@@ -24,6 +24,7 @@ import {
 import { DEFAULT_ARRIVAL_SEED, DISPENSE_DAYS, arrivalPlan, dispenseQty, hasCondition, simPatient, type PlannedArrival } from "./patients";
 import {
   confirmReview,
+  discardReview,
   receiveAudit,
   sampleDraft,
   startAudit,
@@ -207,7 +208,9 @@ export type DemoAction =
   | { type: "chart_audit_start"; key: string; actor: ChartActor }
   /** 監査の結果（Issue #142 の監査役、または見本）。監査中のカルテにだけ効く */
   | { type: "chart_audit_result"; key: string; result: ChartAuditResult }
-  | { type: "chart_confirm"; key: string; actor: ChartActor };
+  | { type: "chart_confirm"; key: string; actor: ChartActor }
+  /** コードでの確認の指摘が残る下書きを差し戻す（捨てる。Issue #253） */
+  | { type: "chart_discard"; key: string; actor: ChartActor };
 
 /** 記録が本部に届く架空の時刻（1日の中の分）。搬送便・連絡員・定時報告の時刻 */
 const SYNC_TIMES: Readonly<Record<string, readonly number[]>> = {
@@ -560,7 +563,8 @@ function tick(state: DemoState, hours: number): DemoState {
   });
   for (const r of stock) {
     const before = state.stock.find((s) => s.site === r.site && s.item === r.item);
-    if (before && before.onHand !== null && before.onHand > 0 && r.onHand === 0) {
+    // 画面に出す数（切り捨て）が 0 になったときに知らせる（Issue #252。0.9錠は画面では在庫なし）
+    if (before && before.onHand !== null && Math.floor(before.onHand) >= 1 && r.onHand !== null && Math.floor(r.onHand) < 1) {
       log.push({ at: to, text: `${r.site}：${r.item} が在庫なし`, kind: "在庫切れ", site: r.site });
     }
   }
@@ -744,6 +748,13 @@ export function demoReducer(state: DemoState, action: DemoAction): DemoState {
       return applyAuditResult(state, action.key, action.result);
     case "chart_confirm":
       return withReview(state, action.key, action.actor, (r) => confirmReview(r, action.key, action.actor, state.minutes));
+    case "chart_discard": {
+      // 差し戻すと、そのカルテの下書き・監査を外し「AI 下書きなし」に戻す（作り直せる）。差し戻せないときは変えない
+      if (discardReview(state.chartReview[action.key], action.key, action.actor) !== null) return state;
+      const chartReview = { ...state.chartReview };
+      delete chartReview[action.key];
+      return { ...state, chartReview };
+    }
     case "approve_proposal":
       return refreshProposals(approve({ ...state, rev: state.rev + 1 }, action.id));
     case "reject_proposal":

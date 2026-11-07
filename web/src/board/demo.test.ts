@@ -54,6 +54,22 @@ describe("時計を進める", () => {
     expect(stockStatus(find(s, "救護所B", "抗てんかん薬C"))).toBe("在庫切れ");
   });
 
+  it("画面に出す数が 0 になった時点で「在庫なし」を知らせる（1単位未満が残っていても。Issue #252）", () => {
+    const base = initialDemo();
+    const stock = base.stock.map((r) => (r.site === "救護所A" && r.item === "降圧薬A" ? { ...r, onHand: 1.2, dailyUse: 1 } : r));
+    // 1時間で 1.2 → 約1.16錠：画面は 1錠のまま、知らせない
+    const a = demoReducer({ ...base, stock }, { type: "tick", hours: 1 });
+    expect(a.log.some((l) => l.text.includes("救護所A：降圧薬A が在庫なし"))).toBe(false);
+    // 6時間で 約0.95錠：減り方は小数のまま、画面は 0錠になるので知らせ、状態も在庫切れ
+    const b = demoReducer(a, { type: "tick", hours: 5 });
+    expect(find(b, "救護所A", "降圧薬A").onHand).toBeCloseTo(0.95, 2);
+    expect(b.log.some((l) => l.text.includes("救護所A：降圧薬A が在庫なし"))).toBe(true);
+    expect(stockStatus(find(b, "救護所A", "降圧薬A"))).toBe("在庫切れ");
+    // その後 0 まで減っても、もう一度は知らせない
+    const c = demoReducer(b, { type: "tick", hours: 24 });
+    expect(c.log.filter((l) => l.text.includes("救護所A：降圧薬A が在庫なし"))).toHaveLength(1);
+  });
+
   it("到着見込みの日の 10:00 を過ぎると入荷・搬送が受領になり、届け先の在庫が増える。照会中・融通の調整中は動かない", () => {
     const before = demoReducer(initialDemo(), { type: "tick", hours: 24 }); // 11/06 09:30
     expect(before.inbound.find((r) => r.id === "2")?.status).toBe("搬送中");

@@ -17,13 +17,22 @@ import {
 } from "./data";
 
 /**
+ * 画面に出す在庫の数（切り捨て）。デモの時計では在庫が小数のまま減るが、画面は1単位未満を出さない。
+ * 残り日数・状態・色分けはこの数で計算し、表示の数と食い違わないようにする（Issue #252）。
+ * 1単位未満（0.9錠など）は 0、つまり在庫切れとして扱う。在庫の減り方と発注の提案の計算は小数のまま（demo.ts）
+ */
+export function shownOnHand(onHand: number): number {
+  return Math.max(0, Math.floor(onHand));
+}
+
+/**
  * 残り日数（丸めない）。在庫が未確認、出庫のペースが不明、本部備蓄（ペース 0）は null。
- * 0 と null を混ぜない：在庫 0 は 0、分からないものは null
+ * 0 と null を混ぜない：在庫 0 は 0、分からないものは null。在庫は画面に出す数（shownOnHand）で割る
  */
 export function daysLeft(row: StockRow): number | null {
   if (row.onHand === null) return null;
   if (row.dailyUse === null || row.dailyUse <= 0) return null;
-  return row.onHand / row.dailyUse;
+  return shownOnHand(row.onHand) / row.dailyUse;
 }
 
 /** 画面に出すときの丸め（小数1桁）。判定には使わない */
@@ -43,14 +52,14 @@ export function levelOf(days: number): Level {
 
 /**
  * 在庫の状態（文字で示す。色は補助）。
- * 在庫切れ：在庫 0。未確認：在庫のデータが届いていない。見込み算出不可：在庫はあるが出庫のペースが分からない。
+ * 在庫切れ：画面に出す在庫が 0（1単位未満を含む）。未確認：在庫のデータが届いていない。見込み算出不可：在庫はあるが出庫のペースが分からない。
  * 在庫切れ見込み：今のペースで目安より早く切れる。余裕あり：それ以外
  */
 export type StockStatus = "在庫切れ" | "未確認" | "在庫切れ見込み" | "見込み算出不可" | "余裕あり";
 
 export function stockStatus(row: StockRow): StockStatus {
   if (row.onHand === null) return "未確認";
-  if (row.onHand === 0) return "在庫切れ";
+  if (shownOnHand(row.onHand) === 0) return "在庫切れ";
   if (row.site === HQ) return "余裕あり";
   const days = daysLeft(row);
   if (days === null) return "見込み算出不可";
@@ -361,7 +370,7 @@ export function heatCell(stock: readonly StockRow[], site: SiteId, item: string)
   if (!r) return null;
   const base = { site, item, onHand: r.onHand, unit: r.unit, dailyUse: r.dailyUse };
   if (r.onHand === null) return { ...base, label: "未確認", level: "none" };
-  if (r.onHand === 0) return { ...base, label: "在庫なし", level: "bad" };
+  if (shownOnHand(r.onHand) === 0) return { ...base, label: "在庫なし", level: "bad" };
   if (site === HQ) return { ...base, label: "有", level: "hq" };
   const days = daysLeft(r);
   if (days === null) return { ...base, label: "算出不可", level: "none" };
