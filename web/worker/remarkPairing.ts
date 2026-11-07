@@ -19,7 +19,8 @@ export interface RemarkPhrase {
   notOnHandover?: boolean;
 }
 
-// 言い回しの文そのものは prompt.ts の REMARK_PHRASES（オーナーの決定の行はそこにある）。ここは観点と判定への割り当てだけ（Claude Code の下書き）
+// 言い回しの文そのものは prompt.ts の REMARK_PHRASES（オーナーの決定の行はそこにある）。ここは観点と判定への割り当てだけ
+// [TODO-OWNER: 振り返りの一言の言い回しごとの、つないでよい観点と判定の割り当て（Claude Code の下書き。ADR-0064 の4）]
 export const REMARK_PHRASE_RULES: readonly RemarkPhrase[] = [
   { text: "お話しくださってありがとうございました", viewpoint: null, when: null },
   { text: "今回の訓練では", viewpoint: null, when: null },
