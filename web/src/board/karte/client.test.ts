@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { auditToResult, requestAudit, requestSummary, sampleForChart, summaryToDraft } from "./client";
+import { auditNotConfigured, auditToResult, NOT_CONFIGURED_AUDIT, requestAudit, requestSummary, sampleForChart, summaryToDraft } from "./client";
 import { KARTE_SAMPLES, findSample } from "./samples";
 
 const json = (status: number, body: unknown) => ({
@@ -37,6 +37,23 @@ describe("カルテの要約・監査の画面の側（Issue #148）", () => {
       }),
     ).toBeNull();
     expect(summaryToDraft({ sampleId: "karte-01", summary: { items: [], not_covered: [] }, findings: [{ kind: "bogus", itemIndex: null, aspect: "location" }] }, false)).toBeNull();
+  });
+
+  it("監査役が使えるか（auditConfigured）を下書きに持つ。無いとき・true 以外は false（Issue #244）", () => {
+    const sample = findSample("karte-01")!;
+    const base = { sampleId: sample.id, summary: sample.expected, findings: [] };
+    const on = summaryToDraft({ ...base, auditConfigured: true }, false)!;
+    expect(on.auditConfigured).toBe(true);
+    expect(auditNotConfigured(on)).toBe(false);
+    for (const v of [undefined, false, "true", 1]) {
+      const off = summaryToDraft({ ...base, auditConfigured: v }, false)!;
+      expect(off.auditConfigured).toBe(false);
+      expect(auditNotConfigured(off)).toBe(true);
+    }
+    // 見本の下書き（固定の見本の監査）は対象にしない
+    expect(auditNotConfigured({ source: "sample", lines: [] })).toBe(false);
+    expect(auditNotConfigured(undefined)).toBe(false);
+    expect(NOT_CONFIGURED_AUDIT).toEqual({ ok: false, failure: "not_configured", session: "not_created" });
   });
 
   it("監査：planted の下書きは planted だけを送り、モデルの下書きは要約を送り返す。待ちすぎたら時間切れ", async () => {

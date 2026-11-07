@@ -1,6 +1,7 @@
 // 進行のうち、Claudeを使わずに決める部分（docs/architecture.md）。画面から切り離した純粋な関数にする。
 
 import {
+  EVENT_REASK,
   FIRST_HALF_QUESTIONS,
   HANDOVER_QUESTION,
   MEDICINES_FOLLOWUP_QUESTION,
@@ -129,6 +130,40 @@ export function questionIdsOf(half: Half, event: EventId | null): readonly strin
   return half === "first"
     ? [...firstHalfQuestions().map((q) => q.id), MEDICINES_FOLLOWUP_QUESTION.id]
     : secondHalfQuestions(event ?? "handover").map((q) => q.id);
+}
+
+/** 使えなくなった手段の言葉の後、この字数のうちにあれば「使えない」と言っているとみなす言い方（Issue #246） */
+const REASK_NEGATION = /な[いく]|ません|使えず|できず|つながらず|無理|だめ|ダメ|切れ/;
+const REASK_NEGATION_WINDOW = 10;
+
+function occurrences(text: string, word: string): number[] {
+  const found: number[] = [];
+  for (let at = text.indexOf(word); at !== -1; at = text.indexOf(word, at + 1)) found.push(at);
+  return found;
+}
+
+/**
+ * 出来事の直後の「代わりの手段」の問いへの回答が、その出来事で使えなくなった手段に頼っているか（Issue #246、ADR-0016 の追記）。
+ * 係の交代（EVENT_REASK が null）は false。使えなくなった手段の言葉（words）が、否定の言い方を後に伴わずに1つでもあり、
+ * 別の手段の言葉（others）が1つも無いときだけ true。others のうち、直後（「の」を挟んでもよい）に words が続くもの
+ * （「お薬手帳アプリ」の「手帳」）は別の手段に数えない。止めすぎないほうに倒す（1回だけの聞き返しで、見逃しても Claude が続ける）。
+ * 手段の良し悪しは評価しない
+ */
+export function needsEventReask(event: EventId | null, text: string): boolean {
+  const reask = event === null ? null : EVENT_REASK[event];
+  if (reask === null) return false;
+  const followedByWord = (end: number): boolean => {
+    const rest = text.slice(end).replace(/^の/, "");
+    return reask.words.some((w) => rest.startsWith(w));
+  };
+  const hasOther = reask.others.some((o) => occurrences(text, o).some((at) => !followedByWord(at + o.length)));
+  if (hasOther) return false;
+  return reask.words.some((w) =>
+    occurrences(text, w).some((at) => {
+      const after = text.slice(at + w.length).split("。")[0].slice(0, REASK_NEGATION_WINDOW);
+      return !REASK_NEGATION.test(after);
+    }),
+  );
 }
 
 export function isAcceptableAnswer(text: string): boolean {

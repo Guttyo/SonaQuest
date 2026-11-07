@@ -80,6 +80,8 @@ export function summaryToDraft(value: unknown, planted: boolean): ChartSummaryDr
     planted,
     summary,
     codeFindings,
+    // 監査役が使えるか（Issue #244）。古い Worker の返事など、無いときは false（押す前に使えないと示す）
+    auditConfigured: value.auditConfigured === true,
     unsupportedLines: findings
       .filter((f) => f.itemIndex !== null && (f.kind === "quote_not_found" || f.kind === "quote_too_short"))
       .map((f) => f.itemIndex as number),
@@ -152,6 +154,17 @@ export async function requestSummary(
   if (typeof r === "string" || r.status !== 200) return null;
   return summaryToDraft(r.json, planted);
 }
+
+/**
+ * 抽出型の下書きで、この環境に監査役が設定されていないか（Issue #244）。
+ * そのときは監査のボタンを押せない見た目にし、Worker を呼ばずに「監査できず（設定なし）」へ進める
+ */
+export function auditNotConfigured(draft: ChartSummaryDraft | undefined): boolean {
+  return draft?.source === "extractive" && draft.auditConfigured !== true;
+}
+
+/** 監査役が設定されていないときの結果（Worker の /api/karte/audit が返すものと同じ） */
+export const NOT_CONFIGURED_AUDIT: ChartAuditResult = { ok: false, failure: "not_configured", session: "not_created" };
 
 /** 監査に出す。抽出型の下書きでないとき・接続できないとき・時間切れは「監査できず」 */
 export async function requestAudit(

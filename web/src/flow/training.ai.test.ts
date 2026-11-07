@@ -329,6 +329,77 @@ describe("Claude を使う進行", () => {
     expect(state.sourceGuess).toBe("notebook");
   });
 
+  describe("思い出せないと答えた観点は「確認できた」にしない（Issue #245、ADR-0017 の追記）", () => {
+    const allConfirmed = {
+      location: "confirmed",
+      alternative: "confirmed",
+      current: "confirmed",
+      unrecorded: "confirmed",
+      proxy: "confirmed",
+    } as const;
+
+    /** 前半をアレルギーの問いまで進める。アレルギーの問いへの返事の recall を渡す */
+    function toAfterAllergy(allergyText: string, recall: boolean): TrainingState {
+      let state = run([{ type: "start" }]);
+      for (const [text, next] of [
+        ["A薬を朝に1錠", ask("first_location")],
+        ["お薬手帳", ask("first_other")],
+        ["市販の薬はありません", ask("first_unrecorded")],
+      ] as const) {
+        state = trainingReducer(state, answer(text));
+        state = trainingReducer(state, result(state, reply(next, { viewpoints: allConfirmed })));
+      }
+      expect(currentQuestion(state)?.id).toBe("first_unrecorded");
+      state = trainingReducer(state, answer(allergyText));
+      return trainingReducer(
+        state,
+        result(state, reply({ type: "finish", question_id: null, text: null }, { viewpoints: allConfirmed, recall })),
+      );
+    }
+
+    it("アレルギーの問いに「覚えていません」と答えると、Claude が confirmed を返しても未確認と気づいたにする", () => {
+      const state = toAfterAllergy("覚えていません", true);
+      expect(state.stage).toEqual({ name: "confirm" });
+      expect(state.judgments?.unrecorded).toBe("aware_unconfirmed");
+      // ほかの観点は Claude の判定のまま
+      expect(state.judgments?.location).toBe("confirmed");
+      expect(state.judgments?.current).toBe("confirmed");
+    });
+
+    it("後半で Claude が confirmed を返し続けても、その訓練の間は戻さない（2D・3D とも同じ進行）", () => {
+      for (const mode of ["2d", "3d"] as const) {
+        let state = toAfterAllergy("覚えていません", true);
+        expect(state.mode).toBe("2d");
+        state = { ...state, mode };
+        state = run([{ type: "confirm", source: "notebook" }, { type: "continue_after_event" }], state);
+        for (const [text, next] of [
+          // お薬手帳が自宅にある出来事なので、手帳に頼らない手段にする（#246 の固定文の聞き返しに当たらないように）
+          ["薬の袋を見せます", ask("second_recent")],
+          ["先月の記録です", ask("second_proxy")],
+          ["妻が知っています", { type: "finish", question_id: null, text: null }],
+        ] as const) {
+          state = trainingReducer(state, answer(text));
+          state = trainingReducer(state, result(state, reply(next, { viewpoints: allConfirmed, recall: false })));
+        }
+        expect(state.stage).toEqual({ name: "review" });
+        expect(state.judgments?.unrecorded).toBe("aware_unconfirmed");
+        expect(state.judgments?.alternative).toBe("confirmed");
+      }
+    });
+
+    it("「ない」と答えたとき（recall が false）は、今までどおり confirmed になりうる", () => {
+      const state = toAfterAllergy("ないです", false);
+      expect(state.judgments?.unrecorded).toBe("confirmed");
+    });
+
+    it("confirmed でない判定（触れていない）は変えない", () => {
+      let state = run([{ type: "start" }, answer("わかりません")]);
+      state = trainingReducer(state, result(state, reply(ask("first_location"), { recall: true })));
+      // 1問目（first_medicines）の観点は current。judged の current は confirmed なので下がり、ほかは変えない
+      expect(state.judgments).toEqual({ ...judged, current: "aware_unconfirmed" });
+    });
+  });
+
   it("③確認の候補は、最新の返事で置き換える（候補が無くなったら選ばない）", () => {
     let state = run([{ type: "start" }, answer("手帳です")]);
     state = trainingReducer(state, result(state, reply(ask("first_location"), { source_guess: "notebook" })));
