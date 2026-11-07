@@ -1,5 +1,5 @@
 // Claude API の呼び出し（docs/phase2-decisions.md 項目1・2・9。Issue #15 のコメントのオーナーの決定）。
-// 構造化出力で形を決め、Workers で値を検査してから使う（ADR-0015）。待つのは8秒まで、SDK の自動の再試行はしない。
+// 構造化出力で形を決め、Workers で値を検査してから使う（ADR-0015）。待つのは15秒まで（2026-11-07 オーナー決定、Issue #219。もとは8秒）、SDK の自動の再試行はしない。
 // 断られたときは、サーバー側で別のモデルが答え直す設定（fallbacks: "default"）を使う。それでも断られたら固定の進行へ。
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -8,7 +8,7 @@ import { QUESTION_IDS, VIEWPOINT_IDS } from "../src/flow/turnContract";
 export const MODEL = "claude-opus-5-5";
 /** 断られたときに別のモデルで答え直す設定の beta（"default" の形で使う） */
 export const FALLBACK_BETA = "server-side-fallback-2026-07-01";
-export const CLAUDE_TIMEOUT_MS = 8000;
+export const CLAUDE_TIMEOUT_MS = 15_000;
 
 const JUDGMENT = { type: "string", enum: ["confirmed", "aware_unconfirmed", "not_mentioned"] };
 
