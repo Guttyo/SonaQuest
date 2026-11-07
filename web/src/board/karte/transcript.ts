@@ -50,4 +50,6 @@ export interface TranscriptSummaryResponse {
   source: "model";
   summary: KarteSummary;
   findings: CodeFinding[];
+  /** この環境で監査役が使えるか（Issue #244。文字起こしの要約は監査役に回さないが、形を要約の入口とそろえる）。ID は返さない */
+  auditConfigured: boolean;
 }

@@ -102,7 +102,7 @@ import {
   type PermissionNotice,
 } from "../board/BoardAccess";
 import { auditResultAfterStop, sampleAudit, sampleDraft, type ChartAuditResult, type ChartSummaryDraft } from "../board/review";
-import { requestAudit, requestSummary, sampleForChart } from "../board/karte/client";
+import { auditNotConfigured, NOT_CONFIGURED_AUDIT, requestAudit, requestSummary, sampleForChart } from "../board/karte/client";
 import { KarteTranscribe } from "../board/karte/Transcribe";
 import { TRANSCRIBE_TEXT } from "../board/karte/transcribeText";
 import { nextRecordId } from "../board/demo";
@@ -1369,7 +1369,10 @@ export function Board({
         dispatch({ type: "chart_audit_result", key: chart.key, result });
         logAccess("audit_result", chart.id, who);
       };
-      if (draft?.source === "extractive" && !live.current.aiStopped) {
+      if (auditNotConfigured(draft) && !live.current.aiStopped) {
+        // この環境に監査役が設定されていない（Issue #244）。Worker を呼ばずに「監査できず（設定なし）」へ進め、人の確認に進めるようにする
+        done(NOT_CONFIGURED_AUDIT);
+      } else if (draft?.source === "extractive" && !live.current.aiStopped) {
         // 監査役（Managed Agents）に出す。待つ間も「AI監査中」のまま、ほかの操作は止めない。時間切れは「監査できず」（Issue #148）
         // 届いた時点で AI を止めた状態なら「監査できず」にする（待つ間に止めたとき。PR #150 のレビュー）
         void requestAudit(draft).then((result) => done(auditResultAfterStop(result, live.current.aiStopped)));

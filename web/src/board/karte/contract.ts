@@ -147,6 +147,8 @@ export interface KarteSummaryResponse {
   summary: KarteSummary;
   /** 1段目の指摘。禁止表現に当たった項目の text は伏せてある */
   findings: CodeFinding[];
+  /** この環境で監査役（2段目）が使えるか（Issue #244）。ID は返さない */
+  auditConfigured: boolean;
 }
 
 /** 監査の入口に送る形。要約は、要約の入口の返事をそのまま返すか、デモ用の誤り入りを ID で指す */

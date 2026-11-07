@@ -43,6 +43,8 @@ export interface ChartSummaryDraft {
   codeFindings?: readonly AuditFinding[];
   /** 1段目で、引用が会話に見つからなかった・短すぎた行（「原文」と表示しない） */
   unsupportedLines?: readonly number[];
+  /** この環境で監査役が使えるか（Issue #244。要約の入口の返事のまま。無いときは false） */
+  auditConfigured?: boolean;
 }
 
 /** 監査の結果。ok:false は監査できなかったとき（時間切れ・API の停止・形の違う返事など。failure は種類だけ）。session は監査役のセッションの後片付け */
