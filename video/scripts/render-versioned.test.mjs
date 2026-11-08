@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { nextVersion, versionFileName } from "./render-versioned.mjs";
+import { nextVersion, quoteForShell, versionFileName } from "./render-versioned.mjs";
 
 test("番号付きのファイルが無ければ 1 から", () => {
   assert.equal(nextVersion([]), 1);
@@ -16,4 +16,10 @@ test("ファイル名は2桁の番号とコミット。未コミットの変更�
   assert.equal(versionFileName(3, "a716eeb", false), "sonaquest-v03-a716eeb.mp4");
   assert.equal(versionFileName(12, "a716eeb", true), "sonaquest-v12-a716eeb-dirty.mp4");
   assert.equal(versionFileName(1, null, false), "sonaquest-v01.mp4");
+});
+
+test("shell に渡す引数は空白があっても1つのまま（二重引用符で囲む）", () => {
+  assert.equal(quoteForShell("out/versions/sonaquest-v02-ab162ee.mp4"), '"out/versions/sonaquest-v02-ab162ee.mp4"');
+  assert.equal(quoteForShell("C:/a b/c.mp4"), '"C:/a b/c.mp4"');
+  assert.equal(quoteForShell('x"y'), '"xy"');
 });

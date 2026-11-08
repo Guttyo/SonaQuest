@@ -30,6 +30,11 @@ export function versionFileName(version, commit, dirty) {
   return `${VERSION_PREFIX}-v${nn}${tag}.mp4`;
 }
 
+/** shell 経由で渡す引数を二重引用符で囲む（中の二重引用符は外す） */
+export function quoteForShell(arg) {
+  return `"${String(arg).replaceAll('"', "")}"`;
+}
+
 function git(args, cwd) {
   const r = spawnSync("git", args, { cwd, encoding: "utf8" });
   return r.status === 0 ? r.stdout.trim() : null;
@@ -51,11 +56,11 @@ function main() {
   }
 
   console.log(`[render] 書き出し先：out/versions/${name}`);
-  const r = spawnSync("npx", ["remotion", "render", "src/index.ts", "SonaQuestVideo", outFile, ...process.argv.slice(2)], {
-    cwd: videoDir,
-    stdio: "inherit",
-    shell: process.platform === "win32",
-  });
+  // Windows では npx を shell 経由で呼ぶので、引数は引用符で囲む。書き出し先は video/ からの相対パスにする
+  // （作業フォルダの絶対パスに空白があり、囲まないと空白の前で切れて別の場所に書き出される）
+  const args = ["remotion", "render", "src/index.ts", "SonaQuestVideo", `out/versions/${name}`, ...process.argv.slice(2)];
+  const useShell = process.platform === "win32";
+  const r = spawnSync("npx", useShell ? args.map(quoteForShell) : args, { cwd: videoDir, stdio: "inherit", shell: useShell });
   process.exit(r.status ?? 1);
 }
 
