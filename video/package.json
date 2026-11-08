@@ -5,7 +5,7 @@
   "description": "SonaQuest の提出動画（Issue #28、SUB-01）を Remotion で組む独立パッケージ。アプリ（web/）とは別。",
   "scripts": {
     "studio": "remotion studio src/index.ts",
-    "render": "remotion render src/index.ts SonaQuestVideo out/sonaquest.mp4",
+    "render": "node scripts/render-versioned.mjs",
     "render:test": "remotion render src/index.ts SonaQuestVideo out/sonaquest-test.mp4 --frames=0-299",
     "narration": "node scripts/synthesize-narration.mjs",
     "typecheck": "tsc --noEmit",

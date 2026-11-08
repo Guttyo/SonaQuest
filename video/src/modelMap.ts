@@ -64,7 +64,7 @@ export const MODEL_COLUMNS: ModelColumn[] = [
         role: "質問の言い回し・受け止め・判定・振り返りの一言",
         chain: [
           { kind: "claude", model: { modelId: "claude-opus-5-5", source: "web/worker/claude.ts", constant: "MODEL" }, sub: "構造化出力" },
-          { kind: "code", title: "Workers の検査", sub: "コード" },
+          { kind: "code", title: "ルールで自動チェック", sub: "禁止の言葉・長さ（コード）" },
         ],
       },
       {
