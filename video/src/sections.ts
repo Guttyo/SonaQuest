@@ -165,6 +165,13 @@ export type Section = {
    * file は video/public/ の中（Git の対象外）、fromFrames は場面の頭からのフレーム
    */
   appVoice: Array<{ file: string; fromFrames: number }>;
+  /**
+   * 場面の中の間に足す、オーナーの声の台詞（5番。2026-11-08 オーナー：「0:50のところ、実際の入力に合わせて僕の声で発言して」
+   * 「スマホの充電が切れてしまっていました・・・というのを0:57くらいに入れてほしい。僕の声で」「僕の声でセリフね。続きのナレーションみたいな感じ」
+   * 「映像やBGMは変えないで」）。原稿は video/narration/<id>.txt、合成は scripts/synthesize-narration.mjs の EXTRA_CLIPS。
+   * file は video/public/ の中（Git の対象外）、fromFrames は場面の頭からのフレーム
+   */
+  extraNarration: Array<{ file: string; fromFrames: number }>;
 };
 
 // [TODO-OWNER: 字幕の代わりの見出し語を各ビートに置くか、置くなら下の headline の文でよいか（docs/demo-script.md「オーナーに決めてほしいこと」の3）]
@@ -222,6 +229,7 @@ type Row = Omit<
   | "narrationDelayFrames"
   | "footageMutedRanges"
   | "appVoice"
+  | "extraNarration"
   | "footageStartFrame"
   | "zooms"
   | "badges"
@@ -243,6 +251,8 @@ type Row = Omit<
   footageMutedRanges?: Array<readonly [number, number]>;
   /** アプリの声（秒で書く。fromSeconds は場面の頭から） */
   appVoice?: Array<{ file: string; fromSeconds: number }>;
+  /** 足す台詞（秒で書く。fromSeconds は場面の頭から） */
+  extraNarration?: Array<{ file: string; fromSeconds: number }>;
   /** 録画のどこから使うか（秒） */
   footageStartSeconds?: number;
   zooms?: Zoom[];
@@ -270,17 +280,17 @@ const sec = (seconds: number) => Math.round(seconds * FPS);
 /**
  * 合成したナレーションの長さ（秒。2026-11-08 に ffprobe で測った値。mp3 の頭と終わりの無音を含む）。
  * 各場面の narrationDelayFrames と、言葉に合わせた札・寄りの時刻は、この長さと文の切れ目（ffmpeg の silencedetect）から決めた。
- * 合成し直したら測り直して直す。
+ * 合成し直したら測り直して直す。2番は 2026-11-08 に速さ 0.85 で合成し直した（6.32 → 6.56 秒）。
  */
 export const NARRATION_SECONDS: Record<number, number> = {
-  1: 6.32, 2: 6.32, 3: 12.08, 4: 5.2, 5: 5.84, 6: 9.6, 7: 10.0, 8: 12.72, 9: 7.6, 10: 8.4, 11: 2.72, 12: 3.12, 13: 4.8,
+  1: 6.32, 2: 6.56, 3: 12.08, 4: 5.2, 5: 5.84, 6: 9.6, 7: 10.0, 8: 12.72, 9: 7.6, 10: 8.4, 11: 2.72, 12: 3.12, 13: 4.8,
 };
 
 /**
- * 2番で「21回」の札を出し始めるフレーム。02.mp3 で「すでに」の後の間（5.19〜5.35 秒）が明けて回数を言う所。
+ * 2番で「21回」の札を出し始めるフレーム。02.mp3 で「すでに」の後の間（5.34〜5.49 秒）が明けて回数を言う所。
  * 札は地図の動画が無いときだけ出す（SonaQuestVideo.tsx の OverlayView）。動画の中の数は約 13 秒（場面の頭から約 5 秒）で 21 に届く
  */
-export const QUAKE_COUNT_FROM_FRAMES = sec(5.3);
+export const QUAKE_COUNT_FROM_FRAMES = sec(5.5);
 
 /**
  * 5番の時間（2026-11-08 の R1 の録画に合わせた）。
@@ -288,6 +298,8 @@ export const QUAKE_COUNT_FROM_FRAMES = sec(5.3);
  * - SECTION5_NARRATION_FROM：ナレーション「薬の写真は、スマホに入っている。…ところが……」（05.mp3 は 5.84 秒。
  *   「ところが……」は 14.5 秒に言い終わり、14.8 秒の電池切れの暗転にちょうど着く）
  * - その後：電池切れの暗転 → ソナの立て直しの問い（アプリの声）→ 2秒の無音 → 答え直す
+ * - オーナーの声の台詞（extraNarration）：05a は 4.4〜8.0 秒（入力の間）、05b は 15.5〜18.5 秒（暗転の間。ソナの問いは 18.8 秒から）、
+ *   05c は 24.7〜27.6 秒（ソナの問いが 24.3 秒に終わった後。終わりの約1秒は答え直す入力と BGM の戻りに重なる）
  */
 const SECTION5_NARRATION_FROM = 9 * FPS;
 
@@ -365,7 +377,7 @@ const ROWS: Row[] = [
     screenNote:
       "3D：ソナが1問目を話す → 文字で答える → 情報源「スマートフォン」→ 電池切れの暗転 → ソナ「では、ほかにどうやって伝えられますか？」→ 2秒の無音 → 答え直す",
     footageFile: "footage/05-phone.mp4",
-    // 録画に音は無い。ソナの声は appVoice で重ねる（ナレーションの 9〜17秒とは重ならない）
+    // 録画に音は無い。ソナの声は appVoice で、オーナーの声の台詞は extraNarration で重ねる（ナレーションの 9〜14.8 秒とは重ならない）
     footageAudio: false,
     overlay: "pipeline",
     narrationDelayFrames: SECTION5_NARRATION_FROM,
@@ -374,6 +386,12 @@ const ROWS: Row[] = [
     appVoice: [
       { file: "voice/05-sona-1.mp3", fromSeconds: 0.2 },
       { file: "voice/05-sona-2.mp3", fromSeconds: 18.8 },
+    ],
+    // オーナーの声の台詞：入力している答えの1文目（4〜10秒の入力の間）、電池切れの暗転の間、立て直しの問いの後
+    extraNarration: [
+      { file: "narration/05a.mp3", fromSeconds: 4.4 },
+      { file: "narration/05b.mp3", fromSeconds: 15.5 },
+      { file: "narration/05c.mp3", fromSeconds: 24.7 },
     ],
     // 寄り：電池切れ〜立て直しの問いでスマホに寄る（情報源を押す所はタップの寄り）
     zooms: [{ from: 18.2, to: 26.6, scale: 1.18, x: 0.49, y: 0.5 }],
@@ -556,6 +574,7 @@ export const SECTIONS: Section[] = ROWS.reduce<Section[]>((acc, row, i) => {
     narrationDelayFrames: row.narrationDelayFrames ?? 0,
     footageMutedRanges: row.footageMutedRanges ?? [],
     appVoice: (row.appVoice ?? []).map((v) => ({ file: v.file, fromFrames: Math.round(v.fromSeconds * FPS) })),
+    extraNarration: (row.extraNarration ?? []).map((v) => ({ file: v.file, fromFrames: Math.round(v.fromSeconds * FPS) })),
     footageStartFrame: Math.round((row.footageStartSeconds ?? 0) * FPS),
     zooms: row.zooms ?? [],
     badges: row.badges ?? [],

@@ -43,12 +43,15 @@ npm --prefix video run narration
 ```
 
 - 原稿は `video/narration/NN.txt`（1・2・4〜11・13番。読み上げの原稿なので「ソナクエスト」とカタカナ）。
+- 5番には、架空の患者の台詞を本人のクローン音声で3本足しています（`05a.txt`〜`05c.txt`。2026-11-08 オーナー決定。置く時刻は `src/sections.ts` の `extraNarration`）。`--only` には `05b` のように書けます。
 - 3番（本人の経験）と 12番（協力者と試用した人の感想）の原稿はリポジトリに置きません（CLAUDE.md 絶対ルール8）。合成するときは、BWJ2026_Docs の原稿を `video/public/private/narration/03.txt`・`12.txt`（Git の対象外）に写します。置かれていなければ、その場面は飛ばします（失敗にしません）。
 - 書き出し先は `video/public/narration/NN.mp3`。既にある mp3 は飛ばします。作り直すときは次のようにします。
 
 ```bash
 npm --prefix video run narration -- --force --only 2,5
 ```
+
+- 台詞ごとに声の設定を変えるときは `narration-lib.mjs` の `CLIP_VOICE_SETTINGS` に書きます（今は2番だけ `speed` 0.85。`eleven_v4` では効きが小さく、6.32 秒が 6.56 秒になっただけでした）。
 
 - ログに出るのは番号・件数・所要時間・HTTP の状態だけです。キー・声の ID・本文は出しません。
 - 形式は `mp3_44100_64`（どのプランでも使える形。アプリと同じ）、声の設定は stability 0.65・similarity_boost 0.75（アプリと同じ値を写した下書き。v4 の推奨値は文書に見当たらなかった）。変えるときは `video/scripts/narration-lib.mjs` の定数を直します。
@@ -77,7 +80,7 @@ npm --prefix video run narration -- --force --only 2,5
 | 11 | `footage/11-phone.mp4`・`11-chat.mp4`・`11-karte.mp4` | モデルの使い分けで並べる、訓練・掲示板・カルテの録画（各9秒）。札は `src/modelMap.ts` から重ねる |
 | 3 | `private/03-nameplate.json` | 1カット目（顔の写った写真）の左下に重ねる名前の札。JSON に `role`・`name`・`nameEn` を書く。名前と肩書きはリポジトリに書かない。無ければ札を出さない |
 | 12 | `photos/12-a`・`12-b`、`private/12-quote.json`（無ければ `private/12-caption.txt`） | 協力者の集合写真の後に、試用した人のコメントの一枚。JSON に `photoNote`・`heading`・`name`・`portrait`・`source`・`pages`（`**…**` は太字）を書く。名前とコメントはリポジトリに書かない |
-| 1〜13 | `narration/NN.mp3` | 手順3で合成したナレーション |
+| 1〜13 | `narration/NN.mp3`（5番は `05a`〜`05c.mp3` も） | 手順3で合成したナレーションと、5番の架空の患者の台詞 |
 | 4〜6 | `bgm/app-training.wav` | アプリの BGM（`web/src/bgm/bgm.ts`）をそのまま書き出したもの。`node video/scripts/capture-app-bgm/capture.mjs` で作る（ヘッドレスの Chrome を使う） |
 | 1〜3・7〜13 | `bgm/opening.wav`・`board.wav`・`models.wav`・`ending.wav` | コードで合成した BGM（`video/scripts/compose-bgm.mjs`）。置き方と大きさは `src/soundtrack.tsx` |
 | 全体 | `sfx/tap.wav`・`whoosh.wav`・`battery-off.wav`・`confirm.wav`・`pop.wav` | 効果音（コードで合成）。タップ・章の題・電池切れ・承認と確認・テロップの時刻に鳴る |

@@ -2,7 +2,7 @@
 // 使い方（リポジトリの直下から）：
 //   npm --prefix video run narration                 … 13場面のうち、まだ mp3 が無いものを合成
 //   npm --prefix video run narration -- --force      … 既にある mp3 も上書き
-//   npm --prefix video run narration -- --only 2,5   … そのビートだけ
+//   npm --prefix video run narration -- --only 2,5   … そのビートだけ（足す台詞は --only 05a,05b のように id で）
 //
 // 読むもの：video/.env（Node.js 標準の process.loadEnvFile。dotenv は使わない）、video/narration/NN.txt、
 //   3・12番だけ video/public/private/narration/NN.txt（リポジトリの外の原稿。無ければ飛ばす）
@@ -24,6 +24,7 @@ import {
   normalizeText,
   parseArgs,
   readConfig,
+  voiceSettingsFor,
 } from "./narration-lib.mjs";
 
 const videoDir = path.resolve(import.meta.dirname, "..");
@@ -89,7 +90,7 @@ const main = async () => {
       continue;
     }
 
-    const { url, init } = buildTtsRequest({ ...config, text });
+    const { url, init } = buildTtsRequest({ ...config, text, voiceSettings: voiceSettingsFor(beat) });
     const t0 = performance.now();
     let response;
     try {

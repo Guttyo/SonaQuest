@@ -64,6 +64,19 @@ const AppVoice: FC<{ section: Section }> = ({ section }) => (
   </>
 );
 
+/** 場面の中の間に足す、オーナーの声の台詞（5番）。素材が無ければ鳴らさない */
+const ExtraNarration: FC<{ section: Section }> = ({ section }) => (
+  <>
+    {section.extraNarration
+      .filter((v) => hasStaticFile(v.file))
+      .map((v) => (
+        <Sequence key={v.file} from={v.fromFrames} layout="none" name="足す台詞">
+          <Audio src={staticFile(v.file)} />
+        </Sequence>
+      ))}
+  </>
+);
+
 /** 素材が無いときの仮の画面の中身 */
 const Placeholder: FC<{ section: Section; label: string; style?: CSSProperties }> = ({ section, label, style }) => (
   <div
@@ -691,6 +704,7 @@ const Beat: FC<{ section: Section }> = ({ section }) => {
       <ChapterFlash section={section} />
       <Narration section={section} />
       <AppVoice section={section} />
+      <ExtraNarration section={section} />
       {section.number === SECTION_COUNT ? (
         <Sequence from={section.durationInFrames - ENDCARD_FRAMES} durationInFrames={ENDCARD_FRAMES} layout="none" name="締めの画面">
           <EndCard />
