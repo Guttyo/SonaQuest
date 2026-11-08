@@ -327,12 +327,12 @@ export const QUAKE_COUNT_FROM_FRAMES = sec(5.5);
 /**
  * 5番の時間（2026-11-08 の R1 の録画に合わせた）。
  * - 0〜：ソナが1問目を話す（アプリの声を appVoice で重ねる）→ 文字で答える
- * - 4.3〜6.7：オーナーの声の台詞「血圧の薬のAを飲んでいます。」（05a。入力の間）
- * - 7.0〜9.3：ナレーション「お薬手帳アプリが、スマホに入っている。」（05.mp3 の 0〜2.6 秒を切り出す）
- * - 10.2〜13.5：ソナの返事（アプリの声）。録画でソナが話しているのは 10.0〜14.2 秒で、合成した返事（6.5 秒）は収まらないので、
+ * - 4.15〜6.5：オーナーの声の台詞「血圧の薬のAを飲んでいます。」（05a。入力の間）
+ * - 6.7〜10.7：ナレーション「お薬手帳アプリが、スマホに入っている。」「これなら伝えられそうです。」（05.mp3 の 0〜2.5 秒と 2.95〜4.5 秒。
+ *   文の間を 0.67 → 0.27 秒に詰める）。どちらもソナの返事より前に言う（2026-11-08 オーナー：「ソナの『以下の中で』よりも前に来る」）
+ * - 10.9〜14.3：ソナの返事（アプリの声）。録画でソナが話しているのは 10.0〜14.2 秒で、合成した返事（6.5 秒）は収まらないので、
  *   2文目の問い「以下の中で、いちばん頼りにしているのはどれですか？」だけを鳴らす（1文目のお礼は切る）
- * - 14.1〜14.9：ナレーション「ところが……」（05.mp3 の 4.9 秒から）。14.8 秒の電池切れの暗転に着く。
- *   05.mp3 の2文目「これなら伝えられそうです。」は入る間が無いので鳴らさない
+ * - 14.4〜15.0：ナレーション「ところが……」（05.mp3 の 4.9 秒から）。14.8 秒の電池切れの暗転に重なる
  * - その後：電池切れの暗転 → 05b（15.5〜18.5）→ ソナの立て直しの問い（18.8〜）→ 05c（24.7〜27.6。終わりの約1秒は答え直す入力と BGM の戻りに重なる）→ 答え直す
  */
 const SECTION5_PIPELINE_TO = 9 * FPS;
@@ -415,20 +415,21 @@ const ROWS: Row[] = [
     footageAudio: false,
     overlay: "pipeline",
     narrationParts: [
-      { fromSeconds: 7.0, fileFromSeconds: 0, fileToSeconds: 2.6 },
-      { fromSeconds: 13.93, fileFromSeconds: 4.9, fileToSeconds: 6.08 },
+      { fromSeconds: 6.7, fileFromSeconds: 0, fileToSeconds: 2.5 },
+      { fromSeconds: 9.25, fileFromSeconds: 2.95, fileToSeconds: 4.5 },
+      { fromSeconds: 14.25, fileFromSeconds: 4.9, fileToSeconds: 6.08 },
     ],
     // 録画（2026-11-08、R1 の4回目）の区間：0〜4 ソナの1問目、4〜10 文字で答える、10〜14.8 情報源「スマートフォン」、
     // 14.8〜18.2 電池切れ、18.2〜24.6 立て直しの問い、24.6〜26.6 無音、26.6〜 答え直す
     appVoice: [
       { file: "voice/05-sona-1.mp3", fromSeconds: 0.2 },
       // 返事の問いの部分だけ（mp3 の 2.75 秒から。前はお礼の1文と息の音。問いの声は 2.92〜6.29 秒）
-      { file: "voice/05-sona-reply.mp3", fromSeconds: 10.0, fileFromSeconds: 2.75 },
+      { file: "voice/05-sona-reply.mp3", fromSeconds: 10.75, fileFromSeconds: 2.75 },
       { file: "voice/05-sona-2.mp3", fromSeconds: 18.8 },
     ],
     // オーナーの声の台詞：入力している答えを短くしたもの（4〜10秒の入力の間）、電池切れの暗転の間、立て直しの問いの後
     extraNarration: [
-      { file: "narration/05a.mp3", fromSeconds: 4.3 },
+      { file: "narration/05a.mp3", fromSeconds: 4.15 },
       { file: "narration/05b.mp3", fromSeconds: 15.5 },
       { file: "narration/05c.mp3", fromSeconds: 24.7 },
     ],
