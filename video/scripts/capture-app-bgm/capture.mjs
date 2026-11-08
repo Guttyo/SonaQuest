@@ -5,7 +5,7 @@
 // - タイマーは偽の時計で進める（アプリと同じ予定の立て方のまま、実時間を待たない）
 // - 出力：video/public/bgm/app-training.wav（Git の対象外。48kHz ステレオ、loudnorm で -20 LUFS）
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, copyFileSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -46,6 +46,8 @@ try {
   const raw = join(work, "raw.wav");
   writeFileSync(raw, Buffer.from(text.split("\n")[1].slice(4), "base64"));
   const out = join(VIDEO, "public", "bgm", "app-training.wav");
+  // video/public/bgm/ は Git の対象外なので、取り出したばかりの作業コピーには無い
+  mkdirSync(dirname(out), { recursive: true });
   const f = spawnSync(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-i", raw, "-af", "loudnorm=I=-20:TP=-2:LRA=11", "-ar", "48000", "-ac", "2", out], { stdio: "inherit" });
   if (f.status !== 0) throw new Error("ffmpeg で変換できなかった");
   console.log("書き出した：video/public/bgm/app-training.wav");
