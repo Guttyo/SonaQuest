@@ -233,11 +233,12 @@ type Row = Omit<
 };
 
 /**
- * 1番の頭に置く、電池切れの暗転（5番の録画から切り出す）の長さ。この後に問いの文字を出す。
- * 切り出した録画の長さに合わせてオーナーが直す。
+ * 1番の頭の黒の長さ。この後に問いの文字を出す（opening.wav の鈴も同じ 1.0 秒。scripts/compose-bgm.mjs）。
+ * 電池切れの暗転の録画は置かない：アプリの上の帯「お薬の避難訓練」が暗くならずに映るため
+ * （2026-11-08 オーナー：「最初に一瞬だけお薬の避難訓練が映る」）。暗転は5番の録画で見せる。
  */
 // 問いの後の間は1秒（2026-11-08 オーナー決定）。ナレーション約7秒＋1秒で8秒に収まる
-export const QUESTION_BLACKOUT_FRAMES = Math.round(1.5 * FPS);
+export const QUESTION_BLACKOUT_FRAMES = Math.round(1.0 * FPS);
 
 /** 2番で「21回」を出し始めるフレーム（ナレーションが回数を言うところの見込み）。合成した長さに合わせて直す */
 export const QUAKE_COUNT_FROM_FRAMES = 4 * FPS;
@@ -269,8 +270,8 @@ const ROWS: Row[] = [
     seconds: 8,
     voice: "ナレーター",
     screen: "question",
-    screenNote: "電池切れの暗転（5番の録画から切り出す）→ 問いを大きく文字で",
-    footageFile: "footage/01-blackout.mp4",
+    screenNote: "黒の地 → 問いを大きく文字で",
+    footageFile: null,
     footageAudio: false,
   },
   {
@@ -500,4 +501,5 @@ export const TOTAL_FRAMES = SECTIONS.reduce((sum, s) => sum + s.durationInFrames
  */
 export const ENDCARD_FRAMES = 7 * FPS;
 // [TODO-OWNER: 最後に置く公開 URL（と QR）の文。今は仮の文字（docs/demo-script.md「オーナーに決めてほしいこと」の10）]
+// → オーナー決定（2026-11-08、チャット）：「最後の公開URLは不要」
 export const PUBLIC_URL_PLACEHOLDER = "[公開URL]";

@@ -68,7 +68,6 @@ npm --prefix video run narration -- --force --only 2,5
 
 | 場面 | ファイル | 中身 |
 |---|---|---|
-| 1 | `footage/01-blackout.mp4` | 電池切れの暗転（5番の録画から 1.5 秒を切り出す）。無くても黒の地に問いの文字が出る |
 | 2 | `footage/02-quake-map.mp4` | 震源の地図のアニメーション（10秒）。「21回」と出典は Remotion で重ねる |
 | 3 | `photos/03-a`・`03-b`・`03-c` | 本人の経験の写真（`03-a` と `03-b` を横に並べ、次に `03-c`）。拡張子は jpg・png・webp のどれでもよい |
 | 4〜6・13 | `frames/iphone-bezel.webp` | スマホの枠の画像（オーナーが渡した iPhone のベゼル。978×2000 の透過 webp）。無ければ CSS で描いた枠になる |

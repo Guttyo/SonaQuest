@@ -3,7 +3,7 @@
 // 置かれていない素材は描かず・鳴らさず、仮の画面（番号・時間・見出し語）のまま書き出せるようにする。
 import type { CSSProperties, FC, ReactNode } from "react";
 import { AbsoluteFill, Audio, Easing, Img, OffthreadVideo, Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
-import { ENDCARD_FRAMES, FPS, HEIGHT, PUBLIC_URL_PLACEHOLDER, SECTIONS, SECTION_COUNT, WIDTH, type Section, type Tap, type Zoom } from "./sections";
+import { ENDCARD_FRAMES, FPS, HEIGHT, SECTIONS, SECTION_COUNT, WIDTH, type Section, type Tap, type Zoom } from "./sections";
 import { CLOSING_LINE } from "./slideText";
 import {
   ModelsDemo,
@@ -15,6 +15,14 @@ import {
 import { COLORS, MONO, baseText, hasStaticFile } from "./theme";
 import { QuoteScene } from "./quoteSlide";
 import { Soundtrack } from "./soundtrack";
+import {
+  LOGO_ACCENT_PATH,
+  LOGO_COLOR_ACCENT,
+  LOGO_COLOR_WORD,
+  LOGO_HEIGHT,
+  LOGO_WIDTH,
+  LOGO_WORD_PATH,
+} from "../../web/src/brand/logoData";
 
 /** スマホ幅の録画（390×844）を入れる枠。横長の画面の高さに収まるよう少し大きくする */
 const PHONE_SCALE = 1.06;
@@ -270,9 +278,13 @@ const PhoneFrame: FC<{ section: Section }> = ({ section }) => {
 };
 
 // [TODO-OWNER: 最後のロゴの形（今は「SonaQuest」の文字だけの仮のもの）]
+// → オーナー決定（2026-11-08、チャット）：「SonaQuestのロゴがどこかのセッションで作ったはず」
+/** 締めの画面のロゴの幅 */
+const ENDCARD_LOGO_WIDTH = 980;
+
 /**
- * 最後の場面（13番）の締めの画面：締めの文、ロゴ、公開 URL の札。
- * ロゴは Issue #263 で web/ に作る（動画とアプリのはじめにで使う）。それまでは仮の文字。
+ * 最後の場面（13番）の締めの画面：締めの文と、Issue #263 のロゴ（web/src/brand/logoData.ts の図形）。
+ * 公開 URL は出さない（2026-11-08 オーナー：「最後の公開URLは不要」）。
  */
 const EndCard: FC = () => {
   const frame = useCurrentFrame();
@@ -290,19 +302,18 @@ const EndCard: FC = () => {
       }}
     >
       <div style={{ fontSize: 60, fontWeight: 700, color: COLORS.ink }}>{CLOSING_LINE}</div>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 24, opacity: logoOpacity }}>
-        <div style={{ fontSize: 140, fontWeight: 800, letterSpacing: 2, color: COLORS.accent }}>SonaQuest</div>
-        <div style={{ fontSize: 44, color: COLORS.ink }}>お薬の避難訓練</div>
-        <div
-          style={{
-            fontSize: 36,
-            padding: "12px 36px",
-            borderRadius: 16,
-            border: `3px solid ${COLORS.ink}`,
-          }}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 36, opacity: logoOpacity }}>
+        <svg
+          width={ENDCARD_LOGO_WIDTH}
+          height={(ENDCARD_LOGO_WIDTH * LOGO_HEIGHT) / LOGO_WIDTH}
+          viewBox={`0 0 ${LOGO_WIDTH} ${LOGO_HEIGHT}`}
+          role="img"
+          aria-label="SonaQuest"
         >
-          {PUBLIC_URL_PLACEHOLDER}
-        </div>
+          <path fill={LOGO_COLOR_WORD} d={LOGO_WORD_PATH} />
+          <path fill={LOGO_COLOR_ACCENT} d={LOGO_ACCENT_PATH} />
+        </svg>
+        <div style={{ fontSize: 48, fontWeight: 700, color: LOGO_COLOR_WORD }}>お薬の避難訓練</div>
       </div>
     </AbsoluteFill>
   );
