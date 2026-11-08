@@ -240,6 +240,8 @@ export const useStaticText = (file: string | null): string | null => {
  */
 export const PhotoSlides: FC<{ section: Section }> = ({ section }) => {
   const caption = useStaticText(section.captionFile);
+  const nameplateRaw = useStaticText(section.nameplateFile);
+  const nameplate = nameplateRaw ? (JSON.parse(nameplateRaw) as Nameplate) : null;
   const shots = section.photoShots;
   const hasFootage = hasStaticFile(section.footageFile);
   const shotFrames =
@@ -258,6 +260,7 @@ export const PhotoSlides: FC<{ section: Section }> = ({ section }) => {
           name={`写真 ${i + 1}`}
         >
           <PhotoShot files={shot} caption={i === shots.length - 1 ? caption : null} />
+          {i === 0 && nameplate ? <NameplateView data={nameplate} /> : null}
         </Sequence>
       ))}
       {section.footageFile !== null ? (
@@ -277,6 +280,40 @@ export const PhotoSlides: FC<{ section: Section }> = ({ section }) => {
         </Sequence>
       ) : null}
     </AbsoluteFill>
+  );
+};
+
+/** 名前の札の中身（video/public/private/ の JSON。Git の対象外） */
+type Nameplate = { role?: string; name: string; nameEn?: string };
+
+/** 写真の左下に重ねる名前の札。少し遅れて下から出す */
+const NameplateView: FC<{ data: Nameplate }> = ({ data }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const p = spring({ frame: frame - Math.round(0.6 * fps), fps, config: { damping: 200 } });
+  return (
+    <div
+      style={{
+        ...baseText,
+        position: "absolute",
+        left: 72,
+        bottom: 110,
+        padding: "20px 34px 22px",
+        borderRadius: 18,
+        backgroundColor: "rgba(255,255,255,0.95)",
+        borderLeft: `10px solid ${COLORS.accent}`,
+        boxShadow: "0 10px 28px rgba(0,0,0,0.3)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 4,
+        opacity: p,
+        transform: `translateY(${interpolate(p, [0, 1], [24, 0])}px)`,
+      }}
+    >
+      {data.role ? <div style={{ fontSize: 30, fontWeight: 700, color: COLORS.sub }}>{data.role}</div> : null}
+      <div style={{ fontSize: 64, fontWeight: 800, color: COLORS.ink, letterSpacing: 4 }}>{data.name}</div>
+      {data.nameEn ? <div style={{ fontSize: 30, color: COLORS.sub, letterSpacing: 1 }}>{data.nameEn}</div> : null}
+    </div>
   );
 };
 

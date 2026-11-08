@@ -128,6 +128,11 @@ export type Section = {
    * 文はリポジトリに置かない。置かれていなければ何も重ねない。
    */
   captionFile: string | null;
+  /**
+   * 写真の場面の1カット目に重ねる、人の名前の札の中身：video/public/ からの相対パスの JSON
+   * （Git の対象外。{ role, name, nameEn }）。置かれていなければ出さない。名前や肩書きはリポジトリに書かない。
+   */
+  nameplateFile: string | null;
   /** 画面に重ねる Remotion の部品 */
   overlay: Overlay | null;
   /**
@@ -212,6 +217,7 @@ type Row = Omit<
   | "privateNarration"
   | "photoShots"
   | "captionFile"
+  | "nameplateFile"
   | "overlay"
   | "narrationDelayFrames"
   | "footageMutedRanges"
@@ -231,6 +237,7 @@ type Row = Omit<
   privateNarration?: boolean;
   photoShots?: string[][];
   captionFile?: string;
+  nameplateFile?: string;
   overlay?: Overlay;
   narrationDelayFrames?: number;
   footageMutedRanges?: Array<readonly [number, number]>;
@@ -308,6 +315,8 @@ const ROWS: Row[] = [
     footageAudio: false,
     privateNarration: true,
     photoShots: [["photos/03-a", "photos/03-b"], ["photos/03-c"]],
+    // 1カット目（顔の写った写真）に名前の札（2026-11-08 オーナーの依頼。中身は Git の外）
+    nameplateFile: "private/03-nameplate.json",
   },
   {
     seconds: 8,
@@ -503,6 +512,7 @@ export const SECTIONS: Section[] = ROWS.reduce<Section[]>((acc, row, i) => {
     privateNarration: row.privateNarration ?? false,
     photoShots: row.photoShots ?? [],
     captionFile: row.captionFile ?? null,
+    nameplateFile: row.nameplateFile ?? null,
     overlay: row.overlay ?? null,
     narrationDelayFrames: row.narrationDelayFrames ?? 0,
     footageMutedRanges: row.footageMutedRanges ?? [],
