@@ -114,7 +114,9 @@ npm --prefix video run studio
 npm --prefix video run render
 ```
 
-- `video/out/sonaquest.mp4`（1920×1080・30fps・H.264）に書き出します。
+- `video/out/versions/sonaquest-vNN-<コミット>.mp4`（1920×1080・30fps・H.264）に書き出します。前の書き出しは上書きしません（2026-11-08 オーナーの依頼）。NN は既にある番号の次で、`video/` に未コミットの変更があるときはコミットの後に `-dirty` が付きます。中身は `scripts/render-versioned.mjs`。
+- 聞いて直すときは「v03 の 0:45」のように番号で指せます。`v01` は Issue #272 のコミット a716eeb の版です（それより前の書き出しは上書きしていて残っていません）。
+- `npm --prefix video run render -- --frames=0-299` のように、後ろに Remotion の引数を渡せます。
 - 初回の書き出しで、Remotion が描画用の Chrome（Headless Shell）を取得します（ネットワークが要ります）。
 - 試しに最初の10秒だけ書き出すときは `npm --prefix video run render:test`（`video/out/sonaquest-test.mp4`）。
 
