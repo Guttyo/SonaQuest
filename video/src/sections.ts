@@ -52,6 +52,18 @@ export type Tap = { at: number; x: number; y: number; zoom?: boolean };
  */
 export type Telop = { from: number; to: number; text: string };
 
+/**
+ * 画面に出ている選択肢を、スマホの右の余白に書き出す札（2026-11-08 オーナー：「画面の流れが速いので、
+ * 選択肢の詳細をスライドの左右の余白に書いておくとよい」）。文はアプリの固定文（web/src/flow/content.ts）。
+ * 場面の頭からの秒。picks は録画で選んだ時刻と、選んだ選択肢の id（その時刻から札でも印を付ける）。
+ */
+export type OptionPanel = {
+  kind: "sources" | "prep";
+  from: number;
+  to: number;
+  picks: Array<{ at: number; id: string }>;
+};
+
 /** 札（10のコツの 05 ログの早回し）。場面の頭からの秒 */
 export type Badge = { from: number; to: number; text: string };
 
@@ -98,6 +110,8 @@ export type Section = {
   taps: Tap[];
   /** 下のテロップ。無ければ出さない */
   telops: Telop[];
+  /** 右の余白の選択肢の札。無ければ出さない */
+  optionPanel: OptionPanel | null;
   /**
    * 大きな場面の切り替わり（訓練・本部のボード）の頭に、約1秒、章の題を録画の上に重ねる。
    * 1枚のスライドを足すと 180 秒が延びるので、録画に重ねる形にした。
@@ -207,6 +221,7 @@ type Row = Omit<
   | "badges"
   | "taps"
   | "telops"
+  | "optionPanel"
   | "chapter"
   | "quoteFile"
   | "bezel"
@@ -227,6 +242,7 @@ type Row = Omit<
   badges?: Badge[];
   taps?: Tap[];
   telops?: Telop[];
+  optionPanel?: OptionPanel;
   chapter?: { text: string; at: number };
   quoteFile?: string;
   bezel?: boolean;
@@ -327,13 +343,16 @@ const ROWS: Row[] = [
     ],
     // 寄り：電池切れ〜立て直しの問いでスマホに寄る（情報源を押す所はタップの寄り）
     zooms: [{ from: 18.2, to: 26.6, scale: 1.18, x: 0.49, y: 0.5 }],
-    // 答える（9.46）はナレーションの頭なので波紋だけ。情報源「スマートフォン」→「これで進む」で寄る
+    // 答える（9.46）はナレーションの頭なので波紋だけ。情報源「スマートフォン」→「これで進む」も、
+    // 右の余白に選択肢の札を出すので寄らずに波紋だけ（寄るとスマホの画面が札にかかる）
     taps: [
       { at: 9.46, x: 195, y: 808, zoom: false },
-      { at: 12.17, x: 195, y: 422 },
-      { at: 14.22, x: 195, y: 746 },
+      { at: 12.17, x: 195, y: 422, zoom: false },
+      { at: 14.22, x: 195, y: 746, zoom: false },
       { at: 29.84, x: 195, y: 808, zoom: false },
     ],
+    // 10〜14.8 秒：情報源の選択肢（録画では「スマートフォン」を 12.17 秒に選ぶ）。電池切れの前に消す
+    optionPanel: { kind: "sources", from: 10.0, to: 14.6, picks: [{ at: 12.17, id: "smartphone" }] },
     telops: [
       { from: 15.0, to: 18.2, text: TELOPS.event },
       { from: 19.0, to: 26.6, text: TELOPS.recovery },
@@ -348,12 +367,22 @@ const ROWS: Row[] = [
     footageAudio: false,
     // 寄りの下書き：振り返りの「まだ弱いところ」の札。録画に合わせて直す
     zooms: [{ from: 0.5, to: 6, scale: 1.25, x: 0.49, y: 0.4 }],
-    // 準備行動「財布に入れる」→「今週中」→「これに決める」
+    // 準備行動「財布に入れる」→「今週中」→「これに決める」。右の余白に選択肢の札を出すので寄らずに波紋だけ
     taps: [
-      { at: 8.97, x: 195, y: 422 },
-      { at: 11.0, x: 195, y: 422 },
-      { at: 13.34, x: 195, y: 422 },
+      { at: 8.97, x: 195, y: 422, zoom: false },
+      { at: 11.0, x: 195, y: 422, zoom: false },
+      { at: 13.34, x: 195, y: 422, zoom: false },
     ],
+    // 7.5〜14 秒：準備行動と「いつやるか」の選択肢（録画では「財布に入れる」→「今週中」）
+    optionPanel: {
+      kind: "prep",
+      from: 7.5,
+      to: 14.0,
+      picks: [
+        { at: 8.97, id: "wallet_memo" },
+        { at: 11.0, id: "this_week" },
+      ],
+    },
     telops: [
       { from: 0.8, to: 6, text: TELOPS.review },
       { from: 8.5, to: 15, text: TELOPS.prep },
@@ -483,6 +512,7 @@ export const SECTIONS: Section[] = ROWS.reduce<Section[]>((acc, row, i) => {
     badges: row.badges ?? [],
     taps: row.taps ?? [],
     telops: row.telops ?? [],
+    optionPanel: row.optionPanel ?? null,
     chapter: row.chapter ?? null,
     quoteFile: row.quoteFile ?? null,
     bezel: row.bezel ?? false,

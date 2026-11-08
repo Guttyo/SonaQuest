@@ -15,6 +15,7 @@ import {
 import { COLORS, MONO, baseText, hasStaticFile } from "./theme";
 import { QuoteScene } from "./quoteSlide";
 import { Soundtrack } from "./soundtrack";
+import { OptionPanelView } from "./optionPanel";
 import {
   LOGO_ACCENT_PATH,
   LOGO_COLOR_ACCENT,
@@ -169,6 +170,10 @@ const phoneToFrame = (section: Section, x: number, y: number) =>
 
 /** スマホの画面の左の端（寄ったときに左の列にかからないよう、ずらす量を決めるのに使う） */
 const phoneLeftEdge = (section: Section) => (section.bezel && hasStaticFile(BEZEL_FILE) ? BEZEL_LEFT : PLAIN_LEFT);
+
+/** スマホの画面の右の端（右の余白の選択肢の札を、ここより右に置く） */
+const phoneRightEdge = (section: Section) =>
+  section.bezel && hasStaticFile(BEZEL_FILE) ? BEZEL_LEFT + BEZEL_SCREEN.width * BEZEL_K : PLAIN_LEFT + PLAIN_WIDTH;
 
 /** 録画の座標 → 横長の画面の座標。ボードの録画は 1920×1080 の CSS の画面をそのまま全面に置いている */
 const tapToFrame = (section: Section, tap: Tap) => (section.screen === "phone" ? phoneToFrame(section, tap.x, tap.y) : { x: tap.x, y: tap.y });
@@ -664,6 +669,7 @@ const Beat: FC<{ section: Section }> = ({ section }) => {
       <OverlayView section={section} />
       <BadgeView section={section} />
       <TelopView section={section} inColumn={inColumn} />
+      {section.optionPanel ? <OptionPanelView panel={section.optionPanel} left={phoneRightEdge(section) + 44} /> : null}
       <ChapterFlash section={section} />
       <Narration section={section} />
       <AppVoice section={section} />
