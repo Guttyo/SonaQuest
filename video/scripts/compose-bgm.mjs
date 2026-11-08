@@ -384,8 +384,11 @@ function opening() {
   const quake = [93, 96, 100, 98, 93, 100, 96, 105, 100, 98];
   for (let b = 0; b < s2; b++) bell(m, t2 + b + 0.5, quake[b], { level: 0.012, decay: 0.8, pan: ((b * 37) % 9) / 4.5 - 1 });
 
-  // 3番：Am–F–C–G、4 秒ずつ（最後の G は 3 秒）。低い三角波の分散和音を4分音符で
-  const prog = [["Am", 4], ["F", 4], ["C", 4], ["G", 3]];
+  // 3番：Am–F–C–G。3番の長さに合わせて Am・F・C を同じ秒に、残りを G にする（15 秒なら 4・4・4・3、18 秒なら 5・5・5・3）。
+  // 固定の 15 秒のままだと、3番を延ばした分の終わりが無音になる（2026-11-08、v04 で 0:31〜0:33 が無音だった）。
+  // 低い三角波の分散和音を4分音符で
+  const q = Math.ceil(s3 / 4);
+  const prog = [["Am", q], ["F", q], ["C", q], ["G", s3 - 3 * q]];
   let t = t3;
   for (const [name, len] of prog) {
     const ch = CHORDS[name];
