@@ -264,6 +264,11 @@ export const PhotoSlides: FC<{ section: Section }> = ({ section }) => {
           {i === 0 && nameplate ? <NameplateView data={nameplate} /> : null}
         </Sequence>
       ))}
+      {nameplate?.photoNote ? (
+        <Sequence durationInFrames={photosEnd > 0 ? (section.footageFile === null ? section.durationInFrames : photosEnd) : 1} layout="none" name="写真の注">
+          <PhotoNoteView text={nameplate.photoNote} />
+        </Sequence>
+      ) : null}
       {section.footageFile !== null ? (
         <Sequence from={photosEnd} layout="none" name="写真の後の録画">
           {hasFootage ? (
@@ -284,8 +289,37 @@ export const PhotoSlides: FC<{ section: Section }> = ({ section }) => {
   );
 };
 
-/** 名前の札の中身（video/public/private/ の JSON。Git の対象外） */
-type Nameplate = { role?: string; name: string; nameEn?: string };
+/**
+ * 名前の札の中身（video/public/private/ の JSON。Git の対象外）。
+ * photoNote は写真の右下に小さく出す注（写真の年と出来事。2026-11-08 オーナー：直前の地図が 2026 年なので、写真の時期を分かるように）
+ */
+type Nameplate = { role?: string; name: string; nameEn?: string; photoNote?: string };
+
+/** 写真の右下に小さく重ねる注（写真の時期など） */
+const PhotoNoteView: FC<{ text: string }> = ({ text }) => {
+  const frame = useCurrentFrame();
+  const opacity = interpolate(frame, [6, 18], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  return (
+    <div
+      style={{
+        ...baseText,
+        position: "absolute",
+        right: 56,
+        bottom: 48,
+        padding: "8px 18px 10px",
+        borderRadius: 10,
+        backgroundColor: "rgba(17,24,28,0.72)",
+        color: COLORS.white,
+        fontSize: 30,
+        fontWeight: 600,
+        letterSpacing: 1,
+        opacity,
+      }}
+    >
+      {text}
+    </div>
+  );
+};
 
 /** 写真の左下に重ねる名前の札。少し遅れて下から出す */
 const NameplateView: FC<{ data: Nameplate }> = ({ data }) => {

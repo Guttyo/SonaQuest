@@ -348,8 +348,9 @@ const ENDCARD_LOGO_WIDTH = 980;
 const EndCard: FC = () => {
   const frame = useCurrentFrame();
   const opacity = interpolate(frame, [0, 15], [0, 1], { extrapolateRight: "clamp" });
-  // ロゴは、ナレーションが「ソナクエスト。」と言う所（締めの画面の頭から約 2.34 秒）で出す。ロゴは 4 秒残る
-  const logoOpacity = interpolate(frame, [70, 88], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  // ロゴは、ナレーションが「ソナクエスト。」と言う所（13番の頭から約 5.34 秒）で出す。
+  // 2026-11-08 に締めの画面を13番の頭からにした（オーナー：「スマホ画面スライドは削除して、最後のスライドを写そう」）ので、時刻は場面の頭から数える
+  const logoOpacity = interpolate(frame, [160, 178], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   return (
     <AbsoluteFill
       style={{
@@ -358,10 +359,10 @@ const EndCard: FC = () => {
         alignItems: "center",
         justifyContent: "center",
         gap: 40,
-        opacity,
       }}
     >
-      <div style={{ fontSize: 60, fontWeight: 700, color: COLORS.ink }}>{CLOSING_LINE}</div>
+      {/* 地は頭から出し（下の場面の画面が透けないように）、締めの文だけをフェードで出す */}
+      <div style={{ fontSize: 60, fontWeight: 700, color: COLORS.ink, opacity }}>{CLOSING_LINE}</div>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 36, opacity: logoOpacity }}>
         <svg
           width={ENDCARD_LOGO_WIDTH}
