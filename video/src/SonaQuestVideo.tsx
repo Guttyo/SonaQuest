@@ -3,7 +3,7 @@
 // 置かれていない素材は描かず・鳴らさず、仮の画面（番号・時間・見出し語）のまま書き出せるようにする。
 import type { CSSProperties, FC, ReactNode } from "react";
 import { AbsoluteFill, Audio, Easing, Img, OffthreadVideo, Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
-import { ENDCARD_FRAMES, FPS, HEIGHT, SECTIONS, SECTION_COUNT, WIDTH, type Section, type Tap, type Zoom } from "./sections";
+import { ENDCARD_FRAMES, FPS, HEIGHT, SECTIONS, SECTION_COUNT, WIDTH, type AudioClip, type Section, type Tap, type Zoom } from "./sections";
 import { CLOSING_LINE, EVENT_CREDIT, EVENT_PERIOD } from "./slideText";
 import {
   ModelsDemo,
@@ -41,15 +41,37 @@ const footageVolume = (section: Section) => {
   return (frame: number) => (ranges.some(([start, end]) => frame >= start && frame < end) ? 0 : 1);
 };
 
-/** ナレーション。narrationDelayFrames だけ遅らせて鳴らす（場面の終わりで切れる） */
+/**
+ * ナレーション。narrationDelayFrames だけ遅らせて鳴らす（場面の終わりで切れる）。
+ * narrationParts があれば、mp3 を切り分けてそれぞれの時刻に鳴らす（5番）
+ */
 const Narration: FC<{ section: Section }> = ({ section }) => {
-  if (!hasStaticFile(section.narrationFile)) return null;
+  if (!section.narrationFile || !hasStaticFile(section.narrationFile)) return null;
+  const src = staticFile(section.narrationFile);
+  if (section.narrationParts.length > 0) {
+    return (
+      <>
+        {section.narrationParts.map((p) => (
+          <Sequence key={p.fromFrames} from={p.fromFrames} durationInFrames={p.durationFrames} layout="none" name="ナレーション（切り分け）">
+            <Audio src={src} trimBefore={p.trimBeforeFrames} />
+          </Sequence>
+        ))}
+      </>
+    );
+  }
   return (
     <Sequence from={section.narrationDelayFrames} layout="none" name="ナレーション">
-      <Audio src={staticFile(section.narrationFile)} />
+      <Audio src={src} />
     </Sequence>
   );
 };
+
+/** 場面に重ねる音の1つ（mp3 の一部だけを使うときは trimBeforeFrames・durationFrames） */
+const ClipAudio: FC<{ clip: AudioClip; name: string }> = ({ clip, name }) => (
+  <Sequence from={clip.fromFrames} durationInFrames={clip.durationFrames ?? undefined} layout="none" name={name}>
+    <Audio src={staticFile(clip.file)} trimBefore={clip.trimBeforeFrames || undefined} />
+  </Sequence>
+);
 
 /** アプリの声（ソナの声）。録画に音が無いので、合成した声を場面の決まった時刻に重ねる。素材が無ければ鳴らさない */
 const AppVoice: FC<{ section: Section }> = ({ section }) => (
@@ -57,9 +79,7 @@ const AppVoice: FC<{ section: Section }> = ({ section }) => (
     {section.appVoice
       .filter((v) => hasStaticFile(v.file))
       .map((v) => (
-        <Sequence key={v.file} from={v.fromFrames} layout="none" name="アプリの声">
-          <Audio src={staticFile(v.file)} />
-        </Sequence>
+        <ClipAudio key={v.file} clip={v} name="アプリの声" />
       ))}
   </>
 );
@@ -70,9 +90,7 @@ const ExtraNarration: FC<{ section: Section }> = ({ section }) => (
     {section.extraNarration
       .filter((v) => hasStaticFile(v.file))
       .map((v) => (
-        <Sequence key={v.file} from={v.fromFrames} layout="none" name="足す台詞">
-          <Audio src={staticFile(v.file)} />
-        </Sequence>
+        <ClipAudio key={v.file} clip={v} name="足す台詞" />
       ))}
   </>
 );

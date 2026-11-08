@@ -164,14 +164,35 @@ export type Section = {
    * （2026-11-08 オーナー：「elevenslabだからそれで合成してもらってもいいよ」）。
    * file は video/public/ の中（Git の対象外）、fromFrames は場面の頭からのフレーム
    */
-  appVoice: Array<{ file: string; fromFrames: number }>;
+  appVoice: AudioClip[];
   /**
    * 場面の中の間に足す、オーナーの声の台詞（5番。2026-11-08 オーナー：「0:50のところ、実際の入力に合わせて僕の声で発言して」
    * 「スマホの充電が切れてしまっていました・・・というのを0:57くらいに入れてほしい。僕の声で」「僕の声でセリフね。続きのナレーションみたいな感じ」
    * 「映像やBGMは変えないで」）。原稿は video/narration/<id>.txt、合成は scripts/synthesize-narration.mjs の EXTRA_CLIPS。
    * file は video/public/ の中（Git の対象外）、fromFrames は場面の頭からのフレーム
    */
-  extraNarration: Array<{ file: string; fromFrames: number }>;
+  extraNarration: AudioClip[];
+  /**
+   * ナレーションの mp3 を切り分けて、別々の時刻に鳴らすとき（5番。2026-11-08 オーナー：ソナの返事を「残して」）。
+   * 空でなければ narrationDelayFrames の代わりにこれを使う。trimBeforeFrames・durationFrames は mp3 の中のフレーム
+   */
+  narrationParts: Array<{ fromFrames: number; trimBeforeFrames: number; durationFrames: number }>;
+};
+
+/** 場面に重ねる音の1つ。fromFrames は場面の頭から。trimBeforeFrames・durationFrames は mp3 の中のどこを使うか（null なら終わりまで） */
+export type AudioClip = { file: string; fromFrames: number; trimBeforeFrames: number; durationFrames: number | null };
+
+/** 秒で書く音の1つ。fileFromSeconds・fileToSeconds は mp3 の中のどこを使うか */
+type ClipRow = { file: string; fromSeconds: number; fileFromSeconds?: number; fileToSeconds?: number };
+
+const toClip = (v: ClipRow): AudioClip => {
+  const trim = v.fileFromSeconds ?? 0;
+  return {
+    file: v.file,
+    fromFrames: Math.round(v.fromSeconds * FPS),
+    trimBeforeFrames: Math.round(trim * FPS),
+    durationFrames: v.fileToSeconds === undefined ? null : Math.round((v.fileToSeconds - trim) * FPS),
+  };
 };
 
 // [TODO-OWNER: 字幕の代わりの見出し語を各ビートに置くか、置くなら下の headline の文でよいか（docs/demo-script.md「オーナーに決めてほしいこと」の3）]
@@ -230,6 +251,7 @@ type Row = Omit<
   | "footageMutedRanges"
   | "appVoice"
   | "extraNarration"
+  | "narrationParts"
   | "footageStartFrame"
   | "zooms"
   | "badges"
@@ -250,9 +272,11 @@ type Row = Omit<
   narrationDelayFrames?: number;
   footageMutedRanges?: Array<readonly [number, number]>;
   /** アプリの声（秒で書く。fromSeconds は場面の頭から） */
-  appVoice?: Array<{ file: string; fromSeconds: number }>;
+  appVoice?: ClipRow[];
   /** 足す台詞（秒で書く。fromSeconds は場面の頭から） */
-  extraNarration?: Array<{ file: string; fromSeconds: number }>;
+  extraNarration?: ClipRow[];
+  /** ナレーションを切り分けて鳴らす（秒で書く。fromSeconds は場面の頭から、fileFromSeconds・fileToSeconds は mp3 の中） */
+  narrationParts?: Array<{ fromSeconds: number; fileFromSeconds: number; fileToSeconds: number }>;
   /** 録画のどこから使うか（秒） */
   footageStartSeconds?: number;
   zooms?: Zoom[];
@@ -295,20 +319,22 @@ export const QUAKE_COUNT_FROM_FRAMES = sec(5.5);
 /**
  * 5番の時間（2026-11-08 の R1 の録画に合わせた）。
  * - 0〜：ソナが1問目を話す（アプリの声を appVoice で重ねる）→ 文字で答える
- * - SECTION5_NARRATION_FROM：ナレーション「薬の写真は、スマホに入っている。…ところが……」（05.mp3 は 5.84 秒。
- *   「ところが……」は 14.5 秒に言い終わり、14.8 秒の電池切れの暗転にちょうど着く）
- * - その後：電池切れの暗転 → ソナの立て直しの問い（アプリの声）→ 2秒の無音 → 答え直す
- * - オーナーの声の台詞（extraNarration）：05a は 4.4〜8.0 秒（入力の間）、05b は 15.5〜18.5 秒（暗転の間。ソナの問いは 18.8 秒から）、
- *   05c は 24.7〜27.6 秒（ソナの問いが 24.3 秒に終わった後。終わりの約1秒は答え直す入力と BGM の戻りに重なる）
+ * - 4.3〜6.7：オーナーの声の台詞「血圧の薬のAを飲んでいます。」（05a。入力の間）
+ * - 7.0〜9.1：ナレーション「薬の写真は、スマホに入っている。」（05.mp3 の 0〜2.4 秒を切り出す）
+ * - 10.2〜13.5：ソナの返事（アプリの声）。録画でソナが話しているのは 10.0〜14.2 秒で、合成した返事（6.5 秒）は収まらないので、
+ *   2文目の問い「以下の中で、いちばん頼りにしているのはどれですか？」だけを鳴らす（1文目のお礼は切る）
+ * - 14.1〜14.9：ナレーション「ところが……」（05.mp3 の 4.6 秒から）。14.8 秒の電池切れの暗転に着く。
+ *   05.mp3 の2文目「これなら伝えられそうです。」は入る間が無いので鳴らさない
+ * - その後：電池切れの暗転 → 05b（15.5〜18.5）→ ソナの立て直しの問い（18.8〜）→ 05c（24.7〜27.6。終わりの約1秒は答え直す入力と BGM の戻りに重なる）→ 答え直す
  */
-const SECTION5_NARRATION_FROM = 9 * FPS;
+const SECTION5_PIPELINE_TO = 9 * FPS;
 
 /**
  * 5番の横の経路の図を出す区間。ソナの1問目（Claude が言い回しを作る文）の間だけ出す。
  * 電池切れの後の立て直しの問いは固定文（safety.md）で Claude が作らないので、暗転の前に消す。
  */
 export const PIPELINE_FROM_FRAMES = Math.round(0.5 * FPS);
-export const PIPELINE_TO_FRAMES = SECTION5_NARRATION_FROM;
+export const PIPELINE_TO_FRAMES = SECTION5_PIPELINE_TO;
 
 /** 8番で、架空の患者の表（Issue #261 の PatientTableVideo、5秒＝150 フレーム）を差し込む区間（ボードの全体を4秒見せた後） */
 export const PATIENT_TABLE_FROM_FRAMES = 4 * FPS;
@@ -377,25 +403,30 @@ const ROWS: Row[] = [
     screenNote:
       "3D：ソナが1問目を話す → 文字で答える → 情報源「スマートフォン」→ 電池切れの暗転 → ソナ「では、ほかにどうやって伝えられますか？」→ 2秒の無音 → 答え直す",
     footageFile: "footage/05-phone.mp4",
-    // 録画に音は無い。ソナの声は appVoice で、オーナーの声の台詞は extraNarration で重ねる（ナレーションの 9〜14.8 秒とは重ならない）
+    // 録画に音は無い。ソナの声は appVoice で、オーナーの声の台詞は extraNarration で重ね、ナレーションは narrationParts で切り分ける（上の注）
     footageAudio: false,
     overlay: "pipeline",
-    narrationDelayFrames: SECTION5_NARRATION_FROM,
+    narrationParts: [
+      { fromSeconds: 7.0, fileFromSeconds: 0, fileToSeconds: 2.4 },
+      { fromSeconds: 13.95, fileFromSeconds: 4.6, fileToSeconds: 5.84 },
+    ],
     // 録画（2026-11-08、R1 の4回目）の区間：0〜4 ソナの1問目、4〜10 文字で答える、10〜14.8 情報源「スマートフォン」、
     // 14.8〜18.2 電池切れ、18.2〜24.6 立て直しの問い、24.6〜26.6 無音、26.6〜 答え直す
     appVoice: [
       { file: "voice/05-sona-1.mp3", fromSeconds: 0.2 },
+      // 返事の問いの部分だけ（mp3 の 2.75 秒から。前はお礼の1文と息の音。問いの声は 2.92〜6.29 秒）
+      { file: "voice/05-sona-reply.mp3", fromSeconds: 10.0, fileFromSeconds: 2.75 },
       { file: "voice/05-sona-2.mp3", fromSeconds: 18.8 },
     ],
-    // オーナーの声の台詞：入力している答えの1文目（4〜10秒の入力の間）、電池切れの暗転の間、立て直しの問いの後
+    // オーナーの声の台詞：入力している答えを短くしたもの（4〜10秒の入力の間）、電池切れの暗転の間、立て直しの問いの後
     extraNarration: [
-      { file: "narration/05a.mp3", fromSeconds: 4.4 },
+      { file: "narration/05a.mp3", fromSeconds: 4.3 },
       { file: "narration/05b.mp3", fromSeconds: 15.5 },
       { file: "narration/05c.mp3", fromSeconds: 24.7 },
     ],
     // 寄り：電池切れ〜立て直しの問いでスマホに寄る（情報源を押す所はタップの寄り）
     zooms: [{ from: 18.2, to: 26.6, scale: 1.18, x: 0.49, y: 0.5 }],
-    // 答える（9.46）はナレーションの頭なので波紋だけ。情報源「スマートフォン」→「これで進む」も、
+    // 答える（9.46）はナレーションの直後なので波紋だけ。情報源「スマートフォン」→「これで進む」も、
     // 右の余白に選択肢の札を出すので寄らずに波紋だけ（寄るとスマホの画面が札にかかる）
     taps: [
       { at: 9.46, x: 195, y: 808, zoom: false },
@@ -573,8 +604,13 @@ export const SECTIONS: Section[] = ROWS.reduce<Section[]>((acc, row, i) => {
     overlay: row.overlay ?? null,
     narrationDelayFrames: row.narrationDelayFrames ?? 0,
     footageMutedRanges: row.footageMutedRanges ?? [],
-    appVoice: (row.appVoice ?? []).map((v) => ({ file: v.file, fromFrames: Math.round(v.fromSeconds * FPS) })),
-    extraNarration: (row.extraNarration ?? []).map((v) => ({ file: v.file, fromFrames: Math.round(v.fromSeconds * FPS) })),
+    appVoice: (row.appVoice ?? []).map(toClip),
+    extraNarration: (row.extraNarration ?? []).map(toClip),
+    narrationParts: (row.narrationParts ?? []).map((v) => ({
+      fromFrames: Math.round(v.fromSeconds * FPS),
+      trimBeforeFrames: Math.round(v.fileFromSeconds * FPS),
+      durationFrames: Math.round((v.fileToSeconds - v.fileFromSeconds) * FPS),
+    })),
     footageStartFrame: Math.round((row.footageStartSeconds ?? 0) * FPS),
     zooms: row.zooms ?? [],
     badges: row.badges ?? [],
