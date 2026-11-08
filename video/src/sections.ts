@@ -106,6 +106,8 @@ export type Section = {
   footageFreezeFrame: number | null;
   /** 録画を途中で止めて間を作る（5番）。atFrame（場面の頭から）の絵を frames だけ止め、その後は続きから流す。null なら止めない */
   footageHold: { atFrame: number; frames: number } | null;
+  /** 場面の前半だけ別の見出しを出す（untilFrame は場面の頭から。その後は headline）。null なら頭から headline */
+  headlineIntro: { text: string; untilFrame: number } | null;
   /** 寄り（01 クローズアップ）。無ければ寄らない */
   zooms: Zoom[];
   /** 画面に出す札（05 早回しの「早送り」など） */
@@ -235,7 +237,7 @@ const TELOPS = {
   approve: "発注の提案はコードの計算。承認するのは人（本部）",
   agents: "本部と救護所A〜Dの5つの役を、Claude Managed Agents が演じる",
   summary: "Claude Sonnet 5.5：本人の言葉を写した抽出型の要約",
-  audit: "別のモデル（Claude Managed Agents）が、記録との一致を監査",
+  audit: "別の Claude（Managed Agents 上の Opus 5.5）が、記録との一致を監査",
   human: "最後は人が確かめて「確認済み」にする",
 } as const;
 
@@ -260,6 +262,7 @@ type Row = Omit<
   | "footageStartFrame"
   | "footageFreezeFrame"
   | "footageHold"
+  | "headlineIntro"
   | "zooms"
   | "badges"
   | "taps"
@@ -365,6 +368,15 @@ export const PATIENT_TABLE_FRAMES = 150;
  * ナレーション（07.mp3、10.0 秒）を写真の間に言い終えてから、ボードの録画と章の題に替える
  */
 export const PHOTO_SHOT_FRAMES = Math.round(3.4 * FPS);
+
+/**
+ * 場面の途中で見出しを切り替える。5番は暗転（電池切れ）まで結末を言わず「いつもの薬を伝える」とし、暗転で「スマートフォンが使えない」にする
+ * （v06 の第三者のレビューで「見出しが山場を先に言ってしまう」と指摘。2026-11-08 オーナーが直すと選んだ）
+ */
+function headlineIntroOf(index: number): { text: string; untilFrame: number } | null {
+  if (index === 4) return { text: "いつもの薬を伝える", untilFrame: Math.round(section5Time(14.8) * FPS) };
+  return null;
+}
 
 const ROWS: Row[] = [
   {
@@ -526,11 +538,12 @@ const ROWS: Row[] = [
     footageFile: "footage/08-board.mp4",
     footageAudio: false,
     overlay: "patientTable",
-    // 頭は 7番から続く 07a（〜4.1 秒）。08.mp3 の文の切れ目に合わせて 5.5 秒遅らせる：「100人の架空の患者」が患者の表（4〜9秒）、
+    // 頭は 7番から続く 07a（〜4.3 秒）。08.mp3 の文の切れ目に合わせて 5.5 秒遅らせる：「100人の架空の患者」が患者の表（4〜9秒）、
     // 「在庫が減ります」が早送り（9〜13秒）、「手配を承認し」が承認のタップ（16.01秒）の少し前に来る
     narrationDelayFrames: sec(5.5),
-    // 受領の後に 08a「リアルタイムで発注が入ってくるのがわかります。」（2026-11-08 オーナーの依頼。2:01〜2:06）
-    extraNarration: [{ file: "narration/08a.mp3", fromSeconds: 18.0 }],
+    // 08.mp3 の後に 08a「デモの時計を進めると、発注の提案が次々に入るのがわかります。」（2026-11-08 オーナーの依頼。
+    // 4.8 秒。v06 のレビューで「リアルタイム」を言い換えて長くなったので 18.0 → 16.2 秒に早め、場面の終わり（21秒）の前に終える）
+    extraNarration: [{ file: "narration/08a.mp3", fromSeconds: 16.2 }],
     // 05 ログの早回し：自動で進める所（デモ時計の早送り）。録画に合わせて直す
     // 録画の区間：0〜5.5 全体、5.5〜13 受け入れと早送り（4〜9 は患者の表が重なる）、13〜 発注・搬送 → 承認 → 搬送 → 受領
     badges: [{ from: 9, to: 13, text: "▶▶ デモの時間を早送り" }],
@@ -566,8 +579,8 @@ const ROWS: Row[] = [
     screenNote: "カルテ：見本の会話 → 要約（引用に寄る）→ 監査の指摘 →「人が確認済み」",
     footageFile: "footage/10-board.mp4",
     footageAudio: false,
-    // 10.mp3（13.4 秒）を 0.8 秒から：「AI要約され」が要約の出た所、「別のモデルが…監査する仕組みです」が監査、
-    // 「最後に確かめるのは、人です」が確認済みにするタップ（11.2秒）の後に来る。録画（13.0 秒）が場面より短いので 12.9 秒で止める
+    // 10.mp3（14.2 秒、声は 14.0 秒まで）を 0.8 秒から：「AI要約され」が要約の出た所、「別のモデルが…確かめます」（9.1〜11.9秒）が監査、
+    // 「最後に確かめるのは、人です」（12.8秒〜）が確認済みにするタップ（11.2秒）の後に来る。録画（13.0 秒）が場面より短いので 12.9 秒で止める
     narrationDelayFrames: sec(0.8),
     footageFreezeSeconds: 12.9,
     // 録画の区間：0〜2.8 要約を作る、2.8〜 要約が出た所 → 記録との一致をチェック（監査）→ 確認済みにする → 最後の絵を止める
@@ -577,9 +590,9 @@ const ROWS: Row[] = [
       { at: 11.2, x: 514, y: 828 },
     ],
     telops: [
-      { from: 3.6, to: 7.6, text: TELOPS.summary },
-      { from: 7.9, to: 11.4, text: TELOPS.audit },
-      { from: 11.8, to: 15, text: TELOPS.human },
+      { from: 3.6, to: 8.7, text: TELOPS.summary },
+      { from: 8.9, to: 11.9, text: TELOPS.audit },
+      { from: 12.2, to: 15, text: TELOPS.human },
     ],
   },
   {
@@ -638,6 +651,7 @@ export const SECTIONS: Section[] = ROWS.reduce<Section[]>((acc, row, i) => {
     durationInFrames,
     timeLabel: `${clock(startSec)}–${clock(endSec)}`,
     headline: HEADLINES[i],
+    headlineIntro: headlineIntroOf(i),
     privateNarration: row.privateNarration ?? false,
     photoShots: row.photoShots ?? [],
     captionFile: row.captionFile ?? null,
@@ -681,7 +695,7 @@ export const ENDCARD_FRAMES = 4 * FPS;
 
 /**
  * 場面をまたいで鳴らすナレーション（2026-11-08 オーナー：「1：41から1：47にかけてセリフ追加」）。
- * 07a「そこで、災害時の情報集約の場として、…作成しました。」（7.0 秒）を、7番の写真の後（10.4 秒）から 8番の頭にかけて鳴らす。
+ * 07a「そこで、災害時の情報集約の場として、…作りました。」（7.1 秒、声は 6.9 秒まで）を、7番の写真の後（10.4 秒）から 8番の頭にかけて鳴らす。
  * 場面ごとの Sequence の中に置くと場面の終わりで切れるので、全体の時間で置く
  */
 export const CROSS_NARRATION: Array<{ file: string; fromFrames: number }> = [

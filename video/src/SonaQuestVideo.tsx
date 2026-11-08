@@ -405,11 +405,16 @@ const EndCard: FC = () => {
 const Caption: FC<{ section: Section; inColumn: boolean }> = ({ section, inColumn }) => {
   const frame = useCurrentFrame();
   const continued = SECTIONS[section.number - 2]?.headline === section.headline;
-  const opacity = continued ? 1 : interpolate(frame, [0, 12], [0, 1], { extrapolateRight: "clamp" });
+  // 前半だけ別の見出しを出す場面（5番）は、切り替えの所で後半の見出しをもう一度フェードで出す
+  const intro = section.headlineIntro;
+  const inIntro = intro !== null && frame < intro.untilFrame;
+  const text = inIntro ? intro.text : section.headline;
+  const fadeFrom = intro !== null && !inIntro ? intro.untilFrame : 0;
+  const opacity = continued && fadeFrom === 0 ? 1 : interpolate(frame, [fadeFrom, fadeFrom + 12], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   if (inColumn) {
     return (
       <div style={{ ...baseText, position: "absolute", top: 72, left: LEFT_COLUMN.left, width: LEFT_COLUMN.width, opacity }}>
-        <div style={{ fontSize: Math.min(60, Math.floor(LEFT_COLUMN.width / section.headline.length)), fontWeight: 700, lineHeight: 1.25 }}>{section.headline}</div>
+        <div style={{ fontSize: Math.min(60, Math.floor(LEFT_COLUMN.width / text.length)), fontWeight: 700, lineHeight: 1.25 }}>{text}</div>
       </div>
     );
   }
@@ -428,7 +433,7 @@ const Caption: FC<{ section: Section; inColumn: boolean }> = ({ section, inColum
         opacity,
       }}
     >
-      <div style={{ fontSize: 44, fontWeight: 700 }}>{section.headline}</div>
+      <div style={{ fontSize: 44, fontWeight: 700 }}>{text}</div>
     </div>
   );
 };
