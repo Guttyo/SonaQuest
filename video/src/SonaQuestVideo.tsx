@@ -4,7 +4,7 @@
 import type { CSSProperties, FC, ReactNode } from "react";
 import { AbsoluteFill, Audio, Easing, Img, OffthreadVideo, Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
 import { ENDCARD_FRAMES, FPS, HEIGHT, SECTIONS, SECTION_COUNT, WIDTH, type Section, type Tap, type Zoom } from "./sections";
-import { CLOSING_LINE } from "./slideText";
+import { CLOSING_LINE, EVENT_CREDIT } from "./slideText";
 import {
   ModelsDemo,
   PatientTableOverlay,
@@ -319,6 +319,21 @@ const EndCard: FC = () => {
           <path fill={LOGO_COLOR_ACCENT} d={LOGO_ACCENT_PATH} />
         </svg>
         <div style={{ fontSize: 48, fontWeight: 700, color: LOGO_COLOR_WORD }}>お薬の避難訓練</div>
+      </div>
+      <div
+        style={{
+          position: "absolute",
+          bottom: 64,
+          left: 0,
+          right: 0,
+          textAlign: "center",
+          fontSize: 32,
+          letterSpacing: 1,
+          color: COLORS.sub,
+          opacity: logoOpacity,
+        }}
+      >
+        {EVENT_CREDIT}
       </div>
     </AbsoluteFill>
   );

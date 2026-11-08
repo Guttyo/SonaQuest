@@ -37,3 +37,6 @@ export const PIPELINE = {
 
 /** 13番：締めの文（2026-11-08 オーナー決定。2026-11-05 の「平時の練習が、災害時の備えになる。」から変更） */
 export const CLOSING_LINE = "普段からの練習が、いざというときの備えになる。";
+
+/** 13番：締めの画面の下の大会のクレジット（2026-11-08 オーナー：「最後のスライドに Built with Cloud Japan 2026っていうクレジット入れといた方がいいかもしれない」。表記は大会の名前） */
+export const EVENT_CREDIT = "Built with Claude: Japan 2026 提出作品";
