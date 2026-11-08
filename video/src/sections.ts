@@ -562,12 +562,16 @@ const ROWS: Row[] = [
     voice: "ナレーター",
     screen: "board",
     screenNote: "掲示板：救護所の報告と本部の返事を1組だけ寄せて見せる",
-    footageFile: "footage/09-board.mp4",
+    // 救護所のエージェントの返事が映る録画（R3 の 9〜11 秒と 47.5〜55.5 秒をつないだ 10 秒。09-board-v2.json）。
+    // 前の 09-board.mp4 は書き込みの後「返事を待っています…」のまま切れていた（v06 の第三者のレビューの指摘、2026-11-08 オーナー「別セッションでB-9取れるか試して」）。
+    // 0.23 エージェントの連絡を始める、2.79 本部として書き込む、5.95 救護所Aの返事が出る → 返事の吹き出しに寄る
+    footageFile: "footage/09-board-v2.mp4",
     footageAudio: false,
     taps: [
       { at: 0.23, x: 489, y: 579, zoom: false },
-      { at: 6.79, x: 643, y: 992 },
+      { at: 2.79, x: 643, y: 992 },
     ],
+    zooms: [{ from: 5.9, to: 10.6, scale: 1.5, x: 880 / 1920, y: 962 / 1080 }],
     telops: [{ from: 1.0, to: 6, text: TELOPS.agents }],
     narrationDelayFrames: sec(1.0),
   },
