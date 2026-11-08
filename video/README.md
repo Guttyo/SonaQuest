@@ -74,7 +74,7 @@ npm --prefix video run narration -- --force --only 2,5
 | 2 | `footage/02-quake-map.mp4` | 震源の地図のアニメーション（10秒）。「21回」と出典は Remotion で重ねる |
 | 3 | `photos/03-a`・`03-b`・`03-c` | 本人の経験の写真（`03-a` と `03-b` を横に並べ、次に `03-c`）。拡張子は jpg・png・webp のどれでもよい |
 | 4〜6・13 | `frames/iphone-bezel.webp` | スマホの枠の画像（オーナーが渡した iPhone のベゼル。978×2000 の透過 webp）。無ければ CSS で描いた枠になる |
-| 4〜6・13 | `footage/04-phone.mp4` など | スマホ幅（390×844）の録画。スマホの枠に入る。録画に音は無い。5番のソナの声は `voice/05-sona-1.mp3`・`05-sona-2.mp3`（公開 URL の `/api/tts` で合成。アプリと同じ声）を `sections.ts` の `appVoice` の時刻に重ねる |
+| 4〜6・13 | `footage/04-phone.mp4` など | スマホ幅（390×844）の録画。スマホの枠に入る。録画に音は無い。5番のソナの声は `voice/05-sona-1.mp3`・`05-sona-reply.mp3`・`05-sona-2.mp3`（公開 URL の `/api/tts` で合成。アプリと同じ声）を `sections.ts` の `appVoice` の時刻に重ねる（`05-sona-reply.mp3` は問いの部分だけを切り出して鳴らす） |
 | 7 | `photos/07-a`・`07-b`・`07-c`、`footage/07-board.mp4` | 当時の本部と救護所の写真（3秒ずつ）の後に、ボードの全体の録画 |
 | 8〜10 | `footage/08-board.mp4` など | ボードの横長の録画（1920×1080）。8番は 4〜9 秒に架空の患者の表（`src/patientTable/PatientTableVideo.tsx`）が重なる |
 | 11 | `footage/11-phone.mp4`・`11-chat.mp4`・`11-karte.mp4` | モデルの使い分けで並べる、訓練・掲示板・カルテの録画（各9秒）。札は `src/modelMap.ts` から重ねる |
