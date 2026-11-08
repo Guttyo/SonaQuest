@@ -294,7 +294,8 @@ const ENDCARD_LOGO_WIDTH = 980;
 const EndCard: FC = () => {
   const frame = useCurrentFrame();
   const opacity = interpolate(frame, [0, 15], [0, 1], { extrapolateRight: "clamp" });
-  const logoOpacity = interpolate(frame, [45, 65], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  // ロゴは、ナレーションが「ソナクエスト。」と言う所（締めの画面の頭から約 2.34 秒）で出す。ロゴは 4 秒残る
+  const logoOpacity = interpolate(frame, [70, 88], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   return (
     <AbsoluteFill
       style={{

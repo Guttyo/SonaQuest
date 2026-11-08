@@ -260,16 +260,30 @@ type Row = Omit<
  * 電池切れの暗転の録画は置かない：アプリの上の帯「お薬の避難訓練」が暗くならずに映るため
  * （2026-11-08 オーナー：「最初に一瞬だけお薬の避難訓練が映る」）。暗転は5番の録画で見せる。
  */
-// 問いの後の間は1秒（2026-11-08 オーナー決定）。ナレーション約7秒＋1秒で8秒に収まる
-export const QUESTION_BLACKOUT_FRAMES = Math.round(1.0 * FPS);
+// 問いの後の間は1秒（2026-11-08 オーナー決定）。合成したナレーション（01.mp3、声は 6.09 秒で終わる）を
+// 問いの文字と同時に鳴らし、黒 0.9 秒＋声 6.09 秒＋間 1.0 秒で 8 秒に収める（opening.wav の鈴も 0.9 秒）
+export const QUESTION_BLACKOUT_FRAMES = Math.round(0.9 * FPS);
 
-/** 2番で「21回」を出し始めるフレーム（ナレーションが回数を言うところの見込み）。合成した長さに合わせて直す */
-export const QUAKE_COUNT_FROM_FRAMES = 4 * FPS;
+/** 秒 → フレーム */
+const sec = (seconds: number) => Math.round(seconds * FPS);
+
+/**
+ * 合成したナレーションの長さ（秒。2026-11-08 に ffprobe で測った値。mp3 の頭と終わりの無音を含む）。
+ * 各場面の narrationDelayFrames と、言葉に合わせた札・寄りの時刻は、この長さと文の切れ目（ffmpeg の silencedetect）から決めた。
+ * 合成し直したら測り直して直す。
+ */
+export const NARRATION_SECONDS: Record<number, number> = {
+  1: 6.32, 2: 6.32, 3: 12.08, 4: 5.2, 5: 5.84, 6: 9.6, 7: 10.0, 8: 12.72, 9: 7.6, 10: 8.4, 11: 2.72, 12: 3.12, 13: 4.8,
+};
+
+/** 2番で「21回」を出し始めるフレーム。02.mp3 で「すでに」の後の間（5.19〜5.35 秒）が明けて回数を言う所 */
+export const QUAKE_COUNT_FROM_FRAMES = sec(5.3);
 
 /**
  * 5番の時間（2026-11-08 の R1 の録画に合わせた）。
  * - 0〜：ソナが1問目を話す（アプリの声を appVoice で重ねる）→ 文字で答える
- * - SECTION5_NARRATION_FROM：ナレーション「薬の写真は、スマホに入っている。…ところが……」（約8秒）
+ * - SECTION5_NARRATION_FROM：ナレーション「薬の写真は、スマホに入っている。…ところが……」（05.mp3 は 5.84 秒。
+ *   「ところが……」は 14.5 秒に言い終わり、14.8 秒の電池切れの暗転にちょうど着く）
  * - その後：電池切れの暗転 → ソナの立て直しの問い（アプリの声）→ 2秒の無音 → 答え直す
  */
 const SECTION5_NARRATION_FROM = 9 * FPS;
@@ -285,8 +299,11 @@ export const PIPELINE_TO_FRAMES = SECTION5_NARRATION_FROM;
 export const PATIENT_TABLE_FROM_FRAMES = 4 * FPS;
 export const PATIENT_TABLE_FRAMES = 150;
 
-/** 写真の後に録画を続ける場面（7番）で、写真1カットに使う長さ */
-export const PHOTO_SHOT_FRAMES = 3 * FPS;
+/**
+ * 写真の後に録画を続ける場面（7番）で、写真1カットに使う長さ。3カットで 10.2 秒にし、
+ * ナレーション（07.mp3、10.0 秒）を写真の間に言い終えてから、ボードの録画と章の題に替える
+ */
+export const PHOTO_SHOT_FRAMES = Math.round(3.4 * FPS);
 
 const ROWS: Row[] = [
   {
@@ -296,6 +313,8 @@ const ROWS: Row[] = [
     screenNote: "黒の地 → 問いを大きく文字で",
     footageFile: null,
     footageAudio: false,
+    // 問いの文字と同時に読み始める
+    narrationDelayFrames: QUESTION_BLACKOUT_FRAMES,
   },
   {
     seconds: 10,
@@ -317,6 +336,7 @@ const ROWS: Row[] = [
     photoShots: [["photos/03-a", "photos/03-b"], ["photos/03-c"]],
     // 1カット目（顔の写った写真）に名前の札（2026-11-08 オーナーの依頼。中身は Git の外）
     nameplateFile: "private/03-nameplate.json",
+    narrationDelayFrames: sec(0.5),
   },
   {
     seconds: 8,
@@ -327,6 +347,8 @@ const ROWS: Row[] = [
     footageAudio: false,
     chapter: { text: CHAPTERS.training, at: 0 },
     bezel: true,
+    // 章の題の音（0秒）と重ねない
+    narrationDelayFrames: sec(0.5),
     taps: [
       { at: 4.48, x: 287, y: 422 },
       { at: 6.39, x: 195, y: 615 },
@@ -376,6 +398,8 @@ const ROWS: Row[] = [
     footageAudio: false,
     // 寄りの下書き：振り返りの「まだ弱いところ」の札。録画に合わせて直す
     zooms: [{ from: 0.5, to: 6, scale: 1.25, x: 0.49, y: 0.4 }],
+    // 「この人は、薬のメモを財布に入れると決めました」（06.mp3 の 6.21 秒〜）が、財布に入れるを押す所（8.97 秒）に重なる
+    narrationDelayFrames: sec(1.0),
     // 準備行動「財布に入れる」→「今週中」→「これに決める」。右の余白に選択肢の札を出すので寄らずに波紋だけ
     taps: [
       { at: 8.97, x: 195, y: 422, zoom: false },
@@ -405,8 +429,8 @@ const ROWS: Row[] = [
     footageFile: "footage/07-board.mp4",
     footageAudio: false,
     photoShots: [["photos/07-a"], ["photos/07-b"], ["photos/07-c"]],
-    // 写真の3カット（9秒）の後、ボードの録画に替わる所で章の題を出す
-    chapter: { text: CHAPTERS.board, at: 9 },
+    // 写真の3カット（10.2 秒。PHOTO_SHOT_FRAMES）の後、ボードの録画に替わる所で章の題を出す。ナレーションは 10.0 秒で終わる
+    chapter: { text: CHAPTERS.board, at: 10.2 },
   },
   {
     seconds: 23,
@@ -417,6 +441,9 @@ const ROWS: Row[] = [
     footageFile: "footage/08-board.mp4",
     footageAudio: false,
     overlay: "patientTable",
+    // 08.mp3 の文の切れ目に合わせて 3.5 秒遅らせる：「100人の架空の患者」が患者の表（4〜9秒）、
+    // 「在庫が減ります」が早送り（9〜13秒）、「手配を承認し」が承認のタップ（16.01秒）の少し前に来る
+    narrationDelayFrames: sec(3.5),
     // 05 ログの早回し：自動で進める所（デモ時計の早送り）。録画に合わせて直す
     // 録画の区間：0〜5.5 全体、5.5〜13 受け入れと早送り（4〜9 は患者の表が重なる）、13〜 発注・搬送 → 承認 → 搬送 → 受領
     badges: [{ from: 9, to: 13, text: "▶▶ デモの時間を早送り" }],
@@ -441,6 +468,7 @@ const ROWS: Row[] = [
       { at: 6.79, x: 643, y: 992 },
     ],
     telops: [{ from: 1.0, to: 6, text: TELOPS.agents }],
+    narrationDelayFrames: sec(1.0),
   },
   {
     seconds: 13,
@@ -449,6 +477,9 @@ const ROWS: Row[] = [
     screenNote: "カルテ：見本の会話 → 要約（引用に寄る）→ 監査の指摘 →「人が確認済み」",
     footageFile: "footage/10-board.mp4",
     footageAudio: false,
+    // 10.mp3 の文の切れ目に合わせて 2.5 秒遅らせる：「引用だけで作り」が要約、「別のモデルが監査します」が監査、
+    // 「最後に確かめるのは、人です」が確認済みにするタップ（11.2秒）の直前に来る
+    narrationDelayFrames: sec(2.5),
     // 録画の区間：0〜2.8 要約を作る、2.8〜 要約が出た所 → 記録との一致をチェック（監査）→ 確認済みにする → 最後の絵を止める
     taps: [
       { at: 0.63, x: 507, y: 775 },
@@ -468,6 +499,7 @@ const ROWS: Row[] = [
     screenNote: "モデルの使い分け：訓練・掲示板・カルテの実際の画面を並べ、それぞれにモデルの流れの札を重ねる。下に Claude Code",
     footageFile: null,
     footageAudio: false,
+    narrationDelayFrames: sec(0.5),
   },
   {
     seconds: 10,
@@ -480,6 +512,7 @@ const ROWS: Row[] = [
     photoShots: [["photos/12-a"], ["photos/12-b"]],
     captionFile: "private/12-caption.txt",
     quoteFile: "private/12-quote.json",
+    narrationDelayFrames: sec(1.0),
   },
   {
     seconds: 10,
@@ -488,6 +521,9 @@ const ROWS: Row[] = [
     screenNote: "選んだ準備のカードを一瞬 → 締めの画面（ロゴは仮の文字。Issue #263 で作る）",
     footageFile: "footage/13-phone.mp4",
     footageAudio: false,
+    // 準備のカードの後、「普段からの練習が、」を言い終える頃（3秒）に締めの画面へ替わり、
+    // 「ソナクエスト。」（13.mp3 の 3.84 秒〜 → 5.34 秒）でロゴが出る（SonaQuestVideo.tsx の EndCard）
+    narrationDelayFrames: sec(1.5),
   },
 ];
 

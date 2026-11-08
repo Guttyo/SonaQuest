@@ -60,7 +60,8 @@ const useRise = (startFrame: number) => {
 /** 電池切れの暗転（あれば録画の切り出し）の後に、問いを2行で大きく出す。地は暗転に続けて黒 */
 export const QuestionSlide: FC<{ section: Section }> = ({ section }) => {
   const line1 = useRise(QUESTION_BLACKOUT_FRAMES);
-  const line2 = useRise(QUESTION_BLACKOUT_FRAMES + Math.round(1.6 * FPS));
+  // 2行目は、ナレーション（01.mp3）が「そのとき、」と言い始める所（問いの文字から 2.98 秒）
+  const line2 = useRise(QUESTION_BLACKOUT_FRAMES + Math.round(2.95 * FPS));
   return (
     <AbsoluteFill style={{ backgroundColor: COLORS.night }}>
       {hasStaticFile(section.footageFile) ? (
