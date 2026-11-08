@@ -28,7 +28,7 @@ export const PIPELINE = {
   title: "訓練の文が画面に出るまで",
   steps: [
     { title: "Claude Opus 5.5", sub: "質問の言い回しを作る" },
-    { title: "Workers の検査", sub: "決まりで確かめる（コード）" },
+    { title: "ルールで自動チェック", sub: "禁止の言葉・長さ（コード）" },
     { title: "Claude Haiku 5.5", sub: "監査役が確かめる" },
     { title: "画面へ", sub: "止めたら固定文に戻す" },
   ],
@@ -37,3 +37,15 @@ export const PIPELINE = {
 
 /** 13番：締めの文（2026-11-08 オーナー決定。2026-11-05 の「平時の練習が、災害時の備えになる。」から変更） */
 export const CLOSING_LINE = "普段からの練習が、いざというときの備えになる。";
+
+/**
+ * 13番：締めの画面の下の大会のクレジット（2026-11-08 オーナー：「最後のスライドに Built with Cloud Japan 2026っていうクレジット入れといた方がいいかもしれない」
+ * 「正式名はBuilt with Claude: Japan 2026」「モンストロピックとシルバーバレーの主催のハッカソンだよってことがわかるように」。
+ * 主催の表記は、オーナーが貼った案内の参加者ガイドが cerebralvalley.ai にあることから Anthropic・Cerebral Valley とした）
+ */
+export const EVENT_CREDIT = "Built with Claude: Japan 2026 提出作品（主催：Anthropic・Cerebral Valley）";
+/**
+ * 13番：クレジットの下の期間（2026-11-08 オーナー：「ハッカソンの開催期間と、開発期間、11月2日から8日の20時みたいな感じ」）。
+ * 日時はオーナーが貼った大会の日程：11/2 12:00 キックオフ・12:30 開発スタート、11/8 20:00 提出締切、11/10 最終審査・クロージング
+ */
+export const EVENT_PERIOD = "開催期間：2026年11月2日〜11月10日　／　開発期間：11月2日 12:30〜11月8日 20:00（日本時間）";

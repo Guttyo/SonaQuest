@@ -14,6 +14,16 @@ export const NARRATION_BEATS = [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 13];
 export const PRIVATE_NARRATION_BEATS = [3, 12];
 /** 合成できる場面のすべて（番号の順） */
 export const ALL_NARRATION_BEATS = [...NARRATION_BEATS, ...PRIVATE_NARRATION_BEATS].sort((a, b) => a - b);
+/**
+ * 場面の中の間に足す、オーナーの声の台詞（2026-11-08 オーナー：「0:50のところ、実際の入力に合わせて僕の声で発言して」
+ * 「スマホの充電が切れてしまっていました・・・というのを0:57くらいに入れてほしい。僕の声で」「僕の声でセリフね。続きのナレーションみたいな感じ」）。
+ * id は場面の番号（2桁）＋英字。原稿は video/narration/<id>.txt、音声は video/public/narration/<id>.mp3。
+ * 2026-11-08 の直し（オーナー、チャット）で 06a（振り返りの後の一言）・07a（ボードの紹介。7番から8番にまたがる）・08a（発注が入る所）を足した。
+ * 鳴らす時刻は sections.ts の extraNarration（07a は場面をまたぐので CROSS_NARRATION）。
+ */
+export const EXTRA_CLIPS = ["05a", "05b", "05c", "06a", "07a", "08a"];
+/** 合成できるもののすべて（場面のナレーション＋足す台詞）。ファイル名の順 */
+export const ALL_CLIPS = [...ALL_NARRATION_BEATS, ...EXTRA_CLIPS].sort((a, b) => beatId(a).localeCompare(beatId(b)));
 
 /** 原稿がリポジトリの外の場面か */
 export const isPrivateBeat = (beat) => PRIVATE_NARRATION_BEATS.includes(beat);
@@ -28,6 +38,15 @@ export const DEFAULT_MODEL_ID = "eleven_v4";
 // [TODO-OWNER: ナレーションの voice_settings（今はアプリの TTS_VOICE_SETTINGS を写した stability 0.65・similarity_boost 0.75。文書に v4 の推奨値が見当たらなかったので下書き。合成して聞いて決める）]
 /** 声の設定。アプリの web/worker/tts.ts と同じ値を写した（別パッケージなので import しない。ADR-0045） */
 export const VOICE_SETTINGS = Object.freeze({ stability: 0.65, similarity_boost: 0.75 });
+/**
+ * 場面ごとの声の設定の上書き（id → 足す値）。2番は少しゆっくり読み、「21回起きています」の後の間を約1秒詰める
+ * （2026-11-08 オーナー：「ナレーションのスピードを遅くして、1秒長くするか」「映像やBGMは変えないで」）。
+ * speed は ElevenLabs の voice_settings の読む速さ（1.0 が既定）。
+ */
+// 2番は 2026-11-08 に一度 speed 0.85 にしたが、同じ日にオーナーの依頼で元の速さに戻した（「元の速度に戻してほしい」）
+export const CLIP_VOICE_SETTINGS = Object.freeze({});
+/** その id の声の設定（既定の値に上書きを重ねる） */
+export const voiceSettingsFor = (beat) => ({ ...VOICE_SETTINGS, ...(CLIP_VOICE_SETTINGS[beatId(beat)] ?? {}) });
 /** 出力の形式。どのプランでも使える形（アプリと同じ）。音質を上げるならオーナーが変える */
 export const OUTPUT_FORMAT = "mp3_44100_64";
 export const TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/";
@@ -46,11 +65,15 @@ const VOICE_ID_PATTERN = /^[A-Za-z0-9]{8,64}$/;
 /** モデルの ID の形 */
 const MODEL_ID_PATTERN = /^[A-Za-z0-9_.-]{1,64}$/;
 
-/** 番号を2桁にする（2 → "02"） */
-export const beatId = (beat) => {
+/** 番号を2桁にする（2 → "02"）。足す台詞の id（"05a" など）はそのまま返す */
+export function beatId(beat) {
+  if (typeof beat === "string") {
+    if (!/^\d{2}[a-z]$/.test(beat)) throw new RangeError("足す台詞の id は 2桁の番号＋英字（例：05a）");
+    return beat;
+  }
   if (!Number.isInteger(beat) || beat < 1 || beat > 99) throw new RangeError("ビートの番号は 1〜99 の整数");
   return String(beat).padStart(2, "0");
-};
+}
 
 /** 原稿のファイル：video/narration/NN.txt。リポジトリの外の場面は video/public/private/narration/NN.txt */
 export const narrationTextPath = (videoDir, beat) =>
@@ -71,7 +94,7 @@ export const envFilePath = (videoDir) => path.join(videoDir, ".env");
  * --only 2,5：そのビートだけ合成する
  */
 export const parseArgs = (argv) => {
-  const options = { force: false, beats: [...ALL_NARRATION_BEATS] };
+  const options = { force: false, beats: [...ALL_CLIPS] };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === "--force") {
@@ -80,11 +103,14 @@ export const parseArgs = (argv) => {
       const value = argv[i + 1];
       i += 1;
       if (!value) throw new Error("--only の後にビートの番号（例：2,5）を書いてください");
-      const beats = value.split(",").map((s) => Number(s.trim()));
+      const beats = value.split(",").map((s) => {
+        const t = s.trim();
+        return /^\d+$/.test(t) ? Number(t) : t;
+      });
       for (const b of beats) {
-        if (!ALL_NARRATION_BEATS.includes(b)) throw new Error(`--only に使える番号は ${ALL_NARRATION_BEATS.join(",")} です`);
+        if (!ALL_CLIPS.includes(b)) throw new Error(`--only に使えるのは ${ALL_CLIPS.join(",")} です`);
       }
-      options.beats = [...new Set(beats)].sort((a, b) => a - b);
+      options.beats = [...new Set(beats)].sort((a, b) => beatId(a).localeCompare(beatId(b)));
     } else {
       throw new Error(`知らない引数です（使えるのは --force と --only）`);
     }
@@ -119,7 +145,7 @@ export const normalizeText = (raw, beat) => {
 };
 
 /** ElevenLabs の text-to-speech の呼び出しを組み立てる（送るのはこの関数の戻り値だけ） */
-export const buildTtsRequest = ({ apiKey, voiceId, modelId, text }) => ({
+export const buildTtsRequest = ({ apiKey, voiceId, modelId, text, voiceSettings = VOICE_SETTINGS }) => ({
   url: `${TTS_URL}${encodeURIComponent(voiceId)}?output_format=${OUTPUT_FORMAT}`,
   init: {
     method: "POST",
@@ -128,7 +154,7 @@ export const buildTtsRequest = ({ apiKey, voiceId, modelId, text }) => ({
       "content-type": "application/json",
       accept: "audio/mpeg",
     },
-    body: JSON.stringify({ text, model_id: modelId, language_code: "ja", voice_settings: VOICE_SETTINGS }),
+    body: JSON.stringify({ text, model_id: modelId, language_code: "ja", voice_settings: voiceSettings }),
   },
 });
 

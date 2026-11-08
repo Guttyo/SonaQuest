@@ -12,8 +12,8 @@ SonaQuest の提出動画（3分。Issue #28、SUB-01）を組み立てる、ア
 |---|---|
 | 13場面の骨組み（可変の尺、仮の画面、素材の枠、締めの画面） | 作った（Issue #262）。`npx remotion compositions` で 5400 フレーム（3:00）になることと、主な場面の静止画を確かめた。10秒の試し書き出し（1920×1080・30fps）は 20秒×9の版で行った |
 | Remotion で描く仮の部品（冒頭の問い、「21回」と出典、5番の経路の図、11番のモデルの使い分けの一枚、締めの画面） | 作った（Issue #262。`src/slides.tsx`・`src/slideText.ts`・`src/modelMap.ts`）。見た目はオーナーが見て直す |
-| ナレーション合成のスクリプト | 作った。`video/.env` が無いときの案内と単体試験まで。本物の合成はしていない |
-| ナレーションの合成・撮影・組み立て・全体の書き出し | 未着手（オーナーが行う） |
+| ナレーション合成のスクリプト | 作った。2026-11-08 にオーナーのキーで13本を合成した（Issue #272。mp3 は Git の対象外）。環境変数のファイルが無いときの案内と単体試験もある |
+| ナレーションの合成・撮影・組み立て・全体の書き出し | 撮影・合成・組み立てまでした（Issue #272）。ナレーションの長さに合わせて時刻を直し、180秒の書き出しで場面ごとの声と BGM の大きさを測った。提出用の書き出し（`npm run render`）はオーナーが聞いてから |
 | 8番の架空の患者 100 人の表 | 差し込む枠だけ（部品は Issue #261） |
 | ロゴ、公開 URL | 未着手（仮の文字。ロゴは Issue #263） |
 
@@ -43,12 +43,15 @@ npm --prefix video run narration
 ```
 
 - 原稿は `video/narration/NN.txt`（1・2・4〜11・13番。読み上げの原稿なので「ソナクエスト」とカタカナ）。
+- 5番には、架空の患者の台詞を本人のクローン音声で3本足しています（`05a.txt`〜`05c.txt`。2026-11-08 オーナー決定。置く時刻は `src/sections.ts` の `extraNarration`）。6番・8番の間にも一言（`06a.txt`・`08a.txt`）、7番から8番にまたがって `07a.txt`（`CROSS_NARRATION`）を足しています。`--only` には `05b` のように書けます。
 - 3番（本人の経験）と 12番（協力者と試用した人の感想）の原稿はリポジトリに置きません（CLAUDE.md 絶対ルール8）。合成するときは、BWJ2026_Docs の原稿を `video/public/private/narration/03.txt`・`12.txt`（Git の対象外）に写します。置かれていなければ、その場面は飛ばします（失敗にしません）。
 - 書き出し先は `video/public/narration/NN.mp3`。既にある mp3 は飛ばします。作り直すときは次のようにします。
 
 ```bash
 npm --prefix video run narration -- --force --only 2,5
 ```
+
+- 台詞ごとに声の設定を変えるときは `narration-lib.mjs` の `CLIP_VOICE_SETTINGS` に書きます（今は2番だけ `speed` 0.85。`eleven_v4` では効きが小さく、6.32 秒が 6.56 秒になっただけでした）。
 
 - ログに出るのは番号・件数・所要時間・HTTP の状態だけです。キー・声の ID・本文は出しません。
 - 形式は `mp3_44100_64`（どのプランでも使える形。アプリと同じ）、声の設定は stability 0.65・similarity_boost 0.75（アプリと同じ値を写した下書き。v4 の推奨値は文書に見当たらなかった）。変えるときは `video/scripts/narration-lib.mjs` の定数を直します。
@@ -68,17 +71,22 @@ npm --prefix video run narration -- --force --only 2,5
 
 | 場面 | ファイル | 中身 |
 |---|---|---|
-| 1 | `footage/01-blackout.mp4` | 電池切れの暗転（5番の録画から 1.5 秒を切り出す）。無くても黒の地に問いの文字が出る |
 | 2 | `footage/02-quake-map.mp4` | 震源の地図のアニメーション（10秒）。「21回」と出典は Remotion で重ねる |
 | 3 | `photos/03-a`・`03-b`・`03-c` | 本人の経験の写真（`03-a` と `03-b` を横に並べ、次に `03-c`）。拡張子は jpg・png・webp のどれでもよい |
 | 4〜6・13 | `frames/iphone-bezel.webp` | スマホの枠の画像（オーナーが渡した iPhone のベゼル。978×2000 の透過 webp）。無ければ CSS で描いた枠になる |
-| 4〜6・13 | `footage/04-phone.mp4` など | スマホ幅（390×844）の録画。スマホの枠に入る。5番だけ録画の音（アプリのソナの声）を鳴らし、ナレーションの間（`sections.ts` の `SECTION5_NARRATION_FROM`・`SECTION5_NARRATION_FRAMES`）だけ消す |
+| 4〜6・13 | `footage/04-phone.mp4` など | スマホ幅（390×844）の録画。スマホの枠に入る。録画に音は無い。5番のソナの声は `voice/05-sona-1.mp3`・`05-sona-reply.mp3`・`05-sona-2.mp3`（公開 URL の `/api/tts` で合成。アプリと同じ声）を `sections.ts` の `appVoice` の時刻に重ねる（`05-sona-reply.mp3` は問いの部分だけを切り出して鳴らす） |
 | 7 | `photos/07-a`・`07-b`・`07-c`、`footage/07-board.mp4` | 当時の本部と救護所の写真（3秒ずつ）の後に、ボードの全体の録画 |
-| 8〜10 | `footage/08-board.mp4` など | ボードの横長の録画（1920×1080）。8番は 4〜10 秒に架空の患者の表の枠が重なる |
-| 12 | `photos/12-a`・`12-b`、`private/12-caption.txt` | 協力者の写真と、試用した人の写真。2枚目に感想の一節（テキストファイルの文をそのまま出す） |
-| 1〜13 | `narration/NN.mp3` | 手順3で合成したナレーション |
+| 8〜10 | `footage/08-board.mp4` など | ボードの横長の録画（1920×1080）。8番は 4〜9 秒に架空の患者の表（`src/patientTable/PatientTableVideo.tsx`）が重なる |
+| 11 | `footage/11-phone.mp4`・`11-chat.mp4`・`11-karte.mp4` | モデルの使い分けで並べる、訓練・掲示板・カルテの録画（各9秒）。札は `src/modelMap.ts` から重ねる |
+| 3 | `private/03-nameplate.json` | 1カット目（顔の写った写真）の左下に重ねる名前の札。JSON に `role`・`name`・`nameEn` を書く。名前と肩書きはリポジトリに書かない。無ければ札を出さない |
+| 12 | `photos/12-a`・`12-b`、`private/12-quote.json`（無ければ `private/12-caption.txt`） | 協力者の集合写真の後に、試用した人のコメントの一枚。JSON に `photoNote`・`heading`・`name`・`portrait`・`source`・`pages`（`**…**` は太字）を書く。名前とコメントはリポジトリに書かない |
+| 1〜13 | `narration/NN.mp3`（5番は `05a`〜`05c.mp3` も） | 手順3で合成したナレーションと、5番の架空の患者の台詞 |
+| 4〜6 | `bgm/app-training.wav` | アプリの BGM（`web/src/bgm/bgm.ts`）をそのまま書き出したもの。`node video/scripts/capture-app-bgm/capture.mjs` で作る（ヘッドレスの Chrome を使う） |
+| 1〜3・7〜13 | `bgm/opening.wav`・`board.wav`・`models.wav`・`ending.wav` | コードで合成した BGM（`video/scripts/compose-bgm.mjs`）。置き方と大きさは `src/soundtrack.tsx` |
+| 全体 | `sfx/tap.wav`・`whoosh.wav`・`battery-off.wav`・`confirm.wav`・`pop.wav` | 効果音（コードで合成）。タップ・章の題・電池切れ・承認と確認・テロップの時刻に鳴る |
 
 - 写真と感想の文は、元の名前を使わず、上の中立の名前で置きます（元のファイル名をリポジトリに書かないため）。
+- タップの寄りと波紋は `src/sections.ts` の `taps`（場面の頭からの秒と、録画の CSS の座標）、下のテロップは `telops`、章の題は `chapter` に書きます。撮影の記録（録画と一緒に書き出す JSON の `clicks`）の時刻を場面の時間に写して使います。
 - 長い1本の録画（撮影の R1〜R4）から場面ごとに切り出すときは、録画のファイルを変えずに、`src/sections.ts` の場面の行に `footageFile`（同じファイルでよい）と `footageStartSeconds`（録画のどこから使うか）を書きます。再エンコードは要りません。
 
 ### 10のコツから取り入れた表現（Issue #262）
@@ -106,7 +114,9 @@ npm --prefix video run studio
 npm --prefix video run render
 ```
 
-- `video/out/sonaquest.mp4`（1920×1080・30fps・H.264）に書き出します。
+- `video/out/versions/sonaquest-vNN-<コミット>.mp4`（1920×1080・30fps・H.264）に書き出します。前の書き出しは上書きしません（2026-11-08 オーナーの依頼）。NN は既にある番号の次で、`video/` に未コミットの変更があるときはコミットの後に `-dirty` が付きます。中身は `scripts/render-versioned.mjs`。
+- 聞いて直すときは「v03 の 0:45」のように番号で指せます。`v01` は Issue #272 のコミット a716eeb の版です（それより前の書き出しは上書きしていて残っていません）。
+- `npm --prefix video run render -- --frames=0-299` のように、後ろに Remotion の引数を渡せます。
 - 初回の書き出しで、Remotion が描画用の Chrome（Headless Shell）を取得します（ネットワークが要ります）。
 - 試しに最初の10秒だけ書き出すときは `npm --prefix video run render:test`（`video/out/sonaquest-test.mp4`）。
 
@@ -135,4 +145,4 @@ npm --prefix video run typecheck
 - 見出し語を置くか、置くならその文（`video/src/sections.ts` のマーカー）。
 - 最後のロゴの形と公開 URL・QR（`video/src/SonaQuestVideo.tsx`・`sections.ts` のマーカー）。
 - 2番の地震の回数は `docs/demo-script.md` のマーカーで決め、決まったら `video/narration/02.txt` と `src/slideText.ts` の `QUAKE_COUNT` を直してから合成する。
-- 場面ごとの長さ（`src/sections.ts` の `seconds`）と、1番の問いを出す時刻（`QUESTION_BLACKOUT_FRAMES`）、2番の「21回」を出す時刻（`QUAKE_COUNT_FROM_FRAMES`）、5番で録画の音を消す区間（`SECTION5_NARRATION_FROM`・`SECTION5_NARRATION_FRAMES`）は、合成したナレーションと録画の長さに合わせて直す。
+- 場面ごとの長さ（`src/sections.ts` の `seconds`）と、1番の問いを出す時刻（`QUESTION_BLACKOUT_FRAMES`）、2番の「21回」を出す時刻（`QUAKE_COUNT_FROM_FRAMES`）、5番のナレーションの始まり（`SECTION5_NARRATION_FROM`）とソナの声の時刻（`appVoice`）は、合成したナレーションと録画の長さに合わせて直す。

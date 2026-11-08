@@ -5,8 +5,12 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import {
+  ALL_CLIPS,
   ALL_NARRATION_BEATS,
+  CLIP_VOICE_SETTINGS,
   DEFAULT_MODEL_ID,
+  EXTRA_CLIPS,
+  VOICE_SETTINGS,
   NARRATION_BEATS,
   PRIVATE_NARRATION_BEATS,
   OUTPUT_FORMAT,
@@ -22,6 +26,7 @@ import {
   normalizeText,
   parseArgs,
   readConfig,
+  voiceSettingsFor,
 } from "./narration-lib.mjs";
 
 const videoDir = path.resolve(import.meta.dirname, "..");
@@ -60,9 +65,9 @@ test("音声の置き場所は Remotion の sections.ts と同じ名前（narrat
 
 test("リポジトリに置く原稿がそろい、どれも空でなく、判断待ちの印が無い。3・12番の原稿はリポジトリに無い", () => {
   const files = readdirSync(path.join(videoDir, "narration")).filter((f) => f.endsWith(".txt")).sort();
-  assert.deepEqual(files, NARRATION_BEATS.map((b) => `${beatId(b)}.txt`));
+  assert.deepEqual(files, [...NARRATION_BEATS, ...EXTRA_CLIPS].map((b) => `${beatId(b)}.txt`).sort());
   for (const beat of PRIVATE_NARRATION_BEATS) assert.ok(!files.includes(`${beatId(beat)}.txt`));
-  for (const beat of NARRATION_BEATS) {
+  for (const beat of [...NARRATION_BEATS, ...EXTRA_CLIPS]) {
     const text = normalizeText(readFileSync(narrationTextPath(videoDir, beat), "utf8"), beat);
     assert.ok(text.length > 0);
     // 読み上げの原稿では「ソナクエスト」とカタカナにする（Issue #28）
@@ -71,8 +76,10 @@ test("リポジトリに置く原稿がそろい、どれも空でなく、判�
 });
 
 test("引数：--force と --only", () => {
-  assert.deepEqual(parseArgs([]), { force: false, beats: ALL_NARRATION_BEATS });
-  assert.deepEqual(parseArgs(["--force"]), { force: true, beats: ALL_NARRATION_BEATS });
+  assert.deepEqual(parseArgs([]), { force: false, beats: ALL_CLIPS });
+  assert.deepEqual(parseArgs(["--force"]), { force: true, beats: ALL_CLIPS });
+  assert.deepEqual(parseArgs(["--only", "05b,2,05a"]), { force: false, beats: [2, "05a", "05b"] });
+  assert.throws(() => parseArgs(["--only", "05z"]));
   assert.deepEqual(parseArgs(["--only", "5,2,5"]), { force: false, beats: [2, 5] });
   assert.deepEqual(parseArgs(["--only", "12,3"]), { force: false, beats: [3, 12] });
   assert.throws(() => parseArgs(["--only", "14"]));
@@ -240,4 +247,26 @@ test("モデルの一枚で取り違えない：在庫・発注はコード、�
   const transcript = rowOf("HQ：聞き取りの文字起こし");
   assert.doesNotMatch(transcript, /KARTE_AUDIT_MODEL|AUDIT_MODEL/);
   assert.match(transcript, /監査には回さない/);
+});
+
+test("足す台詞（05a など）は場面の番号の後に並び、ファイルは narration/<id>.txt と public/narration/<id>.mp3", () => {
+  assert.deepEqual(EXTRA_CLIPS, ["05a", "05b", "05c", "06a", "07a", "08a"]);
+  assert.deepEqual(ALL_CLIPS.slice(4, 8), [5, "05a", "05b", "05c"]);
+  assert.equal(beatId("05a"), "05a");
+  assert.throws(() => beatId("5a"));
+  assert.equal(isPrivateBeat("05a"), false);
+  assert.equal(narrationTextPath("/v", "05b"), path.join("/v", "narration", "05b.txt"));
+  assert.equal(narrationAudioPath("/v", "05c"), path.join("/v", "public", "narration", "05c.mp3"));
+  assert.equal(formatLogLine({ beat: "05a", result: "saved", status: 200, ms: 1000 }), "[narration] 05a　保存した　HTTP 200　1.0秒");
+});
+
+test("声の設定：今はどの台詞も既定の値（2番の速さは元に戻した）。台詞ごとの上書きは voice_settings に入る", () => {
+  assert.deepEqual(CLIP_VOICE_SETTINGS, {});
+  assert.deepEqual(voiceSettingsFor(2), { ...VOICE_SETTINGS });
+  assert.deepEqual(voiceSettingsFor(5), { ...VOICE_SETTINGS });
+  assert.deepEqual(voiceSettingsFor("05a"), { ...VOICE_SETTINGS });
+  const { init } = buildTtsRequest({ apiKey: FAKE_KEY, voiceId: FAKE_VOICE, modelId: DEFAULT_MODEL_ID, text: FAKE_TEXT, voiceSettings: { ...VOICE_SETTINGS, speed: 0.85 } });
+  assert.equal(JSON.parse(init.body).voice_settings.speed, 0.85);
+  const plain = buildTtsRequest({ apiKey: FAKE_KEY, voiceId: FAKE_VOICE, modelId: DEFAULT_MODEL_ID, text: FAKE_TEXT });
+  assert.deepEqual(JSON.parse(plain.init.body).voice_settings, { ...VOICE_SETTINGS });
 });
