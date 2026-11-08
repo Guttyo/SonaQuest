@@ -250,7 +250,7 @@ test("モデルの一枚で取り違えない：在庫・発注はコード、�
 });
 
 test("足す台詞（05a など）は場面の番号の後に並び、ファイルは narration/<id>.txt と public/narration/<id>.mp3", () => {
-  assert.deepEqual(EXTRA_CLIPS, ["05a", "05b", "05c"]);
+  assert.deepEqual(EXTRA_CLIPS, ["05a", "05b", "05c", "06a", "07a", "08a"]);
   assert.deepEqual(ALL_CLIPS.slice(4, 8), [5, "05a", "05b", "05c"]);
   assert.equal(beatId("05a"), "05a");
   assert.throws(() => beatId("5a"));

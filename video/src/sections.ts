@@ -102,6 +102,8 @@ export type Section = {
    * 同じ録画を複数の場面で使い、開始位置だけ変えてよい。
    */
   footageStartFrame: number;
+  /** 録画がこのフレーム（場面の頭から）より先へ行かないよう、ここで止める。録画が場面より短いとき（10番）。null なら止めない */
+  footageFreezeFrame: number | null;
   /** 寄り（01 クローズアップ）。無ければ寄らない */
   zooms: Zoom[];
   /** 画面に出す札（05 早回しの「早送り」など） */
@@ -116,7 +118,7 @@ export type Section = {
    * 大きな場面の切り替わり（訓練・本部のボード）の頭に、約1秒、章の題を録画の上に重ねる。
    * 1枚のスライドを足すと 180 秒が延びるので、録画に重ねる形にした。
    */
-  chapter: { text: string; at: number } | null;
+  chapter: { text: string; at: number; seconds: number } | null;
   /**
    * 写真の場面（photos）の写真：video/public/ からの相対パス。1つの要素が1カット（1枚か、横に並べる2枚）。
    * 拡張子を除いた中立の名前（photos/03-a など）で書く。jpg・png・webp のどれを置いてもよい（theme.ts の resolveImage）。
@@ -204,7 +206,8 @@ const HEADLINES = [
   "スマートフォンが使えない",
   "まだ弱いところ",
   "本部の備え",
-  "架空の患者100人",
+  // 8番も7番と同じ題にして、左上の題を続けて出す（2026-11-08 オーナー：「本部の備え」を「架空の患者100人のスライドまで継続して表示」）
+  "本部の備え",
   "5つの役の連絡",
   "最後は人が確かめる",
   "モデルの使い分け",
@@ -228,9 +231,9 @@ const TELOPS = {
   prep: "準備を1つ選び、いつやるかを決めて終わる",
   fictional: "人も数もすべて架空のデータ",
   approve: "発注の提案はコードの計算。承認するのは人（本部）",
-  agents: "本部と救護所A〜Dの5つの役を、Managed Agents が演じる",
+  agents: "本部と救護所A〜Dの5つの役を、Claude Managed Agents が演じる",
   summary: "Claude Sonnet 5.5：本人の言葉を写した抽出型の要約",
-  audit: "別のモデル（Managed Agents）が、記録との一致を監査",
+  audit: "別のモデル（Claude Managed Agents）が、記録との一致を監査",
   human: "最後は人が確かめて「確認済み」にする",
 } as const;
 
@@ -253,6 +256,7 @@ type Row = Omit<
   | "extraNarration"
   | "narrationParts"
   | "footageStartFrame"
+  | "footageFreezeFrame"
   | "zooms"
   | "badges"
   | "taps"
@@ -279,12 +283,15 @@ type Row = Omit<
   narrationParts?: Array<{ fromSeconds: number; fileFromSeconds: number; fileToSeconds: number }>;
   /** 録画のどこから使うか（秒） */
   footageStartSeconds?: number;
+  /** 録画を止める時刻（秒。場面の頭から） */
+  footageFreezeSeconds?: number;
   zooms?: Zoom[];
   badges?: Badge[];
   taps?: Tap[];
   telops?: Telop[];
   optionPanel?: OptionPanel;
-  chapter?: { text: string; at: number };
+  /** 章の題。seconds は出す長さ（無ければ 1.1 秒） */
+  chapter?: { text: string; at: number; seconds?: number };
   quoteFile?: string;
   bezel?: boolean;
 };
@@ -305,9 +312,10 @@ const sec = (seconds: number) => Math.round(seconds * FPS);
  * 合成したナレーションの長さ（秒。2026-11-08 に ffprobe で測った値。mp3 の頭と終わりの無音を含む）。
  * 各場面の narrationDelayFrames と、言葉に合わせた札・寄りの時刻は、この長さと文の切れ目（ffmpeg の silencedetect）から決めた。
  * 合成し直したら測り直して直す。2番は 2026-11-08 に速さ 0.85 で合成し直した（6.32 → 6.56 秒）。
+ * 3・5・8〜12番は 2026-11-08 にオーナーの原稿の直しで合成し直した。
  */
 export const NARRATION_SECONDS: Record<number, number> = {
-  1: 6.32, 2: 6.56, 3: 12.08, 4: 5.2, 5: 5.84, 6: 9.6, 7: 10.0, 8: 12.72, 9: 7.6, 10: 8.4, 11: 2.72, 12: 3.12, 13: 4.8,
+  1: 6.32, 2: 6.56, 3: 14.24, 4: 5.2, 5: 6.08, 6: 9.6, 7: 10.0, 8: 10.4, 9: 8.16, 10: 13.44, 11: 6.64, 12: 10.08, 13: 4.8,
 };
 
 /**
@@ -320,10 +328,10 @@ export const QUAKE_COUNT_FROM_FRAMES = sec(5.5);
  * 5番の時間（2026-11-08 の R1 の録画に合わせた）。
  * - 0〜：ソナが1問目を話す（アプリの声を appVoice で重ねる）→ 文字で答える
  * - 4.3〜6.7：オーナーの声の台詞「血圧の薬のAを飲んでいます。」（05a。入力の間）
- * - 7.0〜9.1：ナレーション「薬の写真は、スマホに入っている。」（05.mp3 の 0〜2.4 秒を切り出す）
+ * - 7.0〜9.3：ナレーション「お薬手帳アプリが、スマホに入っている。」（05.mp3 の 0〜2.6 秒を切り出す）
  * - 10.2〜13.5：ソナの返事（アプリの声）。録画でソナが話しているのは 10.0〜14.2 秒で、合成した返事（6.5 秒）は収まらないので、
  *   2文目の問い「以下の中で、いちばん頼りにしているのはどれですか？」だけを鳴らす（1文目のお礼は切る）
- * - 14.1〜14.9：ナレーション「ところが……」（05.mp3 の 4.6 秒から）。14.8 秒の電池切れの暗転に着く。
+ * - 14.1〜14.9：ナレーション「ところが……」（05.mp3 の 4.9 秒から）。14.8 秒の電池切れの暗転に着く。
  *   05.mp3 の2文目「これなら伝えられそうです。」は入る間が無いので鳴らさない
  * - その後：電池切れの暗転 → 05b（15.5〜18.5）→ ソナの立て直しの問い（18.8〜）→ 05c（24.7〜27.6。終わりの約1秒は答え直す入力と BGM の戻りに重なる）→ 答え直す
  */
@@ -407,8 +415,8 @@ const ROWS: Row[] = [
     footageAudio: false,
     overlay: "pipeline",
     narrationParts: [
-      { fromSeconds: 7.0, fileFromSeconds: 0, fileToSeconds: 2.4 },
-      { fromSeconds: 13.95, fileFromSeconds: 4.6, fileToSeconds: 5.84 },
+      { fromSeconds: 7.0, fileFromSeconds: 0, fileToSeconds: 2.6 },
+      { fromSeconds: 13.93, fileFromSeconds: 4.9, fileToSeconds: 6.08 },
     ],
     // 録画（2026-11-08、R1 の4回目）の区間：0〜4 ソナの1問目、4〜10 文字で答える、10〜14.8 情報源「スマートフォン」、
     // 14.8〜18.2 電池切れ、18.2〜24.6 立て直しの問い、24.6〜26.6 無音、26.6〜 答え直す
@@ -472,6 +480,8 @@ const ROWS: Row[] = [
       { from: 0.8, to: 6, text: TELOPS.review },
       { from: 8.5, to: 15, text: TELOPS.prep },
     ],
+    // 終わりの画面の間に、本人の声の一言（06a、5.3 秒。2026-11-08 オーナー：「1:25あたりに、私の声で…5秒程度無音があるので、そこに」）
+    extraNarration: [{ file: "narration/06a.mp3", fromSeconds: 13.2 }],
   },
   {
     seconds: 13,
@@ -481,8 +491,11 @@ const ROWS: Row[] = [
     footageFile: "footage/07-board.mp4",
     footageAudio: false,
     photoShots: [["photos/07-a"], ["photos/07-b"], ["photos/07-c"]],
-    // 写真の3カット（10.2 秒。PHOTO_SHOT_FRAMES）の後、ボードの録画に替わる所で章の題を出す。ナレーションは 10.0 秒で終わる
-    chapter: { text: CHAPTERS.board, at: 10.2 },
+    // 写真の3カット（10.2 秒。PHOTO_SHOT_FRAMES）の後、ボードの録画に替わる所で章の題を出す。ナレーションは 10.0 秒で終わる。
+    // 章の題は 2.5 秒出し、録画の頭のログインの画面（0〜1.7 秒）は飛ばす（2026-11-08 オーナー：「ログインの画面は消してよいので、その分少しだけ長く表示して」）。
+    // 10.4 秒から 8番の頭にかけて 07a（CROSS_NARRATION）を鳴らす
+    footageStartSeconds: 1.7,
+    chapter: { text: CHAPTERS.board, at: 10.2, seconds: 2.5 },
   },
   {
     seconds: 23,
@@ -493,9 +506,11 @@ const ROWS: Row[] = [
     footageFile: "footage/08-board.mp4",
     footageAudio: false,
     overlay: "patientTable",
-    // 08.mp3 の文の切れ目に合わせて 3.5 秒遅らせる：「100人の架空の患者」が患者の表（4〜9秒）、
+    // 頭は 7番から続く 07a（〜4.1 秒）。08.mp3 の文の切れ目に合わせて 5.5 秒遅らせる：「100人の架空の患者」が患者の表（4〜9秒）、
     // 「在庫が減ります」が早送り（9〜13秒）、「手配を承認し」が承認のタップ（16.01秒）の少し前に来る
-    narrationDelayFrames: sec(3.5),
+    narrationDelayFrames: sec(5.5),
+    // 受領の後に 08a「リアルタイムで発注が入ってくるのがわかります。」（2026-11-08 オーナーの依頼。2:01〜2:06）
+    extraNarration: [{ file: "narration/08a.mp3", fromSeconds: 18.2 }],
     // 05 ログの早回し：自動で進める所（デモ時計の早送り）。録画に合わせて直す
     // 録画の区間：0〜5.5 全体、5.5〜13 受け入れと早送り（4〜9 は患者の表が重なる）、13〜 発注・搬送 → 承認 → 搬送 → 受領
     badges: [{ from: 9, to: 13, text: "▶▶ デモの時間を早送り" }],
@@ -509,7 +524,8 @@ const ROWS: Row[] = [
     ],
   },
   {
-    seconds: 12,
+    // 2026-11-08 に 12 → 10 秒（10番に2秒回した。オーナー：「前のスライドを2秒なら削っていいよ」）
+    seconds: 10,
     voice: "ナレーター",
     screen: "board",
     screenNote: "掲示板：救護所の報告と本部の返事を1組だけ寄せて見せる",
@@ -523,15 +539,17 @@ const ROWS: Row[] = [
     narrationDelayFrames: sec(1.0),
   },
   {
-    seconds: 13,
+    // 2026-11-08 に 13 → 15 秒（文を長くしたので 9番から2秒もらった）
+    seconds: 15,
     voice: "ナレーター",
     screen: "board",
     screenNote: "カルテ：見本の会話 → 要約（引用に寄る）→ 監査の指摘 →「人が確認済み」",
     footageFile: "footage/10-board.mp4",
     footageAudio: false,
-    // 10.mp3 の文の切れ目に合わせて 2.5 秒遅らせる：「引用だけで作り」が要約、「別のモデルが監査します」が監査、
-    // 「最後に確かめるのは、人です」が確認済みにするタップ（11.2秒）の直前に来る
-    narrationDelayFrames: sec(2.5),
+    // 10.mp3（13.4 秒）を 0.8 秒から：「AI要約され」が要約の出た所、「別のモデルが…監査する仕組みです」が監査、
+    // 「最後に確かめるのは、人です」が確認済みにするタップ（11.2秒）の後に来る。録画（13.0 秒）が場面より短いので 12.9 秒で止める
+    narrationDelayFrames: sec(0.8),
+    footageFreezeSeconds: 12.9,
     // 録画の区間：0〜2.8 要約を作る、2.8〜 要約が出た所 → 記録との一致をチェック（監査）→ 確認済みにする → 最後の絵を止める
     taps: [
       { at: 0.63, x: 507, y: 775 },
@@ -539,9 +557,9 @@ const ROWS: Row[] = [
       { at: 11.2, x: 514, y: 828 },
     ],
     telops: [
-      { from: 2.9, to: 6.2, text: TELOPS.summary },
-      { from: 6.8, to: 10.6, text: TELOPS.audit },
-      { from: 11.4, to: 13, text: TELOPS.human },
+      { from: 3.6, to: 7.6, text: TELOPS.summary },
+      { from: 7.9, to: 11.4, text: TELOPS.audit },
+      { from: 11.8, to: 15, text: TELOPS.human },
     ],
   },
   {
@@ -554,7 +572,8 @@ const ROWS: Row[] = [
     narrationDelayFrames: sec(0.5),
   },
   {
-    seconds: 10,
+    // 2026-11-08 に 10 → 13 秒（ナレーションで感想の一節を読む。13番のロゴの後の無音から3秒もらった。オーナーの選択）
+    seconds: 13,
     voice: "ナレーター",
     screen: "photos",
     screenNote: "協力者の写真と、試用した人の感想の一節（原稿・写真・文はリポジトリの外）",
@@ -567,7 +586,8 @@ const ROWS: Row[] = [
     narrationDelayFrames: sec(1.0),
   },
   {
-    seconds: 10,
+    // 2026-11-08 に 10 → 7 秒（ロゴの後の無音を3秒削って12番に回した）
+    seconds: 7,
     voice: "ナレーター",
     screen: "phone",
     screenNote: "選んだ準備のカードを一瞬 → 締めの画面（ロゴは仮の文字。Issue #263 で作る）",
@@ -612,12 +632,13 @@ export const SECTIONS: Section[] = ROWS.reduce<Section[]>((acc, row, i) => {
       durationFrames: Math.round((v.fileToSeconds - v.fileFromSeconds) * FPS),
     })),
     footageStartFrame: Math.round((row.footageStartSeconds ?? 0) * FPS),
+    footageFreezeFrame: row.footageFreezeSeconds === undefined ? null : Math.round(row.footageFreezeSeconds * FPS),
     zooms: row.zooms ?? [],
     badges: row.badges ?? [],
     taps: row.taps ?? [],
     telops: row.telops ?? [],
     optionPanel: row.optionPanel ?? null,
-    chapter: row.chapter ?? null,
+    chapter: row.chapter ? { ...row.chapter, seconds: row.chapter.seconds ?? 1.1 } : null,
     quoteFile: row.quoteFile ?? null,
     bezel: row.bezel ?? false,
     // どの場面もナレーターの声。3・12番の原稿はリポジトリの外だが、合成した音声は同じ場所に置く
@@ -631,9 +652,19 @@ export const SECTION_COUNT = SECTIONS.length;
 export const TOTAL_FRAMES = SECTIONS.reduce((sum, s) => sum + s.durationInFrames, 0);
 
 /**
- * 最後の場面（13番）の締めの画面の長さ。準備のカードを一瞬見せた後、締めの文とロゴを出し、ロゴを2秒残す。
+ * 最後の場面（13番）の締めの画面の長さ。準備のカードを3秒見せた後、締めの文とロゴを出す。
+ * 2026-11-08 に 7 → 4 秒（ロゴの後の無音を3秒削って12番に回した）。ロゴは締めの画面の 2.3〜2.9 秒に出て、約1秒残る
  */
-export const ENDCARD_FRAMES = 7 * FPS;
+export const ENDCARD_FRAMES = 4 * FPS;
+
+/**
+ * 場面をまたいで鳴らすナレーション（2026-11-08 オーナー：「1：41から1：47にかけてセリフ追加」）。
+ * 07a「そこで、災害時の情報集約の場として、…作成しました。」（7.0 秒）を、7番の写真の後（10.4 秒）から 8番の頭にかけて鳴らす。
+ * 場面ごとの Sequence の中に置くと場面の終わりで切れるので、全体の時間で置く
+ */
+export const CROSS_NARRATION: Array<{ file: string; fromFrames: number }> = [
+  { file: "narration/07a.mp3", fromFrames: SECTIONS[6].from + sec(10.4) },
+];
 // [TODO-OWNER: 最後に置く公開 URL（と QR）の文。今は仮の文字（docs/demo-script.md「オーナーに決めてほしいこと」の10）]
 // → オーナー決定（2026-11-08、チャット）：「最後の公開URLは不要」
 export const PUBLIC_URL_PLACEHOLDER = "[公開URL]";

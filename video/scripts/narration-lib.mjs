@@ -18,9 +18,10 @@ export const ALL_NARRATION_BEATS = [...NARRATION_BEATS, ...PRIVATE_NARRATION_BEA
  * 場面の中の間に足す、オーナーの声の台詞（2026-11-08 オーナー：「0:50のところ、実際の入力に合わせて僕の声で発言して」
  * 「スマホの充電が切れてしまっていました・・・というのを0:57くらいに入れてほしい。僕の声で」「僕の声でセリフね。続きのナレーションみたいな感じ」）。
  * id は場面の番号（2桁）＋英字。原稿は video/narration/<id>.txt、音声は video/public/narration/<id>.mp3。
- * 鳴らす時刻は sections.ts の extraNarration。
+ * 2026-11-08 の直し（オーナー、チャット）で 06a（振り返りの後の一言）・07a（ボードの紹介。7番から8番にまたがる）・08a（発注が入る所）を足した。
+ * 鳴らす時刻は sections.ts の extraNarration（07a は場面をまたぐので CROSS_NARRATION）。
  */
-export const EXTRA_CLIPS = ["05a", "05b", "05c"];
+export const EXTRA_CLIPS = ["05a", "05b", "05c", "06a", "07a", "08a"];
 /** 合成できるもののすべて（場面のナレーション＋足す台詞）。ファイル名の順 */
 export const ALL_CLIPS = [...ALL_NARRATION_BEATS, ...EXTRA_CLIPS].sort((a, b) => beatId(a).localeCompare(beatId(b)));
 

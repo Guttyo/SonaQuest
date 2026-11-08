@@ -29,9 +29,9 @@ const HIGH_GAIN = 2;
 /** 場面の秒（sections.ts の表と同じ） */
 const SCENES = {
   opening: [8, 10, 15], // 1〜3番
-  board: [13, 23, 12, 13], // 7〜10番
+  board: [13, 23, 10, 15], // 7〜10番（2026-11-08 に 9番を2秒短く、10番を2秒長く）
   models: [9], // 11番
-  ending: [10, 10], // 12〜13番
+  ending: [13, 7], // 12〜13番（2026-11-08 に 12番を3秒長く、13番を3秒短く）
 };
 
 const outDir = path.resolve(import.meta.dirname, "..", "public", "bgm");

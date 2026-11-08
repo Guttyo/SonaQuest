@@ -2,8 +2,8 @@
 // 素材（地図・写真・録画・ナレーション）は video/public/ に置く（Git の対象外）。
 // 置かれていない素材は描かず・鳴らさず、仮の画面（番号・時間・見出し語）のまま書き出せるようにする。
 import type { CSSProperties, FC, ReactNode } from "react";
-import { AbsoluteFill, Audio, Easing, Img, OffthreadVideo, Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
-import { ENDCARD_FRAMES, FPS, HEIGHT, SECTIONS, SECTION_COUNT, WIDTH, type AudioClip, type Section, type Tap, type Zoom } from "./sections";
+import { AbsoluteFill, Audio, Easing, Freeze, Img, OffthreadVideo, Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
+import { CROSS_NARRATION, ENDCARD_FRAMES, FPS, HEIGHT, SECTIONS, SECTION_COUNT, WIDTH, type AudioClip, type Section, type Tap, type Zoom } from "./sections";
 import { CLOSING_LINE, EVENT_CREDIT, EVENT_PERIOD } from "./slideText";
 import {
   ModelsDemo,
@@ -123,15 +123,19 @@ const Placeholder: FC<{ section: Section; label: string; style?: CSSProperties }
 /** 横長の素材（地図・ボードの録画）。無ければ仮の画面 */
 const WideFootage: FC<{ section: Section; label: string }> = ({ section, label }) => {
   if (hasStaticFile(section.footageFile)) {
+    const video = (
+      <OffthreadVideo
+        src={staticFile(section.footageFile)}
+        muted={!section.footageAudio}
+        volume={footageVolume(section)}
+        trimBefore={section.footageStartFrame}
+        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+      />
+    );
+    const freezeAt = section.footageFreezeFrame;
     return (
       <AbsoluteFill>
-        <OffthreadVideo
-          src={staticFile(section.footageFile)}
-          muted={!section.footageAudio}
-          volume={footageVolume(section)}
-          trimBefore={section.footageStartFrame}
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-        />
+        {freezeAt === null ? video : <Freeze frame={freezeAt} active={(f) => f >= freezeAt}>{video}</Freeze>}
       </AbsoluteFill>
     );
   }
@@ -374,19 +378,19 @@ const EndCard: FC = () => {
 };
 
 /**
- * 場面の番号・時間・見出し語（音を消して見る人向け）。左上に置く
+ * 場面の見出し語（音を消して見る人向け）。左上に置く。番号と時間は出さない（2026-11-08 オーナー：「タイトルの上に番号と時間が書いてあるけれど、すべてのセクションで不要」）。
+ * 前の場面と同じ題なら、場面の頭でも消えずに出し続ける（7・8番の「本部の備え」）
  * （2026-11-08 オーナー：「デモ動画の時には左上に何をしてるかっていうタイトルは表示しておいた方がいい」）。
  * スマホの場面は左の列に大きく、ボード・写真の場面は録画を隠しすぎないよう濃い地の札にする。
  */
 const Caption: FC<{ section: Section; inColumn: boolean }> = ({ section, inColumn }) => {
   const frame = useCurrentFrame();
-  const opacity = interpolate(frame, [0, 12], [0, 1], { extrapolateRight: "clamp" });
-  const meta = `${section.number} / ${SECTION_COUNT}  ${section.timeLabel}`;
+  const continued = SECTIONS[section.number - 2]?.headline === section.headline;
+  const opacity = continued ? 1 : interpolate(frame, [0, 12], [0, 1], { extrapolateRight: "clamp" });
   if (inColumn) {
     return (
       <div style={{ ...baseText, position: "absolute", top: 72, left: LEFT_COLUMN.left, width: LEFT_COLUMN.width, opacity }}>
-        <div style={{ fontSize: 26, color: COLORS.sub, fontFamily: MONO }}>{meta}</div>
-        <div style={{ fontSize: Math.min(60, Math.floor(LEFT_COLUMN.width / section.headline.length)), fontWeight: 700, marginTop: 10, lineHeight: 1.25 }}>{section.headline}</div>
+        <div style={{ fontSize: Math.min(60, Math.floor(LEFT_COLUMN.width / section.headline.length)), fontWeight: 700, lineHeight: 1.25 }}>{section.headline}</div>
       </div>
     );
   }
@@ -405,8 +409,7 @@ const Caption: FC<{ section: Section; inColumn: boolean }> = ({ section, inColum
         opacity,
       }}
     >
-      <div style={{ fontSize: 18, opacity: 0.8, fontFamily: MONO }}>{meta}</div>
-      <div style={{ fontSize: 44, fontWeight: 700, marginTop: 2 }}>{section.headline}</div>
+      <div style={{ fontSize: 44, fontWeight: 700 }}>{section.headline}</div>
     </div>
   );
 };
@@ -457,14 +460,14 @@ const TelopView: FC<{ section: Section; inColumn: boolean }> = ({ section, inCol
 };
 
 /**
- * 章の題（大きな場面の切り替わり）：約1.1秒、録画の上に大きく重ねる。1枚のスライドを足すと 180 秒が延びるので、
+ * 章の題（大きな場面の切り替わり）：場面ごとの長さ（既定 1.1 秒。7番は 2.5 秒）、録画の上に大きく重ねる。1枚のスライドを足すと 180 秒が延びるので、
  * 録画の上に重ねる形にした（2026-11-08 オーナー：「1枚スライド足した方がいいのか悪いのか…検討してみて」）。
  */
 const ChapterFlash: FC<{ section: Section }> = ({ section }) => {
   const frame = useCurrentFrame();
   if (!section.chapter) return null;
   const from = Math.round(section.chapter.at * FPS);
-  const dur = Math.round(1.1 * FPS);
+  const dur = Math.round(section.chapter.seconds * FPS);
   const t = frame - from;
   if (t < 0 || t > dur) return null;
   const opacity = Math.min(
@@ -735,6 +738,11 @@ const Beat: FC<{ section: Section }> = ({ section }) => {
 export const SonaQuestVideo: FC = () => (
   <AbsoluteFill style={{ backgroundColor: COLORS.background }}>
     <Soundtrack />
+    {CROSS_NARRATION.filter((v) => hasStaticFile(v.file)).map((v) => (
+      <Sequence key={v.file} from={v.fromFrames} layout="none" name="場面をまたぐナレーション">
+        <Audio src={staticFile(v.file)} />
+      </Sequence>
+    ))}
     {SECTIONS.map((section) => (
       <Sequence
         key={section.number}
