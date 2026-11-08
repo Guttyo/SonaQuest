@@ -43,7 +43,8 @@ export const VOICE_SETTINGS = Object.freeze({ stability: 0.65, similarity_boost:
  * （2026-11-08 オーナー：「ナレーションのスピードを遅くして、1秒長くするか」「映像やBGMは変えないで」）。
  * speed は ElevenLabs の voice_settings の読む速さ（1.0 が既定）。
  */
-export const CLIP_VOICE_SETTINGS = Object.freeze({ "02": Object.freeze({ speed: 0.85 }) });
+// 2番は 2026-11-08 に一度 speed 0.85 にしたが、同じ日にオーナーの依頼で元の速さに戻した（「元の速度に戻してほしい」）
+export const CLIP_VOICE_SETTINGS = Object.freeze({});
 /** その id の声の設定（既定の値に上書きを重ねる） */
 export const voiceSettingsFor = (beat) => ({ ...VOICE_SETTINGS, ...(CLIP_VOICE_SETTINGS[beatId(beat)] ?? {}) });
 /** 出力の形式。どのプランでも使える形（アプリと同じ）。音質を上げるならオーナーが変える */

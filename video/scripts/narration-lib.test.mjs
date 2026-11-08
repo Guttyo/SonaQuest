@@ -260,11 +260,12 @@ test("足す台詞（05a など）は場面の番号の後に並び、ファイ�
   assert.equal(formatLogLine({ beat: "05a", result: "saved", status: 200, ms: 1000 }), "[narration] 05a　保存した　HTTP 200　1.0秒");
 });
 
-test("声の設定：2番だけ読む速さを上書きし、ほかは既定の値のまま", () => {
-  assert.deepEqual(voiceSettingsFor(2), { ...VOICE_SETTINGS, speed: CLIP_VOICE_SETTINGS["02"].speed });
+test("声の設定：今はどの台詞も既定の値（2番の速さは元に戻した）。台詞ごとの上書きは voice_settings に入る", () => {
+  assert.deepEqual(CLIP_VOICE_SETTINGS, {});
+  assert.deepEqual(voiceSettingsFor(2), { ...VOICE_SETTINGS });
   assert.deepEqual(voiceSettingsFor(5), { ...VOICE_SETTINGS });
   assert.deepEqual(voiceSettingsFor("05a"), { ...VOICE_SETTINGS });
-  const { init } = buildTtsRequest({ apiKey: FAKE_KEY, voiceId: FAKE_VOICE, modelId: DEFAULT_MODEL_ID, text: FAKE_TEXT, voiceSettings: voiceSettingsFor(2) });
+  const { init } = buildTtsRequest({ apiKey: FAKE_KEY, voiceId: FAKE_VOICE, modelId: DEFAULT_MODEL_ID, text: FAKE_TEXT, voiceSettings: { ...VOICE_SETTINGS, speed: 0.85 } });
   assert.equal(JSON.parse(init.body).voice_settings.speed, 0.85);
   const plain = buildTtsRequest({ apiKey: FAKE_KEY, voiceId: FAKE_VOICE, modelId: DEFAULT_MODEL_ID, text: FAKE_TEXT });
   assert.deepEqual(JSON.parse(plain.init.body).voice_settings, { ...VOICE_SETTINGS });

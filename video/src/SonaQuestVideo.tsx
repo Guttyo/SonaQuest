@@ -120,22 +120,47 @@ const Placeholder: FC<{ section: Section; label: string; style?: CSSProperties }
   </div>
 );
 
+/**
+ * 場面の録画。footageFreezeFrame があればそこで止め（録画が場面より短いとき）、
+ * footageHold があれば途中の絵を決まった長さだけ止めて、その後は続きから流す（5番）
+ */
+const FootageVideo: FC<{ section: Section }> = ({ section }) => {
+  const video = (trimBefore: number) => (
+    <OffthreadVideo
+      src={staticFile(section.footageFile!)}
+      muted={!section.footageAudio}
+      volume={footageVolume(section)}
+      trimBefore={trimBefore || undefined}
+      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+    />
+  );
+  const start = section.footageStartFrame;
+  const hold = section.footageHold;
+  if (hold) {
+    return (
+      <>
+        <Sequence durationInFrames={hold.atFrame} layout="none" name="録画">
+          {video(start)}
+        </Sequence>
+        <Sequence from={hold.atFrame} durationInFrames={hold.frames} layout="none" name="録画を止める">
+          <Freeze frame={hold.atFrame}>{video(start)}</Freeze>
+        </Sequence>
+        <Sequence from={hold.atFrame + hold.frames} layout="none" name="録画の続き">
+          {video(start + hold.atFrame)}
+        </Sequence>
+      </>
+    );
+  }
+  const freezeAt = section.footageFreezeFrame;
+  return freezeAt === null ? video(start) : <Freeze frame={freezeAt} active={(f) => f >= freezeAt}>{video(start)}</Freeze>;
+};
+
 /** 横長の素材（地図・ボードの録画）。無ければ仮の画面 */
 const WideFootage: FC<{ section: Section; label: string }> = ({ section, label }) => {
   if (hasStaticFile(section.footageFile)) {
-    const video = (
-      <OffthreadVideo
-        src={staticFile(section.footageFile)}
-        muted={!section.footageAudio}
-        volume={footageVolume(section)}
-        trimBefore={section.footageStartFrame}
-        style={{ width: "100%", height: "100%", objectFit: "cover" }}
-      />
-    );
-    const freezeAt = section.footageFreezeFrame;
     return (
       <AbsoluteFill>
-        {freezeAt === null ? video : <Freeze frame={freezeAt} active={(f) => f >= freezeAt}>{video}</Freeze>}
+        <FootageVideo section={section} />
       </AbsoluteFill>
     );
   }
@@ -145,13 +170,7 @@ const WideFootage: FC<{ section: Section; label: string }> = ({ section, label }
 /** スマホの画面の中身（録画か仮の画面） */
 const PhoneScreen: FC<{ section: Section }> = ({ section }) =>
   hasStaticFile(section.footageFile) ? (
-    <OffthreadVideo
-      src={staticFile(section.footageFile)}
-      muted={!section.footageAudio}
-      volume={footageVolume(section)}
-      trimBefore={section.footageStartFrame}
-      style={{ width: "100%", height: "100%", objectFit: "cover" }}
-    />
+    <FootageVideo section={section} />
   ) : (
     <Placeholder section={section} label="スマホ幅の録画" style={{ width: "100%", height: "100%" }} />
   );

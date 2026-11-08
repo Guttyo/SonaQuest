@@ -6,7 +6,7 @@
 // - 効果音：タップ・章の切り替わり・電池切れ・承認と確認（同じくコードで合成）
 import type { FC } from "react";
 import { Audio, Sequence, interpolate, staticFile } from "remotion";
-import { FPS, SECTIONS, type Section } from "./sections";
+import { FPS, SECTIONS, section5Time, type Section } from "./sections";
 import { hasStaticFile } from "./theme";
 
 /** BGM の大きさ（ナレーションの下に敷く）。ナレーションを合成した後に聞いて直す */
@@ -28,12 +28,12 @@ type BgmCue = {
 };
 
 /**
- * 5番の電池切れ（場面の 14.8 秒）から、立て直しの問いの後の2秒の無音（26.6 秒）まで BGM を消す。
+ * 5番の電池切れ（録画の 14.8 秒）から、立て直しの問いの後の2秒の無音（録画の 26.6 秒）まで BGM を消す。録画を途中で止めた分は section5Time で足す。
  * 出来事の重さと、無音の間（ま）を聞かせるため。
  */
 const SECTION5_MUTE: readonly [number, number] = [
-  sectionFrom(5) - sectionFrom(4) + Math.round(14.8 * FPS),
-  sectionFrom(5) - sectionFrom(4) + Math.round(26.6 * FPS),
+  sectionFrom(5) - sectionFrom(4) + Math.round(section5Time(14.8) * FPS),
+  sectionFrom(5) - sectionFrom(4) + Math.round(section5Time(26.6) * FPS),
 ];
 
 export const BGM_CUES: BgmCue[] = [
@@ -71,7 +71,7 @@ const buildSfx = (): SfxCue[] => {
     for (const telop of section.telops) cues.push({ file: "sfx/pop.wav", at: at(section, telop.from), volume: 0.3 });
   }
   // 5番：電池切れ（録画の 14.8 秒で画面が暗くなる）
-  cues.push({ file: "sfx/battery-off.wav", at: at(SECTIONS[4], 14.8) });
+  cues.push({ file: "sfx/battery-off.wav", at: at(SECTIONS[4], section5Time(14.8)) });
   // 8番：HQ が承認（タップの少し後に状態が変わる）。10番：人が確認済み
   cues.push({ file: "sfx/confirm.wav", at: at(SECTIONS[7], 16.2) });
   cues.push({ file: "sfx/confirm.wav", at: at(SECTIONS[9], 11.5) });

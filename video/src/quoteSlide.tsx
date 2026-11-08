@@ -72,8 +72,9 @@ const QuotePage: FC<{ data: QuoteData; page: number }> = ({ data, page }) => {
   const text = useRiseIn(6);
   return (
     <AbsoluteFill style={{ ...baseText, backgroundColor: CREAM, padding: "100px 140px 90px", boxSizing: "border-box" }}>
-      <div style={{ flex: 1, display: "flex", gap: 110 }}>
-        <div style={{ width: 380, display: "flex", flexDirection: "column", alignItems: "center", gap: 36, paddingTop: 40, ...useRiseIn(0) }}>
+      {/* 顔写真とコメントは上下の中央にそろえる（2026-11-08 オーナー：「上下中央ぞろえにして。下のスペース空きすぎ」） */}
+      <div style={{ flex: 1, display: "flex", gap: 110, alignItems: "center" }}>
+        <div style={{ width: 380, display: "flex", flexDirection: "column", alignItems: "center", gap: 36, ...useRiseIn(0) }}>
           {portrait ? (
             <div style={{ width: 330, height: 330, borderRadius: "50%", overflow: "hidden", border: `6px solid ${GREEN}`, boxSizing: "border-box" }}>
               <Img src={staticFile(portrait)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />

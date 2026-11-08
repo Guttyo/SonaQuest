@@ -28,7 +28,7 @@ export const PIPELINE = {
   title: "訓練の文が画面に出るまで",
   steps: [
     { title: "Claude Opus 5.5", sub: "質問の言い回しを作る" },
-    { title: "Workers の検査", sub: "決まりで確かめる（コード）" },
+    { title: "ルールで自動チェック", sub: "禁止の言葉・長さ（コード）" },
     { title: "Claude Haiku 5.5", sub: "監査役が確かめる" },
     { title: "画面へ", sub: "止めたら固定文に戻す" },
   ],

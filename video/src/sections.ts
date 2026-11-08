@@ -104,6 +104,8 @@ export type Section = {
   footageStartFrame: number;
   /** 録画がこのフレーム（場面の頭から）より先へ行かないよう、ここで止める。録画が場面より短いとき（10番）。null なら止めない */
   footageFreezeFrame: number | null;
+  /** 録画を途中で止めて間を作る（5番）。atFrame（場面の頭から）の絵を frames だけ止め、その後は続きから流す。null なら止めない */
+  footageHold: { atFrame: number; frames: number } | null;
   /** 寄り（01 クローズアップ）。無ければ寄らない */
   zooms: Zoom[];
   /** 画面に出す札（05 早回しの「早送り」など） */
@@ -204,7 +206,7 @@ const HEADLINES = [
   "現場で見たこと",
   "お薬の避難訓練",
   "スマートフォンが使えない",
-  "まだ弱いところ",
+  "まだ準備が弱いところ",
   "本部の備え",
   // 8番も7番と同じ題にして、左上の題を続けて出す（2026-11-08 オーナー：「本部の備え」を「架空の患者100人のスライドまで継続して表示」）
   "本部の備え",
@@ -257,6 +259,7 @@ type Row = Omit<
   | "narrationParts"
   | "footageStartFrame"
   | "footageFreezeFrame"
+  | "footageHold"
   | "zooms"
   | "badges"
   | "taps"
@@ -285,6 +288,8 @@ type Row = Omit<
   footageStartSeconds?: number;
   /** 録画を止める時刻（秒。場面の頭から） */
   footageFreezeSeconds?: number;
+  /** 録画を途中で止めて間を作る（秒） */
+  footageHold?: { atSeconds: number; seconds: number };
   zooms?: Zoom[];
   badges?: Badge[];
   taps?: Tap[];
@@ -311,30 +316,37 @@ const sec = (seconds: number) => Math.round(seconds * FPS);
 /**
  * 合成したナレーションの長さ（秒。2026-11-08 に ffprobe で測った値。mp3 の頭と終わりの無音を含む）。
  * 各場面の narrationDelayFrames と、言葉に合わせた札・寄りの時刻は、この長さと文の切れ目（ffmpeg の silencedetect）から決めた。
- * 合成し直したら測り直して直す。2番は 2026-11-08 に速さ 0.85 で合成し直した（6.32 → 6.56 秒）。
- * 3・5・8〜12番は 2026-11-08 にオーナーの原稿の直しで合成し直した。
+ * 合成し直したら測り直して直す。2番は 2026-11-08 に一度速さ 0.85 にし、同じ日に元の速さに戻した（6.32 秒）。
+ * 3〜6・8〜12番は 2026-11-08 にオーナーの原稿の直しで合成し直した。
  */
 export const NARRATION_SECONDS: Record<number, number> = {
-  1: 6.32, 2: 6.56, 3: 14.24, 4: 5.2, 5: 6.08, 6: 9.6, 7: 10.0, 8: 10.4, 9: 8.16, 10: 13.44, 11: 6.64, 12: 10.08, 13: 4.8,
+  1: 6.32, 2: 6.32, 3: 15.84, 4: 5.36, 5: 6.08, 6: 10.0, 7: 10.0, 8: 10.4, 9: 8.08, 10: 13.44, 11: 6.72, 12: 10.88, 13: 4.8,
 };
 
 /**
- * 2番で「21回」の札を出し始めるフレーム。02.mp3 で「すでに」の後の間（5.34〜5.49 秒）が明けて回数を言う所。
+ * 2番で「21回」の札を出し始めるフレーム。02.mp3 で「すでに」の後の間（5.19〜5.35 秒）が明けて回数を言う所。
  * 札は地図の動画が無いときだけ出す（SonaQuestVideo.tsx の OverlayView）。動画の中の数は約 13 秒（場面の頭から約 5 秒）で 21 に届く
  */
-export const QUAKE_COUNT_FROM_FRAMES = sec(5.5);
+export const QUAKE_COUNT_FROM_FRAMES = sec(5.3);
 
 /**
  * 5番の時間（2026-11-08 の R1 の録画に合わせた）。
- * - 0〜：ソナが1問目を話す（アプリの声を appVoice で重ねる）→ 文字で答える
+ * 録画は 13.9 秒（情報源「スマートフォン」を選んだ後、「これで進む」を押す前）で 5 秒止め、その間にナレーションを言う
+ * （2026-11-08 オーナー：「血圧の薬Aを飲んでいます」の直後に「お薬手帳アプリが…」が来るのはおかしい。間にソナの質問が入らないと」
+ * 「ところが・・・と画面の切り替わりがかぶっていて展開が早すぎる」。止める 5 秒は 4・6・8番から回した）。
+ * section5Time(録画の秒) で、止めた後の録画の時刻を場面の時刻に直す。
+ * - 0.2〜4.0：ソナの1問目（アプリの声）
  * - 4.15〜6.5：オーナーの声の台詞「血圧の薬のAを飲んでいます。」（05a。入力の間）
- * - 6.7〜10.7：ナレーション「お薬手帳アプリが、スマホに入っている。」「これなら伝えられそうです。」（05.mp3 の 0〜2.5 秒と 2.95〜4.5 秒。
- *   文の間を 0.67 → 0.27 秒に詰める）。どちらもソナの返事より前に言う（2026-11-08 オーナー：「ソナの『以下の中で』よりも前に来る」）
- * - 10.9〜14.3：ソナの返事（アプリの声）。録画でソナが話しているのは 10.0〜14.2 秒で、合成した返事（6.5 秒）は収まらないので、
- *   2文目の問い「以下の中で、いちばん頼りにしているのはどれですか？」だけを鳴らす（1文目のお礼は切る）
- * - 14.4〜15.0：ナレーション「ところが……」（05.mp3 の 4.9 秒から）。14.8 秒の電池切れの暗転に重なる
- * - その後：電池切れの暗転 → 05b（15.5〜18.5）→ ソナの立て直しの問い（18.8〜）→ 05c（24.7〜27.6。終わりの約1秒は答え直す入力と BGM の戻りに重なる）→ 答え直す
+ * - 10.2〜13.5：ソナの返事の問い「以下の中で、いちばん頼りにしているのはどれですか？」（アプリの声。合成した返事の2文目だけ）
+ * - 13.9〜17.9：ナレーション「お薬手帳アプリが、スマホに入っている。」「これなら伝えられそうです。」（05.mp3 の 0〜2.5 秒と 2.95〜4.5 秒）
+ * - 18.25〜19.0：ナレーション「ところが……」（05.mp3 の 4.9 秒から）。約 0.8 秒おいて、19.2 秒に「これで進む」、19.8 秒に電池切れの暗転
+ * - その後（録画の時刻 + 5 秒）：05b（20.5〜）→ ソナの立て直しの問い（23.8〜）→ 05c（29.7〜）→ 答え直す（31.6〜）
  */
+export const SECTION5_HOLD = { atSeconds: 13.9, seconds: 5 } as const;
+/** 5番の録画の秒を、止めた分を足した場面の秒に直す */
+export const section5Time = (footageSeconds: number) =>
+  footageSeconds >= SECTION5_HOLD.atSeconds ? footageSeconds + SECTION5_HOLD.seconds : footageSeconds;
+const t5 = section5Time;
 const SECTION5_PIPELINE_TO = 9 * FPS;
 
 /**
@@ -366,7 +378,8 @@ const ROWS: Row[] = [
     narrationDelayFrames: QUESTION_BLACKOUT_FRAMES,
   },
   {
-    seconds: 10,
+    // 2026-11-08 に 10 → 7 秒（地図の最後の3秒を 3番の自己紹介に回した。オーナー：「0:15-0:18に表示されている日本地図を、次の自己紹介の枠に充てて」）
+    seconds: 7,
     voice: "ナレーター",
     screen: "quakeMap",
     screenNote: "震源の地図（日本語版のアニメーション）→「21回」と出典",
@@ -375,7 +388,8 @@ const ROWS: Row[] = [
     overlay: "quakeCount",
   },
   {
-    seconds: 15,
+    // 2026-11-08 に 15 → 18 秒（2番から3秒もらった）
+    seconds: 18,
     voice: "ナレーター",
     screen: "photos",
     screenNote: "本人の経験（原稿・写真はリポジトリの外。video/public/ の素材を読む）",
@@ -385,10 +399,11 @@ const ROWS: Row[] = [
     photoShots: [["photos/03-a", "photos/03-b"], ["photos/03-c"]],
     // 1カット目（顔の写った写真）に名前の札（2026-11-08 オーナーの依頼。中身は Git の外）
     nameplateFile: "private/03-nameplate.json",
-    narrationDelayFrames: sec(0.5),
+    narrationDelayFrames: sec(0.8),
   },
   {
-    seconds: 8,
+    // 2026-11-08 に 8 → 7 秒（5番の間に回した）
+    seconds: 7,
     voice: "ナレーター",
     screen: "phone",
     screenNote: "ロゴ → S1 はじめに（2D／3D を選ぶ）",
@@ -405,53 +420,56 @@ const ROWS: Row[] = [
     telops: [{ from: 3.5, to: 7.8, text: TELOPS.mode }],
   },
   {
-    seconds: 30,
+    // 2026-11-08 に 30 → 35 秒（録画を 5 秒止めて間を作る。上の SECTION5_HOLD）
+    seconds: 35,
     voice: "ナレーター＋アプリの声",
     screen: "phone",
     screenNote:
-      "3D：ソナが1問目を話す → 文字で答える → 情報源「スマートフォン」→ 電池切れの暗転 → ソナ「では、ほかにどうやって伝えられますか？」→ 2秒の無音 → 答え直す",
+      "3D：ソナが1問目を話す → 文字で答える → ソナの問い → 情報源「スマートフォン」（ここで止めてナレーション）→ 電池切れの暗転 → ソナ「では、ほかにどうやって伝えられますか？」→ 2秒の無音 → 答え直す",
     footageFile: "footage/05-phone.mp4",
     // 録画に音は無い。ソナの声は appVoice で、オーナーの声の台詞は extraNarration で重ね、ナレーションは narrationParts で切り分ける（上の注）
     footageAudio: false,
+    footageHold: SECTION5_HOLD,
     overlay: "pipeline",
     narrationParts: [
-      { fromSeconds: 6.7, fileFromSeconds: 0, fileToSeconds: 2.5 },
-      { fromSeconds: 9.25, fileFromSeconds: 2.95, fileToSeconds: 4.5 },
-      { fromSeconds: 14.25, fileFromSeconds: 4.9, fileToSeconds: 6.08 },
+      { fromSeconds: 13.9, fileFromSeconds: 0, fileToSeconds: 2.5 },
+      { fromSeconds: 16.45, fileFromSeconds: 2.95, fileToSeconds: 4.5 },
+      { fromSeconds: 18.1, fileFromSeconds: 4.9, fileToSeconds: 6.08 },
     ],
-    // 録画（2026-11-08、R1 の4回目）の区間：0〜4 ソナの1問目、4〜10 文字で答える、10〜14.8 情報源「スマートフォン」、
+    // 録画（2026-11-08、R1 の4回目）の区間（録画の秒）：0〜4 ソナの1問目、4〜10 文字で答える、10〜14.8 ソナの問いと情報源「スマートフォン」、
     // 14.8〜18.2 電池切れ、18.2〜24.6 立て直しの問い、24.6〜26.6 無音、26.6〜 答え直す
     appVoice: [
       { file: "voice/05-sona-1.mp3", fromSeconds: 0.2 },
       // 返事の問いの部分だけ（mp3 の 2.75 秒から。前はお礼の1文と息の音。問いの声は 2.92〜6.29 秒）
-      { file: "voice/05-sona-reply.mp3", fromSeconds: 10.75, fileFromSeconds: 2.75 },
-      { file: "voice/05-sona-2.mp3", fromSeconds: 18.8 },
+      { file: "voice/05-sona-reply.mp3", fromSeconds: 10.0, fileFromSeconds: 2.75 },
+      { file: "voice/05-sona-2.mp3", fromSeconds: t5(18.8) },
     ],
     // オーナーの声の台詞：入力している答えを短くしたもの（4〜10秒の入力の間）、電池切れの暗転の間、立て直しの問いの後
     extraNarration: [
       { file: "narration/05a.mp3", fromSeconds: 4.15 },
-      { file: "narration/05b.mp3", fromSeconds: 15.5 },
-      { file: "narration/05c.mp3", fromSeconds: 24.7 },
+      { file: "narration/05b.mp3", fromSeconds: t5(15.5) },
+      { file: "narration/05c.mp3", fromSeconds: t5(24.7) },
     ],
     // 寄り：電池切れ〜立て直しの問いでスマホに寄る（情報源を押す所はタップの寄り）
-    zooms: [{ from: 18.2, to: 26.6, scale: 1.18, x: 0.49, y: 0.5 }],
-    // 答える（9.46）はナレーションの直後なので波紋だけ。情報源「スマートフォン」→「これで進む」も、
+    zooms: [{ from: t5(18.2), to: t5(26.6), scale: 1.18, x: 0.49, y: 0.5 }],
+    // 答える（9.46）は波紋だけ。情報源「スマートフォン」→「これで進む」も、
     // 右の余白に選択肢の札を出すので寄らずに波紋だけ（寄るとスマホの画面が札にかかる）
     taps: [
       { at: 9.46, x: 195, y: 808, zoom: false },
       { at: 12.17, x: 195, y: 422, zoom: false },
-      { at: 14.22, x: 195, y: 746, zoom: false },
-      { at: 29.84, x: 195, y: 808, zoom: false },
+      { at: t5(14.22), x: 195, y: 746, zoom: false },
+      { at: t5(29.84), x: 195, y: 808, zoom: false },
     ],
-    // 10〜14.8 秒：情報源の選択肢（録画では「スマートフォン」を 12.17 秒に選ぶ）。電池切れの前に消す
-    optionPanel: { kind: "sources", from: 10.0, to: 14.6, picks: [{ at: 12.17, id: "smartphone" }] },
+    // 10 秒〜電池切れの前：情報源の選択肢（録画では「スマートフォン」を 12.17 秒に選ぶ）。止めている間も出す
+    optionPanel: { kind: "sources", from: 10.0, to: t5(14.6), picks: [{ at: 12.17, id: "smartphone" }] },
     telops: [
-      { from: 15.0, to: 18.2, text: TELOPS.event },
-      { from: 19.0, to: 26.6, text: TELOPS.recovery },
+      { from: t5(15.0), to: t5(18.2), text: TELOPS.event },
+      { from: t5(19.0), to: t5(26.6), text: TELOPS.recovery },
     ],
   },
   {
-    seconds: 19,
+    // 2026-11-08 に 19 → 17 秒（終わりの画面を2秒短くし、5番の間に回した）
+    seconds: 17,
     voice: "ナレーター",
     screen: "phone",
     screenNote: "S7 振り返りの「まだ弱いところ」→ S9 準備行動「飲んでいる薬のメモを財布に入れる」→「今週中」→ 終わりの画面",
@@ -482,7 +500,7 @@ const ROWS: Row[] = [
       { from: 8.5, to: 15, text: TELOPS.prep },
     ],
     // 終わりの画面の間に、本人の声の一言（06a、5.3 秒。2026-11-08 オーナー：「1:25あたりに、私の声で…5秒程度無音があるので、そこに」）
-    extraNarration: [{ file: "narration/06a.mp3", fromSeconds: 13.2 }],
+    extraNarration: [{ file: "narration/06a.mp3", fromSeconds: 11.3 }],
   },
   {
     seconds: 13,
@@ -499,7 +517,8 @@ const ROWS: Row[] = [
     chapter: { text: CHAPTERS.board, at: 10.2, seconds: 2.5 },
   },
   {
-    seconds: 23,
+    // 2026-11-08 に 23 → 21 秒（最後の2秒を 5番の間に回した）
+    seconds: 21,
     voice: "ナレーター",
     screen: "board",
     screenNote:
@@ -511,7 +530,7 @@ const ROWS: Row[] = [
     // 「在庫が減ります」が早送り（9〜13秒）、「手配を承認し」が承認のタップ（16.01秒）の少し前に来る
     narrationDelayFrames: sec(5.5),
     // 受領の後に 08a「リアルタイムで発注が入ってくるのがわかります。」（2026-11-08 オーナーの依頼。2:01〜2:06）
-    extraNarration: [{ file: "narration/08a.mp3", fromSeconds: 18.2 }],
+    extraNarration: [{ file: "narration/08a.mp3", fromSeconds: 18.0 }],
     // 05 ログの早回し：自動で進める所（デモ時計の早送り）。録画に合わせて直す
     // 録画の区間：0〜5.5 全体、5.5〜13 受け入れと早送り（4〜9 は患者の表が重なる）、13〜 発注・搬送 → 承認 → 搬送 → 受領
     badges: [{ from: 9, to: 13, text: "▶▶ デモの時間を早送り" }],
@@ -591,10 +610,11 @@ const ROWS: Row[] = [
     seconds: 7,
     voice: "ナレーター",
     screen: "phone",
-    screenNote: "選んだ準備のカードを一瞬 → 締めの画面（ロゴは仮の文字。Issue #263 で作る）",
-    footageFile: "footage/13-phone.mp4",
+    screenNote: "訓練のトップページ（2D／3D を選ぶ）を一瞬 → 締めの画面",
+    // 頭の3秒は、訓練のトップページ（2D／3D の答え方を選ぶ画面）。4番の録画の頭を使う（2026-11-08 オーナー：「お薬の避難訓練のトップページ（2択が出ているところ）にして」）
+    footageFile: "footage/04-phone.mp4",
     footageAudio: false,
-    // 準備のカードの後、「普段からの練習が、」を言い終える頃（3秒）に締めの画面へ替わり、
+    // トップページの後、「普段からの練習が、」を言い終える頃（3秒）に締めの画面へ替わり、
     // 「ソナクエスト。」（13.mp3 の 3.84 秒〜 → 5.34 秒）でロゴが出る（SonaQuestVideo.tsx の EndCard）
     narrationDelayFrames: sec(1.5),
   },
@@ -634,6 +654,7 @@ export const SECTIONS: Section[] = ROWS.reduce<Section[]>((acc, row, i) => {
     })),
     footageStartFrame: Math.round((row.footageStartSeconds ?? 0) * FPS),
     footageFreezeFrame: row.footageFreezeSeconds === undefined ? null : Math.round(row.footageFreezeSeconds * FPS),
+    footageHold: row.footageHold ? { atFrame: Math.round(row.footageHold.atSeconds * FPS), frames: Math.round(row.footageHold.seconds * FPS) } : null,
     zooms: row.zooms ?? [],
     badges: row.badges ?? [],
     taps: row.taps ?? [],
