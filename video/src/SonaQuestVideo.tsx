@@ -4,7 +4,7 @@
 import type { CSSProperties, FC, ReactNode } from "react";
 import { AbsoluteFill, Audio, Easing, Img, OffthreadVideo, Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
 import { ENDCARD_FRAMES, FPS, HEIGHT, SECTIONS, SECTION_COUNT, WIDTH, type Section, type Tap, type Zoom } from "./sections";
-import { CLOSING_LINE, EVENT_CREDIT } from "./slideText";
+import { CLOSING_LINE, EVENT_CREDIT, EVENT_PERIOD } from "./slideText";
 import {
   ModelsDemo,
   PatientTableOverlay,
@@ -323,17 +323,19 @@ const EndCard: FC = () => {
       <div
         style={{
           position: "absolute",
-          bottom: 64,
+          bottom: 56,
           left: 0,
           right: 0,
-          textAlign: "center",
-          fontSize: 32,
-          letterSpacing: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 10,
           color: COLORS.sub,
           opacity: logoOpacity,
         }}
       >
-        {EVENT_CREDIT}
+        <div style={{ fontSize: 32, letterSpacing: 1 }}>{EVENT_CREDIT}</div>
+        <div style={{ fontSize: 26 }}>{EVENT_PERIOD}</div>
       </div>
     </AbsoluteFill>
   );
