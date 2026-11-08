@@ -10,7 +10,7 @@ import { FPS, SECTIONS, type Section } from "./sections";
 import { hasStaticFile } from "./theme";
 
 /** BGM の大きさ（ナレーションの下に敷く）。ナレーションを合成した後に聞いて直す */
-export const BGM_VOLUME = 0.22;
+export const BGM_VOLUME = 0.3;
 /** 効果音の大きさ */
 export const SFX_VOLUME = 0.5;
 
@@ -21,6 +21,8 @@ type BgmCue = {
   file: string;
   from: number;
   duration: number;
+  /** 曲ごとの大きさの合わせ（合成した曲は -24 LUFS、アプリの BGM は -20 LUFS で書き出している） */
+  gain?: number;
   /** 場面の中で BGM を消す区間（cue の頭からのフレーム。[始め, 終わり)） */
   mute?: Array<readonly [number, number]>;
 };
@@ -36,7 +38,7 @@ const SECTION5_MUTE: readonly [number, number] = [
 
 export const BGM_CUES: BgmCue[] = [
   { file: "bgm/opening.wav", from: sectionFrom(1), duration: sectionEnd(3) - sectionFrom(1) },
-  { file: "bgm/app-training.wav", from: sectionFrom(4), duration: sectionEnd(6) - sectionFrom(4), mute: [SECTION5_MUTE] },
+  { file: "bgm/app-training.wav", from: sectionFrom(4), duration: sectionEnd(6) - sectionFrom(4), mute: [SECTION5_MUTE], gain: 0.63 },
   { file: "bgm/board.wav", from: sectionFrom(7), duration: sectionEnd(10) - sectionFrom(7) },
   { file: "bgm/models.wav", from: sectionFrom(11), duration: sectionEnd(11) - sectionFrom(11) },
   { file: "bgm/ending.wav", from: sectionFrom(12), duration: sectionEnd(13) - sectionFrom(12) },
@@ -53,7 +55,7 @@ const bgmVolume = (cue: BgmCue) => (f: number) => {
   for (const [a, b] of cue.mute ?? []) {
     v = Math.min(v, interpolate(f, [a - ramp, a, b, b + ramp], [1, 0, 0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }));
   }
-  return v * BGM_VOLUME;
+  return v * BGM_VOLUME * (cue.gain ?? 1);
 };
 
 type SfxCue = { file: string; at: number; volume?: number };
