@@ -43,7 +43,7 @@ npm --prefix video run narration
 ```
 
 - 原稿は `video/narration/NN.txt`（1・2・4〜11・13番。読み上げの原稿なので「ソナクエスト」とカタカナ）。
-- 5番には、架空の患者の台詞を本人のクローン音声で3本足しています（`05a.txt`〜`05c.txt`。2026-11-08 オーナー決定。置く時刻は `src/sections.ts` の `extraNarration`）。`--only` には `05b` のように書けます。
+- 5番には、架空の患者の台詞を本人のクローン音声で3本足しています（`05a.txt`〜`05c.txt`。2026-11-08 オーナー決定。置く時刻は `src/sections.ts` の `extraNarration`）。6番・8番の間にも一言（`06a.txt`・`08a.txt`）、7番から8番にまたがって `07a.txt`（`CROSS_NARRATION`）を足しています。`--only` には `05b` のように書けます。
 - 3番（本人の経験）と 12番（協力者と試用した人の感想）の原稿はリポジトリに置きません（CLAUDE.md 絶対ルール8）。合成するときは、BWJ2026_Docs の原稿を `video/public/private/narration/03.txt`・`12.txt`（Git の対象外）に写します。置かれていなければ、その場面は飛ばします（失敗にしません）。
 - 書き出し先は `video/public/narration/NN.mp3`。既にある mp3 は飛ばします。作り直すときは次のようにします。
 
