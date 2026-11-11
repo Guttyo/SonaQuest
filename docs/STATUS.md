@@ -154,6 +154,7 @@
 - PR のマージの確認の画面（Issue #90、PR #93、ADR-0041）：`guard_github.py` は `gh pr merge <番号かURL>` で確認の画面を出す（`permissionDecision: "ask"`）。`--admin`・`--auto`、PR を指さないもの、ブランチ名・変数で指すものは止める。予備として `.claude/settings.json` の `permissions.ask` に `Bash(gh pr merge:*)` を置いた。確認の画面を出せない権限の設定（`dontAsk` など）では、確認が要る操作は断られる
 - hookの試験スクリプト（`.claude/hooks/test_hooks.py`）
 - Git 履歴の検査スクリプト（`.claude/hooks/scan_history.py`。Issue #58、PR #61、safety-test-plan P5）：全部の参照の全コミットのメッセージと差分を、コミット前フックと同じ秘密情報の形で調べ、履歴に入った非公開のパスも調べる。`--blocklist` を付けるとブロックリストの語も調べる（オーナーが実行する。Claude Code は `.claude/local/blocklist.txt` を読まない）。`--self-test` は、使い捨てのリポジトリで検査が効くことを確かめる。一致した値や語は出さない。PowerShell では `py .claude\hooks\scan_history.py` と書く（`sh` が無いため）。ブロックリストが見つからないときは「検査できなかった」と報告する。公開の前に毎回実行する
+- 秘密ファイルを守る hook の抜けの一部を塞いだ（Issue #290、PR #310）：`block_secrets.py` の「存在の確認（`ls`・`stat`・`test`・`[`・`git status`・`git check-ignore`）と `*.example` からの `cp` は通す」例外を、コマンドを分けた各部分に当てる形にした（複数行・置換・前置きのコマンド・`git -c`・入力のリダイレクト・`cp` のオプションなどでは通さない）。名前の途中の引用符・`.` の前のバックスラッシュ・入力のリダイレクトでも秘密ファイルの名前を見つける。秘密の値の形に、名前を引用符で囲む JSON・YAML の書き方、小文字の名前、GitHub のトークンを足した。履歴とコミット前の検査の git に `--no-textconv`（履歴は `--no-ext-diff` も）を付けた。`test_hooks.py` 461/461 PASS（2026-11-11、Windows 11）。グロブ・再帰の検索と `.claude/settings.json` の deny はオーナーの判断待ち（Issue #290）
 - アプリ本体（Phase 1 の試作版、`web/`。Issue #8、PR #10）
   - React / TypeScript / Vite の雛形（ADR-0003）
   - 実装の3画面（はじめに／対話／振り返り）と、中断の画面・終わりの画面

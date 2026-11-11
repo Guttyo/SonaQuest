@@ -13,9 +13,13 @@ SECRET_PATTERNS = [
     ("Anthropic APIキー", re.compile(r"sk-ant-[A-Za-z0-9_\-]{20,}")),
     ("ElevenLabs APIキー", re.compile(r"\bsk_[a-f0-9]{40,}\b")),
     ("秘密鍵", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
+    # 名前を引用符で囲む JSON・YAML の書き方と、小文字の名前も拾う（Issue #290）。
+    # 値が16字以上のときだけ当てるので、雛形の空の代入（ANTHROPIC_API_KEY=）や型の宣言には当たらない
     ("秘密情報の代入", re.compile(
-        r"\b(?:ANTHROPIC_API_KEY|ELEVENLABS_API_KEY|CLOUDFLARE_API_TOKEN|CF_API_TOKEN)"
+        r"(?i)[\"']?\b(?:ANTHROPIC_API_KEY|ELEVENLABS_API_KEY|CLOUDFLARE_API_TOKEN|CF_API_TOKEN)\b[\"']?"
         r"[ \t]*[=:][ \t]*[\"']?[A-Za-z0-9_\-.]{16,}")),
+    ("GitHub のトークン", re.compile(r"\bgh[pousr]_[A-Za-z0-9]{36,}\b")),
+    ("GitHub のトークン（fine-grained）", re.compile(r"\bgithub_pat_[A-Za-z0-9_]{80,}")),
 ]
 
 MARKER = re.compile(r"\[TODO-OWNER(?::[^\]\n]*)?\]")
