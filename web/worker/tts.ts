@@ -18,6 +18,11 @@ export interface TtsEnv {
   ELEVENLABS_VOICE_ID?: string;
   /** 公開の切り替え。/api/turn と同じ1つで、Claude と読み上げをまとめて開く（ADR-0028 の12、ADR-0033） */
   PUBLIC_TURN?: string;
+  /**
+   * 読み上げる Claude の文の署名に使う秘密の値（secrets。Issue #284 の指摘3、案A。2026-11-11 オーナー決定）。
+   * /api/turn が署名し、/api/tts が確かめる。無いときは /api/tts は ElevenLabs を呼ばずに失敗を返す。ブラウザには出さない
+   */
+  TTS_SIGNING_KEY?: string;
   /** 回数制限の binding（ADR-0035）。読み上げは接頭辞 "tts" で数える */
   TURN_LIMITER?: RateLimiter;
 }

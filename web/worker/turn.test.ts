@@ -18,6 +18,7 @@ import {
 import { AUDIT_CATEGORIES, AUDIT_SYSTEM_PROMPT, buildAuditMessage, type Audit, type AuditResult } from "./audit";
 import * as entry from "./index";
 import { SYSTEM_PROMPT, buildUserMessage } from "./prompt";
+import { MIN_SIGNING_KEY_LENGTH, verifySpeechToken } from "./speechSign";
 import {
   auditedQuestion,
   chooseNext,
@@ -257,7 +258,28 @@ describe("/api/turn の入口", () => {
       recall: false,
       source_guess: null,
       remark: null,
+      // 署名の秘密の値（TTS_SIGNING_KEY）が無いときも返事は返し、署名だけを null にする（Issue #284）
+      speech: { text: null, remark: null },
     });
+  });
+
+  it("署名の秘密の値があれば、Claude の文に /api/tts で確かめられる署名を付ける（Issue #284）", async () => {
+    const secret = "k".repeat(MIN_SIGNING_KEY_LENGTH);
+    const app = createApp(() => fake(ok(output)));
+    const response = await post(app, JSON.stringify(request), { ...env, TTS_SIGNING_KEY: secret });
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as { next: { text: string }; speech: { text: string; remark: null } };
+    expect(json.speech.remark).toBeNull();
+    expect(await verifySpeechToken(secret, json.next.text, json.speech.text)).toBe("ok");
+    // 別の秘密の値では合わない。署名も秘密の値も、ほかの欄には出ない
+    expect(await verifySpeechToken("x".repeat(MIN_SIGNING_KEY_LENGTH), json.next.text, json.speech.text)).toBe("bad");
+    expect(JSON.stringify(json)).not.toContain(secret);
+  });
+
+  it("短すぎる秘密の値は無いものとして扱い、署名しない（Issue #284）", async () => {
+    const app = createApp(() => fake(ok(output)));
+    const response = await post(app, JSON.stringify(request), { ...env, TTS_SIGNING_KEY: "short" });
+    expect(((await response.json()) as { speech: unknown }).speech).toEqual({ text: null, remark: null });
   });
 
   it("形の違う入力・大きすぎる入力は、Claude を呼ばずに拒否する（P8）", async () => {

@@ -15,6 +15,8 @@ import { checkRateLimit, type RateLimiter } from "./ratelimit";
 import { ALLOWED_VOCABULARY, followsGoalRules, runTurn } from "./turn";
 import { crossSiteRequest } from "./guard";
 import { createTtsApp, type TtsEnv } from "./tts";
+import { signSpeechText, usableSigningKey } from "./speechSign";
+import type { SpeechTokens, TurnResponse } from "../src/flow/turnContract";
 import { createTtsLabApp } from "./ttsLab";
 import { createBoardChatApp, makeChatBackend, type BoardChatEnv } from "./boardChat";
 import { createKarteApp, type KarteEnv } from "./karte";
@@ -96,6 +98,16 @@ export async function readLimitedText(request: Request, maxBytes: number): Promi
     offset += chunk.byteLength;
   }
   return new TextDecoder().decode(bytes);
+}
+
+/** 応答の Claude の文（next.text と remark）の署名。秘密の値が使えなければ、どちらも null */
+export async function signResponseTexts(secret: string | undefined, response: TurnResponse): Promise<SpeechTokens> {
+  if (!usableSigningKey(secret)) return { text: null, remark: null };
+  const now = Date.now();
+  return {
+    text: response.next.text === null ? null : await signSpeechText(secret, response.next.text, now),
+    remark: response.remark === null ? null : await signSpeechText(secret, response.remark, now),
+  };
 }
 
 export function createApp(
@@ -193,7 +205,10 @@ export function createApp(
     if (outcome.goalOverride !== null) console.warn(`turn: goal_overridden:${outcome.goalOverride}`);
     if (outcome.remarkRejectReason !== null) console.warn(`turn: remark_rejected:${outcome.remarkRejectReason}`);
     if (outcome.remarkAudit?.failure) console.warn(`turn: remark_audit_failed:${outcome.remarkAudit.failure}`);
-    return c.json(outcome.response);
+    // 読み上げの中継（/api/tts）が読めるよう、Claude の文に署名を付ける（Issue #284 の指摘3、案A）。
+    // 秘密の値（TTS_SIGNING_KEY）が無いときも /api/turn は止めず、署名を null にする（読み上げはブラウザの読み上げになる）
+    const speech = await signResponseTexts(c.env.TTS_SIGNING_KEY, outcome.response);
+    return c.json({ ...outcome.response, speech });
   });
 
   // 監査役の比較実験だけで使う採点の入口（ADR-0030 の実験。docs/evidence.md）。
