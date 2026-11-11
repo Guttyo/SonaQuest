@@ -14,8 +14,6 @@ import {
 import {
   buildTurnMessage,
   chatConfig,
-  collectTurn,
-  type ChatStreamEvent,
   createBoardChatApp,
   sessionBudget,
   TURN_STYLE_LINES,
@@ -62,16 +60,23 @@ interface FakeBackend extends ChatBackend {
   sessions: string[];
   turns: { sessionId: string; message: string }[];
   configs: BoardChatConfig[];
+  interrupts: string[];
 }
 
 function fakeBackend(
   turn: () => RunTurnResult = () => ({ ok: true, text: "救護所B：毛布を受け取ります。搬送便の時刻を教えてください。" }),
   session: () => CreateSessionResult = () => ({ ok: true, sessionId: "sesn_new0123456789" }),
+  interrupt: () => Promise<boolean> = async () => true,
 ) {
   const state: FakeBackend = {
     sessions: [],
     turns: [],
     configs: [],
+    interrupts: [],
+    async interrupt(sessionId) {
+      state.interrupts.push(sessionId);
+      return interrupt();
+    },
     async createSession(role) {
       state.sessions.push(role);
       return session();
@@ -245,6 +250,70 @@ describe("/api/board/chat/turn", () => {
     expect(await res.json()).toEqual({ error: code });
   });
 
+  /** Workers の実行の文脈の偽物。waitUntil に渡された処理をためる */
+  function executionCtx() {
+    const tasks: Promise<unknown>[] = [];
+    return { tasks, ctx: { waitUntil: (p: Promise<unknown>) => void tasks.push(p), passThroughOnException: () => {}, props: {} } };
+  }
+  function postTurn(app: Requestable, ctx: ReturnType<typeof executionCtx>["ctx"]) {
+    return app.request(
+      `${LOCAL}/api/board/chat/turn`,
+      { method: "POST", body: JSON.stringify(TURN), headers: { "Content-Type": "application/json" } },
+      env,
+      ctx as never,
+    );
+  }
+
+  it.each(["timeout", "incomplete"] as const)("%s のときは、応答の後に中断を1回だけ送る（waitUntil を通す。削除はしない。Issue #294）", async (failure) => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { state, app } = fakeBackend(() => ({ ok: false, failure }));
+    const { tasks, ctx } = executionCtx();
+    const res = await postTurn(app, ctx);
+    expect(res.status).toBe(failure === "timeout" ? 504 : 502);
+    expect(tasks).toHaveLength(1);
+    await Promise.all(tasks);
+    expect(state.interrupts).toEqual([TURN.sessionId]);
+  });
+
+  it.each(["budget_reached", "refusal", "not_found", "rate_limited"] as const)("%s のときは中断を送らない（止まっている・届いていない）", async (failure) => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { state, app } = fakeBackend(() => ({ ok: false, failure }));
+    const { tasks, ctx } = executionCtx();
+    await postTurn(app, ctx);
+    expect(tasks).toHaveLength(0);
+    expect(state.interrupts).toEqual([]);
+  });
+
+  it("うまくいった回は中断を送らない", async () => {
+    const { state, app } = fakeBackend();
+    const { tasks, ctx } = executionCtx();
+    expect((await postTurn(app, ctx)).status).toBe(200);
+    expect(tasks).toHaveLength(0);
+    expect(state.interrupts).toEqual([]);
+  });
+
+  it("中断を送れなくても（false・例外）、turn の応答は 504 のままで、ログは種類だけ", async () => {
+    for (const interrupt of [async () => false, async () => Promise.reject(new Error("毛布の本文"))]) {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const { state, app } = fakeBackend(() => ({ ok: false, failure: "timeout" }), undefined, interrupt);
+      const { tasks, ctx } = executionCtx();
+      const res = await postTurn(app, ctx);
+      expect(res.status).toBe(504);
+      expect(await res.json()).toEqual({ error: "timeout" });
+      await Promise.all(tasks);
+      expect(state.interrupts).toHaveLength(1);
+      expect(warn.mock.calls.map((c) => String(c[0]))).toEqual([expect.stringMatching(/^board_chat: turn_timeout \d+ms$/), "board_chat: interrupt_failed"]);
+      warn.mockRestore();
+    }
+  });
+
+  it("実行の文脈が無いとき（試験など）も、中断はそのまま走る", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { state, app } = fakeBackend(() => ({ ok: false, failure: "timeout" }));
+    expect((await post(app, "turn", TURN)).status).toBe(504);
+    await vi.waitFor(() => expect(state.interrupts).toEqual([TURN.sessionId]));
+  });
+
   it("公開の切り替えのときは、接頭辞 chat で数え、超えたら 429 で送らない", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const open = limiter();
@@ -334,44 +403,7 @@ describe("エージェントに送る文", () => {
   });
 });
 
-describe("SSE の出来事の読み方（collectTurn）", () => {
-  async function* events(list: ChatStreamEvent[]) {
-    for (const e of list) yield e;
-  }
-  const running: ChatStreamEvent = { type: "session.status_running" };
-  const idle = (type: string): ChatStreamEvent => ({ type: "session.status_idle", stop_reason: { type } });
-  const message = (text: string): ChatStreamEvent => ({ type: "agent.message", content: [{ type: "text", text }] });
-
-  it("動き出しの前に来た止まり（開いた時点の状態）は数えず、この回の文を読む", async () => {
-    const result = await collectTurn(events([idle("end_turn"), running, message("毛布を"), message("受け取ります。"), idle("end_turn")]));
-    expect(result).toEqual({ ok: true, text: "毛布を受け取ります。" });
-  });
-
-  it("止まった後の出来事は読まない", async () => {
-    const result = await collectTurn(events([running, message("了解です。"), idle("end_turn"), message("後の文")]));
-    expect(result).toEqual({ ok: true, text: "了解です。" });
-  });
-
-  it.each([
-    ["budget_reached", "budget_reached"],
-    ["requires_action", "requires_action"],
-    ["retries_exhausted", "retries_exhausted"],
-    ["refusal", "refusal"],
-    ["something_new", "unknown"],
-  ])("止まった理由 %s は失敗 %s", async (reason, failure) => {
-    expect(await collectTurn(events([running, message("途中"), idle(reason)]))).toEqual({ ok: false, failure });
-  });
-
-  it("止まった（end_turn）を見ないままストリームが終わったときは、文があっても失敗（incomplete）", async () => {
-    expect(await collectTurn(events([running, message("途中の文")]))).toEqual({ ok: false, failure: "incomplete" });
-    expect(await collectTurn(events([idle("end_turn"), message("途中の文")]))).toEqual({ ok: false, failure: "incomplete" });
-  });
-
-  it("終わった（terminated）セッションと、文が無いときは失敗", async () => {
-    expect(await collectTurn(events([running, { type: "session.status_terminated" }]))).toEqual({ ok: false, failure: "terminated" });
-    expect(await collectTurn(events([running, idle("end_turn")]))).toEqual({ ok: false, failure: "no_message" });
-  });
-
+describe("エージェントに送る文の語", () => {
   it("エージェントに送る文に英字の「DM」を入れない（検査で捨てる語なので、エージェントがまねしないように）", () => {
     for (const channel of ["common", "A", "B", "C", "D"] as const) {
       expect(buildTurnMessage({ ...TURN, role: "HQ", channel, posts: [] })).not.toMatch(/DM/);

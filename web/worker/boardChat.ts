@@ -15,6 +15,16 @@ import {
 } from "./boardChatAgents";
 import { chatTextProblem, stripRolePrefix } from "./boardChatChecks";
 import { contentLogEnabled, logContent } from "./devlog";
+import {
+  AGENT_ID_PATTERN,
+  ENV_ID_PATTERN,
+  classify,
+  interruptSession,
+  makeSessionOps,
+  runSessionTurn,
+  type SessionFailure,
+  type TurnResult,
+} from "./managedSession";
 import { checkRateLimit, type RateLimiter } from "./ratelimit";
 import { crossSiteRequest, ttsAllowed } from "./tts";
 import {
@@ -51,38 +61,27 @@ export interface BoardChatConfig {
   agents: Record<BoardChatRoleId, string>;
 }
 
-/** 失敗の種類。本文を含まないので、ログに出してよい */
-export type ChatFailure =
-  | "timeout"
-  | "rate_limited"
-  | "connection"
-  | "bad_request"
-  | "not_found"
-  | "api_error"
-  | "budget_reached"
-  | "requires_action"
-  | "retries_exhausted"
-  | "refusal"
-  | "terminated"
-  | "no_message"
-  | "incomplete"
-  | "unknown";
+/** 失敗の種類。本文を含まないので、ログに出してよい（共通の部品の SessionFailure と同じ） */
+export type ChatFailure = SessionFailure;
 
 export type CreateSessionResult = { ok: true; sessionId: string } | { ok: false; failure: ChatFailure };
-export type RunTurnResult = { ok: true; text: string } | { ok: false; failure: ChatFailure };
+export type RunTurnResult = TurnResult;
 
 /** Managed Agents とのやりとり。試験では偽物を渡す */
 export interface ChatBackend {
   createSession(role: ChatRole): Promise<CreateSessionResult>;
   runTurn(sessionId: string, message: string, timeoutMs: number): Promise<RunTurnResult>;
+  /**
+   * 中断（user.interrupt）だけを送る。送れたら true。セッションと履歴は残す（消すかどうかは ADR-0047 のオーナー判断）。
+   * 時間切れ・途中で切れた回のあと、セッションが動いたままにならないように使う（Issue #294）
+   */
+  interrupt(sessionId: string): Promise<boolean>;
 }
 
 /** エージェントの文を待つ上限。超えたら固定の掲示に替える */
 export const CHAT_TURN_TIMEOUT_MS = 25_000;
 /** 受け取る本文のバイト数の上限（書き込み8件×200字に、状況と形の余裕を足す。日本語は1文字3バイト） */
 export const MAX_CHAT_BODY_BYTES = 12_000;
-const AGENT_ID_PATTERN = /^agent_[A-Za-z0-9_]{8,128}$/;
-const ENV_ID_PATTERN = /^env_[A-Za-z0-9_]{8,128}$/;
 
 /** vars から ID をそろえる。1つでも無い・形が違うときは null（固定の掲示に替える） */
 export function chatConfig(env: BoardChatEnv): BoardChatConfig | null {
@@ -174,67 +173,11 @@ export function buildTurnMessage(request: ChatTurnRequest): string {
   ].join("\n");
 }
 
-function classify(error: unknown): ChatFailure {
-  if (error instanceof Anthropic.APIUserAbortError) return "timeout";
-  if (error instanceof Anthropic.APIConnectionTimeoutError) return "timeout";
-  if (error instanceof Anthropic.APIConnectionError) return "connection";
-  if (error instanceof Anthropic.RateLimitError) return "rate_limited";
-  // セッションが budget で止まっているときに user.message を送ると 400 になる（ほかの 400 と区別しない）
-  if (error instanceof Anthropic.BadRequestError) return "bad_request";
-  if (error instanceof Anthropic.NotFoundError) return "not_found";
-  if (error instanceof Anthropic.APIError) return "api_error";
-  return "unknown";
-}
-
-/** SSE の出来事の形のうち、ここで読むもの（SDK の型の一部） */
-export type ChatStreamEvent =
-  | { type: "agent.message"; content: readonly { type: string; text?: string }[] }
-  | { type: "session.status_running" }
-  | { type: "session.status_idle"; stop_reason: { type: string } }
-  | { type: "session.status_terminated" }
-  | { type: string };
-
-/**
- * 送った後の出来事を、セッションが止まるまで読み、エージェントの文をつなげる。
- * 止まった（status_idle）は、この回の動き出し（status_running）かエージェントの文を見た後だけ数える。
- * 文を使うのは、end_turn で止まったのを見たときだけ（途中で切れたストリームの文は使わない）
- * （ストリームは開いた後の出来事だけを流すが、開いた時点の状態が来ても1回目で終わらないようにする）
- */
-export async function collectTurn(stream: AsyncIterable<ChatStreamEvent>): Promise<RunTurnResult> {
-  const texts: string[] = [];
-  let started = false;
-  let ended = false;
-  for await (const event of stream) {
-    if (event.type === "agent.message" && "content" in event) {
-      started = true;
-      for (const block of event.content) if (block.type === "text" && typeof block.text === "string") texts.push(block.text);
-    } else if (event.type === "session.status_running") {
-      started = true;
-    } else if (event.type === "session.status_idle" && "stop_reason" in event) {
-      if (!started) continue;
-      const reason = event.stop_reason.type;
-      if (reason === "end_turn") {
-        ended = true;
-        break;
-      }
-      if (reason === "budget_reached") return { ok: false, failure: "budget_reached" };
-      if (reason === "requires_action") return { ok: false, failure: "requires_action" };
-      if (reason === "retries_exhausted") return { ok: false, failure: "retries_exhausted" };
-      if (reason === "refusal") return { ok: false, failure: "refusal" };
-      return { ok: false, failure: "unknown" };
-    } else if (event.type === "session.status_terminated") {
-      return { ok: false, failure: "terminated" };
-    }
-  }
-  // 止まった（end_turn）を見ないままストリームが終わったときは、文が途中かもしれないので使わない
-  if (!ended) return { ok: false, failure: "incomplete" };
-  const text = texts.join("").trim();
-  return text === "" ? { ok: false, failure: "no_message" } : { ok: true, text };
-}
-
 /** 本物の Managed Agents（@anthropic-ai/sdk の client.beta.sessions）。SDK の自動の再試行はしない */
 export function makeChatBackend(apiKey: string, config: BoardChatConfig): ChatBackend {
   const client = new Anthropic({ apiKey, maxRetries: 0, timeout: CHAT_TURN_TIMEOUT_MS });
+  // 中断には短い上限を付ける（SESSION_CALL_TIMEOUT_MS）
+  const ops = makeSessionOps(client);
   return {
     async createSession(role) {
       try {
@@ -254,22 +197,14 @@ export function makeChatBackend(apiKey: string, config: BoardChatConfig): ChatBa
       const abort = new AbortController();
       const timer = setTimeout(() => abort.abort(), timeoutMs);
       try {
-        // 先に SSE を開いてから送る（開く前の出来事は流れてこないため）
-        const stream = await client.beta.sessions.events.stream(sessionId, {}, { signal: abort.signal });
-        await client.beta.sessions.events.send(
-          sessionId,
-          { events: [{ type: "user.message", content: [{ type: "text", text: message }] }] },
-          { signal: abort.signal },
-        );
-        return await collectTurn(stream);
-      } catch (error) {
-        return { ok: false, failure: abort.signal.aborted ? "timeout" : classify(error) };
+        return await runSessionTurn(client, sessionId, message, abort.signal);
       } finally {
         clearTimeout(timer);
         // 読み終えたら接続を閉じる（止まった後の出来事を読み続けない）
         abort.abort();
       }
     },
+    interrupt: (sessionId) => interruptSession(ops, sessionId),
   };
 }
 
@@ -295,6 +230,16 @@ export function createBoardChatApp(deps: BoardChatDeps) {
   const makeBackend = deps.makeBackend ?? makeChatBackend;
   const timeoutMs = deps.timeoutMs ?? CHAT_TURN_TIMEOUT_MS;
   const fail = (kind: string) => console.warn(`board_chat: ${kind}`);
+  /** 応答の後も続けたい処理を Workers の waitUntil に渡す（karte.ts と同じ書き方） */
+  const defer = (c: { executionCtx: { waitUntil(promise: Promise<unknown>): void } }, task: () => Promise<void>) => {
+    const running = task();
+    try {
+      c.executionCtx.waitUntil(running);
+    } catch {
+      // 試験など、実行の文脈が無いときは、そのまま走らせる
+      void running;
+    }
+  };
 
   /**
    * 入口の共通の確かめ。通すなら backend と、形を確かめた本文を返す。通さないなら失敗の種類と HTTP の状態。
@@ -377,6 +322,15 @@ export function createBoardChatApp(deps: BoardChatDeps) {
     const ms = Date.now() - started;
     if (!result.ok) {
       fail(`turn_${result.failure} ${ms}ms`);
+      // 時間切れ・途中で切れたときは、セッションがまだ動いているかもしれない。応答の後に中断だけを送る（Issue #294）。
+      // 削除はしない（掲示板チャットのセッションを消すかどうかは ADR-0047 のオーナー判断）
+      if (result.failure === "timeout" || result.failure === "incomplete") {
+        const backend = g.backend;
+        defer(c, async () => {
+          const sent = await backend.interrupt(request.sessionId).catch(() => false);
+          if (!sent) fail("interrupt_failed");
+        });
+      }
       const r = failureResponse(result.failure);
       return c.json({ error: r.code }, r.status);
     }

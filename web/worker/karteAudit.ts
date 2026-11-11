@@ -1,13 +1,24 @@
 // カルテの要約の2段目：Managed Agents の監査役（B-10、Issue #142、ADR-0053 の提案）。
 // 監査1回ごとに、budget 付きのセッションを1つ作り、SSE を先に開いてから会話の見本と要約を送り、止まるまで読む
-// （読み方は掲示板チャットの collectTurn と同じ）。一定時間で終わらなければ「監査できず」にする。
+// （読み方は掲示板チャットと同じ共通の部品 managedSession.ts）。一定時間で終わらなければ「監査できず」にする。
+// 締め切りは、セッションの作成の前から数える（作成・SSE・送信に同じ signal を渡す。Issue #294）。
 // 終わったら毎回セッションを削除する。動いているセッションは削除できない（公式ドキュメント）ので、
-// 時間切れのときは user.interrupt を送り、止まるのを待ってから削除する（応答の後に waitUntil で続ける）。
+// 時間切れのときや、すぐ消せなかったときは、user.interrupt を送り、止まるのを待ってから削除する（応答の後に waitUntil で続ける）。
+// 後片付けの呼び出しには短い上限を、後片付けの全体にも上限を付ける。
 // 監査役の出力は指摘の JSON だけを受け取り、形と理由の文を Workers で確かめる。理由の文が検査を通らなければ、
 // 種類ごとの固定文に替える。ログに出すのは失敗の種類・件数・所要時間だけで、会話・要約・指摘の本文は出さない。
 
 import Anthropic from "@anthropic-ai/sdk";
-import { collectTurn, type ChatFailure, type ChatStreamEvent } from "./boardChat";
+import {
+  cleanupSession,
+  makeSessionOps,
+  runSessionTurn,
+  type CleanupState,
+  type SessionFailure,
+  classify,
+  type SessionOps,
+  type TurnResult,
+} from "./managedSession";
 import { KARTE_AUDIT_SESSION_BUDGET_CENTS } from "./karteAuditAgent";
 import { textForbidden } from "../src/board/karte/codeCheck";
 import {
@@ -23,9 +34,6 @@ import type { KarteSample } from "../src/board/karte/samples";
 
 /** 監査を待つ上限。超えたら「監査できず」 */
 export const KARTE_AUDIT_TIMEOUT_MS = 45_000;
-/** 時間切れの後、中断してから止まるのを待つ回数と間隔 */
-const CLEANUP_POLLS = 10;
-const CLEANUP_INTERVAL_MS = 1_000;
 /** 受け取る指摘の数の上限 */
 const MAX_FINDINGS = 20;
 const MAX_REASON_LENGTH = 80;
@@ -37,7 +45,7 @@ export interface KarteAuditConfig {
 
 export type AuditRunResult =
   | { ok: true; text: string; session: AuditSessionState }
-  | { ok: false; failure: ChatFailure; session: AuditSessionState };
+  | { ok: false; failure: SessionFailure; session: AuditSessionState };
 
 /** Managed Agents とのやりとり。試験では偽物を渡す */
 export interface KarteAuditBackend {
@@ -112,64 +120,94 @@ export function parseAuditOutput(raw: string, summary: KarteSummary): AuditFindi
 }
 
 /** 失敗の種類を、画面に返す「監査できず」の理由に変える */
-export function unavailableReason(failure: ChatFailure): AuditUnavailableReason {
+export function unavailableReason(failure: SessionFailure): AuditUnavailableReason {
   if (failure === "timeout" || failure === "incomplete") return "timeout";
   return "failed";
 }
 
-function classify(error: unknown): ChatFailure {
-  if (error instanceof Anthropic.APIUserAbortError) return "timeout";
-  if (error instanceof Anthropic.APIConnectionTimeoutError) return "timeout";
-  if (error instanceof Anthropic.APIConnectionError) return "connection";
-  if (error instanceof Anthropic.RateLimitError) return "rate_limited";
-  if (error instanceof Anthropic.BadRequestError) return "bad_request";
-  if (error instanceof Anthropic.NotFoundError) return "not_found";
-  if (error instanceof Anthropic.APIError) return "api_error";
-  return "unknown";
+// 後片付け（cleanupSession）と、その操作（SessionOps）は共通の部品にある。試験と karte.ts のために、ここからも出す
+export { cleanupSession, type SessionOps };
+
+/** セッションの作成の引数（budget を必ず付ける） */
+export function auditSessionParams(config: KarteAuditConfig) {
+  return {
+    agent: config.agentId,
+    environment_id: config.environmentId,
+    title: "SonaQuest karte audit (fictional sample)",
+    metadata: { app: "sonaquest", feature: "karte-audit" },
+    budget: {
+      type: "limit" as const,
+      max_list_cost: { amount: KARTE_AUDIT_SESSION_BUDGET_CENTS, currency: "USD" as const },
+    },
+  };
 }
 
-/** セッションの操作のうち、後片付けで使うもの（試験では偽物を渡す） */
-export interface SessionOps {
-  delete(sessionId: string): Promise<void>;
-  interrupt(sessionId: string): Promise<void>;
-  status(sessionId: string): Promise<string>;
-  sleep(ms: number): Promise<void>;
+/** 監査の1回で使う Managed Agents の呼び出し（試験では偽物を渡す） */
+export interface AuditSessionClient {
+  /** セッションを作って ID を返す。signal が止まったら投げる */
+  create(signal: AbortSignal): Promise<string>;
+  /** 1回分を送って読む。signal が止まったら timeout */
+  turn(sessionId: string, message: string, signal: AbortSignal): Promise<TurnResult>;
+  /** 後片付けの操作（どの呼び出しにも短い上限がある） */
+  ops: SessionOps;
 }
+
+/** 止まった（idle）のを見た後の失敗。このときはすぐ削除できる */
+const STOPPED_FAILURES: readonly SessionFailure[] = ["budget_reached", "requires_action", "retries_exhausted", "refusal", "terminated", "no_message"];
 
 /**
- * 時間切れなどで、セッションが動いているかもしれないときの後片付け。
- * まず削除を試し、だめなら中断を送って、止まる（idle か terminated）のを待ってから削除する
+ * 監査の1回の進め方。defer は、応答の後も続けたい後片付けを渡す先（Workers の waitUntil）。
+ * 後片付けに入るときに cleanup_started を、終わったときに cleanup_<状態> をログに出す（種類だけ）。
+ * cleanup_started があるのに cleanup_<状態> が無ければ、waitUntil の猶予で打ち切られたと分かる
  */
-export async function cleanupSession(ops: SessionOps, sessionId: string): Promise<AuditSessionState> {
-  try {
-    await ops.delete(sessionId);
-    return "deleted";
-  } catch {
-    // 動いている間は削除できないので、中断してから続ける
-  }
-  try {
-    await ops.interrupt(sessionId);
-  } catch {
-    // 中断を送れなくても、止まるのを待ってみる
-  }
-  for (let i = 0; i < CLEANUP_POLLS; i++) {
-    await ops.sleep(CLEANUP_INTERVAL_MS);
-    let status = "";
-    try {
-      status = await ops.status(sessionId);
-    } catch {
-      continue;
-    }
-    if (status === "idle" || status === "terminated") {
+export function makeAuditRunner(
+  client: AuditSessionClient,
+  defer: (task: Promise<unknown>) => void,
+  cleanupDeadlineMs?: number,
+): KarteAuditBackend {
+  const deferCleanup = (sessionId: string) => {
+    console.info("karte_audit: cleanup_started");
+    defer(
+      cleanupSession(client.ops, sessionId, cleanupDeadlineMs).then((state: CleanupState) => {
+        if (state === "deleted") console.info(`karte_audit: cleanup_${state}`);
+        else console.warn(`karte_audit: cleanup_${state}`);
+      }),
+    );
+  };
+  return {
+    async run(message, timeoutMs) {
+      // 締め切りは作成の前から数える（作成が遅くても、画面の上限より先に応答を返す）
+      const abort = new AbortController();
+      const timer = setTimeout(() => abort.abort(), timeoutMs);
       try {
-        await ops.delete(sessionId);
-        return "deleted";
-      } catch {
-        return "failed";
+        let sessionId: string;
+        try {
+          sessionId = await client.create(abort.signal);
+        } catch (error) {
+          // 作成が時間切れになったときは、セッションができたか（ID）が分からないので、後片付けはできない
+          return { ok: false, failure: abort.signal.aborted ? "timeout" : classify(error), session: "not_created" };
+        }
+        const result = await client.turn(sessionId, message, abort.signal);
+        // 止まった（idle）のを見た後なら、すぐ削除できる。応答の前に削除を1回だけ試し、結果を画面に返す
+        const stopped = result.ok || STOPPED_FAILURES.includes(result.failure);
+        if (stopped) {
+          try {
+            await client.ops.delete(sessionId);
+            return { ...result, session: "deleted" } as AuditRunResult;
+          } catch {
+            // 消せなかったときは、応答の前に待たず、後片付けを応答の後に続ける
+          }
+        }
+        // 動いているかもしれない・消せなかった：中断・削除は応答の後に続ける
+        deferCleanup(sessionId);
+        return { ...result, session: "pending" } as AuditRunResult;
+      } finally {
+        clearTimeout(timer);
+        // 読み終えたら接続を閉じる（止まった後の出来事を読み続けない）
+        abort.abort();
       }
-    }
-  }
-  return "failed";
+    },
+  };
 }
 
 /**
@@ -182,72 +220,14 @@ export function makeKarteAuditBackend(
   defer: (task: Promise<unknown>) => void,
 ): KarteAuditBackend {
   const client = new Anthropic({ apiKey, maxRetries: 0, timeout: KARTE_AUDIT_TIMEOUT_MS });
-  const ops: SessionOps = {
-    async delete(id) {
-      await client.beta.sessions.delete(id);
+  return makeAuditRunner(
+    {
+      async create(signal) {
+        return (await client.beta.sessions.create(auditSessionParams(config), { signal })).id;
+      },
+      turn: (sessionId, message, signal) => runSessionTurn(client, sessionId, message, signal),
+      ops: makeSessionOps(client),
     },
-    async interrupt(id) {
-      await client.beta.sessions.events.send(id, { events: [{ type: "user.interrupt" }] });
-    },
-    async status(id) {
-      return (await client.beta.sessions.retrieve(id)).status;
-    },
-    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-  };
-  return {
-    async run(message, timeoutMs) {
-      let sessionId: string;
-      try {
-        const session = await client.beta.sessions.create({
-          agent: config.agentId,
-          environment_id: config.environmentId,
-          title: "SonaQuest karte audit (fictional sample)",
-          metadata: { app: "sonaquest", feature: "karte-audit" },
-          budget: {
-            type: "limit",
-            max_list_cost: { amount: KARTE_AUDIT_SESSION_BUDGET_CENTS, currency: "USD" },
-          },
-        });
-        sessionId = session.id;
-      } catch (error) {
-        return { ok: false, failure: classify(error), session: "not_created" };
-      }
-      const abort = new AbortController();
-      const timer = setTimeout(() => abort.abort(), timeoutMs);
-      let result: { ok: true; text: string } | { ok: false; failure: ChatFailure };
-      try {
-        // 先に SSE を開いてから送る（開く前の出来事は流れてこないため）
-        const stream = await client.beta.sessions.events.stream(sessionId, {}, { signal: abort.signal });
-        await client.beta.sessions.events.send(
-          sessionId,
-          { events: [{ type: "user.message", content: [{ type: "text", text: message }] }] },
-          { signal: abort.signal },
-        );
-        result = await collectTurn(stream as AsyncIterable<ChatStreamEvent>);
-      } catch (error) {
-        result = { ok: false, failure: abort.signal.aborted ? "timeout" : classify(error) };
-      } finally {
-        clearTimeout(timer);
-        abort.abort();
-      }
-      // 止まった（idle）のを見た後なら、すぐ削除できる。応答の前に削除して、結果を画面に返す
-      const stopped = result.ok || ["budget_reached", "requires_action", "retries_exhausted", "refusal", "terminated", "no_message"].includes(result.failure);
-      if (stopped) {
-        let session: AuditSessionState = "deleted";
-        try {
-          await ops.delete(sessionId);
-        } catch {
-          session = await cleanupSession(ops, sessionId);
-        }
-        return { ...result, session } as AuditRunResult;
-      }
-      // 動いているかもしれない：中断・削除は応答の後に続ける
-      defer(
-        cleanupSession(ops, sessionId).then((state) => {
-          if (state !== "deleted") console.warn(`karte_audit: cleanup_${state}`);
-        }),
-      );
-      return { ...result, session: "pending" };
-    },
-  };
+    defer,
+  );
 }

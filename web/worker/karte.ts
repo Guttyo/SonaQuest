@@ -29,6 +29,7 @@ import {
 import { makeSummarize, makeTranscriptSummarize, summaryModel, type Summarize, type TranscriptSummarize } from "./karteSummary";
 import { parseTranscriptSummaryRequest, transcriptUtterances, type TranscriptSummaryResponse } from "../src/board/karte/transcript";
 import { contentLogEnabled, logContent } from "./devlog";
+import { AGENT_ID_PATTERN, ENV_ID_PATTERN } from "./managedSession";
 import { checkRateLimit, type RateLimiter } from "./ratelimit";
 import { crossSiteRequest, ttsAllowed } from "./tts";
 
@@ -51,9 +52,6 @@ export const MAX_SUMMARY_BODY_BYTES = 200;
 export const MAX_TRANSCRIPT_BODY_BYTES = 6_400;
 /** 監査の入口の本文の上限（要約10項目の text・quote の上限に、形の余裕を足す。日本語は1文字3バイト） */
 export const MAX_AUDIT_BODY_BYTES = 16_000;
-
-const AGENT_ID_PATTERN = /^agent_[A-Za-z0-9_]{8,128}$/;
-const ENV_ID_PATTERN = /^env_[A-Za-z0-9_]{8,128}$/;
 
 export function karteAuditConfig(env: KarteEnv): KarteAuditConfig | null {
   const environmentId = env.BOARD_CHAT_ENVIRONMENT_ID;

@@ -6,14 +6,16 @@ import { createApp, readLimitedText, type Env } from "./app";
 import { createKarteApp, karteAuditConfig } from "./karte";
 import {
   AUDIT_FIXED_REASONS,
+  auditSessionParams,
   buildAuditMessage,
-  cleanupSession,
+  makeAuditRunner,
   parseAuditOutput,
   safeReason,
   type AuditRunResult,
+  type AuditSessionClient,
   type KarteAuditBackend,
-  type SessionOps,
 } from "./karteAudit";
+import type { SessionOps, TurnResult } from "./managedSession";
 import { KARTE_AUDIT_MODEL, KARTE_AUDIT_SYSTEM_PROMPT, karteAuditAgentDefinition } from "./karteAuditAgent";
 import { buildSummaryMessage, KARTE_SUMMARY_MODEL, summaryModel, type Summarize, type SummaryResult } from "./karteSummary";
 import { MASKED_TEXT, textForbidden } from "../src/board/karte/codeCheck";
@@ -306,43 +308,130 @@ describe("監査役の出力の扱い", () => {
   });
 });
 
-describe("セッションの後片付け", () => {
-  function ops(statuses: string[], deleteFailsWhileRunning = true) {
+describe("監査の1回の進め方（作成から後片付けまでの締め切り。Issue #294）", () => {
+  const never = <T,>() => new Promise<T>(() => {});
+  /** signal が止まったら投げる、返らない呼び出し（本物の SDK と同じく abort で終わる） */
+  const untilAborted = <T,>(signal: AbortSignal) =>
+    new Promise<T>((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("aborted"))));
+
+  function fakeClient(over: Partial<{ create: AuditSessionClient["create"]; turn: AuditSessionClient["turn"]; ops: Partial<SessionOps> }> = {}) {
     const calls: string[] = [];
-    let current = "running";
-    const o: SessionOps = {
-      async delete() {
-        calls.push(`delete:${current}`);
-        if (deleteFailsWhileRunning && current === "running") throw new Error("running");
-      },
-      async interrupt() {
-        calls.push("interrupt");
-      },
-      async status() {
-        current = statuses.shift() ?? current;
-        calls.push(`status:${current}`);
-        return current;
-      },
+    const signals: AbortSignal[] = [];
+    const ops: SessionOps = {
+      delete: async () => void calls.push("delete"),
+      interrupt: async () => void calls.push("interrupt"),
+      status: async () => (calls.push("status"), "idle"),
       sleep: async () => {},
+      ...over.ops,
     };
-    return { o, calls };
+    const client: AuditSessionClient = {
+      create: over.create ?? (async (signal) => (signals.push(signal), "sesn_audit0123456789")),
+      turn:
+        over.turn ??
+        (async (_id, _m, signal): Promise<TurnResult> => {
+          signals.push(signal);
+          return { ok: true, text: '{"findings":[]}' };
+        }),
+      ops,
+    };
+    const deferred: Promise<unknown>[] = [];
+    const runner = makeAuditRunner(client, (t) => void deferred.push(t));
+    return { runner, calls, signals, deferred };
   }
 
-  it("動いているセッションは、中断を送り、止まってから削除する", async () => {
-    const { o, calls } = ops(["running", "idle"]);
-    expect(await cleanupSession(o, "sesn_x")).toBe("deleted");
-    expect(calls).toEqual(["delete:running", "interrupt", "status:running", "status:idle", "delete:idle"]);
+  function logs() {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    return () => [...info.mock.calls, ...warn.mock.calls].map((c) => String(c[0]));
+  }
+
+  it("作成と1回分の送受信に、同じ締め切りの signal を渡す。止まった後はすぐ削除し、後片付けを残さない", async () => {
+    const printed = logs();
+    const { runner, calls, signals, deferred } = fakeClient();
+    expect(await runner.run("本文", 45_000)).toEqual({ ok: true, text: '{"findings":[]}', session: "deleted" });
+    expect(signals).toHaveLength(2);
+    expect(signals[0]).toBe(signals[1]);
+    expect(calls).toEqual(["delete"]);
+    expect(deferred).toEqual([]);
+    expect(printed()).toEqual([]);
   });
 
-  it("止まっていればすぐ削除する", async () => {
-    const { o, calls } = ops([], false);
-    expect(await cleanupSession(o, "sesn_x")).toBe("deleted");
-    expect(calls).toEqual(["delete:running"]);
+  it("作成が遅いときも、締め切りの内に「監査できず（timeout）」を返す（作られたか分からないので後片付けはしない）", async () => {
+    vi.useFakeTimers();
+    try {
+      const { runner, deferred } = fakeClient({ create: (signal) => untilAborted(signal) });
+      let result: AuditRunResult | null = null;
+      void runner.run("本文", 45_000).then((r) => (result = r));
+      await vi.advanceTimersByTimeAsync(44_999);
+      expect(result).toBeNull();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(result).toEqual({ ok: false, failure: "timeout", session: "not_created" });
+      expect(deferred).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  it("止まらなければ failed", async () => {
-    const { o } = ops([]);
-    expect(await cleanupSession(o, "sesn_x")).toBe("failed");
+  it("止まった後の削除に失敗したときは、応答の前に待たずに pending を返し、後片付けを defer に渡す", async () => {
+    const printed = logs();
+    let deletes = 0;
+    const { runner, calls, deferred } = fakeClient({
+      ops: {
+        delete: async () => {
+          deletes += 1;
+          if (deletes === 1) throw new Error("busy");
+        },
+        status: never,
+      },
+    });
+    const result = await runner.run("本文", 45_000);
+    expect(result).toEqual({ ok: true, text: '{"findings":[]}', session: "pending" });
+    expect(deferred).toHaveLength(1);
+    expect(printed()).toEqual(["karte_audit: cleanup_started"]);
+    await Promise.all(deferred);
+    expect(deletes).toBe(2);
+    expect(calls).toEqual([]);
+    expect(printed()).toEqual(["karte_audit: cleanup_started", "karte_audit: cleanup_deleted"]);
+  });
+
+  it("時間切れのときは pending を返し、後片付けに入ったことと、終わった状態（failed を含む）をログに出す", async () => {
+    vi.useFakeTimers();
+    try {
+      const printed = logs();
+      const { runner, deferred } = fakeClient({
+        turn: (_id, _m, signal) => untilAborted<TurnResult>(signal).catch((): TurnResult => ({ ok: false, failure: "timeout" })),
+        ops: { delete: never, interrupt: never, status: never, sleep: never },
+      });
+      const pending = runner.run("本文", 45_000);
+      await vi.advanceTimersByTimeAsync(45_000);
+      expect(await pending).toEqual({ ok: false, failure: "timeout", session: "pending" });
+      expect(deferred).toHaveLength(1);
+      expect(printed()).toEqual(["karte_audit: cleanup_started"]);
+      // 後片付けの呼び出しが返らなくても、全体の上限で failed にして終わる
+      await vi.advanceTimersByTimeAsync(20_000);
+      await Promise.all(deferred);
+      expect(printed()).toEqual(["karte_audit: cleanup_started", "karte_audit: cleanup_failed"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("後片付けのログは種類だけで、会話・要約・指摘の本文を含まない", async () => {
+    const printed = logs();
+    const { runner, deferred } = fakeClient({
+      turn: async () => ({ ok: false, failure: "incomplete" }),
+    });
+    await runner.run(buildAuditMessage(sample, sample.expected), 45_000);
+    await Promise.all(deferred);
+    expect(printed()).toEqual(["karte_audit: cleanup_started", "karte_audit: cleanup_deleted"]);
+    const text = printed().join(" ");
+    for (const t of sample.turns) expect(text).not.toContain(t.text);
+  });
+
+  it("作成の引数には budget と、監査役であることの metadata を必ず付ける", () => {
+    const params = auditSessionParams({ environmentId: "env_0123456789abcdef", agentId: "agent_karte0123456789" });
+    expect(params.budget.type).toBe("limit");
+    expect(params.metadata).toEqual({ app: "sonaquest", feature: "karte-audit" });
   });
 });
 
