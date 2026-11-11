@@ -58,6 +58,12 @@ def claude_hook_tests(tmp):
     check("Bash: メッセージにマーカー名と > を含む git commit", 0, hook(P, "Bash", {"command": "git commit -q -F - <<'EOF'\nTODO-OWNERマーカーの保護\n\nCo-Authored-By: X <x@example.invalid>\nEOF"})[0])
     check("Bash: git commit の後に書き換えをつなぐ", 2, hook(P, "Bash", {"command": "git commit -m x && sed -i 's/TODO-OWNER//' a.md"})[0])
     check("Bash: オーナー承認の環境変数を使う", 2, hook(P, "Bash", {"command": "SONAQUEST_OWNER_APPROVED=1 git commit -m x"})[0])
+    # Issue #291：git commit の例外は、分けたコマンドがすべて git commit のときだけ
+    check("Bash: 1行目が git commit で、改行の後に書き換え", 2, hook(P, "Bash", {"command": "git commit -m x\nsed -i 's/TODO-OWNER//' a.md"})[0])
+    check("Bash: git commit の後に単独の | で tee", 2, hook(P, "Bash", {"command": "git commit -m TODO-OWNER | tee a.md"})[0])
+    check("Bash: git commit の出力をリダイレクトで書く", 2, hook(P, "Bash", {"command": "git commit -m TODO-OWNER > a.md"})[0])
+    check("Bash: メッセージを $(cat <<'EOF' …) で渡す git commit", 0, hook(P, "Bash", {"command": "git commit -m \"$(cat <<'EOF'\nTODO-OWNERの保護 > x\nEOF\n)\""})[0])
+    check("Bash: git commit の標準エラーを捨てる", 0, hook(P, "Bash", {"command": "git commit -m 'TODO-OWNER の説明' 2>/dev/null"})[0])
 
 
 def decision_hook_tests(tmp):
@@ -263,6 +269,11 @@ def secret_hook_tests(tmp):
         ("コメントの引用符で挟んで hooksPath を外す", '# "\ngit config core.hooksPath /dev/null\n# "'),
         ("行末コメントの引用符で挟んで hooksPath を外す", "true # '\ngit config core.hooksPath /dev/null\n# '"),
         ("語の途中の # の後で hooksPath を外す", "echo a# ; git config core.hooksPath /dev/null"),
+        # Issue #291：エイリアスの中身・新しい前置き・cmd /c・iex
+        ("-c alias.* の中身で hooksPath を外す", "git -c alias.x='!git config core.hooksPath /dev/null' x"),
+        ("timeout の後で hooksPath を外す", "timeout 10 git config core.hooksPath /dev/null"),
+        ("cmd /c で hooksPath を外す", 'cmd /c "git config core.hooksPath /dev/null"'),
+        ("iex で hooksPath を外す", "iex 'git config core.hooksPath /dev/null'"),
     ]:
         check(f"Bash: {name}", 2, hook(S, "Bash", {"command": cmd})[0])
     for name, cmd in [
@@ -476,6 +487,94 @@ def github_hook_tests():
     check("Bash: checkout refs/heads/main の後でコミット", 2, hook(G, "Bash", {"command": "git checkout refs/heads/main && git commit -m x"}, extra=on_work)[0])
     check("Bash: checkout - の後でコミット（前のブランチが判定できない）", 2, hook(G, "Bash", {"command": "git checkout - && git commit -m x"}, extra=on_work)[0])
     check("Bash: switch @{-1} の後でコミット", 2, hook(G, "Bash", {"command": "git switch @{-1} && git commit -m x"}, extra=on_work)[0])
+    github_hook_tests_291(G, on_main, on_work)
+
+
+def github_hook_tests_291(G, on_main, on_work):
+    """Issue #291：git のエイリアス、前置きのコマンド、cmd /c・iex、xargs・find -exec、gh の呼び方、gh api、push の値。"""
+    print("--- エイリアス・前置き・gh の呼び方（Claude Code hook。Issue #291）")
+    nv = "-" + "n"
+    for name, cmd, extra in [
+        ("-c alias.* で -n 付きの commit を呼ぶ（main）", f"git -c alias.ci='commit {nv}' ci -m x", on_main),
+        ("-c alias.* で commit を呼ぶ（作業ブランチ）", "git -c alias.ci=commit ci -m x", on_work),
+        ("-c alias.* の大文字", "git -c Alias.CI=commit CI -m x", on_work),
+        ("--config-env=alias.*", "git --config-env=alias.ci=ALIAS_ENV ci -m x", on_work),
+        ("--config-env alias.*（空白で値）", "git --config-env alias.ci=ALIAS_ENV ci -m x", on_work),
+        ("git config alias.* の書き込み", "git config alias.ci commit", on_work),
+        ("git config --global alias.* の書き込み", "git config --global alias.st status", on_work),
+        ("git config set alias.* の書き込み", "git config set alias.ci commit", on_work),
+        ("timeout 秒数 git push origin main", "timeout 10 git push origin main", on_work),
+        ("timeout のオプションの値と秒数の後の force push", "timeout -s KILL -k 5 30 git push --force", on_work),
+        ("TIMEOUT（大文字）", "TIMEOUT 10 git push origin main", on_work),
+        ("stdbuf -o 値", "stdbuf -o L git push origin main", on_work),
+        ("doas -u ユーザー", "doas -u root git push origin main", on_work),
+        ("flock ロックファイル", "flock /tmp/x.lock git push origin main", on_work),
+        ("flock ロックファイル -c '…'", "flock /tmp/x.lock -c 'git push origin main'", on_work),
+        ("ionice -c 値", "ionice -c 3 git push origin main", on_work),
+        ("chrt 優先度", "chrt -f 10 git push origin main", on_work),
+        ("watch -n 秒数 '…'", "watch -n 5 'git push origin main'", on_work),
+        ("cmd /c \"…\"", 'cmd /c "git push origin main"', on_work),
+        ("cmd.exe /C …", "cmd.exe /C git push --force", on_work),
+        ("cmd //c \"…\"（Git Bash）", 'cmd //c "git push origin main"', on_work),
+        ("iex '…'", "iex 'git push origin main'", on_work),
+        ("Invoke-Expression -Command \"…\"", 'Invoke-Expression -Command "git push --force"', on_work),
+        ("iex の中で main にいてコミット", "iex 'git commit -m x'", on_main),
+        ("xargs git push リモート（宛先を標準入力から）", "echo main | xargs git push origin", on_work),
+        ("xargs -I の後の git push", "echo main | xargs -I{} git push origin {}", on_work),
+        ("xargs git（サブコマンドを標準入力から）", "echo push | xargs git", on_work),
+        ("xargs git branch", "echo main | xargs git branch -f", on_work),
+        ("find -exec git push", "find . -name x -exec git push origin {} \\;", on_work),
+        ("find -exec gh", "find . -exec gh pr merge {} +", on_work),
+        ("xargs gh", "echo 12 | xargs gh pr merge", on_work),
+        ("gh api のリポジトリそのものへの PATCH", "gh api -X PATCH repos/o/r -f visibility=public", on_work),
+        ("gh api のリポジトリそのものへの DELETE", "gh api --method DELETE repos/o/r", on_work),
+        ("gh api の {owner}/{repo} への -F だけの書き込み（暗黙の POST）", "gh api /repos/{owner}/{repo} -F private=false", on_work),
+        ("gh api の git/refs/heads/main への DELETE", "gh api -X DELETE repos/o/r/git/refs/heads/main", on_work),
+        ("gh api の git/refs/heads/main への PATCH", "gh api -X PATCH repos/o/r/git/refs/heads/main -f sha=abc -F force=true", on_work),
+        ("gh api の保護設定（大文字を含むパス）", "gh api -X PUT repos/o/r/branches/main/Protection", on_work),
+        ("gh api graphql で保護ルールを作る（大文字を含む名前）",
+         "gh api graphql -f query='mutation { createBranchProtectionRule(input: {}) { clientMutationId } }'", on_work),
+        ("gh api graphql で Ruleset を消す", "gh api graphql -f query='mutation { deleteRepositoryRuleset(input: {}) { clientMutationId } }'", on_work),
+        ("main で git push -o 値 リモート（宛先の省略）", "git push -o ci.skip origin", on_main),
+        ("main で git push --push-option 値 リモート", "git push --push-option x origin", on_main),
+        ("main で git push --receive-pack 値 リモート", "git push --receive-pack x origin", on_main),
+        ("main で git push --exec 値 リモート", "git push --exec x origin", on_main),
+        ("main で git push --repo 値", "git push --repo origin", on_main),
+        ("git push -o 値 リモート main", "git push -o ci.skip origin main", on_work),
+    ]:
+        check(f"Bash: 止める（{name}）", 2, hook(G, "Bash", {"command": cmd}, extra=extra)[0])
+    for name, cmd in [
+        ("git config --get alias.*（読むだけ）", "git config --get alias.ci"),
+        ("timeout の後の作業ブランチの push", "timeout 10 git push origin docs/1-x"),
+        ("cmd /c の git status", 'cmd /c "git status"'),
+        ("iex の git log", "iex 'git log -1'"),
+        ("xargs の後の読むだけの git", "git branch --format='%(refname:short)' | xargs git log -1"),
+        ("find -exec の後の読むだけの git", "find . -name '*.md' -exec git log -1 -- {} \\;"),
+        ("$(cat <<'EOF' …) を引数に持つ commit", "git commit -m \"$(cat <<'EOF'\n本文\nEOF\n)\""),
+        ("$(…) を宛先に持つ push", 'git push origin "$(git branch --show-current)"'),
+        ("git push -o 値 リモート 作業ブランチ", "git push -o ci.skip origin docs/1-x"),
+        ("gh api のリポジトリを読む", "gh api repos/o/r"),
+        ("gh api -X GET とフィールドで読む", "gh api -X GET repos/o/r -f per_page=1"),
+        ("gh api の Issue のコメントを書く", "gh api repos/o/r/issues/1/comments -f body=x"),
+        ("gh api の PR を直す", "gh api -X PATCH repos/o/r/pulls/3 -f title=x"),
+        ("gh api の main の参照を読む", "gh api repos/o/r/git/refs/heads/main"),
+    ]:
+        check(f"Bash: 止めない（{name}）", 0, hook(G, "Bash", {"command": cmd}, extra=on_work)[0])
+    for cmd, want in (
+            ("gh.exe pr merge 12 --admin", "block"),
+            ("gh.exe pr merge 12 --merge", "ask"),
+            ("/usr/bin/gh pr merge 12 --admin", "block"),
+            ("GH pr merge 12 --merge", "ask"),
+            ("gh pr -R Owner/Repo merge 12 --admin", "block"),
+            ("gh pr -R Owner/Repo merge 12 --auto", "block"),
+            ("gh pr -R Owner/Repo merge 12 --merge", "ask"),
+            ("gh pr --repo Owner/Repo merge --merge", "block"),
+            ("timeout 60 gh pr merge 12 --admin", "block")):
+        check(f"Bash: {cmd}", want, decision(G, "Bash", {"command": cmd}, extra=on_work))
+    check("PowerShell: & \"…\\gh.exe\" pr merge 12 --admin", "block",
+          decision(G, "PowerShell", {"command": '& "C:\\Program Files\\GitHub CLI\\gh.exe" pr merge 12 --admin'}, extra=on_work))
+    check("PowerShell: & \"…\\gh.exe\" pr merge 12 --merge", "ask",
+          decision(G, "PowerShell", {"command": '& "C:\\Program Files\\GitHub CLI\\gh.exe" pr merge 12 --merge'}, extra=on_work))
 
 
 def worktree_hook_tests(tmp):
@@ -517,6 +616,22 @@ def worktree_hook_tests(tmp):
     check("cd - の後でコミット", 2, run(wt, "cd - && git commit -m x"))
     check("popd の後でコミット", 2, run(wt, "popd; git commit -m x"))
     check("変数の cd の後でもブランチを変えない操作は通す", 0, run(wt, 'cd "$NO_SUCH_DIR_X" && git status && git log'))
+    # Issue #291：checkout でのファイルの復元と、サブシェルの中の cd
+    git(shared, "branch", "feat/9-z")
+    git(shared, "update-ref", "refs/remotes/origin/feat/8-r", "HEAD")
+    check("main でファイルを復元する checkout の後のコミット", 2, run(shared, "git checkout a.txt && git commit -m x"))
+    check("main で存在しない名前の checkout の後のコミット", 2, run(shared, "git checkout nosuch && git commit -m x"))
+    check("main から存在するブランチへ checkout してコミット", 0, run(shared, "git checkout feat/9-z && git commit -m x"))
+    check("main からリモートにだけあるブランチへ checkout してコミット", 0, run(shared, "git checkout feat/8-r && git commit -m x"))
+    check("main で同じコマンド列で作ったブランチへ checkout してコミット", 0,
+          run(shared, "git branch feat/7-q && git checkout feat/7-q && git commit -m x"))
+    check("main から checkout main && commit", 2, run(shared, "git checkout feat/9-z && git checkout main && git commit -m x"))
+    check("( cd main の作業コピー ) の後のコミットは元のフォルダで判定", 0, run(wt, f'( cd "{shared}" ) && git commit -m x'))
+    check("(cd main の作業コピー); (git commit) は元のフォルダで判定", 0, run(wt, f'(cd "{shared}"); (git commit -m x)'))
+    check("$(cd main の作業コピー) の後のコミットは元のフォルダで判定", 0, run(wt, f'echo $(cd "{shared}") && git commit -m x'))
+    check("(cd main の作業コピー && git commit) は main で判定", 2, run(wt, f'(cd "{shared}" && git commit -m x)'))
+    check("main の作業コピーから ( cd 作業ブランチ ) の後のコミット", 2, run(shared, f'( cd "{wt}" ) && git commit -m x'))
+    check("iex の中の cd は外に効く", 2, run(wt, f"iex 'cd \"{shared}\"'; git commit -m x"))
     check("worktree で switch -c してコミット", 0, run(wt, "git switch -c feat/2-y && git commit -m x"))
     # @{-1} が本物の前のブランチを指すとき
     git(wt, "switch", "-q", "-c", "feat/2-y")
@@ -850,6 +965,14 @@ def status_hook_tests(tmp):
     check("gh pr create: タイトルにだけ更新不要", 2, pr("gh pr create --title 'STATUS.md：更新不要の判定を修正' --body 'hook の修正'"))
     check("gh pr create: 前のコマンドの heredoc にだけ更新不要", 2, pr("cat > /dev/null <<'EOF'\nSTATUS.md：更新不要（x）\nEOF\ngh pr create --title x --body y"))
     check("gh pr create: --body \"$(cat <<'EOF' ...)\" の本文に更新不要", 0, pr("gh pr create --title x --body \"$(cat <<'EOF'\nSTATUS.md：更新不要（誤字）\nEOF\n)\""))
+    # Issue #291：heredoc の本文は sonaguard の解析から読む。区切りの書き方を問わない
+    for delim, end in (("\\EOF", "EOF"), ("'EOF'", "EOF"), ('"EOF"', "EOF"), ("-EOF", "\tEOF")):
+        check(f"gh pr create: <<{delim} の本文に更新不要", 0,
+              pr(f"gh pr create --title x --body-file - <<{delim}\nSTATUS.md: 更新不要（誤字）\n{end}"))
+    check("gh pr create --body-file -: 前のコマンドの heredoc にだけ更新不要", 2,
+          pr("cat > /dev/null <<'EOF'\nSTATUS.md：更新不要（x）\nEOF\ngh pr create --title x --body-file -"))
+    check("gh.exe pr create: STATUS.md が変わっていない", 2, pr("gh.exe pr create --title x --body y"))
+    check("gh pr -R 所有者/リポジトリ create: STATUS.md が変わっていない", 2, pr("gh pr -R Owner/Repo create --title x --body y"))
     (repo / ".dev.vars").write_text("STATUS.md：更新不要（秘密ファイル）\n", encoding="utf-8")
     check("gh pr create: --body-file に秘密ファイルを渡しても読まない", 2, pr("gh pr create --title x --body-file .dev.vars"))
     write_status("# 進捗\n- STATUS の仕組み（Issue #13）\n")

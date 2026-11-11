@@ -12,6 +12,9 @@
 - コミット前の検査（pre-commit）を通らない操作：git am、コミットまで行う cherry-pick・revert、
   git commit -n・--no-verify の省略形（Issue #30。merge は pre-merge-commit が検査する）
 - push・fetch の宛先を設定で変える操作（-c remote.*.push=…、push.default、remote.*.fetch、git remote add 等）
+- git のエイリアスを作る操作（-c alias.*、--config-env=alias.*、git config alias.*。Issue #291）
+- xargs・find -exec の後の push などと gh（引数が実行時に足されるので判定できない。Issue #291）
+- gh api での、リポジトリそのものと main の参照（git/refs/heads/main）への書き込み（Issue #291）
 
 どのブランチで実行されるかは、実際に操作する作業ツリーで決める（Issue #82）。hook の入力の cwd から始め、
 コマンドの cd・pushd・Set-Location の行き先、git -C の指定の順にたどる。worktree ごとにブランチを見る。
@@ -27,7 +30,8 @@ import re
 import subprocess
 import sys
 
-from sonaguard import SUBST, dynamic_name, git_invocation, split_commands, use_utf8_stdio
+from sonaguard import (STDIN_ARGS, SUBST, command_name, dynamic_name, git_invocation, split_commands_detail,
+                       use_utf8_stdio)
 
 PROTECTED = {"main", "master"}
 CHANGES_BRANCH = {"commit", "merge", "cherry-pick", "revert", "am", "rebase", "reset", "pull"}
@@ -98,6 +102,7 @@ class Trees:
         self.tops = {}  # フォルダ → 作業ツリーの根（"" は git の外）
         self.branches = {}  # 作業ツリーの根 → ブランチ
         self.switched = set()
+        self.created = {}  # 作業ツリーの根 → 同じコマンド列の中で作ったブランチ
         if test_branch is not None:  # 試験用：最初のフォルダのブランチを決めておく
             self.tops[cwd] = "<test>"
             self.branches["<test>"] = test_branch
@@ -138,6 +143,27 @@ class Trees:
         if code != 0:
             return UNKNOWN
         return out[len("refs/heads/"):] if out.startswith("refs/heads/") else ""
+
+    def create(self, d, name):
+        k = self.key(d)
+        if k is not None and name:
+            self.created.setdefault(k, set()).add(name)
+
+    def checks_out(self, d, name):
+        """git checkout <name> がブランチ（かコミット）への切り替えか。False はファイルの復元。
+        作業ツリーを判定できないときは None（Issue #291）。"""
+        k = self.key(d)
+        if k is None:
+            return None
+        if k == "<test>" or name in self.created.get(k, ()):  # 試験用の作業ツリーでは、今までどおり切り替えとして扱う
+            return True
+        if not k:
+            return False
+        if run_git(k, "rev-parse", "--verify", "-q", f"{name}^{{commit}}")[0] == 0:
+            return True
+        # refs/remotes/<リモート>/<name> がちょうど1つなら、git がブランチを作って切り替える
+        code, out = run_git(k, "for-each-ref", "--format=%(refname)", "refs/remotes")
+        return code == 0 and sum(1 for r in out.splitlines() if r.split("/", 3)[3:] == [name]) == 1
 
     def config(self, d, pattern):
         """[(キー, 値)]。作業ツリーが分からない・git の外なら空。"""
@@ -207,9 +233,13 @@ def refspec_moves_main(spec, remotes=("origin",)):
     return False
 
 
+# git push の、次の語を値として取るオプション（値を位置引数に数えない。Issue #291）
+PUSH_VALUE_OPTS = {"-o", "--push-option", "--repo", "--receive-pack", "--exec"}
+
+
 def check_push(args, branch, trees=None, d=None):
     opts = [a for a in args if a.startswith("-")]
-    pos = [a for a in args if not a.startswith("-")]
+    pos = positionals(args, PUSH_VALUE_OPTS)
     if any(o.startswith("--force") for o in opts) or any("f" in short_flags(o) for o in opts):
         raise Blocked("force push はできません。")
     if "--delete" in opts or any("d" in short_flags(o) for o in opts):
@@ -454,15 +484,23 @@ def config_written_key(args):
     return pos[0] if len(pos) >= 2 else None
 
 
+ALIAS_MSG = ("git のエイリアス（alias.*）は作れません。エイリアスを通すと、main の保護とコミット前の検査の判定が"
+             "働かないためです。コマンドをそのまま書いてください（Issue #291）。")
+
+
 def check_routing(sub, args, configs):
     """push・fetch の宛先を設定で変える操作を止める（Issue #30）。"""
     for c in configs:
         if ROUTING_KEY.match(c.split("=", 1)[0]):
             raise Blocked("git -c で push・fetch の宛先（remote.*.push・fetch・url、push.default など）は変えられません。")
+        if c.split("=", 1)[0].lower().startswith("alias."):
+            raise Blocked(ALIAS_MSG)
     if sub == "config":
         key = config_written_key(args)
         if key and ROUTING_KEY.match(key):
             raise Blocked("push・fetch の宛先の設定（remote.*.push・fetch・url、push.default など）はオーナーが変えます。")
+        if key and key.lower().startswith("alias."):
+            raise Blocked(ALIAS_MSG)
     if sub == "remote" and args[:1] and args[0] in ("add", "rename", "set-url", "remove", "rm", "set-branches"):
         raise Blocked("リモートの設定（git remote add・set-url など）はオーナーが変えます。")
 
@@ -483,15 +521,28 @@ def check_git(sub, args, branch, configs=(), trees=None, d=None):
         deleting = "--delete" in args or any(short_flags(a) & {"d", "D"} for a in args)
         if deleting and any(a in PROTECTED for a in args):
             raise Blocked("main は削除できません。")
+        pos = positionals(args)
+        if trees is not None and pos and all(a in ("-f", "--force", "-t", "--track", "--no-track", "-q", "--quiet")
+                                             for a in args if a.startswith("-")):
+            trees.create(d, pos[0])  # git branch X の後の git checkout X を、切り替えとして扱うため
     elif sub in ("switch", "checkout"):
         if "--" in args:
             return branch
         for flag in ("-c", "-C", "-b", "-B", "--create"):
             if flag in args:
                 i = args.index(flag)
+                if i + 1 < len(args) and trees is not None:
+                    trees.create(d, args[i + 1])
                 return args[i + 1] if i + 1 < len(args) else branch
         pos = [a for a in args if not a.startswith("-") or a == "-"]
-        return pos[0] if pos else branch
+        if not pos:
+            return branch
+        target = pos[0]
+        # git checkout <ファイル> はファイルの復元で、ブランチは変わらない（Issue #291）
+        if sub == "checkout" and trees is not None and target != "-" and not re.fullmatch(r"@\{-\d+\}", target) \
+                and not names_protected(target) and not trees.checks_out(d, target):
+            return branch
+        return target
     elif sub in CHANGES_BRANCH and branch == UNKNOWN:
         raise Blocked(UNKNOWN_MSG)
     elif sub in CHANGES_BRANCH and is_main(branch):
@@ -526,40 +577,95 @@ def check_pr_merge(args):
     return MERGE_ASK
 
 
+GH_VALUE_OPTS = {"-R", "--repo"}
+GH_API_VALUE_OPTS = {"-X", "--method", "-H", "--header", "-f", "-F", "--field", "--raw-field", "--input", "-q", "--jq",
+                     "-t", "--template", "--hostname", "--cache", "-p", "--preview"}
+REPO_ITSELF = re.compile(r"/?repos/[^/\s]+/[^/\s]+/?")
+MAIN_REF = re.compile(r"/?repos/[^/\s]+/[^/\s]+/git/refs/heads/(?:main|master)/?")
+
+
+def gh_subcommand(tokens):
+    """gh の最初の2つの位置引数（pr merge など）の位置。-R・--repo の値は位置引数に数えない。
+    pr と merge の間にフラグを置く書き方も読む（Issue #291）。"""
+    idx, skip = [], False
+    for i, a in enumerate(tokens[1:], 1):
+        if skip:
+            skip = False
+        elif a.startswith("-"):
+            skip = a in GH_VALUE_OPTS
+        else:
+            idx.append(i)
+            if len(idx) == 2:
+                break
+    return idx
+
+
+def gh_api_method(args):
+    """gh api のメソッド。-X・--method が無ければ、フィールドがあれば POST、無ければ GET。"""
+    method = option_value(args, "X", ("--method",))
+    if method:
+        return method.upper()
+    return "POST" if GH_FIELD.search(" ".join(args)) else "GET"
+
+
 def check_gh(segment, tokens):
-    """止めるなら Blocked。確認の画面を出すなら、その理由を返す。"""
-    if tokens[:3] == ["gh", "pr", "merge"]:
-        return check_pr_merge(tokens[3:])
-    if tokens[:2] == ["gh", "repo"] and len(tokens) > 2 and tokens[2] in ("edit", "delete", "rename", "archive"):
+    """止めるなら Blocked。確認の画面を出すなら、その理由を返す。
+    tokens[0] は、basename を小文字にして .exe を外すと gh になる語（gh.exe・フルパスも含む。Issue #291）。"""
+    if STDIN_ARGS in tokens:
+        raise Blocked("xargs・find -exec の後の gh は、引数が実行時に足されるので判定できません。gh はそのまま書いてください。")
+    idx = gh_subcommand(tokens)
+    pos = [tokens[i] for i in idx]
+    if pos == ["pr", "merge"]:  # pr と merge の間のフラグも、merge の後の引数と合わせて確かめる
+        return check_pr_merge([t for j, t in enumerate(tokens[1:], 1) if j not in idx])
+    if pos[:1] == ["repo"] and pos[1:2] and pos[1] in ("edit", "delete", "rename", "archive"):
         raise Blocked("リポジトリ設定の変更・削除はオーナーの承認が要ります。")
-    if tokens[:2] == ["gh", "api"] and re.search(r"protection|rulesets", segment) \
-            and (GH_WRITE_METHOD.search(segment) or GH_FIELD.search(segment)):
-        raise Blocked("ブランチ保護・Rulesetsの変更はオーナーだけが行います。")
+    if pos[:1] == ["api"]:
+        args = tokens[idx[0] + 1:]
+        if re.search(r"protection|ruleset", segment, re.I) and (GH_WRITE_METHOD.search(segment) or GH_FIELD.search(segment)):
+            raise Blocked("ブランチ保護・Rulesetsの変更はオーナーだけが行います。")
+        endpoint = positionals(args, GH_API_VALUE_OPTS)[:1]
+        method = gh_api_method(args)
+        if endpoint and method != "GET":
+            if REPO_ITSELF.fullmatch(endpoint[0]) and method in ("PATCH", "DELETE", "PUT", "POST"):
+                raise Blocked("リポジトリそのものの設定の変更・削除（公開の切り替えなど）はオーナーだけが行います。")
+            if MAIN_REF.fullmatch(endpoint[0]):
+                raise Blocked("リモートの main の参照（git/refs/heads/main）は書き換えられません。")
+
+
+# xargs・find -exec の後で、引数が足されると判定が変わる git のサブコマンド（Issue #291）
+STDIN_SENSITIVE = {"push", "branch", "tag", "update-ref", "fetch", "config"}
 
 
 def check_command(cmd, trees):
     """止める区切りがあれば Blocked。無ければ、確認の画面を出す理由の一覧（空なら何もしない）を返す。
     確認が要る区切りの後に止める区切りがあっても止めるよう、最後の区切りまで見てから返す。"""
     asks = []
-    commands = split_commands(cmd)
+    commands = split_commands_detail(cmd)
     if commands is None:
         if re.search(r"\bgit\b|\bgh\b", cmd):
             raise Blocked("コマンドを解析できません（引用符が閉じていない等）。git・gh の操作は分けて実行してください。")
         return asks
     # GIT_DIR・GIT_WORK_TREE を設定すると、git が操作する作業ツリーを判定できない
-    repo_env = any(GIT_REPO_ENV.match(t) for assigns, tokens, _ in commands for t in assigns + tokens)
-    for _, tokens, _ in commands:
+    repo_env = any(GIT_REPO_ENV.match(t) for c in commands for t in c.assigns + c.toks)
+    # サブシェル（( … )・$(…) など）の中の cd は、外のコマンドの場所を変えない（Issue #291）
+    cwds = {(): trees.cwd}
+    for c in commands:
+        tokens = c.toks
+        trees.cwd = next(cwds[c.scope[:k]] for k in range(len(c.scope), -1, -1) if c.scope[:k] in cwds)
         if dynamic_name(tokens) and set(tokens[1:]) & ({"push", "pr", "api", "repo", "branch", "update-ref", "tag", "fetch"} | CHANGES_BRANCH):
             raise Blocked("コマンド名が変数・置換で決まるため判定できません。git・gh はそのまま書いてください。")
-        name = os.path.basename(tokens[0]).lower() if tokens else ""
+        name = command_name(tokens[0]) if tokens else ""
         if name in CD:
-            trees.cwd = resolve_dir(trees.cwd, cd_target(tokens))
+            cwds[c.scope] = resolve_dir(trees.cwd, cd_target(tokens))
             continue
         if name in POPD:
-            trees.cwd = None
+            cwds[c.scope] = None
             continue
         g = git_invocation(tokens)
         if g and g["sub"]:
+            if g["sub"] == STDIN_ARGS or (g["sub"] in STDIN_SENSITIVE and STDIN_ARGS in g["args"]):
+                raise Blocked(f"xargs・find -exec の後の git {'' if g['sub'] == STDIN_ARGS else g['sub']} は、"
+                              "引数が実行時に足されるので判定できません。宛先などをそのまま書いてください。")
             d = trees.cwd
             for c in g["chdirs"]:
                 d = resolve_dir(d, c)
@@ -569,7 +675,7 @@ def check_command(cmd, trees):
             after = check_git(g["sub"], g["args"], branch, g["configs"], trees, d)
             if g["sub"] in ("switch", "checkout") and after != branch:
                 trees.switch(d, after)
-        elif tokens and tokens[0] == "gh":
+        elif name == "gh":
             reason = check_gh(" ".join(tokens), tokens)
             if reason and reason not in asks:
                 asks.append(reason)

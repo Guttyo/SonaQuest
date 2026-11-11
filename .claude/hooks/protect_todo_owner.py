@@ -11,12 +11,27 @@ import json
 import re
 import sys
 
-from sonaguard import (main_text, marker_counts, marker_shortfall, missing_decisions, read_text,
-                       removed_decisions, use_utf8_stdio)
+from sonaguard import (git_invocation, main_text, marker_counts, marker_shortfall, missing_decisions, read_text,
+                       removed_decisions, split_commands, use_utf8_stdio)
 
 BASH_WRITE = re.compile(r"\bsed\b[^|;&]*\s-i|\bperl\b[^|;&]*\s-\w*i|>|\btee\b|Set-Content|Out-File|-replace")
 HARMLESS_REDIRECT = re.compile(r"\d?>\s*/dev/null|\d?>&\d|2>\$null")
-GIT_COMMIT = re.compile(r"^\s*git\s+commit\b(?:(?!&&|\|\||;).)*$", re.S)
+
+
+def only_git_commit(cmd):
+    """コマンド列が git commit だけか（メッセージの $(cat <<'EOF' … EOF) の cat は除く）。
+    分けたコマンドごとに見るので、改行や | の後に書き換えを続けたものは当たらない（Issue #291）。"""
+    commands = split_commands(cmd)
+    if not commands:
+        return False
+    for assigns, toks, redirects in commands:
+        g = git_invocation(toks)
+        if g and g["sub"] == "commit" and not redirects:
+            continue
+        if toks == ["cat"] and not redirects and not assigns:
+            continue
+        return False
+    return any((git_invocation(t) or {}).get("sub") == "commit" for _, t, _ in commands)
 
 
 def block(why):
@@ -92,7 +107,7 @@ def main():
             block("オーナー承認用の環境変数 SONAQUEST_OWNER_APPROVED はClaude Codeが使えません")
         # git commit はファイルを書き換えない（メッセージ中の語や > に反応しないようにする）。
         # マーカーが減るコミットはコミット前フックが止める。
-        if "TODO-OWNER" in cmd and not GIT_COMMIT.match(cmd) and BASH_WRITE.search(HARMLESS_REDIRECT.sub("", cmd)):
+        if "TODO-OWNER" in cmd and not only_git_commit(cmd) and BASH_WRITE.search(HARMLESS_REDIRECT.sub("", cmd)):
             block("コマンドでマーカーを含むファイルを書き換えようとしています（sed -i、リダイレクト等）")
 
 
