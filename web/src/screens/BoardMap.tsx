@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { memo, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { HQ, INBOUND, ROUTES, SYNC, type RouteRow, type SiteId, type SyncRow } from "../board/data";
 import { clockText, type DemoInbound } from "../board/demo";
 import { STALE_REPORT_HOURS, shipmentMarkers, siteGlows, toPathD, travelLine } from "../board/live";
@@ -169,6 +169,182 @@ function FacilityShape({ f }: { f: Facility }) {
 }
 
 /**
+ * 図の動かない下の層（地面・街区・山林・施設・生活道路・幹線道路・川・土砂・橋・高速道路）。props も時計も使わないので、
+ * 引数の無い memo にして、時計が進んでも・印が動いても描き直さない（Issue #296）
+ */
+export const MapBaseLayers = memo(function MapBaseLayers() {
+  const ex = MAP_EXPRESSWAY.x;
+  return (
+    <>
+      <defs>
+        <pattern id="board-map-houses" width="16" height="14" patternUnits="userSpaceOnUse">
+          <rect x="2" y="2" width="11" height="9" fill="#d8d8d8" />
+        </pattern>
+      </defs>
+      {/* 地面（生活道路の色）と街区（住宅地） */}
+      <rect width={MAP_W} height={MAP_H} fill="#f7f7f7" />
+      {MAP_BLOCKS.map((b) => (
+        <g key={`${b.x},${b.y}`}>
+          <rect x={b.x} y={b.y} width={b.w} height={b.h} fill="#e0e0e0" />
+          <rect x={b.x} y={b.y} width={b.w} height={b.h} fill="url(#board-map-houses)" />
+        </g>
+      ))}
+      {/* 山林 */}
+      {MAP_HILLS.map((d) => (
+        <g key={d}>
+          <path d={d} fill="#e4e4e4" />
+          <path d={d} fill="none" stroke="#bdbdbd" strokeWidth="1.5" strokeDasharray="10 6" transform="translate(-6,0)" />
+        </g>
+      ))}
+      {/* 施設 */}
+      {MAP_FACILITIES.map((f) => (
+        <FacilityShape key={`${f.kind}${f.rect.x},${f.rect.y}`} f={f} />
+      ))}
+      {/* 碁盤目に乗らない生活道路（川沿いの道）と幹線道路 */}
+      {MAP_LOCAL_ROADS.map((d) => (
+        <path key={d} d={d} fill="none" stroke="#f7f7f7" strokeWidth="8" strokeLinejoin="round" />
+      ))}
+      {MAP_MAIN_ROADS.map((d) => (
+        <path key={`c${d}`} d={d} fill="none" stroke="#c4c4c4" strokeWidth="16" />
+      ))}
+      {MAP_MAIN_ROADS.map((d) => (
+        <path key={d} d={d} fill="none" stroke="#ffffff" strokeWidth="12" />
+      ))}
+      {/* 川（街区と道を覆う。道が川を渡るのは橋だけ） */}
+      <path d={MAP_RIVER} fill="none" stroke="#e2e2e2" strokeWidth="44" strokeLinejoin="round" />
+      <path d={MAP_RIVER} fill="none" stroke="#d4d4d4" strokeWidth="26" strokeLinejoin="round" />
+      {/* 土砂が流れ込んだ場所 */}
+      {MAP_LANDSLIDES.map((d) => (
+        <path key={d} d={d} fill="#a8a8a8" opacity="0.85" />
+      ))}
+      {/* 橋 */}
+      {MAP_BRIDGES.map((b) => (
+        <g key={`${b.x},${b.y}`} transform={`translate(${b.x},${b.y}) rotate(${b.angle})`}>
+          <rect x="-30" y="-9" width="60" height="18" fill="#ffffff" stroke="#666" strokeWidth="2" />
+        </g>
+      ))}
+      {/* 高速道路（架空） */}
+      <path d={`M${ex},0 V${MAP_NOTE_Y}`} stroke="#8a8378" strokeWidth="20" />
+      <path d={`M${ex},0 V${MAP_NOTE_Y}`} stroke="#d6d6d6" strokeWidth="15" />
+      <path d={`M${ex},0 V${MAP_NOTE_Y}`} stroke="#fff" strokeWidth="1.5" strokeDasharray="10 8" />
+      <g transform={`translate(${ex},250)`}>
+        <rect x="-13" y="-46" width="26" height="80" rx="5" fill="#5d5a55" />
+        <text fontSize="14" fill="#fff" fontWeight="700" textAnchor="middle">
+          {[...MAP_EXPRESSWAY.label].map((ch, i) => (
+            <tspan key={i} x="0" y={-28 + i * 17}>
+              {ch}
+            </tspan>
+          ))}
+        </text>
+      </g>
+    </>
+  );
+});
+
+/** 図の動かない上の層（方位・スケール・架空の明記）。下の層と同じく描き直さない（Issue #296） */
+export const MapFrameLayers = memo(function MapFrameLayers() {
+  return (
+    <>
+      {/* 方位とスケール（架空） */}
+      <g transform="translate(912,66)">
+        <circle r="24" fill="#fff" fillOpacity="0.92" stroke="#888" />
+        <path d="M0,-17 L9,12 L0,5 L-9,12 Z" fill="#333" />
+        <text y="-29" fontSize="15" fontWeight="800" textAnchor="middle" fill="#333">
+          N
+        </text>
+      </g>
+      <g transform="translate(86,596)">
+        <rect x="-14" y="-24" width="232" height="36" rx="6" fill="#fff" fillOpacity="0.92" />
+        <rect x="0" y="-3" width="100" height="6" fill="#333" />
+        <rect x="100" y="-3" width="100" height="6" fill="#fff" stroke="#333" />
+        <text x="0" y="-9" fontSize="12" fill="#333" textAnchor="middle">
+          0
+        </text>
+        <text x="100" y="-9" fontSize="12" fill="#333" textAnchor="middle">
+          0.5 km
+        </text>
+        <text x="200" y="-9" fontSize="12" fill="#333" textAnchor="middle">
+          1 km
+        </text>
+      </g>
+      {/* 架空の明記 */}
+      <rect x="0" y={MAP_NOTE_Y} width={MAP_W} height={MAP_H - MAP_NOTE_Y} fill="#fff" />
+      <text x="16" y={MAP_H - 9} fontSize="13" fill="#555">
+        {BOARD_MAP.svgNote}
+      </text>
+    </>
+  );
+});
+
+interface MovingMarkersProps {
+  inbound: readonly DemoInbound[];
+  /** デモの時計（分）。この部品の中で、前の時刻からここまでを刻んで印を動かす */
+  minutes: number;
+  routes: readonly RouteRow[];
+  /** 動きを減らす設定。刻まずにその時刻の位置へ移す */
+  still: boolean;
+  /** 刻み終えた時刻（= minutes）の印。親が文の一覧のために求めたものを使い回す */
+  shipments: ReturnType<typeof shipmentMarkers>;
+  car: ReturnType<typeof vehicleAt>;
+  /** 押している印（太くする） */
+  mover: string | null;
+  onToggle: (id: string) => void;
+}
+
+/**
+ * 動いているもの（搬送中の便と医療チームの車）だけを描く部品（Issue #296）。時計の進みを刻む useSweptMinutes をここで呼ぶので、
+ * 毎フレームの描き直しはこの部品だけになり、地図のほかの層は描き直さない
+ */
+export function MovingMarkers({ inbound, minutes, routes, still, shipments, car, mover, onToggle }: MovingMarkersProps) {
+  // 図の上の印の位置だけは、時計の進みを刻んだ時刻で求める（道に沿って動かす。Issue #167）。文の到着見込みは今の時刻のもの
+  const swept = useSweptMinutes(minutes, still);
+  const shipmentsAt = swept === minutes ? shipments : shipmentMarkers(inbound, swept, routes);
+  const carAt = swept === minutes ? car : vehicleAt(swept, routes);
+  // 図（role="img"）の中の印は、マウス・タッチで押せるだけにする。キーボード・読み上げでは、図の下の一覧のボタンで同じ操作をする
+  // （画像として扱われる SVG の中の操作要素は読み上げに出ないため。PR #130 のレビュー）
+  const moverPress = (id: string) => ({ onClick: () => onToggle(id) });
+  return (
+    <g className="board-map-movers">
+      {shipmentsAt.map((sh, i) => {
+        const k = shipmentsAt.slice(0, i).filter((o) => Math.hypot(o.x - sh.x, o.y - sh.y) < 28).length;
+        const id = `s-${sh.id}`;
+        return (
+          <g
+            key={id}
+            className={`board-map-mover shipment${mover === id ? " active" : ""}`}
+            style={{ transform: `translate(${sh.x}px, ${sh.y}px)` }}
+            data-mover={id}
+            {...moverPress(id)}
+          >
+            <g transform={`translate(${k * 32},0)`}>
+              <path d="M0,0 V-16" stroke="#3d3a36" strokeWidth="2" />
+              <circle r="4" fill="#3d3a36" />
+              <rect x="-15" y="-38" width="30" height="22" rx="4" fill="#fff" stroke="#3d3a36" strokeWidth={mover === id ? 3.5 : 2} />
+              <text y="-22" fontSize="13" fontWeight="800" fill="#3d3a36" textAnchor="middle">
+                便
+              </text>
+            </g>
+          </g>
+        );
+      })}
+      <g
+        className={`board-map-mover vehicle${mover === "car" ? " active" : ""}`}
+        style={{ transform: `translate(${carAt.x}px, ${carAt.y}px)` }}
+        data-mover="car"
+        {...moverPress("car")}
+      >
+        <path d="M0,0 V16" stroke="#222222" strokeWidth="2" />
+        <circle r="4" fill="#222222" />
+        <rect x="-19" y="16" width="38" height="22" rx="6" fill="#222222" stroke="#fff" strokeWidth={mover === "car" ? 3.5 : 2} />
+        <text y="32" fontSize="13" fontWeight="800" fill="#fff" textAnchor="middle">
+          車
+        </text>
+      </g>
+    </g>
+  );
+}
+
+/**
  * 架空の町の模式図（Issue #105）。碁盤目の街区、川と橋、幹線道路と高速道路、本部（病院）と救護所（学校・公民館・集会所）、
  * 本部からの経路の状態（通行可・迂回・通行止め）、拠点の不足の印、方位とスケール。
  * 外部の地図タイルも画像も使わず、SVG と架空のデータだけで描く
@@ -176,7 +352,6 @@ function FacilityShape({ f }: { f: Facility }) {
 export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side = true, live = START_LIVE, reducedMotion = false }: Props) {
   const routeOf = (site: string) => routes.find((r) => r.to === site);
   const notes = areaNotes(routes);
-  const ex = MAP_EXPRESSWAY.x;
   // 道筋を浮かび上がらせる救護所：カーソル・焦点 → 経路の行で押したもの → 選んでいる救護所
   const [focused, setFocused] = useState<SiteId | null>(null);
   const [pinned, setPinned] = useState<SiteId | null>(null);
@@ -187,10 +362,7 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
   const glows = siteGlows(overview, live.sync, live.minutes);
   const shipments = shipmentMarkers(live.inbound, live.minutes, routes);
   const car = vehicleAt(live.minutes, routes);
-  // 図の上の印の位置だけは、時計の進みを刻んだ時刻で求める（道に沿って動かす。Issue #167）。文の到着見込みは今の時刻のもの
-  const swept = useSweptMinutes(live.minutes, reducedMotion);
-  const shipmentsAt = swept === live.minutes ? shipments : shipmentMarkers(live.inbound, swept, routes);
-  const carAt = swept === live.minutes ? car : vehicleAt(swept, routes);
+  // 図の上の印を刻んで動かすのは MovingMarkers の中だけ（毎フレーム、この部品全体を描き直さない。Issue #296）
   const placeName = (site: SiteId) => (site === HQ ? "本部" : site);
   const carText =
     car.state === "移動中"
@@ -203,9 +375,6 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
       return s ? shipmentText(s) : null;
     })();
   const toggleMover = (id: string) => setMover((cur) => (cur === id ? null : id));
-  // 図（role="img"）の中の印は、マウス・タッチで押せるだけにする。キーボード・読み上げでは、図の下の一覧のボタンで同じ操作をする
-  // （画像として扱われる SVG の中の操作要素は読み上げに出ないため。PR #130 のレビュー）
-  const moverPress = (id: string) => ({ onClick: () => toggleMover(id) });
   const moverRows = [
     { id: "car", text: `${BOARD_MAP_LIVE.vehicleName}：${carText}` },
     ...shipments.map((sh) => ({ id: `s-${sh.id}`, text: shipmentText(sh) })),
@@ -220,67 +389,8 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
           <div className="board-map-scroll">
             <svg viewBox={`0 0 ${MAP_W} ${MAP_H}`} role="img" aria-labelledby="board-map-desc">
               <title id="board-map-desc">{BOARD_MAP.svgTitle}</title>
-              <defs>
-                <pattern id="board-map-houses" width="16" height="14" patternUnits="userSpaceOnUse">
-                  <rect x="2" y="2" width="11" height="9" fill="#d8d8d8" />
-                </pattern>
-              </defs>
-              {/* 地面（生活道路の色）と街区（住宅地） */}
-              <rect width={MAP_W} height={MAP_H} fill="#f7f7f7" />
-              {MAP_BLOCKS.map((b) => (
-                <g key={`${b.x},${b.y}`}>
-                  <rect x={b.x} y={b.y} width={b.w} height={b.h} fill="#e0e0e0" />
-                  <rect x={b.x} y={b.y} width={b.w} height={b.h} fill="url(#board-map-houses)" />
-                </g>
-              ))}
-              {/* 山林 */}
-              {MAP_HILLS.map((d) => (
-                <g key={d}>
-                  <path d={d} fill="#e4e4e4" />
-                  <path d={d} fill="none" stroke="#bdbdbd" strokeWidth="1.5" strokeDasharray="10 6" transform="translate(-6,0)" />
-                </g>
-              ))}
-              {/* 施設 */}
-              {MAP_FACILITIES.map((f) => (
-                <FacilityShape key={`${f.kind}${f.rect.x},${f.rect.y}`} f={f} />
-              ))}
-              {/* 碁盤目に乗らない生活道路（川沿いの道）と幹線道路 */}
-              {MAP_LOCAL_ROADS.map((d) => (
-                <path key={d} d={d} fill="none" stroke="#f7f7f7" strokeWidth="8" strokeLinejoin="round" />
-              ))}
-              {MAP_MAIN_ROADS.map((d) => (
-                <path key={`c${d}`} d={d} fill="none" stroke="#c4c4c4" strokeWidth="16" />
-              ))}
-              {MAP_MAIN_ROADS.map((d) => (
-                <path key={d} d={d} fill="none" stroke="#ffffff" strokeWidth="12" />
-              ))}
-              {/* 川（街区と道を覆う。道が川を渡るのは橋だけ） */}
-              <path d={MAP_RIVER} fill="none" stroke="#e2e2e2" strokeWidth="44" strokeLinejoin="round" />
-              <path d={MAP_RIVER} fill="none" stroke="#d4d4d4" strokeWidth="26" strokeLinejoin="round" />
-              {/* 土砂が流れ込んだ場所 */}
-              {MAP_LANDSLIDES.map((d) => (
-                <path key={d} d={d} fill="#a8a8a8" opacity="0.85" />
-              ))}
-              {/* 橋 */}
-              {MAP_BRIDGES.map((b) => (
-                <g key={`${b.x},${b.y}`} transform={`translate(${b.x},${b.y}) rotate(${b.angle})`}>
-                  <rect x="-30" y="-9" width="60" height="18" fill="#ffffff" stroke="#666" strokeWidth="2" />
-                </g>
-              ))}
-              {/* 高速道路（架空） */}
-              <path d={`M${ex},0 V${MAP_NOTE_Y}`} stroke="#8a8378" strokeWidth="20" />
-              <path d={`M${ex},0 V${MAP_NOTE_Y}`} stroke="#d6d6d6" strokeWidth="15" />
-              <path d={`M${ex},0 V${MAP_NOTE_Y}`} stroke="#fff" strokeWidth="1.5" strokeDasharray="10 8" />
-              <g transform={`translate(${ex},250)`}>
-                <rect x="-13" y="-46" width="26" height="80" rx="5" fill="#5d5a55" />
-                <text fontSize="14" fill="#fff" fontWeight="700" textAnchor="middle">
-                  {[...MAP_EXPRESSWAY.label].map((ch, i) => (
-                    <tspan key={i} x="0" y={-28 + i * 17}>
-                      {ch}
-                    </tspan>
-                  ))}
-                </text>
-              </g>
+              {/* 動かない下の層（Issue #296：時計が進んでも描き直さない） */}
+              <MapBaseLayers />
               {/* 本部からの経路。状態で色と線を変える */}
               {MAP_ROUTES.map((m) => {
                 const r = routeOf(m.to);
@@ -445,70 +555,17 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
               })}
               {/* 動いているもの（Issue #128。架空・模擬）：搬送中の便と医療チームの車。位置はデモ時計から求め、時計が進むと滑らかに移る。
                   印は点の上（便）と下（車）に置き、重なる便は横にずらす。押すと行き先と到着見込みを図の下に出す */}
-              <g className="board-map-movers">
-                {shipmentsAt.map((sh, i) => {
-                  const k = shipmentsAt.slice(0, i).filter((o) => Math.hypot(o.x - sh.x, o.y - sh.y) < 28).length;
-                  const id = `s-${sh.id}`;
-                  return (
-                    <g
-                      key={id}
-                      className={`board-map-mover shipment${mover === id ? " active" : ""}`}
-                      style={{ transform: `translate(${sh.x}px, ${sh.y}px)` }}
-                      data-mover={id}
-                      {...moverPress(id)}
-                    >
-                      <g transform={`translate(${k * 32},0)`}>
-                        <path d="M0,0 V-16" stroke="#3d3a36" strokeWidth="2" />
-                        <circle r="4" fill="#3d3a36" />
-                        <rect x="-15" y="-38" width="30" height="22" rx="4" fill="#fff" stroke="#3d3a36" strokeWidth={mover === id ? 3.5 : 2} />
-                        <text y="-22" fontSize="13" fontWeight="800" fill="#3d3a36" textAnchor="middle">
-                          便
-                        </text>
-                      </g>
-                    </g>
-                  );
-                })}
-                <g
-                  className={`board-map-mover vehicle${mover === "car" ? " active" : ""}`}
-                  style={{ transform: `translate(${carAt.x}px, ${carAt.y}px)` }}
-                  data-mover="car"
-                  {...moverPress("car")}
-                >
-                  <path d="M0,0 V16" stroke="#222222" strokeWidth="2" />
-                  <circle r="4" fill="#222222" />
-                  <rect x="-19" y="16" width="38" height="22" rx="6" fill="#222222" stroke="#fff" strokeWidth={mover === "car" ? 3.5 : 2} />
-                  <text y="32" fontSize="13" fontWeight="800" fill="#fff" textAnchor="middle">
-                    車
-                  </text>
-                </g>
-              </g>
-              {/* 方位とスケール（架空） */}
-              <g transform="translate(912,66)">
-                <circle r="24" fill="#fff" fillOpacity="0.92" stroke="#888" />
-                <path d="M0,-17 L9,12 L0,5 L-9,12 Z" fill="#333" />
-                <text y="-29" fontSize="15" fontWeight="800" textAnchor="middle" fill="#333">
-                  N
-                </text>
-              </g>
-              <g transform="translate(86,596)">
-                <rect x="-14" y="-24" width="232" height="36" rx="6" fill="#fff" fillOpacity="0.92" />
-                <rect x="0" y="-3" width="100" height="6" fill="#333" />
-                <rect x="100" y="-3" width="100" height="6" fill="#fff" stroke="#333" />
-                <text x="0" y="-9" fontSize="12" fill="#333" textAnchor="middle">
-                  0
-                </text>
-                <text x="100" y="-9" fontSize="12" fill="#333" textAnchor="middle">
-                  0.5 km
-                </text>
-                <text x="200" y="-9" fontSize="12" fill="#333" textAnchor="middle">
-                  1 km
-                </text>
-              </g>
-              {/* 架空の明記 */}
-              <rect x="0" y={MAP_NOTE_Y} width={MAP_W} height={MAP_H - MAP_NOTE_Y} fill="#fff" />
-              <text x="16" y={MAP_H - 9} fontSize="13" fill="#555">
-                {BOARD_MAP.svgNote}
-              </text>
+              <MovingMarkers
+                inbound={live.inbound}
+                minutes={live.minutes}
+                routes={routes}
+                still={reducedMotion}
+                shipments={shipments}
+                car={car}
+                mover={mover}
+                onToggle={toggleMover}
+              />
+              <MapFrameLayers />
             </svg>
           </div>
           <figcaption className="board-map-legend">
@@ -552,7 +609,7 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
               id="board-map-glows"
               title={BOARD_MAP_LIVE.glowTitle}
               count={`${glows.length} か所`}
-              open={glows.some((g) => g.level === "bad")}
+              defaultOpen={glows.some((g) => g.level === "bad")}
             >
               {glows.length === 0 ? (
                 <p>{BOARD_MAP_LIVE.glowNone}</p>
@@ -575,7 +632,7 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
               {moverText ?? BOARD_MAP_LIVE.pressHint}
             </p>
             {/* 一覧はふだん閉じておく（Issue #159） */}
-            <Fold id="board-map-movers" title={BOARD_MAP_LIVE.moversTitle} count={`${moverRows.length} 件`} open={false}>
+            <Fold id="board-map-movers" title={BOARD_MAP_LIVE.moversTitle} count={`${moverRows.length} 件`} defaultOpen={false}>
               {/* 一覧の行は SVG の外の本物のボタン。押すと図の印を太くし、上の欄に行き先と到着見込みを出す（もう一度押すと戻す） */}
               <ul className="board-map-mover-list">
                 {moverRows.map((r) => (
@@ -636,7 +693,7 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
             </ul>
           </section>
           {/* ふだんは閉じておく（Issue #159） */}
-          <Fold id="board-map-notes" title={BOARD_MAP.notesTitle} count={`${notes.length} 件`} open={false}>
+          <Fold id="board-map-notes" title={BOARD_MAP.notesTitle} count={`${notes.length} 件`} defaultOpen={false}>
             <ul className="board-map-notes">
               {notes.map((n) => (
                 <li key={n}>{n}</li>

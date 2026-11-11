@@ -56,7 +56,7 @@ function ArrivalSummary({ state }: { state: DemoState }) {
       testId="arrivals-summary"
       title={BOARD_ARRIVALS.title}
       count={`${fmt.format(a.arrived.length)} / ${fmt.format(a.plan.length)} ${BOARD_ARRIVALS.people}`}
-      open={a.active}
+      defaultOpen={a.active}
     >
       <dl className="board-stats">
         <div>
@@ -101,7 +101,7 @@ function ArrivalList({ state, site }: { state: DemoState; site: SiteId }) {
       testId="arrivals-list"
       title={BOARD_ARRIVALS.listTitle}
       count={`${fmt.format(rows.length)} ${BOARD_ARRIVALS.people}`}
-      open={false}
+      defaultOpen={false}
     >
       <p className="board-note">{BOARD_ARRIVALS.nameNote}</p>
       {rows.length === 0 ? (

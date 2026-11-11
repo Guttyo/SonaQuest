@@ -23,14 +23,14 @@ function foldOpen(html: string, id: string): boolean {
 describe("開閉できる欄（Issue #159）", () => {
   it("見出しは summary の中の h3 で、閉じていても件数が見える", () => {
     const closed = renderToStaticMarkup(
-      <Fold id="x" title="一覧" count="3 件" open={false}>
+      <Fold id="x" title="一覧" count="3 件" defaultOpen={false}>
         <p>中身</p>
       </Fold>,
     );
     expect(closed).toContain('<details><summary><h3 id="x">一覧 <span class="board-count">3 件</span></h3></summary>');
     expect(closed).toContain('<div class="board-fold-body"><p>中身</p></div>');
     const opened = renderToStaticMarkup(
-      <Fold id="x" title="一覧" open>
+      <Fold id="x" title="一覧" defaultOpen>
         <p>中身</p>
       </Fold>,
     );
