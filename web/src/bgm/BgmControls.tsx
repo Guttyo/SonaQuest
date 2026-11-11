@@ -36,13 +36,15 @@ export function BgmControls({
         ? BGM_EXTRA_LABELS.ended
         : null;
 
-  // Esc と、欄の外を押したときに閉じる
+  // Esc と、欄の外を押したときに閉じる。Esc で「音量」へ焦点を戻すのは、焦点が欄の中にあったときだけ
+  // （欄の外の入力欄などで押した Esc で、焦点を奪わない。Issue #295）
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        const inside = rootRef.current !== null && rootRef.current.contains(document.activeElement);
         setOpen(false);
-        openerRef.current?.focus();
+        if (inside) openerRef.current?.focus();
       }
     };
     const onPointer = (e: PointerEvent) => {
@@ -57,7 +59,15 @@ export function BgmControls({
   }, [open]);
 
   return (
-    <div className="bgm" ref={rootRef}>
+    <div
+      className="bgm"
+      ref={rootRef}
+      // Tab などで焦点が欄の外へ出たら閉じる（Issue #295）。行き先が分からないとき（relatedTarget が null）は閉じない：
+      // Safari などでは欄の中のボタンを押しても焦点が移らず null になるので、ここで閉じるとボタンが押せなくなる。欄の外を押したときは pointerdown で閉じる
+      onBlur={(e) => {
+        if (open && e.relatedTarget !== null && !e.currentTarget.contains(e.relatedTarget as Node)) setOpen(false);
+      }}
+    >
       <button
         type="button"
         className={snapshot.on ? "bgm-opener bgm-opener-on" : "bgm-opener"}

@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { EVENTS, STOP_MESSAGE } from "../flow/content";
 import type { EventId } from "../flow/types";
-import { EventScene, EventVisual } from "./EventScene";
+import { EVENT_SCENE_TITLE_ID, EventScene, EventVisual } from "./EventScene";
 import { Stopped } from "./Stopped";
 
 const EVENT_IDS = Object.keys(EVENTS) as EventId[];
@@ -19,6 +19,15 @@ function visual(id: EventId): string {
 describe("出来事の場面の絵と文（B-01、Issue #54）", () => {
   it("6候補がそろっている", () => {
     expect(EVENT_IDS).toHaveLength(6);
+  });
+
+  it.each(EVENT_IDS)("%s：外枠は alert にせず、見出しで名前の付いた領域にする。焦点を移す印は残す（Issue #295）", (id) => {
+    const html = scene(id);
+    expect(html).not.toContain('role="alert"');
+    expect(html).toMatch(
+      new RegExp(`^<div class="event event-scene" role="region" aria-labelledby="${EVENT_SCENE_TITLE_ID}" data-scroll-target="true" tabindex="-1">`),
+    );
+    expect(html).toContain(`<h2 id="${EVENT_SCENE_TITLE_ID}">想定外の出来事</h2>`);
   });
 
   it.each(EVENT_IDS)("%s：読み上げない飾りの絵と、固定文の文がある", (id) => {

@@ -11,12 +11,16 @@ import { EVENT_FOCUS, SourceIcon } from "./SourceIcon";
  * 最後の姿を基本の見た目にしてあるので、動きを減らす設定では止まった絵になる（styles.css）。
  * 「続ける」は演出を待たずにすぐ押せる。中断の画面では対話の画面ごと外れるので、ここは出ない（App.tsx）
  */
+export const EVENT_SCENE_TITLE_ID = "event-scene-title";
+
 export function EventScene({ event, onContinue }: { event: EventId; onContinue: () => void }) {
   const { text, unavailable } = EVENTS[event];
   return (
-    <div className="event event-scene" role="alert" data-scroll-target tabIndex={-1}>
+    // 焦点は App が data-scroll-target へ移すので、alert にはしない（alert の読み上げと焦点の読み上げが重なるため）。
+    // 名前の付いた領域にして、焦点が来たときに見出しが読まれるようにする（Issue #295）。画面に1つしか出ないので id は固定
+    <div className="event event-scene" role="region" aria-labelledby={EVENT_SCENE_TITLE_ID} data-scroll-target tabIndex={-1}>
       <p className="event-kicker">{sceneNumber("event")}</p>
-      <h2>想定外の出来事</h2>
+      <h2 id={EVENT_SCENE_TITLE_ID}>想定外の出来事</h2>
       <EventVisual event={event} />
       <p className="event-text">{text}</p>
       {unavailable !== null && (

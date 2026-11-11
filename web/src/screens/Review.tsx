@@ -149,15 +149,11 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
                     <span className="label">{NEXT_STEP_LABEL}：</span>
                     {labelOf(s.action)}
                   </span>
-                  <button
-                    type="button"
-                    className="next-step-pick"
-                    aria-label={`${NEXT_STEP_PICK}：${labelOf(s.action)}`}
-                    aria-pressed={action === s.action}
-                    onClick={() => pick(s.action)}
-                  >
-                    {action === s.action ? `✓ ${NEXT_STEP_PICKED}` : NEXT_STEP_PICK}
-                  </button>
+                  <NextStepPick
+                    actionLabel={labelOf(s.action)}
+                    picked={action === s.action}
+                    onPick={() => pick(s.action)}
+                  />
                 </div>
               </li>
             ))}
@@ -316,6 +312,27 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
         <RecordCard answers={state.answers} />
       </details>
     </section>
+  );
+}
+
+/**
+ * 「これを準備する」のボタン。aria-label で見える文を上書きせず、見える文の後ろに、読み上げ用に準備行動の名前を隠して足す
+ * （同じ文字のボタンが並ぶため。音声操作で見える文を言っても押せるように。WCAG 2.5.3、Issue #295）。
+ * 選んだ後の ✓ は飾りで読ませない。選んだかどうかは aria-pressed で伝える
+ */
+export function NextStepPick({ actionLabel, picked, onPick }: { actionLabel: string; picked: boolean; onPick: () => void }) {
+  return (
+    <button type="button" className="next-step-pick" aria-pressed={picked} onClick={onPick}>
+      {picked ? (
+        <>
+          <span aria-hidden="true">✓ </span>
+          {NEXT_STEP_PICKED}
+        </>
+      ) : (
+        NEXT_STEP_PICK
+      )}
+      <span className="visually-hidden">{`：${actionLabel}`}</span>
+    </button>
   );
 }
 

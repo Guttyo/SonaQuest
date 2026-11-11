@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { HQ } from "../data";
 import { sessionFor } from "../access";
 import { Board } from "../../screens/Board";
-import { KarteTranscribe } from "./Transcribe";
+import { KarteTranscribe, transcriptLimitStatus } from "./Transcribe";
 import { TRANSCRIPT_MAX_LENGTH, appendTranscript } from "./transcript";
 import { TRANSCRIBE_NOTICES, TRANSCRIBE_TEXT, TRANSCRIPT_SUMMARY_TEXT } from "./transcribeText";
 import { TranscriptSummary } from "./TranscriptSummary";
@@ -47,6 +47,18 @@ describe("HQ のカルテ画面の文字起こし（Issue #202、ADR-0061）", (
     expect(a).toContain(TRANSCRIBE_TEXT.hqOnly);
     // 救護所の画面には出さない
     expect(records("救護所A", "救護所A")).not.toContain(TRANSCRIBE_TEXT.title);
+  });
+
+  it("文字数の表示は aria-live にしない。上限の知らせ（role=\"status\"）はいつも描き、上限に達したときだけ文を入れる（Issue #295）", () => {
+    const h = renderToStaticMarkup(<KarteTranscribe />);
+    const foot = h.slice(h.indexOf('class="board-transcribe-foot"'), h.indexOf("</div>", h.indexOf('class="board-transcribe-foot"')));
+    expect(foot).toContain(`>${TRANSCRIBE_TEXT.count(0, TRANSCRIPT_MAX_LENGTH)}<`);
+    expect(foot).not.toContain("aria-live");
+    expect(foot).toContain('<span class="visually-hidden" role="status"></span>');
+    expect(transcriptLimitStatus(0)).toBe("");
+    expect(transcriptLimitStatus(TRANSCRIPT_MAX_LENGTH - 1)).toBe("");
+    // 新しい文は足さず、今の文字数の文を使い回す
+    expect(transcriptLimitStatus(TRANSCRIPT_MAX_LENGTH)).toBe(TRANSCRIBE_TEXT.count(TRANSCRIPT_MAX_LENGTH, TRANSCRIPT_MAX_LENGTH));
   });
 
   it("音声認識が無いブラウザでは、そう出して文字入力だけにする（マイクのボタンも確かめの欄も出さない）", () => {
