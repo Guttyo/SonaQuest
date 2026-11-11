@@ -11,10 +11,14 @@ const KATAKANA = "[\\u30a1-\\u30faー]";
 /**
  * 照合用の文にそろえる。NFKC にかけ、空白と書式文字（Unicode の一般カテゴリ Cf。ゼロ幅スペース U+200B、
  * 単語結合子 U+2060、ソフトハイフン U+00AD など）を除く。書式文字は NFKC でも残り、\s にも当たらないので、
- * 文字の間に挟むと語の照合をすり抜けられた（Issue #292）。表示は元の文のまま
+ * 文字の間に挟むと語の照合をすり抜けられた（Issue #292）。表示は元の文のまま。
+ * NFKC の前にも除く（文字と濁点の間に挟まると、NFKC で「シ」＋濁点が「ジ」にまとまらないため）
  */
 export function textForMatch(text: string): string {
-  return text.normalize("NFKC").replace(/[\p{Cf}\s]/gu, "");
+  return text
+    .replace(/[\p{Cf}\s]/gu, "")
+    .normalize("NFKC")
+    .replace(/[\p{Cf}\s]/gu, "");
 }
 
 /**
@@ -24,9 +28,9 @@ function hasFormatChars(text: string): boolean {
   return /\p{Cf}/u.test(text);
 }
 
-/** 書式文字だけを除く（空白は語の切れ目として残す） */
+/** 書式文字だけを除く（空白は語の切れ目として残す）。textForMatch と同じく、NFKC の前と後で除く */
 function withoutFormatChars(text: string): string {
-  return text.normalize("NFKC").replace(/\p{Cf}/gu, "");
+  return text.replace(/\p{Cf}/gu, "").normalize("NFKC").replace(/\p{Cf}/gu, "");
 }
 
 /*

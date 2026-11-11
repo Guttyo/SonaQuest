@@ -40,7 +40,7 @@ describe("直前の回答の言葉の復唱", () => {
   });
 
   it("直前の回答に書式文字が入っていても、その回答に文字どおりある言葉の復唱は通る（Issue #292）", () => {
-    const zw = "​";
+    const zw = String.fromCodePoint(0x200b);
     expect(check("頭痛薬ですね。ほかに使っているお薬はありますか？", `頭${zw}痛${zw}薬を飲んでいます`)).toBeNull();
     expect(check("ロキソニンですね。ほかに使っているお薬はありますか？", `ロ${zw}キ${zw}ソ${zw}ニ${zw}ンをときどき`)).toBeNull();
     expect(check("花粉症の薬ですね。ほかに使っているお薬はありますか？", `花粉症${zw}の薬を飲んでいます`)).toBeNull();

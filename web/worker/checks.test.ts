@@ -205,8 +205,10 @@ describe("係の名前（ソナ・クエ。Issue #164）", () => {
 });
 
 describe("書式文字（ゼロ幅スペースなど）を挟んだ文（Issue #292）", () => {
-  // 見た目で分からない文字は、ソースに直接書かずエスケープで作る
-  const FORMAT_CHARS = ["​", "⁠", "­", "﻿"];
+  // 見た目で分からない文字は、ソースに直接書かず符号位置から作る
+  const FORMAT_CHARS = [0x200b, 0x2060, 0x00ad, 0xfeff].map((c) => String.fromCodePoint(c));
+  const zw = String.fromCodePoint(0x200b);
+  const wj = String.fromCodePoint(0x2060);
   const spread = (text: string, ch: string) => [...text].join(ch);
   const samples = [
     ["禁止表現", "早めに受診してください。"],
@@ -229,13 +231,16 @@ describe("書式文字（ゼロ幅スペースなど）を挟んだ文（Issue #
   );
 
   it("書式文字を含む文は、それだけで捨てる（重ねる守り）", () => {
-    expect(promptTextProblem("はい。​その薬のことは、何を見れば確かめられますか？", context())).toBe("forbidden");
-    expect(remarkTextProblem("お話しくださってありがとうございました。⁠", [])).toBe("forbidden");
+    expect(promptTextProblem(`はい。${zw}その薬のことは、何を見れば確かめられますか？`, context())).toBe("forbidden");
+    expect(remarkTextProblem(`お話しくださってありがとうございました。${wj}`, [])).toBe("forbidden");
   });
 
   it("照合用の文は、空白と書式文字を除いてそろえる（文を捨てる守りが無くても、語の照合で見つかる）", () => {
-    const zw = "​";
     expect(textForMatch(`受${zw}診 して`)).toBe("受診して");
+    // 文字と濁点の間に挟まっても、NFKC でまとまった形にそろえる（NFKC の前にも除く）
+    expect(textForMatch(`ｼ${zw}ﾞ`)).toBe("ジ");
+    expect(textForMatch(`か${zw}${String.fromCodePoint(0x3099)}`)).toBe("が");
+    expect(repeatsUserWords("ゼブラジンは何で確かめますか", [`ｾ${zw}ﾞﾌﾞﾗｼ${zw}ﾞﾝを飲んでいます`], [])).toBe(true);
     expect(FORBIDDEN_PATTERNS.some((p) => p.test(textForMatch(spread("早めに受診してください。", zw))))).toBe(true);
     expect(FORBIDDEN_PATTERNS.some((p) => p.test(textForMatch(spread("糖尿病の薬", zw))))).toBe(true);
     expect(unknownTerms(spread("アムロジピンはありますか？", zw), [])).toEqual(["アムロジピン"]);
