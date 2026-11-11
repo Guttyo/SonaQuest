@@ -21,6 +21,7 @@ import {
   type StockRow,
   type SyncRow,
 } from "./data";
+import { shownOnHand } from "./summary";
 import { DEFAULT_ARRIVAL_SEED, DISPENSE_DAYS, arrivalPlan, dispenseQty, hasCondition, simPatient, type PlannedArrival } from "./patients";
 import {
   confirmReview,
@@ -578,6 +579,17 @@ export function nextRecordId(state: DemoState, site: SiteId): string {
 }
 
 /**
+ * 在庫から処方の数を交付するときの算数（Issue #288）。問診の入力の完了の文（Board.tsx）と admit の記録が同じ数を使う。
+ * 交付に使えるのは画面に出す数（shownOnHand。切り捨て）までで、1単位未満（0.9錠など）は交付しない。
+ * 交付は整数、在庫の端数は残す（減り方は小数のまま。Issue #252）。数の足し引きだけで、処方・服薬の判断はしない。
+ * 在庫が未確認（null）・行が無いときの扱いは呼び出し側が決める（null を 0 とみなす今の動きは Issue #288 のオーナー判断待ち）
+ */
+export function dispense(onHand: number, qty: number): { out: number; undelivered: number; nextOnHand: number } {
+  const out = Math.max(0, Math.min(shownOnHand(onHand), qty));
+  return { out, undelivered: qty - out, nextOnHand: onHand - out };
+}
+
+/**
  * 救護所の記録に1人を加える（架空の問診の入力と、架空の患者の到着が同じ経路を通る。Issue #102・#122）。
  * 記録に架空の氏名と番号で加え、今日の患者を1人足し、処方の品目ごとに数量だけ現地の在庫から引き、
  * 足りない分は未交付として需要に載せ、通信なし・断続的な救護所では記録の形になっていないものを1件足す。
@@ -612,10 +624,9 @@ function admit(
     if (p.qty <= 0) continue;
     const row = stock.find((s) => s.site === a.site && s.item === p.item);
     const unit = row?.unit ?? "";
-    const available = row?.onHand ?? 0;
-    const out = Math.min(available, p.qty);
-    if (row) row.onHand = available - out;
-    const undelivered = p.qty - out;
+    // 未確認（null）は今までどおり 0 とみなす（未確認の扱いは Issue #288 のオーナー判断待ちで、この直しでは変えない）
+    const { out, undelivered, nextOnHand } = dispense(row?.onHand ?? 0, p.qty);
+    if (row) row.onHand = nextOnHand;
     rxs.push({ ...p, unit, undelivered });
     log.push({ at: a.at, text: `${a.site}：${p.item} ${out}${unit} を出庫（処方 ${p.qty}${unit}・${p.days}日分）` });
     if (undelivered > 0) {
@@ -720,6 +731,8 @@ function arrive(state: DemoState, from: number, hours: number): DemoState {
 export function demoReducer(state: DemoState, action: DemoAction): DemoState {
   switch (action.type) {
     case "tick":
+      // 到着の予定は1時間ごとに読み進める（arrive）。1時間の倍数でない時間では時計と到着がずれるので、状態を変えない（Issue #288）
+      if (!Number.isInteger(action.hours) || action.hours <= 0) return state;
       return refreshProposals(arrive(tick({ ...state, rev: state.rev + 1 }, action.hours), state.minutes, action.hours));
     case "run":
       // 自動で進め始めると、患者の受け入れも始まる（Issue #170。2026-11-06 オーナー、チャット：デモの開始と受け入れが離れていて手が付かない）。
