@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState, type FormEvent, type ReactNode } from "react";
 import "../board/board.css";
 import {
   COVER_GUIDE_DAYS,
@@ -16,6 +16,7 @@ import {
   inboundKind,
   routeTo,
   siteInfo,
+  type PatientRow,
   type SiteId,
 } from "../board/data";
 import {
@@ -527,8 +528,10 @@ function IntakeForm({
  * カルテ（患者1人につき1枚・架空）。見出しに架空の氏名か番号と印（処方あり・未交付あり）、
  * 開くと記録の履歴、最新の記録の6項目（本人の言葉のまま）、医師の処方の履歴
  */
-function ChartCard({ chart, open }: { chart: PatientChart; open: boolean }) {
+function ChartCard({ chart, defaultOpen }: { chart: PatientChart; defaultOpen: boolean }) {
   const access = useBoardAccess();
+  // 開いておくかは最初の1回だけ決め、あとは人の開け閉めに任せる（Fold と同じ。Issue #296）
+  const [open] = useState(defaultOpen);
   const latest = chart.visits[0];
   const title = chart.name === null ? `番号 ${chart.id}` : `${chart.name}`;
   const review = access?.reviews[chart.key];
@@ -600,8 +603,7 @@ function ChartCard({ chart, open }: { chart: PatientChart; open: boolean }) {
 }
 
 /** 患者数の推移の折れ線（SVG。依存を足さない）。線の右端に救護所の名前と最新の値。数字の表を下に添える */
-function Trend({ state }: { state: DemoState }) {
-  const patients = patientsWithExtra(state);
+function Trend({ patients }: { patients: PatientRow[] }) {
   const series = trendSeries(patients);
   const dates = [...new Set(patients.map((r) => r.date))].sort();
   const max = Math.max(...patients.map((r) => r.patients)) * 1.15;
@@ -938,8 +940,8 @@ export function isStaleReport(state: DemoState, site: SiteId): boolean {
 }
 
 /** 最終報告の注意の印（色だけに頼らず文字を付ける） */
-function StaleMark({ state, site }: { state: DemoState; site: SiteId }) {
-  if (!isStaleReport(state, site)) return null;
+function StaleMark({ stale }: { stale: boolean }) {
+  if (!stale) return null;
   return <span className="board-stale">{BOARD_CHANGES.stale(BOARD_CHANGES.staleHours)}</span>;
 }
 
@@ -962,7 +964,7 @@ function PrescriptionTotals({ state, site, headingId }: { state: DemoState; site
       className="board-rx-totals"
       title={BOARD_INTAKE_MODE.totalsTitle}
       count={`${fmt.format(totals.length)} 品目`}
-      open={totals.some((t) => t.undelivered > 0)}
+      defaultOpen={totals.some((t) => t.undelivered > 0)}
     >
       {totals.length === 0 ? (
         <p className="board-note">{BOARD_INTAKE_MODE.totalsEmpty}</p>
@@ -1008,6 +1010,8 @@ function SiteDetail({
   cases,
   charts,
   latestAddedKey,
+  patients,
+  stale,
   dispatch,
   onSelect,
 }: {
@@ -1017,13 +1021,16 @@ function SiteDetail({
   cases: CaseRow[];
   charts: PatientChart[];
   latestAddedKey: string | null;
+  /** Board で1回だけ求めた今日の患者（patientsWithExtra。Issue #296） */
+  patients: PatientRow[];
+  /** 最終報告が古いか（Board で拠点ごとに1回だけ求める。Issue #296） */
+  stale: boolean;
   dispatch: (a: DemoAction) => void;
   onSelect: (site: SiteId) => void;
 }) {
   const info = siteInfo(site);
   const route = routeTo(site);
   const sync = state.sync.find((s) => s.site === site);
-  const patients = patientsWithExtra(state);
   const date = todaySummary(patients).date;
   const today = patients.find((r) => r.date === date && r.site === site);
   const demand = DEMAND.find((d) => d.site === site);
@@ -1061,11 +1068,11 @@ function SiteDetail({
             <dt>{BOARD_LAYOUT.detail.evacuees}</dt>
             <dd>{demand ? `${fmt.format(demand.evacuees)} 人` : "—"}</dd>
           </div>
-          <div className={isStaleReport(state, site) ? "stale" : ""}>
+          <div className={stale ? "stale" : ""}>
             <dt>{BOARD_CHANGES.lastReport}</dt>
             <dd>
               <span data-testid="site-last-report">{lastReportText(state, site)}</span>
-              <StaleMark state={state} site={site} />
+              <StaleMark stale={stale} />
             </dd>
           </div>
         </dl>
@@ -1091,7 +1098,7 @@ function SiteDetail({
         id="board-detail-shortage"
         title={BOARD_LAYOUT.detail.shortage}
         count={`${fmt.format(cases.length)} 件`}
-        open={cases.some((c) => c.status === "在庫切れ" || c.status === "在庫切れ見込み")}
+        defaultOpen={cases.some((c) => c.status === "在庫切れ" || c.status === "在庫切れ見込み")}
       >
         {cases.length === 0 ? (
           <p className="board-note">{BOARD_GROUPS.empty}</p>
@@ -1165,7 +1172,7 @@ function SiteDetail({
         id="board-detail-orders"
         title={BOARD_ORDERS.title}
         count={`${fmt.format(proposals.length)} ${BOARD_ORDERS.count}`}
-        open={proposals.some((p) => p.status === "提案")}
+        defaultOpen={proposals.some((p) => p.status === "提案")}
       >
         <ProposalList state={state} proposals={proposals} canDecide={false} dispatch={dispatch} showSite={false} />
         {proposals.some((p) => p.status === "提案") && <p className="board-note">{BOARD_ORDERS.approveOnlyHq}</p>}
@@ -1179,7 +1186,7 @@ function SiteDetail({
         sectionId="board-intake"
         title={BOARD_LAYOUT.detail.charts}
         count={`${fmt.format(charts.length)} ${BOARD_RECORDS.count}`}
-        open={latestAddedKey !== null && charts.some((c) => c.key === latestAddedKey)}
+        defaultOpen={latestAddedKey !== null && charts.some((c) => c.key === latestAddedKey)}
       >
         <Help>
           <p className="board-note">{BOARD_RECORDS.note}</p>
@@ -1189,7 +1196,7 @@ function SiteDetail({
         ) : (
           <ul className="board-chart-list">
             {charts.map((c) => (
-              <ChartCard key={c.key} chart={c} open={c.key === latestAddedKey} />
+              <ChartCard key={c.key} chart={c} defaultOpen={c.key === latestAddedKey} />
             ))}
           </ul>
         )}
@@ -1259,7 +1266,10 @@ export function Board({
   }, [intake]);
 
   const isHq = selected === HQ;
-  const patients = patientsWithExtra(state);
+  // 患者の数が変わるのはカルテを足したとき（extraPatients）だけなので、時計の進み（tick）では計算し直さない。
+  // Trend と SiteDetail にはこの値を渡し、中で求め直さない（Issue #296）
+  // （patientsWithExtra が読むのは state.extraPatients だけ。demo.ts）
+  const patients = useMemo(() => patientsWithExtra(state), [state.extraPatients]);
   const today = todaySummary(patients);
   const critical = criticalItems(state.stock);
   const unknown = unknownCounts(state.stock);
@@ -1418,7 +1428,9 @@ export function Board({
     const max = BOARD_LAYOUT.marks.max;
     return m.length <= max ? m : [...m.slice(0, max), { text: BOARD_LAYOUT.marks.more(m.length - max), level: "none" as const }];
   };
+  // 最終報告の古さは、1回の描画で拠点ごとに1回だけ求め、選択欄・ペイン・タイル・詳細で使い回す（Issue #296）
   const staleSites = SHELTERS.filter((s) => isStaleReport(state, s));
+  const staleSet: ReadonlySet<SiteId> = new Set(staleSites);
 
   // 不足が出ている救護所の数（在庫切れ・切れる見込み・薬剤師の不足のどれかがある。siteOverview からの算数だけ）
   // 救護所の不足状況（2026-11-06 オーナー決定）：在庫（在庫切れ・切れる見込み）と薬剤師の不足を別に数える
@@ -1557,7 +1569,7 @@ export function Board({
                 {d.sites.map((s) => (
                   <option key={s} value={s}>
                     {s}
-                    {isStaleReport(state, s) ? `（${BOARD_CHANGES.stale(BOARD_CHANGES.staleHours)}）` : ""}
+                    {staleSet.has(s) ? `（${BOARD_CHANGES.stale(BOARD_CHANGES.staleHours)}）` : ""}
                   </option>
                 ))}
               </optgroup>
@@ -1592,7 +1604,7 @@ export function Board({
                     <button
                       key={s}
                       type="button"
-                      className={`board-pane-item${selected === s ? " current" : ""}${isStaleReport(state, s) ? " stale" : ""}`}
+                      className={`board-pane-item${selected === s ? " current" : ""}${staleSet.has(s) ? " stale" : ""}`}
                       aria-current={selected === s ? "true" : undefined}
                       data-pane={s}
                       onClick={() => select(s)}
@@ -1603,7 +1615,7 @@ export function Board({
                       </span>
                       <span className="board-pane-sub board-pane-report" data-report={s}>
                         {BOARD_CHANGES.lastReport} {lastReportText(state, s)}
-                        <StaleMark state={state} site={s} />
+                        <StaleMark stale={staleSet.has(s)} />
                       </span>
                       <PaneMarks marks={marksFor(s)} />
                     </button>
@@ -1719,7 +1731,7 @@ export function Board({
                   className="board-actions"
                   title={BOARD_CASES.title}
                   count={`${fmt.format(cases.length)} 件`}
-                  open={critical.length > 0}
+                  defaultOpen={critical.length > 0}
                 >
                   {cases.length === 0 ? (
                     <p className="board-note">{BOARD_CASES.empty}</p>
@@ -1739,7 +1751,7 @@ export function Board({
                   id="board-hq-orders"
                   title={BOARD_TILES.proposals}
                   count={`${fmt.format(pendingProposals.length)} ${BOARD_ORDERS.count}`}
-                  open={pendingProposals.length > 0}
+                  defaultOpen={pendingProposals.length > 0}
                 >
                   <ProposalGroups state={state} proposals={pendingProposals} canDecide={canDecide} dispatch={dispatch} />
                   {!canDecide && pendingProposals.length > 0 && <p className="board-note">{BOARD_ORDERS.approveOnlyHq}</p>}
@@ -1832,7 +1844,7 @@ export function Board({
 
                 <More id="board-trend" title={BOARD_SECTIONS.trend} note={BOARD_SECTIONS.trendNote}>
                   <div className="board-chart">
-                    <Trend state={state} />
+                    <Trend patients={patients} />
                   </div>
                 </More>
                 </section>
@@ -1842,12 +1854,16 @@ export function Board({
             {/* 救護所・詳細：不足薬、患者人数、連絡先、経路、カルテ */}
             {!isHq && tab === "overview" && (
               <SiteDetail
+                // 救護所を切り替えたら作り直し、開閉できる欄の最初の状態をその救護所で決め直す（Issue #296）
+                key={selected}
                 site={selected}
                 state={state}
                 overview={overview.find((o) => o.site === selected)}
                 cases={cases.filter((c) => c.site === selected)}
                 charts={charts.filter((c) => c.site === selected)}
                 latestAddedKey={latestAddedKey}
+                patients={patients}
+                stale={staleSet.has(selected)}
                 dispatch={dispatch}
                 onSelect={select}
               />
@@ -2099,7 +2115,8 @@ export function Board({
                   </button>
                   {!canEdit(selected) && <p className="board-note">{BOARD_PERMISSION.readOnly(selected)}</p>}
                 </section>
-                <PatientArrivals state={state} site={selected} />
+                {/* 救護所を切り替えたら作り直す（開閉の最初の状態をその救護所で決め直す。Issue #296） */}
+                <PatientArrivals key={selected} state={state} site={selected} />
                 <section aria-labelledby="board-site-charts">
                   <h3 id="board-site-charts">
                     {BOARD_LAYOUT.detail.charts}{" "}
@@ -2112,7 +2129,7 @@ export function Board({
                     {charts
                       .filter((c) => c.site === selected)
                       .map((c) => (
-                        <ChartCard key={c.key} chart={c} open={c.key === latestAddedKey} />
+                        <ChartCard key={c.key} chart={c} defaultOpen={c.key === latestAddedKey} />
                       ))}
                   </ul>
                   {charts.every((c) => c.site !== selected) && <p className="board-note">{BOARD_RECORDS.empty}</p>}

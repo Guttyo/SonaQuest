@@ -4,9 +4,10 @@ import { PATIENTS, ROUTES, SITES, STOCK, SYNC, type RouteRow } from "../board/da
 import { MAP_ROUTES, MAP_SITES, areaNotes } from "../board/map";
 import { siteOverview } from "../board/summary";
 import { demoReducer, initialDemo } from "../board/demo";
-import { STALE_REPORT_HOURS } from "../board/live";
+import { STALE_REPORT_HOURS, shipmentMarkers } from "../board/live";
 import { BOARD_MAP_LIVE } from "../board/text";
-import { BoardMap } from "./BoardMap";
+import { vehicleAt } from "../board/vehicles";
+import { BoardMap, MapBaseLayers, MapFrameLayers, MovingMarkers } from "./BoardMap";
 
 const overview = siteOverview(STOCK, PATIENTS, SITES, SYNC, ROUTES);
 const html = renderToStaticMarkup(<BoardMap overview={overview} />);
@@ -141,5 +142,45 @@ describe("動く地図（Issue #128）", () => {
     expect(html).not.toContain("board-map-still");
     const h = renderToStaticMarkup(<BoardMap overview={overview} reducedMotion />);
     expect(h).toContain('class="board-map board-map-still"');
+  });
+});
+
+describe("地図の描き直しを減らす（Issue #296）", () => {
+  const isMemo = (c: unknown) => (c as { $$typeof?: symbol }).$$typeof === Symbol.for("react.memo");
+  const svgOf = (h: string) => h.slice(h.indexOf("<svg"), h.indexOf("</svg>"));
+
+  it("動かない層（地面・街区・山林・施設・道路・川・橋・高速道路と、方位・スケール・架空の明記）は、引数の無い memo の部品にしてある", () => {
+    // 引数が無い memo は、親が描き直しても props の比べ方で同じと分かるので描き直さない
+    expect(isMemo(MapBaseLayers)).toBe(true);
+    expect(isMemo(MapFrameLayers)).toBe(true);
+    const base = renderToStaticMarkup(<MapBaseLayers />);
+    const frame = renderToStaticMarkup(<MapFrameLayers />);
+    expect(base).toContain('<pattern id="board-map-houses"');
+    expect(frame).toContain("0.5 km");
+    // 図の中の置き場所は今までと同じ：下の層は経路より前、上の層は動く印より後
+    const svg = svgOf(html);
+    expect(svg.indexOf(base)).toBeGreaterThan(0);
+    expect(svg.indexOf(base)).toBeLessThan(svg.indexOf('class="board-map-route '));
+    expect(svg.indexOf(frame)).toBeGreaterThan(svg.indexOf('class="board-map-movers"'));
+    // 時計が進んでも、動かない層の形は変わらない
+    const later = svgOf(renderToStaticMarkup(<BoardMap overview={overview} live={demoReducer(initialDemo(), { type: "tick", hours: 6 })} />));
+    expect(later).toContain(base);
+    expect(later).toContain(frame);
+  });
+
+  it("動く印は MovingMarkers だけが描き、位置はその時刻の経路の上（便・車）。地図の中の印と同じ形になる", () => {
+    const state = demoReducer(initialDemo(), { type: "tick", hours: 6 });
+    const shipments = shipmentMarkers(state.inbound, state.minutes, ROUTES);
+    const car = vehicleAt(state.minutes, ROUTES);
+    for (const still of [false, true]) {
+      const m = renderToStaticMarkup(
+        <MovingMarkers inbound={state.inbound} minutes={state.minutes} routes={ROUTES} still={still} shipments={shipments} car={car} mover={null} onToggle={() => {}} />,
+      );
+      expect(m.startsWith('<g class="board-map-movers">')).toBe(true);
+      expect(m).toContain(`translate(${car.x}px, ${car.y}px)`);
+      for (const sh of shipments) expect(m).toContain(`translate(${sh.x}px, ${sh.y}px)`);
+      const map = renderToStaticMarkup(<BoardMap overview={overview} live={state} reducedMotion={still} />);
+      expect(svgOf(map)).toContain(m);
+    }
   });
 });
