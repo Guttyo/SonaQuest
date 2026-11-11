@@ -24,7 +24,7 @@ import {
   selectEvent,
   type GoalPlan,
 } from "./rules";
-import type { TurnRequest, TurnResponse } from "./turnContract";
+import { isQuestionId, type TurnRequest, type TurnResponse } from "./turnContract";
 import type {
   Answer,
   EventId,
@@ -283,7 +283,7 @@ function applyTurn(state: TrainingState, result: TurnResponse): TrainingState {
       answers: redirected,
       prompt: {
         questionId: last.questionId,
-        text: text ?? REDIRECT_TEXTS[last.questionId] ?? last.prompt,
+        text: text ?? (isQuestionId(last.questionId) ? REDIRECT_TEXTS[last.questionId] : undefined) ?? last.prompt,
         type: "redirect",
       },
     };
@@ -297,7 +297,7 @@ function applyTurn(state: TrainingState, result: TurnResponse): TrainingState {
       ...judged,
       prompt: {
         questionId: last.questionId,
-        text: text ?? CLARIFY_TEXTS[last.questionId] ?? last.prompt,
+        text: text ?? (isQuestionId(last.questionId) ? CLARIFY_TEXTS[last.questionId] : undefined) ?? last.prompt,
         type: "clarify",
       },
     };

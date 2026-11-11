@@ -14,7 +14,7 @@ import {
   NEXT_STEP_PICK,
   NEXT_STEP_PICKED,
   NO_WEAK_POINTS_NOTE,
-  PREP_ACTIONS,
+  prepActionOf,
   PREP_ACTION_EFFECTS,
   RECALL_FEEDBACK,
   RECOVERY_QUESTION,
@@ -80,10 +80,8 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
   const first = state.answers.filter((a) => a.half === "first");
   const second = state.answers.filter((a) => a.half === "second");
   const recovery = second.filter((a) => a.kind === "answer" && RECOVERY_IDS.includes(a.questionId));
-  const orderedActions = orderPrepActions(judgments).map(
-    (id) => PREP_ACTIONS.find((a) => a.id === id)!,
-  );
-  const labelOf = (id: PrepActionId) => PREP_ACTIONS.find((a) => a.id === id)!.label;
+  const orderedActions = orderPrepActions(judgments).map(prepActionOf);
+  const labelOf = (id: PrepActionId) => prepActionOf(id).label;
 
   const [action, setAction] = useState<PrepActionId | null>(null);
   const [timing, setTiming] = useState<TimingId | null>(null);
@@ -141,7 +139,7 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
                 </div>
                 {i === 0 && (
                   <p className="next-step-why">
-                    {weakPointLine(s.viewpoint, s.judgment as "not_mentioned" | "aware_unconfirmed", state.event)}
+                    {weakPointLine(s.viewpoint, s.judgment, state.event)}
                   </p>
                 )}
                 <div className="next-step-action">

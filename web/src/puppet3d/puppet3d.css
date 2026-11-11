@@ -1,16 +1,5 @@
 /* 3D のソナ（ADR-0032）と、係の交代の 2D の光。styles.css の色（:root）を使う */
 
-/* 3D のときは、パペットを上に、発言を下に置く（スマホ幅でも発言の幅を狭めない） */
-.listener.listener-3d {
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.listener-3d .listener-speech {
-  align-self: stretch;
-}
-
 /* パペットの舞台。背景を少し色づけて、クリームの体がページの地に溶けないようにする */
 .puppet3d-stage {
   position: relative;

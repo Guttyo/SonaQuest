@@ -1,13 +1,11 @@
 // 動く地図（Issue #128）の位置と光の純粋な関数。デモの状態と時計だけから求まることを確かめる
 import { describe, expect, it } from "vitest";
 import { HQ, PATIENTS, ROUTES, SHELTERS, SITES, STOCK, SYNC, type RouteRow } from "./data";
-import { demoReducer, initialDemo, minutesAt, type DemoInbound } from "./demo";
+import { ARRIVAL_MINUTE_OF_DAY, demoReducer, initialDemo, lastReportAt, minutesAt, type DemoInbound } from "./demo";
 import { MAP_LOCAL_ROADS, MAP_ROUTES, MAP_SITES, STREETS_H, STREETS_V } from "./map";
 import { siteOverview } from "./summary";
 import {
-  ARRIVAL_MINUTE_OF_DAY,
   STALE_REPORT_HOURS,
-  lastReportAt,
   lineLength,
   parsePath,
   pointAt,
@@ -17,7 +15,7 @@ import {
   travelLine,
 } from "./live";
 import { PATROL, patrolLegs, vehicleAt } from "./vehicles";
-import { lastReportMinutes } from "../screens/Board";
+import { isStaleReport } from "../screens/Board";
 
 const overview = siteOverview(STOCK, PATIENTS, SITES, SYNC, ROUTES);
 
@@ -92,11 +90,20 @@ describe("経路の線", () => {
 });
 
 describe("光る救護所（既存の状態だけで決める）", () => {
-  it("最終報告の求め方は、救護所の詳細の「最終報告 N 時間前」と同じ", () => {
-    const s = demoReducer(initialDemo(), { type: "tick", hours: 30 });
-    for (const site of [...SHELTERS, HQ]) {
-      expect(lastReportAt(s.sync, site)).toBe(lastReportMinutes(s, site));
+  it("「最終報告が古い」の光は、ボードの古い報告の印（isStaleReport）と同じ救護所に付く", () => {
+    let s = initialDemo();
+    const seen = new Set<boolean>();
+    for (let i = 0; i < 4; i += 1) {
+      const glows = siteGlows(overview, s.sync, s.minutes);
+      for (const site of SHELTERS) {
+        const glowStale = glows.find((g) => g.site === site)?.reasons.some((r) => r.kind === "最終報告が古い") ?? false;
+        expect(glowStale).toBe(isStaleReport(s, site));
+        seen.add(glowStale);
+      }
+      s = demoReducer(s, { type: "tick", hours: 5 });
     }
+    // 古い・古くないの両方を確かめている
+    expect(seen).toEqual(new Set([true, false]));
   });
 
   it("在庫切れがあれば赤、切れる見込み・薬剤師の不足・最終報告が古いだけなら黄。理由を数で持つ", () => {

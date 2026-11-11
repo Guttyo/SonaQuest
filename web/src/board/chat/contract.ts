@@ -47,7 +47,7 @@ export interface ChatStatus {
   /** 架空の時刻（「11/05 10:30」の形） */
   clock: string;
   patientsToday: number;
-  /** 不足（在庫切れ・切れる見込み）が出ている救護所の数 */
+  /** 薬の不足（在庫切れ・切れる見込み）か、薬剤師の不足が出ている救護所の数（status.ts の chatStatus） */
   shortageSites: number;
   sites: ChatSiteStatus[];
 }

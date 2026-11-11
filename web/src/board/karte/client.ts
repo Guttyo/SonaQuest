@@ -3,7 +3,7 @@
 // 送るのは架空の会話の見本の ID と、要約の入口が返した要約だけ。カルテの記録・氏名・担当者名は送らない。
 // 返事は画面のメモリにだけ持ち、保存・ログ出力をしない。
 
-import type { AuditFinding, ChartAuditResult, ChartSummaryDraft } from "../review";
+import { keyHash, type AuditFinding, type ChartAuditResult, type ChartSummaryDraft } from "../review";
 import { CODE_FINDING_LABELS } from "./codeCheck";
 import {
   AUDIT_FINDING_KINDS,
@@ -33,9 +33,7 @@ export const AUDIT_CLIENT_TIMEOUT_MS = 55_000;
 
 /** カルテの key から、決まった架空の会話の見本を選ぶ（同じカルテはいつも同じ見本） */
 export function sampleForChart(key: string): KarteSample {
-  let h = 0;
-  for (const ch of key) h = (h * 31 + ch.codePointAt(0)!) >>> 0;
-  return KARTE_SAMPLES[h % KARTE_SAMPLES.length];
+  return KARTE_SAMPLES[keyHash(key) % KARTE_SAMPLES.length];
 }
 
 const SESSION_STATES: readonly AuditSessionState[] = ["deleted", "pending", "failed", "not_created"];

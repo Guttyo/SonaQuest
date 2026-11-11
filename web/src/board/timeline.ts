@@ -4,8 +4,16 @@
 // 「遅れ」「間に合わない」などの判定・閾値・解釈はしない（追記 10）。到着未定に日付を作らない。
 
 import { HQ, INBOUND, SITES, type SiteId } from "./data";
-import { minutesAt, proposalStage, stampMinutes, type DemoInbound, type DemoState, type ProposalStage } from "./demo";
-import { ARRIVAL_MINUTE_OF_DAY, DEPART_MINUTE_OF_DAY } from "./live";
+import {
+  ARRIVAL_MINUTE_OF_DAY,
+  DEPART_MINUTE_OF_DAY,
+  minutesAt,
+  proposalStage,
+  stampMinutes,
+  type DemoInbound,
+  type DemoState,
+  type ProposalStage,
+} from "./demo";
 import { caseRows, type StockStatus } from "./summary";
 
 /** 横軸の長さ（日）。Issue #118 のコメントに記録したオーナーの決定（2026-11-06、チャット）の「3日」（選択肢の説明は「いまから3日先まで」） */

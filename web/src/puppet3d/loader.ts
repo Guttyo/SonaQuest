@@ -1,11 +1,3 @@
-import {
-  currentMatchMedia,
-  markPuppetFailed,
-  prefersReducedMotion,
-  puppetFailed,
-  webglAvailable,
-} from "./support";
-
 /**
  * three を含む描画の部分（stage.ts）は、3D を表示するときだけ読み込む（ADR-0032）。
  * 最初の表示の読み込みに three を含めないため、ここから静的に import しない。
@@ -33,14 +25,4 @@ export function loadStage(): Promise<StageModule> {
     },
   );
   return pending;
-}
-
-/**
- * 3D を出す前に読み込んでおく（モード選択の画面などから呼ぶ）。
- * 3D を出せない環境（WebGL 2 が無い、動きを減らす設定、この画面で失敗済み）では何もしない。
- * 読み込めなかったら、この画面では 2D で続ける
- */
-export function preloadPuppet3D(): void {
-  if (!webglAvailable() || prefersReducedMotion(currentMatchMedia()) || puppetFailed()) return;
-  loadStage().catch(() => markPuppetFailed());
 }

@@ -70,7 +70,6 @@ export function browserRecognitionFactory(
   return typeof Ctor === "function" ? () => new Ctor() : null;
 }
 
-/** エラーの種類から、示すことと、その後もマイクを使えるかを決める */
 /** マイクが使えない理由を、示す文の種類にする */
 export function micNotice(mic: MicStatus): TalkNotice | null {
   if (mic === "unsupported") return "unsupported";
@@ -79,6 +78,7 @@ export function micNotice(mic: MicStatus): TalkNotice | null {
   return null;
 }
 
+/** エラーの種類から、示すことと、その後もマイクを使えるかを決める */
 export function classifyRecognitionError(error: string): { notice: TalkNotice | null; mic: MicStatus | null } {
   switch (error) {
     case "aborted":

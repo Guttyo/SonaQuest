@@ -47,7 +47,10 @@ export function makeSession(site: SiteId, staff: string): DemoSession | null {
   return { site, staff };
 }
 
-/** 試験と見本のため：その救護所の最初の担当者でログインした状態（本部を渡すと救護所A） */
+/**
+ * 試験と見本のため：その拠点の最初の担当者でログインした状態。HQ（本部備蓄）を渡すと HQ のセッション。
+ * ログインできない拠点を渡したときは救護所A にする（今の SiteId はすべて LOGIN_SITES にあるので、この分岐は通らない）
+ */
 export function sessionFor(site: SiteId): DemoSession {
   const s = LOGIN_SITES.includes(site) ? site : LOGIN_SITES[0];
   return { site: s, staff: staffFor(s)[0] };

@@ -96,8 +96,8 @@ export function parseClaudeOutput(value: unknown): ClaudeOutput | null {
   };
 }
 
-const QUESTION_TEXT = new Map(ALL_QUESTIONS.map((q) => [q.id, q.text]));
-const QUESTION_EXAMPLES = new Map(ALL_QUESTIONS.flatMap((q) => (q.examples === undefined ? [] : [[q.id, q.examples] as const])));
+const QUESTION_TEXT = new Map<string, string>(ALL_QUESTIONS.map((q) => [q.id, q.text]));
+const QUESTION_EXAMPLES = new Map<string, string>(ALL_QUESTIONS.flatMap((q) => (q.examples === undefined ? [] : [[q.id, q.examples] as const])));
 
 /** 文に含まれてよいアプリの固定の言葉（情報源の分類、出来事）。利用者が同じ言葉を使っても繰り返しとみなさない */
 export const ALLOWED_VOCABULARY: readonly string[] = [

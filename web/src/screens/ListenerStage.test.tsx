@@ -2,7 +2,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { MAIN_PALETTE, RELIEF_PALETTE } from "../puppet3d/palette";
 import type { ListenerActivity } from "../puppet3d/types";
-import { Listener } from "./Listener";
 import { ListenerStage } from "./ListenerStage";
 import { Puppet2D, Puppet2DFace } from "./Puppet2D";
 import { Exchange } from "./Transcript";
@@ -32,14 +31,15 @@ function textOf(html: string): string {
   return html.replace(/<[^>]*>/g, "");
 }
 
-describe("Listener の props（ADR-0032、2D の姿は ADR-0038）", () => {
-  it("props を省くと、待機の 2D のパペットと発言。光の丸は出さない", () => {
+// もとは見本のページだけが使っていた Listener の試験。見本も ListenerStage で描くようにしたので、こちらに移した（Issue #299）
+describe("ListenerStage の props（ADR-0032、2D の姿は ADR-0038）", () => {
+  it("2D の待機で状態を出さないときは、2D のパペットと横に置くものだけ。光の丸も状態の文字も出さない", () => {
     const html = renderToStaticMarkup(
-      <Listener>
+      <ListenerStage mode="2d" activity="idle" relief={false} showState={false} scene="tell">
         <p>質問の文</p>
-      </Listener>,
+      </ListenerStage>,
     );
-    expect(html).toContain('class="listener listener-2d"');
+    expect(html).toContain('class="dialogue-stage"');
     expect(html).toContain('data-activity="idle"');
     expect(html).not.toContain("listener-light");
     expect(html).not.toContain("（待っています）");
@@ -48,25 +48,22 @@ describe("Listener の props（ADR-0032、2D の姿は ADR-0038）", () => {
 
   it("3D を頼んでも、WebGL が使えないときは 2D のソナで続け、状態を文字で示す", () => {
     const html = renderToStaticMarkup(
-      <Listener mode="3d" activity="speaking">
+      <ListenerStage mode="3d" activity="speaking" relief={false} showState scene="tell">
         <p>質問の文</p>
-      </Listener>,
+      </ListenerStage>,
     );
     expect(html).not.toContain("canvas");
-    expect(html).not.toContain("listener-3d");
+    expect(html).not.toContain("puppet3d-placeholder");
     expect(html).toContain("puppet2d-stage");
     expect(html).toContain('data-activity="speaking"');
     expect(html).toContain("（話しています）");
-  });
-
-  it("状態を渡すと文字でも示す。3D で状態を省くと「待っています」", () => {
-    expect(renderToStaticMarkup(<Listener activity="listening">x</Listener>)).toContain("（聞いています）");
-    expect(renderToStaticMarkup(<Listener activity="thinking">x</Listener>)).toContain("（考えています）");
-    expect(renderToStaticMarkup(<Listener mode="3d">x</Listener>)).toContain("（待っています）");
+    expect(html).toContain("<p>質問の文</p>");
   });
 
   it("係の交代では、2D のパペットも別の色にする", () => {
-    const html = renderToStaticMarkup(<Listener relief>x</Listener>);
+    const html = renderToStaticMarkup(
+      <ListenerStage mode="2d" activity="idle" relief showState scene="retell" />,
+    );
     expect(html).toContain("puppet2d-stage-relief");
     // 舞台の背景は 3D と同じ puppet3d-stage-relief で温かい色にする（PR #78 のレビュー）
     expect(html).toContain("puppet3d-stage-relief");
@@ -166,8 +163,6 @@ describe("話し相手の名前（Issue #164。旧称「聞き取り係」）", 
     expect(sona).not.toContain("クエ");
     expect(que).toContain("クエ");
     expect(que).not.toContain("ソナ");
-    expect(renderToStaticMarkup(<Listener>x</Listener>)).toContain("ソナ");
-    expect(renderToStaticMarkup(<Listener relief>x</Listener>)).toContain("クエ");
   });
 
   it("吹き出しの名前も、交代の後のやり取りだけクエにする", () => {

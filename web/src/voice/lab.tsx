@@ -62,6 +62,25 @@ function Lab() {
   const [status, setStatus] = useState<"checking" | "ok" | "off">("checking");
   const [voiceB, setVoiceB] = useState(false);
   const audio = useRef<HTMLAudioElement | null>(null);
+  // 作った音声の URL（createObjectURL）。置き換えるときと、ページを離れるときに手放す（Issue #299）
+  const urls = useRef(new Set<string>());
+  const alive = useRef(true);
+  const release = (url: string | undefined) => {
+    if (url === undefined || !urls.current.has(url)) return;
+    URL.revokeObjectURL(url);
+    urls.current.delete(url);
+  };
+
+  useEffect(() => {
+    alive.current = true;
+    const created = urls.current;
+    return () => {
+      alive.current = false;
+      audio.current?.pause();
+      for (const url of created) URL.revokeObjectURL(url);
+      created.clear();
+    };
+  }, []);
 
   useEffect(() => {
     fetch("/api/dev/tts")
@@ -92,6 +111,8 @@ function Lab() {
       return;
     }
     if (cached?.state === "loading") return;
+    // 前の結果の URL があれば、置き換える前に手放す（今は「ready」で上に戻るので、ふつうは無い）
+    release(cached?.url);
     setCells((c) => ({ ...c, [key]: { state: "loading" } }));
     const started = performance.now();
     try {
@@ -116,6 +137,12 @@ function Lab() {
       const ms = Math.round(performance.now() - started);
       const upstreamMs = Number(r.headers.get("x-dev-upstream-ms") ?? NaN);
       const url = URL.createObjectURL(blob);
+      // ページを離れた後に届いた音声は、すぐ手放す
+      if (!alive.current) {
+        URL.revokeObjectURL(url);
+        return;
+      }
+      urls.current.add(url);
       setCells((c) => ({ ...c, [key]: { state: "ready", url, ms, upstreamMs } }));
       if (latest.current === key) start(url);
     } catch (e) {

@@ -8,7 +8,7 @@ import type { ListenerActivity } from "./types";
 /**
  * 3D パペットを出す場所（ADR-0032）。3D を出してよいと決まったときだけ使う（useRenderMode）。
  * three を読み込むまでは 2D の光を置いておき、読み込めたら描画の領域に替える。
- * 読み込めない・描画の文脈が失われたら、この画面では 3D を使わない（Listener が 2D に戻す）。
+ * 読み込めない・描画の文脈が失われたら、この画面では 3D を使わない（ListenerStage が 2D に戻す）。
  * 外れたとき（中断の画面に移ったときなど）は、描画を止めて片づける（stage.ts の attachPuppet）。
  */
 export function PuppetView({

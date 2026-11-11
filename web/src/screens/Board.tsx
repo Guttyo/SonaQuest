@@ -30,7 +30,7 @@ import {
   prescriptionTotals,
   proposalStage,
   changesSince,
-  stampMinutes,
+  lastReportAt,
   type DemoAction,
   type DemoInbound,
   type DemoState,
@@ -911,20 +911,9 @@ function PaneMarks({ marks }: { marks: { text: string; level: "bad" | "warn" | "
   );
 }
 
-/** 救護所の詳細（Issue #107）：今日の様子、不足薬、連絡先、経路、通信、提案、カルテ */
-/** 最終報告（Issue #107）：在庫の確認か、記録が本部に届いた、新しいほうの時刻（BOARD_AS_OF からの分）。無ければ null */
-export function lastReportMinutes(state: DemoState, site: SiteId): number | null {
-  const times: number[] = [];
-  const checked = siteInfo(site)?.stockCheckedAt;
-  if (checked) times.push(stampMinutes(checked));
-  const synced = state.sync.find((s) => s.site === site)?.lastSync;
-  if (synced) times.push(stampMinutes(synced));
-  return times.length > 0 ? Math.max(...times) : null;
-}
-
 /** 「最終報告 3 時間前」の時間の部分。デモの時計が進むと増える */
 function lastReportText(state: DemoState, site: SiteId): string {
-  const at = lastReportMinutes(state, site);
+  const at = lastReportAt(state.sync, site);
   return at === null ? "—" : BOARD_CHANGES.ago(Math.max(0, state.minutes - at));
 }
 
@@ -933,7 +922,7 @@ function lastReportText(state: DemoState, site: SiteId): string {
  * 業務の表示のルールで、臨床の緊急度やその救護所の状況の良し悪しは表さない。報告の時刻が無いときは付けない
  */
 export function isStaleReport(state: DemoState, site: SiteId): boolean {
-  const at = lastReportMinutes(state, site);
+  const at = lastReportAt(state.sync, site);
   return at !== null && state.minutes - at >= BOARD_CHANGES.staleHours * 60;
 }
 
@@ -1001,6 +990,7 @@ function PrescriptionTotals({ state, site, headingId }: { state: DemoState; site
   );
 }
 
+/** 救護所の詳細（Issue #107）：今日の様子、不足薬、連絡先、経路、通信、提案、カルテ */
 function SiteDetail({
   site,
   state,

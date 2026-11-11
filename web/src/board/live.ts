@@ -1,10 +1,10 @@
 // 動く地図（Issue #128）の位置と光を、デモの状態と時計（分）から求める純粋な関数。
 // 新しい判断は作らない：光は summary.ts の集計（在庫切れ・切れる見込み・薬剤師の不足）と、最終報告からの時間だけで決める。
 // 位置は経路の線（map.ts の MAP_ROUTES）の上を、出発と到着の時刻の割合で進める。保存・送信・ログ出力をしない（ADR-0007）。
-// demo.ts の reducer は変えない（Issue #122 が同じ所を触るため）。時刻の決まりは demo.ts と同じ値を写して持つ（下）。
+// 出発・到着の時刻と最終報告の求め方は demo.ts のものを使い、ここで写して持たない（Issue #299）。
 
-import { HQ, INBOUND, SITES, type RouteRow, type SiteId, type SyncRow } from "./data";
-import { minutesAt, stampMinutes, type DemoInbound } from "./demo";
+import { HQ, INBOUND, type RouteRow, type SiteId, type SyncRow } from "./data";
+import { ARRIVAL_MINUTE_OF_DAY, DEPART_MINUTE_OF_DAY, lastReportAt, minutesAt, type DemoInbound } from "./demo";
 import { MAP_ROUTES, MAP_SITES } from "./map";
 import type { SiteOverview } from "./summary";
 import { BOARD_CHANGES } from "./text";
@@ -97,19 +97,6 @@ export function sitePoint(site: SiteId): Pt {
 // ボードの「N時間以上 報告なし」（Issue #113、text.ts の BOARD_CHANGES.staleHours）と同じ値を使い、別の閾値を作らない
 export const STALE_REPORT_HOURS = BOARD_CHANGES.staleHours;
 
-/**
- * 最終報告（在庫の確認か、記録が本部に届いた、新しいほうの時刻。BOARD_AS_OF からの分）。
- * Board.tsx の lastReportMinutes と同じ求め方（試験で突き合わせる）。無ければ null
- */
-export function lastReportAt(sync: readonly SyncRow[], site: SiteId): number | null {
-  const times: number[] = [];
-  const checked = SITES.find((s) => s.site === site)?.stockCheckedAt;
-  if (checked) times.push(stampMinutes(checked));
-  const synced = sync.find((s) => s.site === site)?.lastSync;
-  if (synced) times.push(stampMinutes(synced));
-  return times.length > 0 ? Math.max(...times) : null;
-}
-
 export type GlowKind = "在庫切れ" | "切れる見込み" | "薬剤師の不足" | "最終報告が古い";
 
 export interface SiteGlow {
@@ -141,11 +128,6 @@ export function siteGlows(overview: readonly SiteOverview[], sync: readonly Sync
 }
 
 // ===== 搬送便 =====
-
-/** 日付だけの引当済みの搬送が本部を出る時刻（1日の中の分）。demo.ts の DEPART_MINUTE_OF_DAY と同じ値 */
-export const DEPART_MINUTE_OF_DAY = 7 * 60;
-/** 入荷・搬送が届く時刻（1日の中の分）。demo.ts の ARRIVAL_MINUTE_OF_DAY と同じ値 */
-export const ARRIVAL_MINUTE_OF_DAY = 10 * 60;
 
 export interface ShipmentMarker {
   id: string;

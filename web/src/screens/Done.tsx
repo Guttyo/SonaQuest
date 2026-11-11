@@ -7,7 +7,7 @@ import {
   DONE_MEMO_TITLE,
   DONE_NOTE,
   JUDGMENT_LABELS,
-  PREP_ACTIONS,
+  prepActionOf,
   PREP_ACTION_EFFECTS,
   TIMINGS,
   viewpointShortLabel,
@@ -45,7 +45,7 @@ export function doneMemoText(
   judgments: Judgments | null,
   event: EventId | null = null,
 ): string {
-  const actionLabel = PREP_ACTIONS.find((a) => a.id === action)?.label ?? "";
+  const actionLabel = prepActionOf(action).label;
   const timingLabel = TIMINGS.find((t) => t.id === timing)?.label ?? "";
   const weak = weakLine(judgments, event);
   return [
@@ -62,7 +62,7 @@ export function doneMemoText(
  * 文はすべて固定文で、利用者の回答は引かない。保存はしない（DONE_NOTE）
  */
 export function Done({ action, timing, judgments, event = null, onRestart }: Props) {
-  const actionLabel = PREP_ACTIONS.find((a) => a.id === action)?.label;
+  const actionLabel = prepActionOf(action).label;
   const timingLabel = TIMINGS.find((t) => t.id === timing)?.label;
   const weak = weakLine(judgments, event);
   const memo = doneMemoText(action, timing, judgments, event);

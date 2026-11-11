@@ -3,36 +3,30 @@
 
 import { ALL_QUESTIONS } from "./content";
 import { MAX_ANSWERS, MAX_ANSWER_LENGTH } from "./rules";
-import type { EventId, Half, SourceId, ViewpointId } from "./types";
+import {
+  EVENT_ID_LIST,
+  SOURCE_ID_LIST,
+  type EventId,
+  type Half,
+  type QuestionId,
+  type SourceId,
+  type ViewpointId,
+} from "./types";
 
 export const QUESTION_IDS: ReadonlySet<string> = new Set(ALL_QUESTIONS.map((q) => q.id));
 
+/** 受け付ける質問ID か（外から来た値を、QUESTION_IDS で確かめてから QuestionId として扱う） */
+export function isQuestionId(id: string): id is QuestionId {
+  return QUESTION_IDS.has(id);
+}
+
 const HALVES: ReadonlySet<string> = new Set(["first", "second"]);
-const EVENT_IDS: ReadonlySet<string> = new Set([
-  "battery",
-  "network",
-  "notebook_home",
-  "family_unreachable",
-  "clinic_unreachable",
-  "handover",
-]);
-/** 本人が選んだ情報源。「どれにも当てはまらない」（none）を含む */
-const SOURCE_IDS: ReadonlySet<string> = new Set([
-  "smartphone",
-  "online",
-  "notebook",
-  "family",
-  "clinic",
-  "none",
-]);
+/** 出来事の ID（types.ts の EVENT_ID_LIST から作る） */
+export const EVENT_IDS: ReadonlySet<string> = new Set(EVENT_ID_LIST);
+/** 本人が選んだ情報源。「どれにも当てはまらない」（none）を含む（types.ts の SOURCE_ID_LIST から作る） */
+export const SOURCE_IDS: ReadonlySet<string> = new Set(SOURCE_ID_LIST);
 /** Claude が返してよい初期選択の候補。none（係の交代）は本人のタップでだけ選ぶ（ADR-0016） */
-export const SOURCE_GUESS_IDS: ReadonlySet<string> = new Set([
-  "smartphone",
-  "online",
-  "notebook",
-  "family",
-  "clinic",
-]);
+export const SOURCE_GUESS_IDS: ReadonlySet<string> = new Set(SOURCE_ID_LIST.filter((s) => s !== "none"));
 export const VIEWPOINT_IDS: readonly ViewpointId[] = [
   "location",
   "alternative",

@@ -9,7 +9,8 @@ import {
   viewpointShortLabel,
 } from "../src/flow/content";
 import { planGoals } from "../src/flow/rules";
-import { VIEWPOINT_IDS, type TurnRequest } from "../src/flow/turnContract";
+import { VIEWPOINT_IDS, isQuestionId, type TurnRequest } from "../src/flow/turnContract";
+import type { QuestionId } from "../src/flow/types";
 import { REMARK_PHRASE_RULES } from "./remarkPairing";
 
 // 決定済み：Claude へのシステムプロンプト（Claude Codeの下書き。判定の基準は PRD の下書きをもとにした）
@@ -107,9 +108,9 @@ ${SOURCE_OPTIONS.filter((o) => o.id !== "none")
 直前の入力に、自傷のほのめかし（消えたい、楽になりたい、生きるのがつらいなど）があれば self_harm。本人の今の体調の訴え（苦しい、痛い、具合が悪いなど）があれば symptom。どちらもなければ none。両方あれば self_harm。架空の薬や病名の話、過去の出来事の話は none。
 何の薬かの説明（「胸が苦しい時に飲む薬」「けいれんを抑える薬」「発作が起きたときの吸入」）は、症状の言葉を含んでいても none。ただし、同じ入力に本人の今の訴えがあれば symptom（「今、胸が苦しいときがある」「息が苦しい時、どうしたらいい」「苦しい場合どうする」は、今の体調の訴えや、それへの相談として symptom）。迷ったら symptom にします。緊急かどうかの判断や助言は書きません。`;
 
-const QUESTION_TEXT = new Map(ALL_QUESTIONS.map((q) => [q.id, q.text]));
+const QUESTION_TEXT = new Map<string, string>(ALL_QUESTIONS.map((q) => [q.id, q.text]));
 /** 聞き返しのときだけ添えてよい例（Issue #110）。例の無い質問は入れない */
-const QUESTION_EXAMPLES = new Map(ALL_QUESTIONS.flatMap((q) => (q.examples === undefined ? [] : [[q.id, q.examples] as const])));
+const QUESTION_EXAMPLES = new Map<string, string>(ALL_QUESTIONS.flatMap((q) => (q.examples === undefined ? [] : [[q.id, q.examples] as const])));
 
 /**
  * 振り返りの一言の決まった言い回し（Issue #200）。質問文が固定の文として許されるのと同じく、繰り返しの検査で固定の文として許す。
@@ -138,7 +139,7 @@ export const REMARK_PHRASES: readonly string[] = [
  * 聞き取りのゴールの説明（Issue #200）。ゴールID は固定の質問のIDと同じで、Claude の選んだゴールが使えないときは
  * 同じIDの固定文に戻せる。後半の最初の問い（立て直し・係の交代）は画面が固定文で出すので、Claude には選ばせない
  */
-export const GOAL_DESCRIPTIONS: Readonly<Record<string, string>> = {
+export const GOAL_DESCRIPTIONS: Readonly<Record<QuestionId, string>> = {
   first_medicines: "今使っている薬",
   first_medicines_more: "今使っている薬の掘り下げ（ほかには？）。まだ挙げていない薬がありそうなとき",
   first_location: "情報がどこにあるか",
@@ -185,7 +186,7 @@ export function buildUserMessage(request: TurnRequest): string {
     half: last.half,
     goal_choices: plan.choices.map((id) => ({
       id,
-      goal: GOAL_DESCRIPTIONS[id] ?? "",
+      goal: (isQuestionId(id) ? GOAL_DESCRIPTIONS[id] : undefined) ?? "",
       text: QUESTION_TEXT.get(id),
     })),
     can_finish: plan.canFinish || plan.choices.length === 0,

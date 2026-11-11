@@ -1,22 +1,43 @@
 // 訓練の進行で使う型。値の意味は docs/PRD.md と ADR-0016・0017・0019 に合わせる。
 
-/** ③確認で本人が選ぶ情報源の分類（出来事の6候補の分類。ADR-0016） */
-export type SourceId =
-  | "smartphone"
-  | "online"
-  | "notebook"
-  | "family"
-  | "clinic"
-  | "none";
+/**
+ * ③確認で本人が選ぶ情報源の分類（出来事の6候補の分類。ADR-0016）。
+ * この一覧を正とし、型と、/api/turn で受け付ける値の集合（turnContract.ts）をここから作る（Issue #299）
+ */
+export const SOURCE_ID_LIST = ["smartphone", "online", "notebook", "family", "clinic", "none"] as const;
+export type SourceId = (typeof SOURCE_ID_LIST)[number];
 
-/** ④出来事 */
-export type EventId =
-  | "battery"
-  | "network"
-  | "notebook_home"
-  | "family_unreachable"
-  | "clinic_unreachable"
-  | "handover";
+/** ④出来事。この一覧を正とし、型と、/api/turn で受け付ける値の集合（turnContract.ts）をここから作る（Issue #299） */
+export const EVENT_ID_LIST = [
+  "battery",
+  "network",
+  "notebook_home",
+  "family_unreachable",
+  "clinic_unreachable",
+  "handover",
+] as const;
+export type EventId = (typeof EVENT_ID_LIST)[number];
+
+/**
+ * 固定の質問の ID（content.ts の ALL_QUESTIONS と同じものを同じ順に。試験で突き合わせる。Issue #299）。
+ * 聞き返し・質問し直しの固定文（CLARIFY_TEXTS・REDIRECT_TEXTS）と、Worker のゴールの説明（GOAL_DESCRIPTIONS）は、
+ * この型をキーにして、書き漏れを型の検査で見つける。second_recheck は 2026-11-07 から聞かないが、まだ受け付ける
+ */
+export const QUESTION_ID_LIST = [
+  "first_medicines",
+  "first_location",
+  "first_other",
+  "first_unrecorded",
+  "first_medicines_more",
+  "second_recovery",
+  "second_handover",
+  "second_recent",
+  "second_proxy",
+  "second_proxy_other",
+  "second_recent_other",
+  "second_recheck",
+] as const;
+export type QuestionId = (typeof QUESTION_ID_LIST)[number];
 
 /** 5観点 */
 export type ViewpointId =
@@ -35,6 +56,9 @@ export type Judgment =
 
 export type Judgments = Record<ViewpointId, Judgment>;
 
+/** 手薄な判定（「確認していない」「未確認と気づいた」）。rules.ts の isWeak で絞り込む */
+export type WeakJudgment = Extract<Judgment, "not_mentioned" | "aware_unconfirmed">;
+
 /** 対話の前半（②問い）か後半（⑤立て直し）か */
 export type Half = "first" | "second";
 
@@ -47,7 +71,7 @@ export type Half = "first" | "second";
 export type AnswerAs = "self" | "fictional" | "both";
 
 export interface Question {
-  id: string;
+  id: QuestionId;
   text: string;
   /** 主に確かめる観点 */
   viewpoint: ViewpointId;
