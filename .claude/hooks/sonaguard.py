@@ -1,4 +1,5 @@
 """Claude Codeのhookとgitのコミット前フックが共有する判定。標準ライブラリだけを使う。"""
+import itertools
 import os
 import re
 import subprocess
@@ -173,7 +174,9 @@ def blocklist_hits(text, terms):
 # heredoc（<<EOF）は引用符の外の << だけを認め、次の行からの本文を受け取るコマンドに結び付ける。
 # 本文は、シェル（bash など）が受け取るときだけコマンドとして調べる。
 # 引用符なしの区切り（<<EOF）では本文の $(...) が展開されるので、そちらも調べる。
-WRAPPERS = {"env", "command", "exec", "nohup", "time", "sudo", "builtin", "nice", "xargs"}
+# 前置きのコマンド（読み飛ばして、後に続くコマンドを調べる）。大文字と小文字は区別しない（Issue #291）
+WRAPPERS = {"env", "command", "exec", "nohup", "time", "sudo", "builtin", "nice", "xargs",
+            "timeout", "stdbuf", "doas", "flock", "ionice", "chrt", "watch"}
 # 前置きのコマンドのうち、次の語を値として取るオプション（値をコマンド名と取り違えないため）
 WRAPPER_VALUE_OPTS = {
     "env": {"-u", "--unset", "-C", "--chdir", "-S", "--split-string"},
@@ -184,12 +187,34 @@ WRAPPER_VALUE_OPTS = {
     "xargs": {"-a", "--arg-file", "-d", "--delimiter", "-E", "-I", "-L", "-n", "--max-args", "-P", "--max-procs",
               "-s", "--max-chars"},
     "exec": {"-a"},
+    "timeout": {"-s", "--signal", "-k", "--kill-after"},
+    "stdbuf": {"-i", "--input", "-o", "--output", "-e", "--error"},
+    "doas": {"-u", "-C"},
+    "flock": {"-w", "--timeout", "--wait", "-E", "--conflict-exit-code"},
+    "ionice": {"-c", "--class", "-n", "--classdata", "-p", "--pid", "-P", "--pgid", "-u", "--uid"},
+    "chrt": {"-T", "--sched-runtime", "-P", "--sched-period", "-D", "--sched-deadline"},
+    "watch": {"-n", "--interval", "-q", "--equexit"},
 }
+# 前置きのコマンドのうち、オプションの後に位置引数を取るものと、その数（timeout の秒数、flock のロックファイル、
+# chrt の優先度）
+WRAPPER_POSITIONALS = {"timeout": 1, "flock": 1, "chrt": 1}
 KEYWORDS = {"{", "}", "!", "if", "then", "else", "elif", "do", "while", "until"}
 SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "pwsh", "powershell"}
 ASSIGN = re.compile(r"^(?:\$env:)?[A-Za-z_][A-Za-z0-9_]*=", re.I)
 SUBST = "$(...)"  # 置換が入った語に残す印。コマンド名が動的かどうかを呼び出し側が見分ける
+# xargs・find -exec の後のコマンドの末尾に足す印。実行時に標準入力やファイル名から引数が足されるので、
+# 引数を読んで判定できない（SUBST とは分ける。"$(…)" を引数に使う普段の commit・push を止めないため。Issue #291）
+STDIN_ARGS = "\0実行時に足される引数\0"
+FIND_EXEC = {"-exec", "-execdir", "-ok", "-okdir"}
+# wsl の、次の語を値として取るオプション。-e・--exec・-- の後と、最初の位置引数からはコマンド（Issue #291）
+WSL_VALUE_OPTS = {"-d", "--distribution", "-u", "--user", "--cd", "--shell-type", "--distribution-id"}
+# PowerShell の、スクリプトブロック（{ … }）を引数に取るコマンドレット（Issue #291）。
+# ブロックの中の ; の後は、解析の段階で外のコマンド列に分かれるので、ブロックの中の cd は外にも効くものとして扱う
+# （Invoke-Command・Start-Job の中の Set-Location は本当は外に効かないが、止めすぎの側に倒す）
+SCRIPT_BLOCK_CMDLETS = {"foreach-object", "%", "where-object", "?", "foreach", ".", "measure-command",
+                        "invoke-command", "icm", "start-job", "sajb", "start-threadjob", "try"}
 MAX_DEPTH = 8
+_SUBSHELL_IDS = itertools.count(1)
 GIT_VALUE_OPTS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env", "--super-prefix"}
 
 
@@ -200,13 +225,33 @@ class _Src:
         self.s = s
 
 
+class Command:
+    """分けた1つのコマンド（split_commands_detail の結果）。
+    assigns：前置きの代入、toks：語の列、redirects：書き込み先のリダイレクト、
+    stdin_texts：heredoc の本文と <<< の文字列、
+    scope：そのコマンドが動くサブシェルの並び（( … )・$(…)・sh -c などに入るたびに番号が1つ増える。Issue #291）、
+    appends：redirects のうち、>> で追記するもの。"""
+
+    __slots__ = ("assigns", "toks", "redirects", "stdin_texts", "scope", "appends")
+
+    def __init__(self, assigns, toks, redirects, stdin_texts, scope, appends=()):
+        self.assigns, self.toks, self.redirects = assigns, toks, redirects
+        self.stdin_texts, self.scope, self.appends = stdin_texts, scope, list(appends)
+
+
+def _child(scope):
+    """新しいサブシェル（別のプロセス）の scope。"""
+    return scope + (next(_SUBSHELL_IDS),)
+
+
 class _Cmd:
     """読み途中の1コマンド。"""
 
-    def __init__(self):
-        self.words, self.redirects, self.stdin_texts = [], [], []
+    def __init__(self, scope=()):
+        self.words, self.redirects, self.stdin_texts, self.appends = [], [], [], []
         self.buf, self.started, self.quoted = [], False, False
         self.redirect_op = None  # 直後の語をリダイレクトの宛先として読む
+        self.scope = scope
 
     def add(self, text, quoted=False):
         self.buf.append(text)
@@ -222,59 +267,180 @@ class _Cmd:
                 self.stdin_texts.append(w)
             elif ">" in self.redirect_op:
                 self.redirects.append(w)
+                if ">>" in self.redirect_op:
+                    self.appends.append(w)
             self.redirect_op = None
         else:
             self.words.append(w)
         self.buf, self.started, self.quoted = [], False, False
 
 
+def _parse_marked(text, out, depth, scope, mark):
+    """text を1つのコマンド列として読む。mark なら、読んだコマンドの末尾に STDIN_ARGS を足す
+    （xargs・find -exec から sh -c '…' などに渡した文字列の中のコマンドも、引数が実行時に足される。Issue #291）。"""
+    if not mark:
+        _parse(_Src(text), 0, None, out, depth + 1, scope)
+        return
+    inner = []
+    _parse(_Src(text), 0, None, inner, depth + 1, scope)
+    for c in inner:
+        if c.toks and STDIN_ARGS not in c.toks:
+            c.toks = c.toks + [STDIN_ARGS]
+    out.extend(inner)
+
+
+def _finish_words(words, out, depth, scope, mark, stdin_texts=()):
+    """分け終えた語の列を、1つのコマンドとして読む（語をつないで読み直すと引用符が外れて、
+    wsl bash -c "git push …" が bash -c git に見えるため。Issue #291）。"""
+    if depth > MAX_DEPTH:
+        raise ValueError("入れ子が深すぎる")
+    sub = _Cmd(scope)
+    sub.words = list(words) + ([STDIN_ARGS] if mark else [])
+    sub.stdin_texts = list(stdin_texts)
+    _finish(sub, out, depth + 1)
+
+
+def _script_blocks(words):
+    """語の列の中の { … } の中身（PowerShell のスクリプトブロック）を、語の列のまま返す。閉じていなければ最後の語まで。
+    ブロックの中の ; や | は、解析の段階で外のコマンド列に分かれているので、1つのブロックは1つのコマンドになる。"""
+    blocks, i = [], 0
+    while i < len(words):
+        if not words[i].startswith("{"):
+            i += 1
+            continue
+        level, j = 0, i
+        while j < len(words):
+            level += words[j].count("{") - words[j].count("}")
+            if level <= 0:
+                break
+            j += 1
+        block = list(words[i:j + 1])
+        block[0] = block[0][1:]
+        if level <= 0 and block[-1].endswith("}"):
+            block[-1] = block[-1][:-1]
+        blocks.append([w for w in block if w])
+        i = j + 1
+    return blocks
+
+
+def _wsl_command(toks):
+    """wsl の後に続くコマンドの語。無ければ空（Issue #291）。"""
+    i = 1
+    while i < len(toks):
+        low = toks[i].lower()
+        if low in ("-e", "--exec", "--"):
+            return toks[i + 1:]
+        if low in WSL_VALUE_OPTS:
+            i += 2
+        elif low.startswith("-"):
+            i += 1
+        else:
+            return toks[i:]
+    return []
+
+
 def _finish(cmd, out, depth):
     cmd.end_word()
-    toks = cmd.words
-    # 前置き（VAR=値、env・sudo など、そのオプションと値、{ ! if do など）を読み飛ばす
-    assigns, i, wrapper = [], 0, None
+    toks, scope = cmd.words, cmd.scope
+    # %{ … }・ForEach-Object{ … } のように、コマンドレットの名前に { が続く書き方を分ける（Issue #291）
+    if toks:
+        m = re.match(r"^([%?]|foreach-object|where-object|invoke-command|icm)(\{.*)$", toks[0], re.I)
+        if m:
+            toks = [m.group(1), m.group(2)] + toks[1:]
+    # 前置き（VAR=値、env・sudo など、そのオプションと値・位置引数、{ ! if do など）を読み飛ばす
+    assigns, i, wrapper, pending, stdin_args = [], 0, None, 0, False
     while i < len(toks):
         t = toks[i]
+        low = t.lower()
         if ASSIGN.match(t):
             assigns.append(t)
-        elif t in WRAPPERS:
-            wrapper = t
+        elif low in WRAPPERS:
+            wrapper, pending = low, WRAPPER_POSITIONALS.get(low, 0)
+            stdin_args |= low == "xargs"
         elif wrapper and t.startswith("-"):
             takes_value = t in WRAPPER_VALUE_OPTS.get(wrapper, ())
+            value = None
             if wrapper == "env":  # env -S '文字列' は文字列をコマンドとして分けて実行する
-                value = None
                 if t in ("-S", "--split-string"):
                     value = toks[i + 1] if i + 1 < len(toks) else ""
                 elif t.startswith("--split-string="):
                     value = t.split("=", 1)[1]
                 elif t.startswith("-S"):
                     value = t[2:]
-                if value is not None:
-                    _parse(_Src(value), 0, None, out, depth + 1)
+            elif wrapper == "flock" and t in ("-c", "--command"):  # flock <ファイル> -c '文字列' はシェルで実行する
+                value = toks[i + 1] if i + 1 < len(toks) else ""
+                takes_value = True
+            if value is not None:
+                _parse(_Src(value), 0, None, out, depth + 1, _child(scope))
             if takes_value:
                 i += 1
+        elif wrapper and pending:  # timeout の秒数など
+            pending -= 1
         elif t not in KEYWORDS:
             break
         i += 1
     toks = toks[i:]
     if not (toks or assigns or cmd.redirects):
         return
-    # eval と sh -c・pwsh -Command に渡した文字列、シェルが標準入力で受け取る heredoc も
-    # 1つのコマンド列として調べる
+    if stdin_args and toks:  # xargs は標準入力から引数を足す
+        toks = toks + [STDIN_ARGS]
+    # eval・Invoke-Expression と sh -c・pwsh -Command・cmd /c・wsl に渡した文字列、シェルが標準入力で受け取る heredoc、
+    # watch に渡した文字列、find -exec のコマンド、PowerShell のスクリプトブロックも、1つのコマンド列として調べる。
+    # xargs・find -exec の後なら（mark）、その中のコマンドにも STDIN_ARGS を付ける（Issue #291）
     name = _name(toks)
+    mark = STDIN_ARGS in toks
+    words = [t for t in toks if t != STDIN_ARGS]
+    if wrapper == "watch":  # watch は引数をつないでシェルで実行する
+        _parse_marked(" ".join(words), out, depth, _child(scope), mark)
     if name == "eval":
-        _parse(_Src(" ".join(toks[1:])), 0, None, out, depth + 1)
+        _parse_marked(" ".join(words[1:]), out, depth, scope, mark)
+    elif name in ("invoke-expression", "iex"):  # PowerShell の eval。今のスコープで実行する
+        _parse_marked(" ".join(t for t in words[1:] if t.lower() != "-command"), out, depth, scope, mark)
+    elif name == "cmd":  # cmd /c '…'（Git Bash では //c とも書く）
+        k = next((k for k, t in enumerate(words[1:], 1) if t.lower() in ("/c", "/k", "//c", "//k")), None)
+        if k is not None:
+            _parse_marked(" ".join(words[k + 1:]), out, depth, _child(scope), mark)
+    elif name == "wsl":  # wsl git …・wsl -e git …・wsl -- git …（Issue #291）
+        rest = _wsl_command(words)
+        if rest:
+            _finish_words(rest, out, depth, _child(scope), mark, cmd.stdin_texts)
+    elif name == "find":
+        _find_exec(toks, out, depth, scope)
+    elif name in SCRIPT_BLOCK_CMDLETS:  # 1..3 | ForEach-Object { git … }・Invoke-Command { … }・try { … }（Issue #291）
+        for block in _script_blocks(words[1:]):
+            if block:
+                _finish_words(block, out, depth, scope, mark)
     elif name in SHELLS:
         script = _shell_script_arg(toks)
         if script is not None:
-            _parse(_Src(toks[script]), 0, None, out, depth + 1)
+            _parse_marked(toks[script], out, depth, _child(scope), mark)
         for text in cmd.stdin_texts:
-            _parse(_Src(text), 0, None, out, depth + 1)
-    out.append((assigns, toks, cmd.redirects))
+            _parse_marked(text, out, depth, _child(scope), mark)
+    out.append(Command(assigns, toks, cmd.redirects, cmd.stdin_texts, scope, cmd.appends))
+
+
+def _find_exec(toks, out, depth, scope):
+    """find … -exec コマンド … ; の「コマンド …」を、末尾に STDIN_ARGS を付けて別のコマンドとして足す。"""
+    k = 1
+    while k < len(toks):
+        if toks[k] not in FIND_EXEC:
+            k += 1
+            continue
+        end = next((j for j in range(k + 1, len(toks)) if toks[j] in (";", "+")), len(toks))
+        if end > k + 1:
+            sub = _Cmd(_child(scope))
+            sub.words = toks[k + 1:end] + [STDIN_ARGS]
+            _finish(sub, out, depth + 1)
+        k = end + 1
+
+
+def command_name(word):
+    """コマンド名の basename を小文字にし、.exe を外したもの。/ と \\ のどちらでも区切る（Issue #291）。"""
+    return re.split(r"[/\\]", word or "")[-1].lower().removesuffix(".exe")
 
 
 def _name(toks):
-    return os.path.basename(toks[0]).lower().removesuffix(".exe") if toks else ""
+    return command_name(toks[0]) if toks else ""
 
 
 def _shell_script_arg(toks):
@@ -335,7 +501,7 @@ def _heredoc(src, i, cmd, out, depth):
         pos = nl + 1
     cmd.stdin_texts.append(body)
     if not quoted:  # 区切りが引用符なしなら本文の $(...) は実行される
-        _dq(_Src(body), 0, None, out, depth + 1, _Cmd())
+        _dq(_Src(body), 0, None, out, depth + 1, _Cmd(cmd.scope))
     return i
 
 
@@ -352,10 +518,10 @@ def _dq(src, i, end, out, depth, cmd):
                 cmd.add(nxt if nxt in "\"\\$`" else c + nxt, True)
             i += 2
         elif s.startswith("$(", i):
-            i = _parse(src, i + 2, ")", out, depth + 1)
+            i = _parse(src, i + 2, ")", out, depth + 1, _child(cmd.scope))
             cmd.add(SUBST, True)
         elif c == "`":
-            i = _backtick(src, i + 1, out, depth)
+            i = _backtick(src, i + 1, out, depth, _child(cmd.scope))
             cmd.add(SUBST, True)
         else:
             cmd.add(c, True)
@@ -365,13 +531,13 @@ def _dq(src, i, end, out, depth, cmd):
     return len(src.s)
 
 
-def _backtick(src, i, out, depth):
+def _backtick(src, i, out, depth, scope):
     """`...` の中身を別のコマンド列として読み、閉じた次の位置を返す。"""
     s, inner = src.s, []
     while i < len(s):
         c = s[i]
         if c == "`":
-            _parse(_Src("".join(inner)), 0, None, out, depth + 1)
+            _parse(_Src("".join(inner)), 0, None, out, depth + 1, scope)
             return i + 1
         if c == "\\" and i + 1 < len(s) and s[i + 1] in "`\\$":
             inner.append(s[i + 1])
@@ -382,11 +548,13 @@ def _backtick(src, i, out, depth):
     raise ValueError("` が閉じていない")
 
 
-def _parse(src, i, stop, out, depth):
-    """src.s[i:] を stop（')' か None）まで読み、見つけたコマンドを out に足す。stop の次の位置を返す。"""
+def _parse(src, i, stop, out, depth, scope=()):
+    """src.s[i:] を stop（')' か None）まで読み、見つけたコマンドを out に足す。stop の次の位置を返す。
+    scope は、読んでいる文字列が動くサブシェルの並び。( … ) に入るたびに番号を1つ足す。"""
     if depth > MAX_DEPTH:
         raise ValueError("入れ子が深すぎる")
-    cmd, paren = _Cmd(), 0
+    stack = []  # 開いている ( … ) のサブシェルの番号
+    cmd = _Cmd(scope)
     while i < len(src.s):
         s = src.s
         c = s[i]
@@ -407,10 +575,10 @@ def _parse(src, i, stop, out, depth):
             cmd.add("", True)
             i = _dq(src, i + 1, '"', out, depth, cmd)
         elif s.startswith("$(", i):
-            i = _parse(src, i + 2, ")", out, depth + 1)
+            i = _parse(src, i + 2, ")", out, depth + 1, _child(cmd.scope))
             cmd.add(SUBST)
         elif c == "`":
-            i = _backtick(src, i + 1, out, depth)
+            i = _backtick(src, i + 1, out, depth, _child(cmd.scope))
             cmd.add(SUBST)
         elif c in " \t\r":
             cmd.end_word()
@@ -426,23 +594,23 @@ def _parse(src, i, stop, out, depth):
                 continue
             j = i + (2 if c == "&" else 1)
             if c != "&" and s.startswith("(", j):  # プロセス置換 <(...) >(...)
-                i = _parse(src, j + 1, ")", out, depth + 1)
+                i = _parse(src, j + 1, ")", out, depth + 1, _child(cmd.scope))
                 cmd.add(SUBST)
                 continue
             while j < len(s) and s[j] in "<>&|":
                 j += 1
             cmd.redirect_op = s[i:j]
             i = j
-        elif c == ")" and stop == ")" and paren == 0:
+        elif c == ")" and stop == ")" and not stack:
             _finish(cmd, out, depth)
             return i + 1
         elif c in ";&|\n()":
-            if c == "(":
-                paren += 1
-            elif c == ")":
-                paren = max(paren - 1, 0)
             _finish(cmd, out, depth)
-            cmd = _Cmd()
+            if c == "(":
+                stack.append(next(_SUBSHELL_IDS))
+            elif c == ")" and stack:
+                stack.pop()
+            cmd = _Cmd(scope + tuple(stack))
             i += 1
         else:
             cmd.add(c)
@@ -453,15 +621,170 @@ def _parse(src, i, stop, out, depth):
     return len(src.s)
 
 
-def split_commands(cmd):
-    """[(前置きの代入, トークン列, 書き込み先のリダイレクト), ...] を返す。
-    引用符が閉じていないなど解析できなければ None。"""
+def split_commands_detail(cmd):
+    """[Command, ...]（heredoc の本文とサブシェルの並びも持つ）を返す。解析できなければ None（Issue #291）。"""
     out = []
     try:
         _parse(_Src(cmd or ""), 0, None, out, 0)
     except (ValueError, RecursionError):
         return None
     return out
+
+
+def split_commands(cmd):
+    """[(前置きの代入, トークン列, 書き込み先のリダイレクト), ...] を返す。
+    引用符が閉じていないなど解析できなければ None。"""
+    detail = split_commands_detail(cmd)
+    return None if detail is None else [(c.assigns, c.toks, c.redirects) for c in detail]
+
+
+# ---- コマンドの中の今いるフォルダ（guard_github.py と protect_todo_owner.py が共有する） ----
+CD = {"cd", "chdir", "pushd", "set-location", "sl", "push-location"}
+POPD = {"popd", "pop-location"}
+
+
+def native_path(p):
+    """Git Bash 形式の /c/... を Windows の C:/... にする。"""
+    m = re.match(r"^/([a-zA-Z])(/.*)?$", p)
+    if m and os.name == "nt":
+        return f"{m.group(1)}:{m.group(2) or '/'}"
+    return p
+
+
+def resolve_dir(base, arg):
+    """cd・git -C の行き先（ファイルのパスにも使う）。判定できなければ None。"""
+    if base is None or not arg or SUBST in arg or STDIN_ARGS in arg or arg == "-":
+        return None
+    a = re.sub(r"\$env:(\w+)", lambda m: os.environ.get(m.group(1), "\0"), arg, flags=re.I)
+    a = os.path.expandvars(os.path.expanduser(a))
+    if "$" in a or "\0" in a or "`" in a:
+        return None
+    return os.path.normpath(os.path.join(base, native_path(a)))
+
+
+def cd_target(tokens):
+    """cd・pushd・Set-Location の行き先の文字列。引数が無ければ ~。"""
+    args = tokens[1:]
+    for i, a in enumerate(args):
+        low = a.lower()
+        if low in ("-path", "-literalpath", "-lp"):
+            return args[i + 1] if i + 1 < len(args) else None
+        if a == "-":
+            return "-"
+        if a.startswith("-") and len(a) > 1:
+            continue
+        return a
+    return "~"
+
+
+def commands_with_cwd(commands, cwd):
+    """[(Command, そのコマンドが動くフォルダ)]。サブシェルの中の cd は外に効かない。判定できないフォルダは None。
+    cd・popd のコマンド自体も含める（Issue #291）。"""
+    cwds, out = {(): cwd}, []
+    for c in commands:
+        here = next(cwds[c.scope[:k]] for k in range(len(c.scope), -1, -1) if c.scope[:k] in cwds)
+        out.append((c, here))
+        name = _name(c.toks)
+        if name in CD:
+            cwds[c.scope] = resolve_dir(here, cd_target(c.toks))
+        elif name in POPD:
+            cwds[c.scope] = None
+    return out
+
+
+# ---- コマンドが書き換えるファイル（protect_todo_owner.py。Issue #291） ----
+SED_LIKE = {"sed", "perl"}
+REMOVERS = {"rm", "remove-item", "ri", "del", "erase", "unlink"}
+MOVERS = {"mv", "move-item", "mi", "move"}
+COPIERS = {"cp", "copy-item", "cpi", "copy"}
+PS_WRITERS = {"set-content", "sc", "add-content", "ac", "out-file", "clear-content", "clc"}
+# PowerShell の書き込みのコマンドレットの、ファイルではない値を取るオプション
+PS_VALUE_OPTS = {"-value", "-encoding", "-inputobject", "-width", "-stream", "-filter", "-include", "-exclude",
+                 "-credential", "-delimiter"}
+CP_VALUE_OPTS = {"-t", "--target-directory", "-S", "--suffix", "--backup", "--reflink", "--sparse", "--preserve",
+                 "--no-preserve", "--context"}
+
+
+def _plain_args(args, takes_value=(), ignore_case=False):
+    """オプションと、その値を除いた引数（-- より後はそのまま）。ignore_case は PowerShell のオプション。"""
+    out, skip = [], False
+    for i, a in enumerate(args):
+        name = a.split("=", 1)[0]
+        if skip:
+            skip = False
+        elif a == "--":
+            out += args[i + 1:]
+            break
+        elif (name.lower() if ignore_case else name) in takes_value:
+            skip = "=" not in a
+        elif not a.startswith("-"):
+            out.append(a)
+    return out
+
+
+# sed・perl の短いオプションのうち、値を取るもの（その文字より後は値なので、i を探さない）
+# （perl の -l・-0 は続けて書く数字だけを取るので、後の i を探す。-lpi・-0pi）
+IN_PLACE_VALUE_CHARS = {"sed": set("efl"), "perl": set("eEMmIxdDC")}
+
+
+def _in_place(name, args):
+    """sed -i・perl -i（-pi・-i.bak・sed --in-place の形を含む）か。"""
+    for a in args:
+        if a == "--":
+            break
+        if a.startswith("--"):
+            if name == "sed" and a.startswith("--in-place"):
+                return True
+            continue
+        if not a.startswith("-") or len(a) < 2:
+            continue
+        for ch in a[1:]:
+            if ch == "i":
+                return True
+            if ch in IN_PLACE_VALUE_CHARS[name]:
+                break
+    return False
+
+
+def write_targets(c):
+    """そのコマンドが書き換える（消す・置き換える）ファイルのパスの語。>> の追記は書き換えに数えない。
+    ファイルかどうかは見ない（呼び出し側が読んで確かめる）。"""
+    toks = [t for t in c.toks if t != STDIN_ARGS]
+    targets = [r for r in c.redirects if r not in c.appends]
+    if not toks:
+        return targets
+    name, args = _name(toks), toks[1:]
+    g = git_invocation(toks)
+    if name in SED_LIKE and _in_place(name, args):
+        targets += _plain_args(args, {"-e", "--expression", "-f", "--file"} if name == "sed" else {"-e", "-E", "-M", "-m"})
+    elif name == "tee":
+        if not any(a in ("-a", "--append") or (a.startswith("-") and not a.startswith("--") and "a" in a) for a in args):
+            targets += [a for a in _plain_args(args) if a != "-"]
+    elif name in PS_WRITERS:
+        appending = name in ("add-content", "ac") or any(a.lower().startswith("-app") for a in args)
+        if not appending:  # 追記ではマーカーは消えない
+            targets += _plain_args(args, PS_VALUE_OPTS, ignore_case=True)
+    elif name in REMOVERS or name in MOVERS:
+        targets += _plain_args(args, {"-t", "--target-directory", "-S", "--suffix", "--backup"})
+    elif name in COPIERS:
+        plain = _plain_args(args, CP_VALUE_OPTS)
+        if any(a in ("-t",) or a.startswith("--target-directory") for a in args):
+            plain = []  # -t の値はフォルダ
+        targets += plain[-1:] if len(plain) >= 2 else []
+    elif g and g["sub"] == "restore":
+        staged_only = any(a in ("-S", "--staged") for a in g["args"]) \
+            and not any(a in ("-W", "--worktree") or (a.startswith("-") and not a.startswith("--") and "W" in a)
+                        for a in g["args"])
+        if not staged_only:
+            targets += _plain_args(g["args"], {"-s", "--source", "--pathspec-from-file"})
+    elif g and g["sub"] == "checkout":
+        args = g["args"]
+        if "--" in args:
+            targets += args[args.index("--") + 1:]
+        else:
+            # ブランチ・コミットの名前も含むが、そういう名前のファイルが無ければ呼び出し側で外れる
+            targets += _plain_args(args, {"-b", "-B", "--orphan", "--conflict", "--pathspec-from-file"})
+    return targets
 
 
 def dynamic_name(tokens):
@@ -472,7 +795,7 @@ def dynamic_name(tokens):
 def git_invocation(tokens):
     """git コマンドなら {'configs': [-c の値...], 'chdirs': [-C の値...], 'repo_opts': --git-dir・--work-tree の有無,
     'sub': サブコマンド, 'args': [...]}。違えば None。"""
-    if not tokens or os.path.basename(tokens[0]).lower() not in ("git", "git.exe"):
+    if not tokens or command_name(tokens[0]) != "git":
         return None
     configs, chdirs, repo_opts, i = [], [], False, 1
     while i < len(tokens) and tokens[i].startswith("-"):

@@ -75,7 +75,8 @@ def check_hooks_bypass(cmd):
         g = git_invocation(toks)
         if not g:
             continue
-        if any(c.lower().startswith(HOOKS_KEY) for c in g["configs"]):
+        # 値のどこかに core.hooksPath があるもの（エイリアスの中身に書いたものも。Issue #291）
+        if any(HOOKS_KEY in c.lower() for c in g["configs"]):
             block("git -c core.hooksPath=… でコミット前フックを外す操作はできません。")
         if g["sub"] == "config":
             args = g["args"]

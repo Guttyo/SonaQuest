@@ -16,8 +16,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from guard_github import Blocked, check_git
-from sonaguard import ROOT, SUBST, git_invocation, sensitive_path, split_commands, use_utf8_stdio
+from guard_github import Blocked, check_git, gh_subcommand
+from sonaguard import ROOT, SUBST, command_name, git_invocation, sensitive_path, split_commands_detail, use_utf8_stdio
 
 STATUS = "docs/STATUS.md"
 KEEP = "docs/KEEP-THINKING.md"
@@ -27,7 +27,6 @@ KEEP_HEADING = re.compile(r"^##[ \t]+(\d{4}-\d{2}-\d{2})", re.M)
 MERGE_SUBJECT = re.compile(r"^Merge pull request #(\d+) from [^/\s]+/(\S+)")
 NO_UPDATE = re.compile(r"STATUS\.md\s*[：:]\s*更新不要")
 NO_UPDATE_KEEP = re.compile(r"KEEP-THINKING\.md\s*[：:]\s*更新不要")
-HEREDOC = re.compile(r"<<-?[ \t]*(['\"]?)(\w+)\1[^\n]*\n(.*?)^[ \t]*\2[ \t]*$", re.M | re.S)
 
 
 WORK = ROOT  # git を実行する作業ツリー。hook の入力の cwd（worktree）を使う（Issue #82）
@@ -120,23 +119,21 @@ def option_value(tokens, names):
     return None
 
 
-def heredoc_bodies(cmd):
-    return [m.group(3) for m in HEREDOC.finditer(cmd)]
-
-
-def pr_body_says_no_update(cmd, tokens, cwd, pattern=NO_UPDATE):
-    """PR本文（--body の値、--body-file の中身）だけを見る。タイトルや前後のコマンドは見ない。"""
+def pr_body_says_no_update(commands, command, cwd, pattern=NO_UPDATE):
+    """PR本文（--body の値、--body-file の中身）だけを見る。タイトルや前後のコマンドは見ない。
+    heredoc の本文は、sonaguard の解析が結び付けたもの（stdin_texts）を使う（Issue #291）。"""
+    tokens = command.toks
     body = option_value(tokens, ("--body", "-b"))
     if body is not None:
         if pattern.search(body):
             return True
         # --body "$(cat <<'EOF' ... EOF)" の本文は、置換の印に置き換わっているので heredoc から読む
-        return SUBST in body and any(pattern.search(b) for b in heredoc_bodies(cmd))
+        return SUBST in body and any(pattern.search(b) for c in commands for b in c.stdin_texts)
     body_file = option_value(tokens, ("--body-file", "-F"))
     if not body_file:
         return False
-    if body_file == "-":  # 標準入力（heredoc）で渡した本文
-        return any(pattern.search(b) for b in heredoc_bodies(cmd))
+    if body_file == "-":  # 標準入力（heredoc）で渡した本文。その gh pr create が受け取るものだけを見る
+        return any(pattern.search(b) for b in command.stdin_texts)
     if sensitive_path(body_file):  # 秘密ファイルは開かない（block_secrets.py と同じ境界）
         return False
     p = Path(body_file)
@@ -163,7 +160,9 @@ def pre_tool_use(data):
         return
     cmd = (data.get("tool_input") or {}).get("command") or ""
     branch = None  # 途中の git switch・checkout で変わったブランチ。None は実行前の HEAD のまま
-    for _, tokens, _ in split_commands(cmd) or []:
+    commands = split_commands_detail(cmd) or []
+    for command in commands:
+        tokens = command.toks
         g = git_invocation(tokens)
         if g and g["sub"]:
             try:
@@ -171,19 +170,20 @@ def pre_tool_use(data):
             except Blocked:
                 pass  # 止めるのは guard_github.py の役目
             continue
-        if tokens[:3] != ["gh", "pr", "create"]:
+        # gh.exe・フルパスの gh と、pr と create の間のフラグも読む（Issue #291）
+        if not tokens or command_name(tokens[0]) != "gh" or [tokens[i] for i in gh_subcommand(tokens)] != ["pr", "create"]:
             continue
         if branch and not base_ref(branch):
             branch = None  # switch -c で作る前のブランチは、今の HEAD から作られる
         head = option_value(tokens, ("--head", "-H")) or branch
         base = option_value(tokens, ("--base", "-B")) or "main"
-        if not (doc_changed(base, head, KEEP) or pr_body_says_no_update(cmd, tokens, data.get("cwd"), NO_UPDATE_KEEP)):
+        if not (doc_changed(base, head, KEEP) or pr_body_says_no_update(commands, command, data.get("cwd"), NO_UPDATE_KEEP)):
             print(f"BLOCKED（KEEP-THINKING.mdの更新確認）: このブランチで {KEEP} が変わっていません。"
                   "この作業の節（うまくいったこと／つまずいたことと直し方／捨てた案と理由／次にやること／オーナーの判断待ち）を"
                   "末尾に追記してコミットしてください（見出しは日付だけで、時刻は書かない）。"
                   "書くことが無いときは、PR本文に「KEEP-THINKING.md：更新不要（理由）」と書いてください（ADR-0058）。", file=sys.stderr)
             sys.exit(2)
-        if doc_changed(base, head) or pr_body_says_no_update(cmd, tokens, data.get("cwd")):
+        if doc_changed(base, head) or pr_body_says_no_update(commands, command, data.get("cwd")):
             continue
         print(f"BLOCKED（STATUS.mdの更新確認）: このブランチで {STATUS} が変わっていません。"
               "マージ後の main の状態として STATUS.md を更新してコミットしてください。"
