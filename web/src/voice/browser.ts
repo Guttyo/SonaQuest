@@ -28,7 +28,8 @@ function browserSynth(): SynthLike | null {
 
 export function createBrowserSpeaker(onChange: (snapshot: SpeakerSnapshot) => void): Speaker {
   return new Speaker({
-    fetchAudio: (text, signal) => fetchTtsAudio(text, signal),
+    // 設計図が無い文は /api/tts に送らない（失敗として、ブラウザの読み上げに切り替わる。Issue #284）
+    fetchAudio: (_text, signal, spec) => (spec === undefined ? Promise.reject(new Error("tts_no_spec")) : fetchTtsAudio(spec, signal)),
     createAudio: () => new Audio() as unknown as AudioLike,
     createObjectUrl: (blob) => URL.createObjectURL(blob),
     revokeObjectUrl: (url) => URL.revokeObjectURL(url),

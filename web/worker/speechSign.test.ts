@@ -1,7 +1,7 @@
 // 読み上げる Claude の文の署名（Issue #284 の指摘3、案A）の単体試験。
 
 import { describe, expect, it } from "vitest";
-import { parseSpeechTokens } from "../src/flow/turnContract";
+import { parseSpeechTokens, parseTurnResponse } from "../src/flow/turnContract";
 import {
   MIN_SIGNING_KEY_LENGTH,
   SPEECH_TOKEN_PATTERN,
@@ -73,5 +73,20 @@ describe("parseSpeechTokens（画面が受け取る署名の欄の形）", () =>
     expect(parseSpeechTokens({ text: null })).toBeNull();
     expect(parseSpeechTokens({ text: null, remark: null, extra: 1 })).toBeNull();
     expect(parseSpeechTokens(null)).toBeNull();
+  });
+
+  it("parseTurnResponse は署名の欄を通し、形の違う署名の欄の応答は使わない。欄の無い応答も受ける", async () => {
+    const token = await signSpeechText(secret, text, now);
+    const base = {
+      emergency: "none",
+      viewpoints: { location: "confirmed", alternative: "confirmed", current: "confirmed", unrecorded: "confirmed", proxy: "confirmed" },
+      next: { type: "ask", question_id: "first_location", text },
+      recall: false,
+      source_guess: null,
+      remark: null,
+    };
+    expect(parseTurnResponse({ ...base, speech: { text: token, remark: null } })?.speech).toEqual({ text: token, remark: null });
+    expect(parseTurnResponse({ ...base, speech: { text: "bad", remark: null } })).toBeNull();
+    expect(parseTurnResponse(base)?.speech).toBeUndefined();
   });
 });

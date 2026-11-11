@@ -11,8 +11,10 @@ import {
   type SynthLike,
   type UtteranceLike, startTimeoutFor } from "./speaker";
 import { PushToTalk, type RecognitionLike } from "./talk";
+import type { SpeechSpec } from "./speechPlan";
 
 const TEXT = "普段の薬の情報は、どこに記録していますか？";
+const SPEC: SpeechSpec = { kind: "ask", opening: false, recall: false, prompt: [{ claude: TEXT, token: null }] };
 
 class FakeAudio implements AudioLike {
   src = "";
@@ -114,6 +116,22 @@ describe("ElevenLabs で読み上げる", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(fetched).toHaveLength(1);
     expect(audio.plays).toBe(2);
+  });
+
+  it("設計図（/api/tts に送るもの）を取りに行く処理へ渡し、もう一度聞くときも同じ設計図を使う（Issue #284）", async () => {
+    const specs: unknown[] = [];
+    const { speaker, audio } = setup({
+      fetchAudio: (_text, _signal, spec) => {
+        specs.push(spec);
+        return Promise.reject(new Error("tts_status_400"));
+      },
+    });
+    speaker.speak(TEXT, SPEC);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(specs).toEqual([SPEC]);
+    // 署名が合わないなどで断られたら、ブラウザの読み上げで続ける
+    expect(speaker.snapshot.engine).toBe("browser");
+    expect(audio.plays).toBe(0);
   });
 
   it("始まった後は、時間切れで切り替えない", async () => {
@@ -288,24 +306,25 @@ describe("本文をログに出さない（ADR-0007）", () => {
 });
 
 describe("読み上げの中継を呼ぶ（fetchTtsAudio）", () => {
-  it("POST で { text } だけを送る。URL に文を入れない", async () => {
+  it("POST で { speech: 設計図 } だけを送る。URL に文を入れない（Issue #284）", async () => {
     const calls: { url: string; init: RequestInit }[] = [];
     const fake = (async (url: string, init: RequestInit) => {
       calls.push({ url, init });
       return new Response(new Uint8Array([1, 2]), { headers: { "Content-Type": "audio/mpeg" } });
     }) as unknown as typeof fetch;
-    const blob = await fetchTtsAudio(TEXT, new AbortController().signal, fake);
+    const blob = await fetchTtsAudio(SPEC, new AbortController().signal, fake);
     expect(blob.size).toBe(2);
     expect(calls[0].url).toBe("/api/tts");
     expect(calls[0].init.method).toBe("POST");
-    expect(JSON.parse(String(calls[0].init.body))).toEqual({ text: TEXT });
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({ speech: SPEC });
+    expect(calls[0].url).not.toContain(TEXT);
   });
 
   it("失敗の応答と空の音声は例外にする（ブラウザの読み上げに切り替えるため）", async () => {
     const status = (async () => new Response("x", { status: 503 })) as unknown as typeof fetch;
-    await expect(fetchTtsAudio(TEXT, new AbortController().signal, status)).rejects.toThrow("tts_status_503");
+    await expect(fetchTtsAudio(SPEC, new AbortController().signal, status)).rejects.toThrow("tts_status_503");
     const empty = (async () => new Response(new Uint8Array([]))) as unknown as typeof fetch;
-    await expect(fetchTtsAudio(TEXT, new AbortController().signal, empty)).rejects.toThrow("tts_empty");
+    await expect(fetchTtsAudio(SPEC, new AbortController().signal, empty)).rejects.toThrow("tts_empty");
   });
 });
 

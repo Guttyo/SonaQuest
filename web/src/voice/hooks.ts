@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { duckBgm } from "../bgm/browser";
 import { createBrowserSpeaker, registerVoiceStopper } from "./browser";
 import type { Speaker, SpeakerSnapshot } from "./speaker";
+import type { SpeechSpec } from "./speechPlan";
 import { PushToTalk, TALK_STYLE, browserRecognitionFactory, type MicStatus, type TalkSnapshot, type TalkStyle } from "./talk";
 
 const SPEAKER_IDLE: SpeakerSnapshot = { engine: "elevenlabs", loading: false, speaking: false, blocked: false };
@@ -37,15 +38,25 @@ export function useSpeaker(enabled: boolean, session: number): { speaker: Speake
   return { speaker, snapshot };
 }
 
-/** text が変わるたびに読み上げる。null なら止める。key は同じ発言を読み直さないための目印 */
-export function useSpeakWhenChanged(speaker: Speaker | null, text: string | null, key: string | null): void {
+/**
+ * text が変わるたびに読み上げる。null なら止める。key は同じ発言を読み直さないための目印。
+ * spec は /api/tts に送る設計図（speech.ts の listenerSpeechPlan・reviewSpeechPlan。Issue #284）
+ */
+export function useSpeakWhenChanged(
+  speaker: Speaker | null,
+  text: string | null,
+  key: string | null,
+  spec?: SpeechSpec,
+): void {
   const textRef = useRef(text);
   textRef.current = text;
+  const specRef = useRef(spec);
+  specRef.current = spec;
   useEffect(() => {
     if (speaker === null) return;
     const current = textRef.current;
     if (key === null || current === null) speaker.stop();
-    else speaker.speak(current);
+    else speaker.speak(current, specRef.current);
   }, [speaker, key]);
 }
 

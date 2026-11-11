@@ -41,7 +41,7 @@ import type { TrainingState } from "../flow/training";
 import type { EventId, PrepActionId, TimingId } from "../flow/types";
 import { SpeakerControls } from "../voice/SpeakerControls";
 import { useSpeakWhenChanged, useSpeaker } from "../voice/hooks";
-import { reviewSpeech, speechKey } from "../voice/speech";
+import { reviewSpeechPlan, speechKey } from "../voice/speech";
 import { SceneBar } from "./ListenerStage";
 import { RecordCard } from "./RecordCard";
 import { LostSources, PREP_ICON, SourceIcon, VIEWPOINT_ICON } from "./SourceIcon";
@@ -91,8 +91,9 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
   // 3D の対話モードでは、先頭のまとめ（固定文だけ。回答は読まない）を読み上げる（ADR-0033、ADR-0054）
   const voiceOn = state.mode === "3d";
   const { speaker, snapshot: speech } = useSpeaker(voiceOn, state.session);
-  const spoken = voiceOn ? reviewSpeech(state) : null;
-  useSpeakWhenChanged(speaker, spoken, spoken === null ? null : speechKey(state, spoken));
+  const plan = voiceOn ? reviewSpeechPlan(state) : null;
+  const spoken = plan?.text ?? null;
+  useSpeakWhenChanged(speaker, spoken, spoken === null ? null : speechKey(state, spoken), plan?.spec);
 
   /** 「これを準備する」：準備行動を選び、カードの場所へ送る（キーボードの焦点は動かさない） */
   const pick = (id: PrepActionId) => {
