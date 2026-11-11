@@ -1850,7 +1850,7 @@
 - 確かめたこと（2026-11-07、公開環境。オーナーの「デプロイして」「設定して」の後）：別々の接続から `/api/turn` に12回送ると、1〜10回目は 200、11・12回目は 429 だった。続けて 2D の訓練を Claude ありで最後まで通し、8回とも 200。`wrangler tail` のログは種類だけだった（safety-test-plan P7・P1）。
 - 影響：`web/worker/strictLimiter.ts`（新規）・`strictLimiter.test.ts`（新規）、`web/worker/index.ts`、`web/worker/app.ts`（コメント）、`web/worker/turn.test.ts`（入口が出す名前）、`web/wrangler.jsonc`、docs/safety-test-plan.md（P7）、docs/STATUS.md（D-01）。ADR-0035 の決定1 はこの ADR で替えた。
 - 追記（2026-11-11、Issue #284。Claude Code が決めた値）：オブジェクトの応答を待つ上限を **2,000 ミリ秒**（`RATE_COUNTER_TIMEOUT_MS`）にした。上限までに答えない（応答の本文を読むところまで）ときは `rate_counter_timeout` を投げ、決定5 の「失敗したときは閉じる（503）」に乗せる。ログの種類（`*: rate_limiter_error`）と `RateCheck` の種類は増やしていない。
-  - 理由：オブジェクトはメモリの配列を見るだけで、ふだんは数十ミリ秒、作られた直後でも数百ミリ秒で答える。待ち続けると、外部を呼ぶ前の関門で入口が止まる。画面の読み上げは 5 秒で始まらなければブラウザの読み上げに切り替える（`speaker.ts` の `TTS_START_TIMEOUT_MS`）ので、その後の ElevenLabs の呼び出しの時間を残せるよう、それより十分短くした。/api/turn の画面の待ち時間（24 秒）に対しても小さい。
+  - 理由：オブジェクトはメモリの配列を見るだけで、ふだんは数十ミリ秒、作られた直後でも数百ミリ秒で答える想定（本物の Durable Object の応答の時間は測っていない。公開環境での確認はデプロイの後）。待ち続けると、外部を呼ぶ前の関門で入口が止まる。画面の読み上げは 5 秒で始まらなければブラウザの読み上げに切り替える（`speaker.ts` の `TTS_START_TIMEOUT_MS`）ので、その後の ElevenLabs の呼び出しの時間を残せるよう、それより十分短くした。/api/turn の画面の待ち時間（24 秒）に対しても小さい。
   - 却下案：上限を付けない（今まで。止まり続けうる）。`AbortSignal` を stub の fetch に渡す（Durable Object の stub が中断を守るかに頼らないよう、タイマーとの競争にした）。
   - 影響：`web/worker/strictLimiter.ts`・`strictLimiter.test.ts`。公開環境には、デプロイ（承認の後）までは効かない。
 
