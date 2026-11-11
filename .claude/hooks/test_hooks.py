@@ -87,6 +87,8 @@ def marker_target_tests(tmp):
         ("Bash", "sed -Ei", f"sed -Ei '2d' {d}", here),
         ("Bash", "sed --in-place", f"sed --in-place=.bak '2d' {d}", here),
         ("Bash", "perl -pi -e", f"perl -pi -e 's/x//' {d}", here),
+        ("Bash", "perl -lpi -e", f"perl -lpi -e 's/x//' {d}", here),
+        ("Bash", "perl -0pi -e", "perl -0pi -e 's/x//' doc.md", here),
         ("Bash", "> で上書き", f"echo x > {d}", here),
         ("Bash", "tee で上書き", f"echo x | tee {d}", here),
         ("Bash", "rm", f"rm -f {d}", here),
@@ -121,6 +123,9 @@ def marker_target_tests(tmp):
         ("Bash", "ワイルドカード（読めないので通す）", "rm *.tmp", here),
         ("Bash", "引用符の閉じていない読むだけのコマンド", "echo 'x", here),
         ("PowerShell", "Get-Content で読む", f"Get-Content {d}", here),
+        ("Bash", "tee -a の追記", f"echo x | tee -a {d}", here),
+        ("PowerShell", "Add-Content の追記", f"Add-Content -Path {d} -Value x", here),
+        ("PowerShell", "Out-File -Append の追記", f"'x' | Out-File -FilePath {d} -Append", here),
     ]:
         check(f"{tool}: 止めない（{name}）", 0, hook(P, tool, {"command": cmd}, extra=extra)[0])
     check("  止めた試験の後もファイルは残っている", True, doc.is_file() and "[TODO-OWNER" in doc.read_text(encoding="utf-8"))

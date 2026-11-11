@@ -723,7 +723,8 @@ def _plain_args(args, takes_value=(), ignore_case=False):
 
 
 # sed・perl の短いオプションのうち、値を取るもの（その文字より後は値なので、i を探さない）
-IN_PLACE_VALUE_CHARS = {"sed": set("efl"), "perl": set("eEMmIxdDC0l")}
+# （perl の -l・-0 は続けて書く数字だけを取るので、後の i を探す。-lpi・-0pi）
+IN_PLACE_VALUE_CHARS = {"sed": set("efl"), "perl": set("eEMmIxdDC")}
 
 
 def _in_place(name, args):
@@ -757,9 +758,12 @@ def write_targets(c):
     if name in SED_LIKE and _in_place(name, args):
         targets += _plain_args(args, {"-e", "--expression", "-f", "--file"} if name == "sed" else {"-e", "-E", "-M", "-m"})
     elif name == "tee":
-        targets += [a for a in _plain_args(args) if a != "-"]
+        if not any(a in ("-a", "--append") or (a.startswith("-") and not a.startswith("--") and "a" in a) for a in args):
+            targets += [a for a in _plain_args(args) if a != "-"]
     elif name in PS_WRITERS:
-        targets += _plain_args(args, PS_VALUE_OPTS, ignore_case=True)
+        appending = name in ("add-content", "ac") or any(a.lower().startswith("-app") for a in args)
+        if not appending:  # 追記ではマーカーは消えない
+            targets += _plain_args(args, PS_VALUE_OPTS, ignore_case=True)
     elif name in REMOVERS or name in MOVERS:
         targets += _plain_args(args, {"-t", "--target-directory", "-S", "--suffix", "--backup"})
     elif name in COPIERS:
