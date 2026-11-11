@@ -206,6 +206,13 @@ SUBST = "$(...)"  # 置換が入った語に残す印。コマンド名が動的
 # 引数を読んで判定できない（SUBST とは分ける。"$(…)" を引数に使う普段の commit・push を止めないため。Issue #291）
 STDIN_ARGS = "\0実行時に足される引数\0"
 FIND_EXEC = {"-exec", "-execdir", "-ok", "-okdir"}
+# wsl の、次の語を値として取るオプション。-e・--exec・-- の後と、最初の位置引数からはコマンド（Issue #291）
+WSL_VALUE_OPTS = {"-d", "--distribution", "-u", "--user", "--cd", "--shell-type", "--distribution-id"}
+# PowerShell の、スクリプトブロック（{ … }）を引数に取るコマンドレット（Issue #291）。
+# ブロックの中の ; の後は、解析の段階で外のコマンド列に分かれるので、ブロックの中の cd は外にも効くものとして扱う
+# （Invoke-Command・Start-Job の中の Set-Location は本当は外に効かないが、止めすぎの側に倒す）
+SCRIPT_BLOCK_CMDLETS = {"foreach-object", "%", "where-object", "?", "foreach", ".", "measure-command",
+                        "invoke-command", "icm", "start-job", "sajb", "start-threadjob", "try"}
 MAX_DEPTH = 8
 _SUBSHELL_IDS = itertools.count(1)
 GIT_VALUE_OPTS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env", "--super-prefix"}
@@ -265,9 +272,78 @@ class _Cmd:
         self.buf, self.started, self.quoted = [], False, False
 
 
+def _parse_marked(text, out, depth, scope, mark):
+    """text を1つのコマンド列として読む。mark なら、読んだコマンドの末尾に STDIN_ARGS を足す
+    （xargs・find -exec から sh -c '…' などに渡した文字列の中のコマンドも、引数が実行時に足される。Issue #291）。"""
+    if not mark:
+        _parse(_Src(text), 0, None, out, depth + 1, scope)
+        return
+    inner = []
+    _parse(_Src(text), 0, None, inner, depth + 1, scope)
+    for c in inner:
+        if c.toks and STDIN_ARGS not in c.toks:
+            c.toks = c.toks + [STDIN_ARGS]
+    out.extend(inner)
+
+
+def _finish_words(words, out, depth, scope, mark, stdin_texts=()):
+    """分け終えた語の列を、1つのコマンドとして読む（語をつないで読み直すと引用符が外れて、
+    wsl bash -c "git push …" が bash -c git に見えるため。Issue #291）。"""
+    if depth > MAX_DEPTH:
+        raise ValueError("入れ子が深すぎる")
+    sub = _Cmd(scope)
+    sub.words = list(words) + ([STDIN_ARGS] if mark else [])
+    sub.stdin_texts = list(stdin_texts)
+    _finish(sub, out, depth + 1)
+
+
+def _script_blocks(words):
+    """語の列の中の { … } の中身（PowerShell のスクリプトブロック）を、語の列のまま返す。閉じていなければ最後の語まで。
+    ブロックの中の ; や | は、解析の段階で外のコマンド列に分かれているので、1つのブロックは1つのコマンドになる。"""
+    blocks, i = [], 0
+    while i < len(words):
+        if not words[i].startswith("{"):
+            i += 1
+            continue
+        level, j = 0, i
+        while j < len(words):
+            level += words[j].count("{") - words[j].count("}")
+            if level <= 0:
+                break
+            j += 1
+        block = list(words[i:j + 1])
+        block[0] = block[0][1:]
+        if level <= 0 and block[-1].endswith("}"):
+            block[-1] = block[-1][:-1]
+        blocks.append([w for w in block if w])
+        i = j + 1
+    return blocks
+
+
+def _wsl_command(toks):
+    """wsl の後に続くコマンドの語。無ければ空（Issue #291）。"""
+    i = 1
+    while i < len(toks):
+        low = toks[i].lower()
+        if low in ("-e", "--exec", "--"):
+            return toks[i + 1:]
+        if low in WSL_VALUE_OPTS:
+            i += 2
+        elif low.startswith("-"):
+            i += 1
+        else:
+            return toks[i:]
+    return []
+
+
 def _finish(cmd, out, depth):
     cmd.end_word()
     toks, scope = cmd.words, cmd.scope
+    # %{ … }・ForEach-Object{ … } のように、コマンドレットの名前に { が続く書き方を分ける（Issue #291）
+    if toks:
+        m = re.match(r"^([%?]|foreach-object|where-object|invoke-command|icm)(\{.*)$", toks[0], re.I)
+        if m:
+            toks = [m.group(1), m.group(2)] + toks[1:]
     # 前置き（VAR=値、env・sudo など、そのオプションと値・位置引数、{ ! if do など）を読み飛ばす
     assigns, i, wrapper, pending, stdin_args = [], 0, None, 0, False
     while i < len(toks):
@@ -305,27 +381,38 @@ def _finish(cmd, out, depth):
         return
     if stdin_args and toks:  # xargs は標準入力から引数を足す
         toks = toks + [STDIN_ARGS]
-    # eval・Invoke-Expression と sh -c・pwsh -Command・cmd /c に渡した文字列、シェルが標準入力で受け取る heredoc、
-    # watch に渡した文字列、find -exec のコマンドも、1つのコマンド列として調べる
+    # eval・Invoke-Expression と sh -c・pwsh -Command・cmd /c・wsl に渡した文字列、シェルが標準入力で受け取る heredoc、
+    # watch に渡した文字列、find -exec のコマンド、PowerShell のスクリプトブロックも、1つのコマンド列として調べる。
+    # xargs・find -exec の後なら（mark）、その中のコマンドにも STDIN_ARGS を付ける（Issue #291）
     name = _name(toks)
+    mark = STDIN_ARGS in toks
+    words = [t for t in toks if t != STDIN_ARGS]
     if wrapper == "watch":  # watch は引数をつないでシェルで実行する
-        _parse(_Src(" ".join(toks)), 0, None, out, depth + 1, _child(scope))
+        _parse_marked(" ".join(words), out, depth, _child(scope), mark)
     if name == "eval":
-        _parse(_Src(" ".join(toks[1:])), 0, None, out, depth + 1, scope)
+        _parse_marked(" ".join(words[1:]), out, depth, scope, mark)
     elif name in ("invoke-expression", "iex"):  # PowerShell の eval。今のスコープで実行する
-        _parse(_Src(" ".join(t for t in toks[1:] if t.lower() != "-command")), 0, None, out, depth + 1, scope)
+        _parse_marked(" ".join(t for t in words[1:] if t.lower() != "-command"), out, depth, scope, mark)
     elif name == "cmd":  # cmd /c '…'（Git Bash では //c とも書く）
-        k = next((k for k, t in enumerate(toks[1:], 1) if t.lower() in ("/c", "/k", "//c", "//k")), None)
+        k = next((k for k, t in enumerate(words[1:], 1) if t.lower() in ("/c", "/k", "//c", "//k")), None)
         if k is not None:
-            _parse(_Src(" ".join(toks[k + 1:])), 0, None, out, depth + 1, _child(scope))
+            _parse_marked(" ".join(words[k + 1:]), out, depth, _child(scope), mark)
+    elif name == "wsl":  # wsl git …・wsl -e git …・wsl -- git …（Issue #291）
+        rest = _wsl_command(words)
+        if rest:
+            _finish_words(rest, out, depth, _child(scope), mark, cmd.stdin_texts)
     elif name == "find":
         _find_exec(toks, out, depth, scope)
+    elif name in SCRIPT_BLOCK_CMDLETS:  # 1..3 | ForEach-Object { git … }・Invoke-Command { … }・try { … }（Issue #291）
+        for block in _script_blocks(words[1:]):
+            if block:
+                _finish_words(block, out, depth, scope, mark)
     elif name in SHELLS:
         script = _shell_script_arg(toks)
         if script is not None:
-            _parse(_Src(toks[script]), 0, None, out, depth + 1, _child(scope))
+            _parse_marked(toks[script], out, depth, _child(scope), mark)
         for text in cmd.stdin_texts:
-            _parse(_Src(text), 0, None, out, depth + 1, _child(scope))
+            _parse_marked(text, out, depth, _child(scope), mark)
     out.append(Command(assigns, toks, cmd.redirects, cmd.stdin_texts, scope))
 
 

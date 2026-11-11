@@ -15,6 +15,8 @@
 - git のエイリアスを作る操作（-c alias.*、--config-env=alias.*、git config alias.*。Issue #291）
 - xargs・find -exec の後の push などと gh（引数が実行時に足されるので判定できない。Issue #291）
 - gh api での、リポジトリそのものと main の参照（git/refs/heads/main）への書き込み（Issue #291）
+- gh の別名を作る操作（gh alias set・import）と、gh の既知のコマンドに無い名前（別名・拡張。Issue #291）
+- pwsh・powershell の -EncodedCommand（中身を読めない）と、Start-Process で git・gh を起動する操作（Issue #291）
 
 どのブランチで実行されるかは、実際に操作する作業ツリーで決める（Issue #82）。hook の入力の cwd から始め、
 コマンドの cd・pushd・Set-Location の行き先、git -C の指定の順にたどる。worktree ごとにブランチを見る。
@@ -608,6 +610,19 @@ def gh_api_method(args):
     return "POST" if GH_FIELD.search(" ".join(args)) else "GET"
 
 
+# gh の組み込みのコマンドと、コマンドの短い名前（gh 2.103.2 の gh help で確かめた）。
+# これに無い名前は、gh alias set で作った別名か拡張なので、何が実行されるか判定できない（Issue #291）。
+# co は gh help に出るが、設定の別名（gh alias）なので、中身を書き換えられる。入れない（gh pr checkout と書く）
+GH_COMMANDS = {
+    "auth", "browse", "codespace", "cs", "discussion", "gist", "issue", "org", "pr", "project", "release", "repo",
+    "skill", "cache", "run", "workflow", "agent-task", "alias", "api", "attestation", "at", "completion",
+    "config", "copilot", "extension", "extensions", "ext", "gpg-key", "label", "licenses", "preview", "ruleset", "rs",
+    "search", "secret", "ssh-key", "status", "variable", "help", "version",
+    # gh help <話題> の話題
+    "accessibility", "a11y", "actions", "environment", "exit-codes", "formatting", "mintty", "reference", "telemetry",
+}
+
+
 def check_gh(segment, tokens):
     """止めるなら Blocked。確認の画面を出すなら、その理由を返す。
     tokens[0] は、basename を小文字にして .exe を外すと gh になる語（gh.exe・フルパスも含む。Issue #291）。"""
@@ -615,6 +630,12 @@ def check_gh(segment, tokens):
         raise Blocked("xargs・find -exec の後の gh は、引数が実行時に足されるので判定できません。gh はそのまま書いてください。")
     idx = gh_subcommand(tokens)
     pos = [tokens[i] for i in idx]
+    if pos[:1] == ["alias"] and pos[1:2] and pos[1] in ("set", "import"):
+        raise Blocked("gh の別名（gh alias set・import）は作れません。別名を通すと、PRのマージなどの判定が働かないためです。"
+                      "コマンドをそのまま書いてください（Issue #291）。")
+    if pos and pos[0] not in GH_COMMANDS:  # 止めた文には、コマンドの語を入れない
+        raise Blocked("gh の組み込みのコマンドではない名前（gh alias で作った別名か拡張）は、何が実行されるかを"
+                      "判定できないので、組み込みのコマンドで書いてください（Issue #291）。")
     if pos == ["pr", "merge"]:  # pr と merge の間のフラグも、merge の後の引数と合わせて確かめる
         return check_pr_merge([t for j, t in enumerate(tokens[1:], 1) if j not in idx])
     if pos[:1] == ["repo"] and pos[1:2] and pos[1] in ("edit", "delete", "rename", "archive"):
@@ -634,6 +655,43 @@ def check_gh(segment, tokens):
 
 # xargs・find -exec の後で、引数が足されると判定が変わる git のサブコマンド（Issue #291）
 STDIN_SENSITIVE = {"push", "branch", "tag", "update-ref", "fetch", "config"}
+POWERSHELLS = {"pwsh", "powershell"}
+START_PROCESS = {"start-process", "saps", "start"}
+# Start-Process の、値を取らないオプション（これ以外のオプションは次の語を値として取る）
+START_PROCESS_SWITCHES = ("passthru", "wait", "nonewwindow", "usenewenvironment", "loaduserprofile")
+
+
+def encoded_command(tokens):
+    """pwsh・powershell に -EncodedCommand（-e・-ec・-enc などの省略形、-EncodedArguments も）を渡しているか。
+    中身は Base64 で、hook は読めない（Issue #291）。-ex・-ep（ExecutionPolicy）は当てない。"""
+    for t in tokens[1:]:
+        m = re.fullmatch(r"(?:--?|/)([a-z]+)(?::.*)?", t.lower())
+        if not m:
+            continue
+        opt = m.group(1)
+        if opt in ("e", "ec") or (len(opt) >= 2 and ("encodedcommand".startswith(opt) or "encodedarguments".startswith(opt))):
+            return True
+    return False
+
+
+def start_process_target(tokens):
+    """Start-Process が起動するもの（-FilePath・-Path の値か、最初の位置引数）。無ければ None（Issue #291）。"""
+    args, i = tokens[1:], 0
+    while i < len(args):
+        a = args[i]
+        if not a.startswith("-"):
+            return a
+        opt = a[1:].split(":", 1)[0].lower()
+        if ":" in a[1:]:
+            value = a[1:].split(":", 1)[1]
+            if opt and ("filepath".startswith(opt) or opt in ("path", "pspath")):
+                return value
+            i += 1
+            continue
+        if opt and ("filepath".startswith(opt) or opt in ("path", "pspath")):
+            return args[i + 1] if i + 1 < len(args) else None
+        i += 1 if any(sw.startswith(opt) for sw in START_PROCESS_SWITCHES) else 2
+    return None
 
 
 def check_command(cmd, trees):
@@ -655,6 +713,14 @@ def check_command(cmd, trees):
         if dynamic_name(tokens) and set(tokens[1:]) & ({"push", "pr", "api", "repo", "branch", "update-ref", "tag", "fetch"} | CHANGES_BRANCH):
             raise Blocked("コマンド名が変数・置換で決まるため判定できません。git・gh はそのまま書いてください。")
         name = command_name(tokens[0]) if tokens else ""
+        if name in POWERSHELLS and encoded_command(tokens):
+            raise Blocked("pwsh・powershell の -EncodedCommand は、中身を読んで判定できないので使えません。"
+                          "コマンドはそのまま書いてください（Issue #291）。")
+        if name in START_PROCESS:
+            target = start_process_target(tokens)
+            if target is not None and command_name(target) in ("git", "gh"):
+                raise Blocked("Start-Process で git・gh を起動すると、引数を判定できません。git・gh はそのまま実行してください"
+                              "（Issue #291）。")
         if name in CD:
             cwds[c.scope] = resolve_dir(trees.cwd, cd_target(tokens))
             continue

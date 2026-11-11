@@ -582,6 +582,67 @@ def github_hook_tests_291(G, on_main, on_work):
           decision(G, "PowerShell", {"command": '& "C:\\Program Files\\GitHub CLI\\gh.exe" pr merge 12 --admin'}, env=on_work))
     check("PowerShell: & \"…\\gh.exe\" pr merge 12 --merge", "ask",
           decision(G, "PowerShell", {"command": '& "C:\\Program Files\\GitHub CLI\\gh.exe" pr merge 12 --merge'}, env=on_work))
+    github_hook_tests_291_more(G, on_main, on_work)
+
+
+def github_hook_tests_291_more(G, on_main, on_work):
+    """Issue #291 の2回目：gh の別名、-EncodedCommand、Start-Process、wsl、スクリプトブロック、xargs から sh -c。"""
+    print("--- gh の別名・-EncodedCommand・Start-Process・wsl・スクリプトブロック（Claude Code hook。Issue #291）")
+    for tool, name, cmd, extra in [
+        ("Bash", "gh alias set", "gh alias set pm 'pr merge --admin'", on_work),
+        ("Bash", "gh alias import", "gh alias import aliases.yml", on_work),
+        ("Bash", "gh -R 値 alias set", "gh -R o/r alias set pm 'pr merge'", on_work),
+        ("Bash", "gh の組み込みに無い名前（別名・拡張）", "gh pm 12", on_work),
+        ("Bash", "gh co（設定の別名）", "gh co 12", on_work),
+        ("PowerShell", "pwsh -EncodedCommand", "pwsh -EncodedCommand ZwBpAHQA", on_work),
+        ("PowerShell", "powershell -enc", "powershell -enc ZwBpAHQA", on_work),
+        ("PowerShell", "pwsh -e", "pwsh -NoProfile -e ZwBpAHQA", on_work),
+        ("PowerShell", "pwsh -ec", "pwsh -ec ZwBpAHQA", on_work),
+        ("PowerShell", "powershell.exe /EncodedCommand", "powershell.exe /EncodedCommand ZwBpAHQA", on_work),
+        ("PowerShell", "pwsh -EncodedArguments", "pwsh -Command x -EncodedArguments ZwBpAHQA", on_work),
+        ("PowerShell", "Start-Process git（位置引数）", "Start-Process git -ArgumentList 'push','origin','main'", on_work),
+        ("PowerShell", "Start-Process -FilePath gh.exe", "Start-Process -FilePath gh.exe -ArgumentList 'pr merge 1 --admin'", on_work),
+        ("PowerShell", "Start-Process -FilePath:git.exe", "Start-Process -FilePath:git.exe", on_work),
+        ("PowerShell", "Start-Process の値を取らないオプションの後の git", "Start-Process -Wait -NoNewWindow git", on_work),
+        ("PowerShell", "Start-Process の値を取るオプションの後の git", "Start-Process -WindowStyle Hidden git", on_work),
+        ("PowerShell", "saps（Start-Process の別名）", "saps git", on_work),
+        ("Bash", "wsl git push origin main", "wsl git push origin main", on_work),
+        ("Bash", "wsl -d 値 -e git push --force", "wsl -d Ubuntu -e git push --force", on_work),
+        ("Bash", "wsl -- git push origin main", "wsl -- git push origin main", on_work),
+        ("Bash", "wsl bash -c \"…\"（引用符を保って読む）", 'wsl bash -c "git push origin main"', on_work),
+        ("Bash", "wsl の中で main にいてコミット", "wsl git commit -m x", on_main),
+        ("PowerShell", "ForEach-Object { … }", "1..3 | ForEach-Object { git push origin main }", on_work),
+        ("PowerShell", "%{ … }", "1..3 | %{ git push origin main }", on_work),
+        ("PowerShell", "ForEach-Object -Process { … }", "1..3 | ForEach-Object -Process { git push --force }", on_work),
+        ("PowerShell", "Invoke-Command -ScriptBlock { … }", "Invoke-Command -ScriptBlock { git push --force }", on_work),
+        ("PowerShell", "Start-Job { … }", "Start-Job { gh pr merge 12 --admin }", on_work),
+        ("PowerShell", "try { … } catch { … }", "try { git push origin main } catch { Write-Host x }", on_work),
+        ("PowerShell", "スクリプトブロックの中で main にいてコミット", "1 | ForEach-Object { git commit -m x }", on_main),
+        ("Bash", "xargs -I{} sh -c '… {}' の push", "echo main | xargs -I{} sh -c 'git push origin {}'", on_work),
+        ("Bash", "xargs bash -c の gh", "echo 12 | xargs bash -c 'gh pr merge \"$0\"'", on_work),
+    ]:
+        check(f"{tool}: 止める（{name}）", 2, hook(G, tool, {"command": cmd}, env=extra)[0])
+    for tool, name, cmd in [
+        ("Bash", "gh alias list（読むだけ）", "gh alias list"),
+        ("Bash", "gh pr checkout", "gh pr checkout 12"),
+        ("Bash", "gh --version", "gh --version"),
+        ("Bash", "gh -R 値 pr view", "gh -R o/r pr view 12 --comments"),
+        ("Bash", "gh help reference", "gh help reference"),
+        ("PowerShell", "powershell -ExecutionPolicy Bypass -File", "powershell -ExecutionPolicy Bypass -File x.ps1"),
+        ("PowerShell", "pwsh -ex（ExecutionPolicy）の後の -Command", "pwsh -ex Bypass -Command 'git status'"),
+        ("PowerShell", "Start-Process notepad", "Start-Process notepad"),
+        ("PowerShell", "Start-Process -FilePath の後の別の語", "Start-Process -FilePath code -ArgumentList git"),
+        ("Bash", "wsl git status", "wsl git status"),
+        ("Bash", "wsl の作業ブランチの push", "wsl git push origin docs/1-x"),
+        ("PowerShell", "ForEach-Object { $_.Name }", "Get-ChildItem | ForEach-Object { $_.Name }"),
+        ("PowerShell", "スクリプトブロックの中の git log", "1..3 | ForEach-Object { git log -1 }"),
+        ("PowerShell", "try { git status } catch {}", "try { git status } catch {}"),
+        ("Bash", "xargs -I{} sh -c の読むだけの git", "echo x | xargs -I{} sh -c 'git log -1 {}'"),
+        ("Bash", "sh -c の作業ブランチの push（xargs なし）", "sh -c 'git push origin docs/1-x'"),
+    ]:
+        check(f"{tool}: 止めない（{name}）", 0, hook(G, tool, {"command": cmd}, env=on_work)[0])
+    code, err = hook(G, "Bash", {"command": "gh zzsecretname 12"}, env=on_work)
+    check("Bash: 組み込みに無い gh の名前を、止めた文に出さない", (2, False), (code, "zzsecretname" in err))
 
 
 def worktree_hook_tests(tmp):
