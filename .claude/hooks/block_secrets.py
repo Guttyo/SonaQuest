@@ -111,14 +111,17 @@ def safe_command(assigns, toks, redirects):
     # git の後にすぐ status・check-ignore が来るものだけ（-c・-C などで設定や場所を差し替えさせない）
     if toks[0] == "git" and len(toks) > 1 and toks[1] in SAFE_SENSITIVE_GIT:
         return True
-    return toks[0] == "cp" and len(toks) == 3 and toks[1].endswith(".example")
+    # cp は引数2つだけ。オプション（-t.example など）を雛形の名前と取り違えない
+    return (toks[0] == "cp" and len(toks) == 3 and not any(t.startswith("-") for t in toks[1:])
+            and toks[1].endswith(".example"))
 
 
 def safe_sensitive_cmd(cmd, commands):
     """秘密ファイルの名前が出るコマンドを通してよいか。分けたコマンドがすべて安全な形のときだけ通す（Issue #290）。
     解析できないときと、前置きのコマンド（env・xargs・time など）があるときは通さない。前置きの値を取るオプションは、
-    解析の結果に残らないため。"""
-    if commands is None:
+    解析の結果に残らないため。入力のリダイレクト（<・<<・<<<・<(...)）があるときも通さない。宛先が解析の結果に残らず、
+    git check-ignore --stdin のように標準入力の行をそのまま表示するものがあるため。"""
+    if commands is None or "<" in cmd:
         return False
     if any(w.lower() in WRAPPERS for w in WORD_SPLIT.split(cmd) if w):
         return False

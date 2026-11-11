@@ -206,6 +206,11 @@ def secret_hook_tests(tmp):
         ("入力のリダイレクトで、引用符で分けた名前を読む", "cat < .e'nv'"),
         ("解析できないコマンドに秘密ファイルの名前", "ls .dev.vars 'x"),
         ("ls の後に別のコマンドを続ける", "ls .env && echo x"),
+        ("cp のオプションの値を雛形の名前に見せる（-t）", "cp -t.example .dev.vars"),
+        ("cp のオプションの値を雛形の名前に見せる（--target-directory）", "cp --target-directory=x.example .dev.vars"),
+        ("git check-ignore --stdin に入力のリダイレクトで読ませる", "git check-ignore --stdin -v -n < .dev.vars"),
+        ("ls に入力のリダイレクト", "ls .dev.vars < .env"),
+        ("ls にヒアストリング", "ls .dev.vars <<< x"),
     ]:
         check(f"Bash: 秘密ファイルの例外を通らない（{name}）", 2, hook(S, "Bash", {"command": cmd})[0])
     check("PowerShell: 1行目が ls で、改行の後に Get-Content", 2, hook(S, "PowerShell", {"command": "ls .dev.vars\nGet-Content .dev.vars"})[0])
