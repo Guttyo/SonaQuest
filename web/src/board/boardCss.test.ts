@@ -68,4 +68,39 @@ describe("board.css の整理（Issue #297）", () => {
     const backgrounds = topLevel.filter((r) => r.selector.split(",").some((s) => s.trim() === ".app:has(.board)") && /(^|;)\s*background\s*:/.test(r.body));
     expect(backgrounds).toHaveLength(1);
   });
+
+  it("後ろの規則へ寄せて1つにまとめたセレクタは、規則が1つだけ", () => {
+    // 寄せても、間にある別のセレクタとの勝ち負けが変わらないことを確かめたうえでまとめたもの
+    const merged = [
+      ".board table",
+      ".board th",
+      ".board-head h1",
+      ".board-head .board-demo-controls",
+      ".board-order-actions button",
+      ".board-hq-side .board-tile-lead",
+      ".board-hq-side .board-tile-lead .board-tile-big",
+      ".board-demo-box > summary",
+      ".board-kpi-row .board-tile-sub",
+      ".board button:disabled",
+    ];
+    for (const selector of merged) {
+      expect(topLevel.filter((r) => r.selector === selector), selector).toHaveLength(1);
+    }
+    const wide = rules.filter((r) => r.atRules.join(" ") === "@media (min-width: 1024px)" && r.selector === ".board-pane-district-sites");
+    expect(wide).toHaveLength(1);
+  });
+
+  it("@media (max-width: 1179px) は1つにまとまっている", () => {
+    const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(withoutComments.match(/@media \(max-width: 1179px\)/g)).toHaveLength(1);
+  });
+
+  it("札の角丸は、一覧の中で上書きされる 0 の宣言を持たず、1か所だけで決めている", () => {
+    const hasRadius = (r: Rule) => /(^|;)\s*border-radius\s*:/.test(r.body);
+    for (const selector of [".board .board-badge", ".board-pill", ".board-pane-mark", ".board-tab-count", ".board-heat .cell", ".board-login-site"]) {
+      const withRadius = topLevel.filter((r) => r.selector.split(",").some((s) => s.trim() === selector) && hasRadius(r));
+      expect(withRadius, selector).toHaveLength(1);
+      expect(withRadius[0].body).toMatch(/border-radius:\s*4px/);
+    }
+  });
 });

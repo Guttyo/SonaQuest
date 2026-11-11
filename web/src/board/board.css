@@ -675,10 +675,12 @@
 .board-map-routes,
 .board-map-notes {
   margin: 0;
-  padding-left: 0;
-  list-style: none;
   display: grid;
   gap: 4px;
+}
+.board-map-routes {
+  padding-left: 0;
+  list-style: none;
 }
 .board-map-notes {
   padding-left: 1.2em;
@@ -1684,9 +1686,12 @@
 .board-map-mover-info {
   padding: 6px 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
   background: #fafafa;
   overflow-wrap: anywhere;
+}
+/* .board-map-mover-info の角は、後ろの「角丸は 0 か 4px」の一覧で 0 にしている */
+.board-map-route-info {
+  border-radius: 8px;
 }
 .board-map-glow-list,
 .board-map-mover-list {
@@ -1701,12 +1706,15 @@
   gap: 4px;
   padding: 2px 8px;
   border: 1px solid transparent;
-  border-radius: 6px;
   background: none;
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
+}
+/* .board-map-mover-btn の角は、後ろの「角丸は 0 か 4px」の一覧で 0 にしている */
+.board-map-route-btn {
+  border-radius: 6px;
 }
 .board-map-route-btn:hover,
 .board-map-mover-btn:hover {
@@ -2258,13 +2266,8 @@
 }
 
 /* 角丸は 0 か 4px、影なし（計画書 4.1・5.1） */
-.board .board-badge,
 .board-tile,
 .board-tablebox,
-.board-pill,
-.board-pane-item,
-.board-pane-mark,
-.board-tab-count,
 .board-order,
 .board-stats > div,
 .board-changes,
@@ -2281,20 +2284,28 @@
 .board-map-side section,
 .board-map-mover-info,
 .board-map-mover-btn,
-.board-heat .cell,
 .board-form-rx,
 .board-image,
 .board-login-card,
 .board-login-notice,
-.board-login-site,
 .board-permission,
 .board-review,
 .board-session-who,
 .board-access-toggle,
-.board-access-body,
-.board-new,
-.board-demo-box > summary {
+.board-new {
   border-radius: 0;
+  box-shadow: none;
+}
+/* 角は次の2つの一覧で決めるもの。ここでは影だけを消す */
+.board .board-badge,
+.board-pill,
+.board-pane-item,
+.board-pane-mark,
+.board-tab-count,
+.board-heat .cell,
+.board-login-site,
+.board-access-body,
+.board-demo-box > summary {
   box-shadow: none;
 }
 .board button,
@@ -2319,10 +2330,14 @@
   padding: 0 16px;
   border-radius: 4px;
   border: 1px solid var(--b-ink);
-  background: var(--b-surface);
-  color: var(--b-ink);
   font-size: var(--fs-body);
   font-weight: var(--fw-bold);
+}
+/* 承認のボタン（.board .board-approve）の面と文字の色は、次の規則で墨の地に白の文字にする */
+.board button.secondary,
+.board-demo-box > summary {
+  background: var(--b-surface);
+  color: var(--b-ink);
 }
 .board .board-approve {
   background: var(--b-ink);
@@ -2383,11 +2398,15 @@
 .board-tab-count {
   padding: 1px 7px;
   border: 1px solid var(--b-rule);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-tight);
+}
+/* .board-stale・.board-tab-count の面・文字の色・太さは、すぐ後ろの黄の札の一覧で決める */
+.board-pill,
+.board-pane-mark {
   background: var(--b-surface);
   color: var(--b-ink);
-  font-size: var(--fs-caption);
   font-weight: var(--fw-regular);
-  line-height: var(--lh-tight);
 }
 .board-pill.bad,
 .board-pane-mark.bad,
@@ -2564,9 +2583,13 @@
   align-items: start;
   border: 0;
   border-bottom: 1px solid var(--b-rule);
-  background: var(--b-surface);
   min-height: 52px;
   padding: 8px 10px;
+}
+/* 選んだ行（.current）の面は、後ろの規則で墨にする */
+.board-pane-item,
+.board-pane-item.stale {
+  background: var(--b-surface);
 }
 .board-pane-item .board-pane-name {
   grid-column: 1;
@@ -3012,20 +3035,7 @@
 .board-label-short {
   display: none;
 }
-@media (max-width: 1179px) {
-  .board-tile-label .board-label-full:has(+ .board-label-short) {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
-  .board-label-short {
-    display: inline;
-  }
-}
+/* 1180 幅より狭いときの短い見出しは、この下の @media (max-width: 1179px) にまとめた */
 
 /* 救護所の不足状況：在庫と薬剤師の2つの数。在庫は在庫切れなら赤の記号、見込みだけなら黄の記号、0 は灰。薬剤師は色なし */
 .board-kpi-row .board-tile-lead .board-lead-split {
@@ -3067,6 +3077,18 @@
   color: var(--b-stop-text);
 }
 @media (max-width: 1179px) {
+  .board-tile-label .board-label-full:has(+ .board-label-short) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .board-label-short {
+    display: inline;
+  }
   .board-kpi-row .board-tile-lead .board-lead-split {
     font-size: var(--fs-body);
     font-weight: var(--fw-bold);
@@ -3241,9 +3263,7 @@
   .board-action-table {
     table-layout: auto;
   }
-}
-/* 狭い幅：1行目に「救護所・品目」と「状態＋開く」を左右に並べ、入荷・融通と次の確認はその下に。列名は下の2つだけに付ける */
-@media (max-width: 640px) {
+  /* 狭い幅：1行目に「救護所・品目」と「状態＋開く」を左右に並べ、入荷・融通と次の確認はその下に。列名は下の2つだけに付ける */
   .board-action-table tr[data-case] {
     grid-template-columns: minmax(0, 1fr) auto;
     column-gap: 8px;
