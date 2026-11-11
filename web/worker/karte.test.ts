@@ -8,8 +8,11 @@ import {
   AUDIT_FIXED_REASONS,
   buildAuditMessage,
   cleanupSession,
+  MAX_REASON_LENGTH,
   parseAuditOutput,
+  restoreFindings,
   safeReason,
+  selectAuditItems,
   type AuditRunResult,
   type KarteAuditBackend,
   type SessionOps,
@@ -247,7 +250,7 @@ describe("/api/karte/audit", () => {
     }));
     await post(app, "audit", { sampleId: sample.id, planted: true }, { ...env, PUBLIC_TURN: "1", DEV_CONTENT_LOG: "1", TURN_LIMITER: { limit: async () => ({ success: true }) } }, PUBLIC);
     const logged = spies.flatMap((s) => s.mock.calls.map((c) => c.join(" "))).join("\n");
-    expect(logged).toMatch(/karte: audit findings=1 session=deleted \d+ms/);
+    expect(logged).toMatch(/karte: audit findings=1 excluded=0 session=deleted \d+ms/);
     expect(logged).not.toContain("卵");
     expect(logged).not.toContain("お薬手帳");
   });
@@ -260,8 +263,127 @@ describe("/api/karte/audit", () => {
   });
 });
 
+describe("監査の入口で、画面から来た要約を確かめ直す（Issue #287）", () => {
+  // karte-01 の正解の要約（6項目）の、決まった位置の項目を差し替えた要約
+  const withItems = (replace: Record<number, Partial<KarteSummary["items"][number]>>): KarteSummary => ({
+    ...sample.expected,
+    items: sample.expected.items.map((item, i) => (i in replace ? { ...item, ...replace[i] } : item)),
+  });
+  const sentItems = (message: string): KarteSummary => {
+    const line = message.split("\n").find((l) => l.startsWith('{"items"'));
+    return JSON.parse(line!) as KarteSummary;
+  };
+
+  it("1段目の指摘のある項目（根拠なし・短すぎる引用・引用に無い数・禁止表現・長さ）と伏せた文の項目は、監査役に送らない", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const summary = withItems({
+      0: { quote: "家の台所の引き出しに車の鍵があります" }, // quote_not_found
+      1: { quote: "スマホ" }, // quote_too_short
+      2: { text: "架空の降圧薬Aを朝に12錠" }, // text_adds_terms（quote は「1錠」）
+      3: { text: MASKED_TEXT, quote: MASKED_TEXT }, // 伏せた文
+      4: { text: "痛み止めは飲んでください" }, // forbidden
+    });
+    const { state, app } = fakes();
+    const body = (await (await post(app, "audit", { sampleId: sample.id, summary })).json()) as KarteAuditResponse;
+    expect(body.status).toBe("audited");
+    expect(state.audited).toHaveLength(1);
+    const sent = sentItems(state.audited[0]);
+    expect(sent.items).toEqual([sample.expected.items[5]]);
+    expect(sent.not_covered).toEqual(sample.expected.not_covered);
+    for (const t of ["車の鍵", "12錠", MASKED_TEXT, "飲んでください"]) expect(state.audited[0]).not.toContain(t);
+  });
+
+  it("長すぎる text の項目も送らない", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const { state, app } = fakes();
+    await post(app, "audit", { sampleId: sample.id, summary: withItems({ 0: { text: "お".repeat(61) } }) });
+    expect(sentItems(state.audited[0]).items).toEqual(sample.expected.items.slice(1));
+  });
+
+  it("指摘の位置を、もとの要約の位置に戻す。外した項目の観点の「落ちている」は捨てる", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    // 0（location）と 2（current）を外す → 送るのは もとの 1, 3, 4, 5
+    const summary = withItems({ 0: { quote: "車の中にあります" }, 2: { text: "架空の降圧薬Bを朝に1錠" } });
+    const { app } = fakes(undefined, () => ({
+      ok: true,
+      text: JSON.stringify({
+        findings: [
+          { kind: "meaning_changed", aspect: "unrecorded", item_index: 2, reason: "歯医者のことの意味が変わっています" },
+          { kind: "omitted", aspect: "location", item_index: null, reason: "手帳の場所が落ちています" },
+          { kind: "omitted", aspect: "alternative", item_index: null, reason: "写真のことが落ちています" },
+        ],
+      }),
+      session: "deleted",
+    }));
+    const body = (await (await post(app, "audit", { sampleId: sample.id, summary })).json()) as KarteAuditResponse;
+    expect(body).toMatchObject({
+      status: "audited",
+      findings: [
+        { kind: "meaning_changed", aspect: "unrecorded", itemIndex: 4, reason: "歯医者のことの意味が変わっています" },
+        { kind: "omitted", aspect: "alternative", itemIndex: null, reason: "写真のことが落ちています" },
+      ],
+    });
+  });
+
+  it("送る項目が1つも残らないときは、監査役を呼ばない（セッションを作らない）", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const summary: KarteSummary = { items: [{ aspect: "location", text: "車の鍵", quote: "車の鍵があります" }], not_covered: ["alternative", "current", "unrecorded", "proxy"] };
+    const { state, app } = fakes();
+    const body = (await (await post(app, "audit", { sampleId: sample.id, summary })).json()) as KarteAuditResponse;
+    expect(body).toEqual({ status: "unavailable", reason: "failed", session: "not_created", ms: 0 });
+    expect(state.audited).toEqual([]);
+    const logged = warn.mock.calls.map((c) => c.join(" ")).join("\n");
+    expect(logged).toContain("karte: audit_no_items excluded=1");
+    expect(logged).not.toContain("車の鍵");
+  });
+
+  it("planted は、誤りを混ぜた項目も外さずに監査役に送る", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    for (const s of KARTE_SAMPLES) {
+      const { state, app } = fakes();
+      await post(app, "audit", { sampleId: s.id, planted: true });
+      expect(state.audited, s.id).toEqual([buildAuditMessage(s, plantedSummary(s))]);
+    }
+  });
+
+  it("正解の要約は、10本すべてで1項目も外さずに送る", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    for (const s of KARTE_SAMPLES) {
+      const { state, app } = fakes();
+      await post(app, "audit", { sampleId: s.id, summary: s.expected });
+      expect(state.audited, s.id).toEqual([buildAuditMessage(s, s.expected)]);
+    }
+  });
+});
+
+describe("監査役の項目の選び方と位置の戻し", () => {
+  it("項目ごとの指摘だけで外し、観点の指摘（itemIndex が null）では外さない", () => {
+    const selection = selectAuditItems(sample.expected, [
+      { kind: "aspect_missing", itemIndex: null, aspect: "proxy" },
+      { kind: "quote_not_found", itemIndex: 1, aspect: "alternative" },
+    ]);
+    expect(selection.kept).toEqual([0, 2, 3, 4, 5]);
+    expect(selection.excluded).toBe(1);
+    expect([...selection.excludedAspects]).toEqual(["alternative"]);
+    expect(
+      restoreFindings(
+        [
+          { kind: "not_in_conversation", aspect: "current", itemIndex: 1, reason: "x" },
+          { kind: "omitted", aspect: "alternative", itemIndex: null, reason: "x" },
+          { kind: "omitted", aspect: "proxy", itemIndex: null, reason: "x" },
+        ],
+        selection,
+      ),
+    ).toEqual([
+      { kind: "not_in_conversation", aspect: "current", itemIndex: 2, reason: "x" },
+      { kind: "omitted", aspect: "proxy", itemIndex: null, reason: "x" },
+    ]);
+  });
+});
+
 describe("監査役の出力の扱い", () => {
   const summary = plantedSummary(sample);
+  const sent = buildAuditMessage(sample, summary);
 
   it("コードの囲みを外して読み、知らない種類・観点・範囲外の位置は捨てる", () => {
     const raw =
@@ -276,29 +398,57 @@ describe("監査役の出力の扱い", () => {
         ],
       }) +
       "\n```";
-    expect(parseAuditOutput(raw, summary)).toEqual([
+    expect(parseAuditOutput(raw, summary, sent)).toEqual([
       { kind: "not_in_conversation", aspect: "unrecorded", itemIndex: 6, reason: "会話にありません" },
       { kind: "omitted", aspect: "alternative", itemIndex: null, reason: "写真のことが落ちています" },
     ]);
   });
 
   it("JSON でない・findings が無いときは null", () => {
-    expect(parseAuditOutput("問題ありません", summary)).toBeNull();
-    expect(parseAuditOutput('{"result":[]}', summary)).toBeNull();
-    expect(parseAuditOutput("[]", summary)).toBeNull();
+    expect(parseAuditOutput("問題ありません", summary, sent)).toBeNull();
+    expect(parseAuditOutput('{"result":[]}', summary, sent)).toBeNull();
+    expect(parseAuditOutput("[]", summary, sent)).toBeNull();
   });
 
   it("指摘があるのに1つも形が合わないときは null（指摘0件の監査済みと見分ける）", () => {
-    expect(parseAuditOutput('{"findings":[{"kind":"meaning_change","aspect":"current","item_index":0}]}', summary)).toBeNull();
-    expect(parseAuditOutput('{"findings":[]}', summary)).toEqual([]);
+    expect(parseAuditOutput('{"findings":[{"kind":"meaning_change","aspect":"current","item_index":0}]}', summary, sent)).toBeNull();
+    expect(parseAuditOutput('{"findings":[]}', summary, sent)).toEqual([]);
   });
 
   it("理由の文が助言・診断に見える・長すぎるときは、種類ごとの固定文に替える", () => {
-    expect(safeReason("meaning_changed", "量は2錠に増やしてください")).toBe(AUDIT_FIXED_REASONS.meaning_changed);
-    expect(safeReason("advice_or_diagnosis", "高血圧の可能性があります")).toBe(AUDIT_FIXED_REASONS.advice_or_diagnosis);
-    expect(safeReason("omitted", "あ".repeat(81))).toBe(AUDIT_FIXED_REASONS.omitted);
-    expect(safeReason("omitted", 3)).toBe(AUDIT_FIXED_REASONS.omitted);
-    expect(safeReason("omitted", "娘のことが落ちています")).toBe("娘のことが落ちています");
+    expect(safeReason("meaning_changed", "量は2錠に増やしてください", sent)).toBe(AUDIT_FIXED_REASONS.meaning_changed);
+    expect(safeReason("advice_or_diagnosis", "高血圧の可能性があります", sent)).toBe(AUDIT_FIXED_REASONS.advice_or_diagnosis);
+    expect(safeReason("omitted", 3, sent)).toBe(AUDIT_FIXED_REASONS.omitted);
+    expect(safeReason("omitted", "娘のことが落ちています", sent)).toBe("娘のことが落ちています");
+  });
+
+  it("理由の文の上限は、監査役の system prompt と同じ60字（Issue #287）", () => {
+    expect(MAX_REASON_LENGTH).toBe(60);
+    expect(KARTE_AUDIT_SYSTEM_PROMPT).toContain(`${MAX_REASON_LENGTH}字以内`);
+    expect(safeReason("omitted", "あ".repeat(60), sent)).toBe("あ".repeat(60));
+    expect(safeReason("omitted", "あ".repeat(61), sent)).toBe(AUDIT_FIXED_REASONS.omitted);
+  });
+
+  it("送った文（会話の見本と要約）に無い数・漢数字・カタカナ・英字を書いた理由の文は、固定文に替える（Issue #287）", () => {
+    // 会話にも要約にも無い名前（架空の名前）・量
+    expect(safeReason("not_in_conversation", "ソナクエミンの名前が会話にありません", sent)).toBe(AUDIT_FIXED_REASONS.not_in_conversation);
+    expect(safeReason("meaning_changed", "量が5mgに変わっています", sent)).toBe(AUDIT_FIXED_REASONS.meaning_changed);
+    expect(safeReason("meaning_changed", "本人は三錠と言っています", sent)).toBe(AUDIT_FIXED_REASONS.meaning_changed);
+    // 会話の「1錠」の「1」は、理由の文の「12」の根拠にしない
+    expect(safeReason("meaning_changed", "本人は12錠と言っています", sent)).toBe(AUDIT_FIXED_REASONS.meaning_changed);
+  });
+
+  it("送った文にある薬の名前・数や、欄の名前・観点の ID だけを挙げた理由の文は、そのまま出す（Issue #287）", () => {
+    for (const reason of [
+      "会話では降圧薬Aを朝に1錠です",
+      "卵のアレルギーは会話にありません",
+      "要約の text が quote と違います",
+      "item_index の項目は current の観点です",
+      "not_covered に proxy があります",
+      "omitted として、スマホの写真のことを挙げます",
+    ]) {
+      expect(safeReason("meaning_changed", reason, sent), reason).toBe(reason);
+    }
   });
 
   it("固定文そのものも、理由の文の検査を通る", () => {

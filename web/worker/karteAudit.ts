@@ -3,13 +3,14 @@
 // （読み方は掲示板チャットの collectTurn と同じ）。一定時間で終わらなければ「監査できず」にする。
 // 終わったら毎回セッションを削除する。動いているセッションは削除できない（公式ドキュメント）ので、
 // 時間切れのときは user.interrupt を送り、止まるのを待ってから削除する（応答の後に waitUntil で続ける）。
-// 監査役の出力は指摘の JSON だけを受け取り、形と理由の文を Workers で確かめる。理由の文が検査を通らなければ、
-// 種類ごとの固定文に替える。ログに出すのは失敗の種類・件数・所要時間だけで、会話・要約・指摘の本文は出さない。
+// 監査役の出力は指摘の JSON だけを受け取り、形と理由の文を Workers で確かめる。理由の文が検査（長さ・禁止表現・
+// 送った文に無い数・カタカナ・英字。Issue #287）を通らなければ、種類ごとの固定文に替える。
+// 画面から送り返された要約は、1段目の指摘のある項目を外してから送る（selectAuditItems。Issue #287）。ログに出すのは失敗の種類・件数・所要時間だけで、会話・要約・指摘の本文は出さない。
 
 import Anthropic from "@anthropic-ai/sdk";
 import { collectTurn, type ChatFailure, type ChatStreamEvent } from "./boardChat";
 import { KARTE_AUDIT_SESSION_BUDGET_CENTS } from "./karteAuditAgent";
-import { textForbidden } from "../src/board/karte/codeCheck";
+import { MASKED_TEXT, termsNotInSources, textForbidden } from "../src/board/karte/codeCheck";
 import {
   AUDIT_FINDING_KINDS,
   KARTE_ASPECTS,
@@ -17,8 +18,10 @@ import {
   type AuditFindingKind,
   type AuditSessionState,
   type AuditUnavailableReason,
+  type CodeFinding,
   type KarteSummary,
 } from "../src/board/karte/contract";
+import type { ViewpointId } from "../src/flow/types";
 import type { KarteSample } from "../src/board/karte/samples";
 
 /** 監査を待つ上限。超えたら「監査できず」 */
@@ -28,7 +31,8 @@ const CLEANUP_POLLS = 10;
 const CLEANUP_INTERVAL_MS = 1_000;
 /** 受け取る指摘の数の上限 */
 const MAX_FINDINGS = 20;
-const MAX_REASON_LENGTH = 80;
+/** 理由の文の上限。監査役の system prompt の「理由は60字以内」にそろえる（Issue #287。もとは 80） */
+export const MAX_REASON_LENGTH = 60;
 
 export interface KarteAuditConfig {
   environmentId: string;
@@ -68,19 +72,92 @@ export function buildAuditMessage(sample: KarteSample, summary: KarteSummary): s
   ].join("\n");
 }
 
-/** 理由の文を確かめる。長すぎる・禁止表現に当たる・空のときは固定文に替える */
-export function safeReason(kind: AuditFindingKind, reason: unknown): string {
+/**
+ * 理由の文が挙げてよい英字の語のうち、監査役に送った文（buildAuditMessage）に無いもの（Issue #287）。
+ * 監査役の system prompt（karteAuditAgent.ts）が出力の形として示す、欄の名前・観点の ID・指摘の種類だけで、
+ * contract.ts の定数と出力の鍵から作る。医療の語は入れない
+ */
+const AUDIT_OUTPUT_TERMS: readonly string[] = [
+  ...KARTE_ASPECTS,
+  ...AUDIT_FINDING_KINDS,
+  "findings",
+  "kind",
+  "aspect",
+  "item_index",
+  "items",
+  "text",
+  "quote",
+  "not_covered",
+  "reason",
+  "null",
+];
+
+/**
+ * 理由の文を確かめる。長すぎる・禁止表現に当たる・空のとき、または、監査役に送った文（sent）にも出力の形の語にも
+ * 無い数（算用数字・漢数字）・カタカナ・英字があるとき（会話にも要約にも無い薬の名前・量を書いた、など。Issue #287）は、
+ * 種類ごとの固定文に替える。比べ方は1段目の text_adds_terms と同じ（数は完全一致、カタカナ・英字は部分一致）。
+ * 漢字の言葉は当てない（「要約」「会話」など、送った文に無い言葉が理由の文には普通に入るため）
+ */
+export function safeReason(kind: AuditFindingKind, reason: unknown, sent: string): string {
   if (typeof reason !== "string") return AUDIT_FIXED_REASONS[kind];
   const r = reason.trim();
   if (r === "" || r.length > MAX_REASON_LENGTH || textForbidden(r)) return AUDIT_FIXED_REASONS[kind];
+  if (termsNotInSources(r, [sent, ...AUDIT_OUTPUT_TERMS]).length > 0) return AUDIT_FIXED_REASONS[kind];
   return r;
+}
+
+/** 監査役に送る項目の選び方の結果（Issue #287） */
+export interface AuditSelection {
+  /** 監査役に送る要約（1段目の指摘の無い項目だけ） */
+  summary: KarteSummary;
+  /** 送る要約の位置 → もとの要約の位置 */
+  kept: readonly number[];
+  /** 外した項目の数 */
+  excluded: number;
+  /** 外した項目の観点 */
+  excludedAspects: ReadonlySet<ViewpointId>;
+}
+
+/**
+ * 画面から送り返された要約のうち、監査役に送る項目を選ぶ（Issue #287）。1段目のコードでの確認で、項目ごとの指摘
+ * （itemIndex が null でないもの：quote_not_found・quote_too_short・text_adds_terms・forbidden・length）が
+ * 1つでもある項目と、伏せた文（MASKED_TEXT）の項目は送らない。これで、監査役のセッションに入るのは、
+ * quote が見本の本人の発言に文字どおりあり、text が1段目の照合を通った項目だけになる。
+ * not_covered はそのまま送る（外した項目の観点を not_covered に移すと、監査役に違う事実を伝えることになる）
+ */
+export function selectAuditItems(summary: KarteSummary, findings: readonly CodeFinding[]): AuditSelection {
+  const flagged = new Set(findings.filter((f) => f.itemIndex !== null).map((f) => f.itemIndex));
+  const kept: number[] = [];
+  const excludedAspects = new Set<ViewpointId>();
+  summary.items.forEach((item, i) => {
+    if (flagged.has(i) || item.text === MASKED_TEXT || item.quote === MASKED_TEXT) excludedAspects.add(item.aspect);
+    else kept.push(i);
+  });
+  return {
+    summary: { items: kept.map((i) => summary.items[i]), not_covered: [...summary.not_covered] },
+    kept,
+    excluded: summary.items.length - kept.length,
+    excludedAspects,
+  };
+}
+
+/**
+ * 監査役の指摘の位置を、もとの要約の位置に戻す（画面は送り返した要約の位置で見るため）。
+ * 外した項目の観点についての「落ちている」（omitted で項目の位置が無いもの）は捨てる。外した項目には
+ * 1段目の指摘がすでにあり、監査役はその項目を見ていないので、落ちていると言いやすいため
+ */
+export function restoreFindings(findings: readonly AuditFinding[], selection: AuditSelection): AuditFinding[] {
+  return findings
+    .filter((f) => !(f.kind === "omitted" && f.itemIndex === null && selection.excludedAspects.has(f.aspect)))
+    .map((f) => (f.itemIndex === null ? f : { ...f, itemIndex: selection.kept[f.itemIndex] }));
 }
 
 /**
  * 監査役の出力から指摘を取り出す。JSON として読めない・形が違うときは null（監査できず）。
- * コードの囲み（```）が付いていたら外す。知らない種類・観点の指摘や、範囲外の位置は捨てる
+ * コードの囲み（```）が付いていたら外す。知らない種類・観点の指摘や、範囲外の位置は捨てる。
+ * sent は監査役に送った文（buildAuditMessage の結果）で、理由の文の確かめ（safeReason）に使う
  */
-export function parseAuditOutput(raw: string, summary: KarteSummary): AuditFinding[] | null {
+export function parseAuditOutput(raw: string, summary: KarteSummary, sent: string): AuditFinding[] | null {
   const text = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
   let json: unknown;
   try {
@@ -104,7 +181,7 @@ export function parseAuditOutput(raw: string, summary: KarteSummary): AuditFindi
       itemIndex = item_index;
     }
     const k = kind as AuditFindingKind;
-    findings.push({ kind: k, aspect: aspect as AuditFinding["aspect"], itemIndex, reason: safeReason(k, reason) });
+    findings.push({ kind: k, aspect: aspect as AuditFinding["aspect"], itemIndex, reason: safeReason(k, reason, sent) });
   }
   // 指摘があったのに1つも形が合わないときは、指摘0件（監査済み）と見分けがつかないので「監査できず」にする
   if (list.length > 0 && findings.length === 0) return null;

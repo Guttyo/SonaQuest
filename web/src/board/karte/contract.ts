@@ -85,7 +85,7 @@ export const CODE_FINDING_KINDS = [
   "quote_not_found",
   /** quote が短すぎて根拠にならない */
   "quote_too_short",
-  /** text に、quote に無い数字・カタカナ・英字がある（量や名前が足された・変わった） */
+  /** text に、quote に無い数（算用数字・漢数字。語として完全一致で比べる）・カタカナ・英字がある（量や名前が足された・変わった） */
   "text_adds_terms",
   /** text が禁止表現（助言・診断めいた言い方など）に当たる */
   "forbidden",

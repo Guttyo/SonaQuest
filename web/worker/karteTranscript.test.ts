@@ -95,6 +95,25 @@ describe("/api/karte/transcript-summary", () => {
     expect(body.summary.items[2].text).toBe(MASKED_TEXT);
   });
 
+  it("text の漢数字・部分一致の数も text_adds_terms にする（Issue #287）", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const transcript = "降圧薬Aを1日12錠飲んでいます\n朝に2錠のんでいます";
+    const bad: KarteSummary = {
+      items: [
+        { aspect: "current", text: "降圧薬A 2錠", quote: "降圧薬Aを1日12錠飲んでいます" }, // 「12」の一部の「2」
+        { aspect: "current", text: "朝に三錠", quote: "朝に2錠のんでいます" }, // 漢数字の量
+        { aspect: "current", text: "降圧薬Aを1日12錠", quote: "降圧薬Aを1日12錠飲んでいます" }, // 数も名前も quote にある
+      ],
+      not_covered: ["location", "alternative", "unrecorded", "proxy"],
+    };
+    const { app } = fakes(() => ({ ok: true, summary: bad, servedBy: "x" }));
+    const body = (await (await post(app, { transcript })).json()) as TranscriptSummaryResponse;
+    expect(body.findings).toEqual([
+      { kind: "text_adds_terms", itemIndex: 0, aspect: "current" },
+      { kind: "text_adds_terms", itemIndex: 1, aspect: "current" },
+    ]);
+  });
+
   it("形の違う入力は 400 で、Claude を呼ばない（余計な鍵・見本の ID・短すぎる・長すぎる・制御文字）", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const { sent, app } = fakes();
