@@ -4,7 +4,7 @@
 // 監査役に送るのは、Claude が作った文と、その文が言い直している固定の質問文だけ。利用者の回答は送らない。
 
 import Anthropic from "@anthropic-ai/sdk";
-import type { Usage } from "./claude";
+import { toUsage, type Usage } from "./claude";
 
 export const AUDIT_MODEL = "claude-haiku-5-5";
 /** 監査役を待つ時間。話し相手の文の15秒（項目9。Issue #219）と合わせても、画面の待ち時間の上限に収まるようにする */
@@ -103,18 +103,7 @@ export function makeAudit(apiKey: string, model: string = AUDIT_MODEL): Audit {
         parsed = null;
       }
       if (parsed === null) return { ok: false, failure: "invalid" };
-      const u = response.usage;
-      return {
-        ok: true,
-        ...parsed,
-        servedBy: response.model,
-        usage: {
-          input: u.input_tokens,
-          output: u.output_tokens,
-          cacheRead: u.cache_read_input_tokens ?? 0,
-          cacheWrite: u.cache_creation_input_tokens ?? 0,
-        },
-      };
+      return { ok: true, ...parsed, servedBy: response.model, usage: toUsage(response.usage) };
     } catch (error) {
       if (error instanceof Anthropic.APIConnectionTimeoutError) return { ok: false, failure: "timeout" };
       return { ok: false, failure: "api_error" };

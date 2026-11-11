@@ -29,8 +29,9 @@ import {
 } from "../src/flow/turnContract";
 import type { Audit, AuditCategory, AuditResult } from "./audit";
 import { promptTextProblem, remarkTextProblem, type RejectReason } from "./checks";
-import type { CallClaude, ClaudeFailure, Usage } from "./claude";
+import { CLAUDE_OUTPUT_SCHEMA, type CallClaude, type ClaudeFailure, type Usage } from "./claude";
 import { REMARK_PHRASES, SYSTEM_PROMPT, buildUserMessage } from "./prompt";
+import { QUESTION_EXAMPLES, QUESTION_TEXT } from "./questions";
 import { remarkLabels, remarkPairingProblem } from "./remarkPairing";
 
 export interface ClaudeOutput {
@@ -52,20 +53,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Claude の出力のキー。構造化出力の形（claude.ts の CLAUDE_OUTPUT_SCHEMA）から作り、手で書き写さない（Issue #292）。
+ * ClaudeOutput の型と合っているかは turn.test.ts で確かめる
+ */
+export const CLAUDE_OUTPUT_KEYS: readonly string[] = Object.keys(CLAUDE_OUTPUT_SCHEMA.properties);
+
 /** Claude の出力の検査。構造化出力でも、形と値の範囲をここで確かめ直す（ADR-0015） */
 export function parseClaudeOutput(value: unknown): ClaudeOutput | null {
   if (!isRecord(value)) return null;
-  const keys = [
-    "emergency",
-    "viewpoints",
-    "next_type",
-    "next_goal_id",
-    "text",
-    "closing_remark",
-    "recall",
-    "source_guess",
-  ];
-  if (!hasExactKeys(value, keys)) return null;
+  if (!hasExactKeys(value, CLAUDE_OUTPUT_KEYS)) return null;
   const { emergency, viewpoints, next_type, next_goal_id, text, closing_remark, recall, source_guess } = value;
   if (typeof emergency !== "string" || !EMERGENCY_KINDS.has(emergency)) return null;
   if (typeof recall !== "boolean") return null;
@@ -95,9 +92,6 @@ export function parseClaudeOutput(value: unknown): ClaudeOutput | null {
     source_guess: source_guess as ClaudeOutput["source_guess"],
   };
 }
-
-const QUESTION_TEXT = new Map(ALL_QUESTIONS.map((q) => [q.id, q.text]));
-const QUESTION_EXAMPLES = new Map(ALL_QUESTIONS.flatMap((q) => (q.examples === undefined ? [] : [[q.id, q.examples] as const])));
 
 /** 文に含まれてよいアプリの固定の言葉（情報源の分類、出来事）。利用者が同じ言葉を使っても繰り返しとみなさない */
 export const ALLOWED_VOCABULARY: readonly string[] = [
@@ -165,14 +159,15 @@ export type GoalOverride = "goal_not_allowed" | "finish_not_allowed" | "half_ove
  * 「この半分を終える」（next_goal_id が null）は、必ず聞くゴールが残っていないときだけ受け付ける。
  * 許していない聞き返し・質問し直しは「次へ進む」に直し、そのときは Claude の文を使わない。
  * 半分を終えるときの文は、受け止めの一言として同じ検査を通す（ADR-0029 の2）。
- * rejected は、Claude の文を検査で捨てた理由（捨てなければ null）。overridden は、ゴールを使わなかった理由
+ * rejected は、Claude の文を検査で捨てた理由（捨てなければ null）。overridden は、ゴールを使わなかった理由。
+ * plan は、Claude に見せた goal_choices の計画（runTurn が buildUserMessage と同じものを渡す）
  */
 export function chooseNext(
   request: TurnRequest,
   output: ClaudeOutput,
+  plan: GoalPlan = planFor(request),
 ): { next: TurnResponse["next"]; rejected: RejectReason | null; overridden: GoalOverride | null } {
   const current = request.inputs[request.inputs.length - 1].question_id;
-  const plan = planFor(request);
   let type: TurnResponse["next"]["type"] = output.next_type;
   let text = output.text;
   let questionId: string | null = current;
@@ -316,11 +311,13 @@ export async function runTurn(
   callClaude: CallClaude,
   audit: Audit | null = null,
 ): Promise<TurnOutcome> {
-  const result = await callClaude(SYSTEM_PROMPT, buildUserMessage(request));
+  // Claude に見せるゴールと、受け付けるゴールを、同じ計画から作る（Issue #292）
+  const plan = planFor(request);
+  const result = await callClaude(SYSTEM_PROMPT, buildUserMessage(request, plan));
   if (!result.ok) return { ok: false, failure: result.failure };
   const output = parseClaudeOutput(result.value);
   if (output === null) return { ok: false, failure: "invalid_output" };
-  const chosen = chooseNext(request, output);
+  const chosen = chooseNext(request, output, plan);
   let next = chosen.next;
   let rejectReason: TextRejectReason | null = chosen.rejected;
   let report: AuditReport | null = null;

@@ -55,8 +55,27 @@ export const EMERGENCY_KINDS: ReadonlySet<string> = new Set(["none", "symptom", 
  */
 export const MAX_TURN_INPUTS = MAX_ANSWERS;
 
-/** ソナの文（Claude が作ったもの）の長さの上限（ADR-0025。値は実装時に決めた） */
+/**
+ * 画面に出したソナの文（asked）の長さの上限（ADR-0025。値は実装時に決めた）。固定の文と、検査を通った Claude の文の両方が
+ * 次の問い合わせで asked として戻ってくるので、下の MAX_QUESTION_TEXT_LENGTH 以上にする（turnContract.test.ts で確かめる）
+ */
 export const MAX_PROMPT_LENGTH = 200;
+
+/*
+ * Claude に頼む文の長さ（システムプロンプトに差し込む）と、検査で捨てる上限（Issue #292。値は Claude Code が決めた）。
+ * 検査の上限は、頼む長さより少し広くとる（モデルが少し超えても、すぐには捨てない）。
+ * - 質問文：固定の質問の最長（1問目の89字）に受け止めの一言（最長19字）を足すと108字。頼むのは120字、捨てるのは140字を超えたとき
+ * - 振り返りの一言：頼むのは80字。決まった言い回しと観点の名前を正しくつないだ2文の一言の最長は126字（turn.test.ts で組み立てて確かめる）。
+ *   捨てるのは140字を超えたとき
+ */
+/** システムプロンプトで頼む質問文（受け止めの一言を含む）の字数 */
+export const QUESTION_TEXT_REQUEST_LENGTH = 120;
+/** システムプロンプトで頼む振り返りの一言の字数 */
+export const REMARK_REQUEST_LENGTH = 80;
+/** Claude が作った質問文・受け止め・質問し直す文の、検査で捨てる上限 */
+export const MAX_QUESTION_TEXT_LENGTH = 140;
+/** Claude が作った振り返りの一言の、検査で捨てる上限 */
+export const MAX_REMARK_LENGTH = 140;
 
 export interface TurnInput {
   question_id: string;
@@ -199,7 +218,7 @@ export function parseTurnResponse(body: unknown): TurnResponse | null {
   if ((type === "finish") !== (question_id === null)) return null;
   if (
     text !== null &&
-    (typeof text !== "string" || text.trim().length === 0 || text.length > MAX_PROMPT_LENGTH)
+    (typeof text !== "string" || text.trim().length === 0 || text.length > MAX_QUESTION_TEXT_LENGTH)
   ) {
     return null;
   }
@@ -212,7 +231,7 @@ export function parseTurnResponse(body: unknown): TurnResponse | null {
   }
   if (
     remark !== null &&
-    (typeof remark !== "string" || remark.trim().length === 0 || remark.length > MAX_PROMPT_LENGTH || type !== "finish")
+    (typeof remark !== "string" || remark.trim().length === 0 || remark.length > MAX_REMARK_LENGTH || type !== "finish")
   ) {
     return null;
   }

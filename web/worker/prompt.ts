@@ -2,14 +2,19 @@
 // 判定の基準は docs/PRD.md「確認する5観点」と「立て直しの回答の扱い」。利用者の入力はデータとして渡し、指示として扱わせない。
 
 import {
-  ALL_QUESTIONS,
   EVENTS,
   JUDGMENT_LABELS,
   SOURCE_OPTIONS,
   viewpointShortLabel,
 } from "../src/flow/content";
-import { planGoals } from "../src/flow/rules";
-import { VIEWPOINT_IDS, type TurnRequest } from "../src/flow/turnContract";
+import type { GoalPlan } from "../src/flow/rules";
+import {
+  QUESTION_TEXT_REQUEST_LENGTH,
+  REMARK_REQUEST_LENGTH,
+  VIEWPOINT_IDS,
+  type TurnRequest,
+} from "../src/flow/turnContract";
+import { QUESTION_EXAMPLES, QUESTION_TEXT } from "./questions";
 import { REMARK_PHRASE_RULES } from "./remarkPairing";
 
 // 決定済み：Claude へのシステムプロンプト（Claude Codeの下書き。判定の基準は PRD の下書きをもとにした）
@@ -61,7 +66,7 @@ clarify・redirect のときは、next_goal_id を null にします（いまの
 迷ったら ask を選びます。「わからない」「覚えていない」は曖昧な回答ではなく、気づきとして受け取り、ask を選びます。
 
 text の決まり：
-- 日本語で、全体で120字以内。1〜3文。
+- 日本語で、全体で${QUESTION_TEXT_REQUEST_LENGTH}字以内。1〜3文。
 - 復唱：直前の回答（"inputs" の最後の "text"）に文字どおりある言葉は、受け止めでそのまま繰り返してよい（例：回答「頭痛薬を飲んでいます」→「頭痛薬ですね。ほかに使っているお薬はありますか？」）。言葉を変えずに写すだけにし、言い換え・名前の直し・要約・候補を出すことはしない。量・回数・飲み方は復唱しない。
 - それより前の回答の言葉と、直前の回答に無い薬の名前・薬の種類・病名・人・手段は、文に入れない。
 - 復唱は、薬についての問い（今の薬、ほかの薬、合わなかった薬、掘り下げ）への回答のときだけにする。情報源・手段・人・記録の問いへの回答は復唱しない（「スマホのアプリですね。」のような受け止めはしない）。
@@ -80,7 +85,7 @@ text の決まり：
 
 # 振り返りの一言（closing_remark）
 "remark_requested" が true で、この後半を終える（next_type が ask で next_goal_id が null）ときだけ作ります。それ以外は null にします。
-- 訓練の最後に、5つの観点のうち、話せた観点と、まだ考える余地がある観点を、1〜2文・80字以内で短く伝える一言にする。あなたが付けた viewpoints の判定と食い違わないようにする。
+- 訓練の最後に、5つの観点のうち、話せた観点と、まだ考える余地がある観点を、1〜2文・${REMARK_REQUEST_LENGTH}字以内で短く伝える一言にする。あなたが付けた viewpoints の判定と食い違わないようにする。
 - 観点は、"remark_vocabulary" にある観点の名前（「お薬の情報を確認できるもの」「代わりの手段」「今使っている薬と記録の一致」「記録に載っていないこと」「代わりに伝える人」など。係の交代の回は「代わりの手段」の代わりに「交代した相手への伝え直し」）だけで言う。
 - 文は、"remark_phrases" にある決まった言い回しと、観点の名前を「は、」「と」でつないで作る。ほかの言い回しを足さない。
 - 言い回しごとに、つないでよい観点が決まっている。"viewpoint" に観点の名前があるものは、その観点にだけ使う（ほかの観点の名前につながない。例：「記録に載っていないことは、いつもの確認方法が使えないとき、…」は書かない）。"use_for" が「確認できた観点」のものは confirmed の観点にだけ、「まだ確認できていない観点」のものは aware_unconfirmed か not_mentioned の観点にだけつなぐ。「観点をつながない」ものは、あいさつと前置きにだけ使う。観点の名前は、必ずどれかの言い回しにつなぐ。アプリがつなぎ方を確かめ、合わない一言は捨てる。
@@ -88,7 +93,7 @@ text の決まり：
 - 準備することの提案（〜しておきましょう、〜を用意しましょう）、薬や体調の助言、正しいかどうかの評価を、"remark_phrases" の外の言葉で書かない。準備のことは、アプリが固定の文で出す。
 - 「確認できた」は、説明できたという意味で、正しさの保証ではないことに気をつけ、「正しい」「十分」とは言わない。
 - 「大丈夫」「安心」など、体調や薬について安心させる言い方を使わない。ただし "remark_phrases" の「今のうちに確かめておくと安心です」は、お薬の情報を確かめることを勧める決まった言い回しなので、そのまま使ってよい。
-- 例（どれも1〜2文・80字以内）：
+- 例（どれも1〜2文・${REMARK_REQUEST_LENGTH}字以内）：
   - 「お話しくださってありがとうございました。自分のお薬情報がどこに記録されているのか把握できていましたね。」
   - 「代わりの手段は、いつもの確認方法が使えないとき、ほかの方法でお薬の情報を確認できるか、今のうちに確かめておくと安心です。」
   - 「今回の訓練では、お薬の情報を確認できるものは、話せていました。代わりに伝える人は、今のうちに確かめておくと安心です。」
@@ -106,10 +111,6 @@ ${SOURCE_OPTIONS.filter((o) => o.id !== "none")
 # emergency
 直前の入力に、自傷のほのめかし（消えたい、楽になりたい、生きるのがつらいなど）があれば self_harm。本人の今の体調の訴え（苦しい、痛い、具合が悪いなど）があれば symptom。どちらもなければ none。両方あれば self_harm。架空の薬や病名の話、過去の出来事の話は none。
 何の薬かの説明（「胸が苦しい時に飲む薬」「けいれんを抑える薬」「発作が起きたときの吸入」）は、症状の言葉を含んでいても none。ただし、同じ入力に本人の今の訴えがあれば symptom（「今、胸が苦しいときがある」「息が苦しい時、どうしたらいい」「苦しい場合どうする」は、今の体調の訴えや、それへの相談として symptom）。迷ったら symptom にします。緊急かどうかの判断や助言は書きません。`;
-
-const QUESTION_TEXT = new Map(ALL_QUESTIONS.map((q) => [q.id, q.text]));
-/** 聞き返しのときだけ添えてよい例（Issue #110）。例の無い質問は入れない */
-const QUESTION_EXAMPLES = new Map(ALL_QUESTIONS.flatMap((q) => (q.examples === undefined ? [] : [[q.id, q.examples] as const])));
 
 /**
  * 振り返りの一言の決まった言い回し（Issue #200）。質問文が固定の文として許されるのと同じく、繰り返しの検査で固定の文として許す。
@@ -153,14 +154,13 @@ export const GOAL_DESCRIPTIONS: Readonly<Record<string, string>> = {
   second_recheck: "思い出せなかったことを、あとで何で確かめられるか。思い出せない・わからない回答があったとき",
 };
 
-/** 毎回の入力。利用者の入力は JSON の文字列として渡し、ほかの部分と区別する（項目4：固定の質問文も送る） */
-export function buildUserMessage(request: TurnRequest): string {
+/**
+ * 毎回の入力。利用者の入力は JSON の文字列として渡し、ほかの部分と区別する（項目4：固定の質問文も送る）。
+ * plan は、いま答えた半分の、次に聞いてよいゴール（turn.ts の planFor）。Claude に見せる goal_choices と、
+ * Workers が受け付ける choices（chooseNext）を同じ計画から作るため、呼び出し側で1回だけ求めて渡す（Issue #292）
+ */
+export function buildUserMessage(request: TurnRequest, plan: GoalPlan): string {
   const last = request.inputs[request.inputs.length - 1];
-  const plan = planGoals(
-    request.inputs.filter((i) => i.half === last.half).map((i) => i.question_id),
-    last.half,
-    request.event,
-  );
   const allowed = ["ask"];
   if (request.allow_clarify) allowed.push("clarify");
   if (request.allow_redirect) allowed.push("redirect");

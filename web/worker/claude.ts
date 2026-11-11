@@ -71,6 +71,24 @@ export interface Usage {
   cacheWrite: number;
 }
 
+/** API の応答の usage（Messages API と beta の Messages API で型が違うので、使うところだけを形で受ける） */
+export interface ApiUsage {
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_input_tokens?: number | null;
+  cache_creation_input_tokens?: number | null;
+}
+
+/** API の usage を、ログと見積もりに使う形に詰め替える（話し相手と監査役で同じもの。Issue #292） */
+export function toUsage(u: ApiUsage): Usage {
+  return {
+    input: u.input_tokens,
+    output: u.output_tokens,
+    cacheRead: u.cache_read_input_tokens ?? 0,
+    cacheWrite: u.cache_creation_input_tokens ?? 0,
+  };
+}
+
 /** servedBy は答えたモデル。断られて別のモデルが答え直したときは、頼んだモデルと違う（本文ではないのでログに出してよい） */
 export type ClaudeResult =
   | { ok: true; value: unknown; raw: string; servedBy: string; usage: Usage }
@@ -122,14 +140,7 @@ export function makeCallClaude(apiKey: string, options: ClaudeOptions = {}): Cal
         .map((block) => (block.type === "text" ? block.text : ""))
         .join("");
       try {
-        const u = response.usage;
-        const usage: Usage = {
-          input: u.input_tokens,
-          output: u.output_tokens,
-          cacheRead: u.cache_read_input_tokens ?? 0,
-          cacheWrite: u.cache_creation_input_tokens ?? 0,
-        };
-        return { ok: true, value: JSON.parse(raw), raw, servedBy: response.model, usage };
+        return { ok: true, value: JSON.parse(raw), raw, servedBy: response.model, usage: toUsage(response.usage) };
       } catch {
         return { ok: false, failure: "not_json" };
       }

@@ -3,7 +3,12 @@
 import { describe, expect, it } from "vitest";
 import { requestTurn } from "./api";
 import {
+  MAX_PROMPT_LENGTH,
+  MAX_QUESTION_TEXT_LENGTH,
+  MAX_REMARK_LENGTH,
   MAX_TURN_INPUTS,
+  QUESTION_TEXT_REQUEST_LENGTH,
+  REMARK_REQUEST_LENGTH,
   parseTurnRequest,
   parseTurnResponse,
   type TurnRequest,
@@ -77,6 +82,32 @@ describe("応答の検査（ブラウザ）", () => {
     ["緊急が真偽値", { ...response, emergency: true }],
   ])("%s は拒否する", (_label, value) => {
     expect(parseTurnResponse(value)).toBeNull();
+  });
+});
+
+describe("文の長さの上限（Issue #292）", () => {
+  it("検査を通った Claude の文は次の問い合わせで asked として戻るので、asked の上限は質問文の上限以上", () => {
+    expect(MAX_PROMPT_LENGTH).toBeGreaterThanOrEqual(MAX_QUESTION_TEXT_LENGTH);
+  });
+
+  it("検査の上限は、プロンプトで頼む字数より広い", () => {
+    expect(MAX_QUESTION_TEXT_LENGTH).toBeGreaterThan(QUESTION_TEXT_REQUEST_LENGTH);
+    expect(MAX_REMARK_LENGTH).toBeGreaterThan(REMARK_REQUEST_LENGTH);
+  });
+
+  it("応答の文は MAX_QUESTION_TEXT_LENGTH、一言は MAX_REMARK_LENGTH まで通し、超えたら拒否する", () => {
+    const withText = (text: string): TurnResponse => ({ ...response, next: { ...response.next, text } });
+    expect(parseTurnResponse(withText("あ".repeat(MAX_QUESTION_TEXT_LENGTH)))).not.toBeNull();
+    expect(parseTurnResponse(withText("あ".repeat(MAX_QUESTION_TEXT_LENGTH + 1)))).toBeNull();
+    const finish: TurnResponse = { ...response, next: { type: "finish", question_id: null, text: null } };
+    expect(parseTurnResponse({ ...finish, remark: "あ".repeat(MAX_REMARK_LENGTH) })).not.toBeNull();
+    expect(parseTurnResponse({ ...finish, remark: "あ".repeat(MAX_REMARK_LENGTH + 1) })).toBeNull();
+  });
+
+  it("asked は MAX_PROMPT_LENGTH まで通す（今までどおり）", () => {
+    const asked = (text: string) => ({ ...request, inputs: [{ ...request.inputs[0], asked: text }] });
+    expect(parseTurnRequest(asked("あ".repeat(MAX_PROMPT_LENGTH)))).not.toBeNull();
+    expect(parseTurnRequest(asked("あ".repeat(MAX_PROMPT_LENGTH + 1)))).toBeNull();
   });
 });
 

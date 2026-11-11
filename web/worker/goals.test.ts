@@ -7,7 +7,7 @@ import type { Audit, AuditResult } from "./audit";
 import type { CallClaude, ClaudeResult } from "./claude";
 import { REMARK_PHRASES, SYSTEM_PROMPT, buildUserMessage } from "./prompt";
 import { REMARK_PHRASE_RULES } from "./remarkPairing";
-import { REMARK_PURPOSE, chooseNext, followsGoalRules, parseClaudeOutput, runTurn, type ClaudeOutput } from "./turn";
+import { REMARK_PURPOSE, chooseNext, followsGoalRules, parseClaudeOutput, planFor, runTurn, type ClaudeOutput } from "./turn";
 
 const input = (question_id: string, half: "first" | "second" = "first", text = "架空の回答です") => ({
   question_id,
@@ -267,7 +267,7 @@ describe("振り返りの一言（案B：一言用の検査。監査役は必ず
   it("Claude に渡す言い回しは、観点と判定の割り当てつきで、係の交代の回はいつもの方法の代わりの言い回しを渡さない", () => {
     expect(REMARK_PHRASE_RULES.map((p) => p.text)).toEqual(REMARK_PHRASES);
     const payload = (req: TurnRequest) => {
-      const message = buildUserMessage(req);
+      const message = buildUserMessage(req, planFor(req));
       return JSON.parse(message.slice(message.indexOf("{")));
     };
     const battery = payload(secondDone);
@@ -321,7 +321,10 @@ describe("振り返りの一言（案B：一言用の検査。監査役は必ず
   });
 
   it("後半の終わりの問い合わせだけ、一言を頼み、観点と判定の名前を添える", () => {
-    const payload = (r: TurnRequest) => JSON.parse(buildUserMessage(r).slice(buildUserMessage(r).indexOf("\n") + 1));
+    const payload = (r: TurnRequest) => {
+      const message = buildUserMessage(r, planFor(r));
+      return JSON.parse(message.slice(message.indexOf("\n") + 1));
+    };
     expect(payload(secondDone).remark_requested).toBe(true);
     expect(payload(secondDone).remark_vocabulary).toContain("代わりに伝える人");
     expect(payload(afterFirst).remark_requested).toBe(false);
