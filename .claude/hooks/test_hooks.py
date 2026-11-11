@@ -64,6 +64,66 @@ def claude_hook_tests(tmp):
     check("Bash: git commit の出力をリダイレクトで書く", 2, hook(P, "Bash", {"command": "git commit -m TODO-OWNER > a.md"})[0])
     check("Bash: メッセージを $(cat <<'EOF' …) で渡す git commit", 0, hook(P, "Bash", {"command": "git commit -m \"$(cat <<'EOF'\nTODO-OWNERの保護 > x\nEOF\n)\""})[0])
     check("Bash: git commit の標準エラーを捨てる", 0, hook(P, "Bash", {"command": "git commit -m 'TODO-OWNER の説明' 2>/dev/null"})[0])
+    marker_target_tests(tmp)
+
+
+def marker_target_tests(tmp):
+    """Issue #291：コマンドの文字列にマーカーが無くても、書き換え先のファイルの中身で判定する。"""
+    print("--- 書き換え先のファイルの中身でのマーカーの判定（Claude Code hook。Issue #291）")
+    P = "protect_todo_owner.py"
+    base = tmp / "marker-target"
+    other = base / "other"
+    other.mkdir(parents=True)
+    doc, plain = base / "doc.md", base / "plain.md"
+    doc.write_text("本文\n[TODO-OWNER: 文面]\n終わり\n", encoding="utf-8")
+    plain.write_text("本文\n終わり\n", encoding="utf-8")
+    d, p = f"'{doc.as_posix()}'", f"'{plain.as_posix()}'"
+    here = {"cwd": str(base)}
+    away = {"cwd": str(other)}
+    for tool, name, cmd, extra in [
+        ("Bash", "sed -i で行番号を消す", f"sed -i '2d' {d}", here),
+        ("Bash", "相対パスの sed -i", "sed -i '2d' doc.md", here),
+        ("Bash", "cd の後の相対パスの sed -i", f"cd '{base.as_posix()}' && sed -i -e '2d' doc.md", away),
+        ("Bash", "sed -Ei", f"sed -Ei '2d' {d}", here),
+        ("Bash", "sed --in-place", f"sed --in-place=.bak '2d' {d}", here),
+        ("Bash", "perl -pi -e", f"perl -pi -e 's/x//' {d}", here),
+        ("Bash", "> で上書き", f"echo x > {d}", here),
+        ("Bash", "tee で上書き", f"echo x | tee {d}", here),
+        ("Bash", "rm", f"rm -f {d}", here),
+        ("Bash", "mv で動かす", f"mv {d} moved.md", here),
+        ("Bash", "cp で上書き", f"cp {p} {d}", here),
+        ("Bash", "git checkout -- ファイル", f"git checkout -- {d}", here),
+        ("Bash", "git checkout コミット -- ファイル", "git checkout HEAD -- doc.md", here),
+        ("Bash", "git checkout ファイル", "git checkout doc.md", here),
+        ("Bash", "git restore", "git restore doc.md", here),
+        ("Bash", "git restore --staged --worktree", "git restore --staged --worktree doc.md", here),
+        ("Bash", "1行目が git commit で、改行の後に行番号で消す", "git commit -m x\nsed -i '2d' doc.md", here),
+        ("PowerShell", "Set-Content -Path", f"Set-Content -Path {d} -Value x", here),
+        ("PowerShell", "Remove-Item", f"Remove-Item -Path {d}", here),
+        ("PowerShell", "Clear-Content", "Clear-Content doc.md", here),
+        ("Bash", "解析できない書き換え", "echo 'x > doc.md", here),
+    ]:
+        check(f"{tool}: 止める（{name}）", 2, hook(P, tool, {"command": cmd}, extra=extra)[0])
+    for tool, name, cmd, extra in [
+        ("Bash", "マーカーの無いファイルの sed -i", f"sed -i '1d' {p}", here),
+        ("Bash", "マーカーの無いファイルの rm", "rm plain.md", here),
+        ("Bash", "マーカーの無いファイルの git checkout --", "git checkout -- plain.md", here),
+        ("Bash", "マーカーの無いファイルへの >", "echo x > plain.md", here),
+        ("Bash", ">> の追記", f"echo x >> {d}", here),
+        ("Bash", "-i の無い sed", f"sed -n '2p' {d}", here),
+        ("Bash", "-E だけの sed", f"sed -E 's/a/b/' {d}", here),
+        ("Bash", "perl -e（-i 無し）", f"perl -ne 'print' {d}", here),
+        ("Bash", "cp でコピー元にする", f"cp {d} copy.md", here),
+        ("Bash", "git restore --staged", "git restore --staged doc.md", here),
+        ("Bash", "cat で読む", f"cat {d}", here),
+        ("Bash", "サブシェルの中の cd は外に効かない", f"( cd '{base.as_posix()}' ) && rm doc.md", away),
+        ("Bash", "別のフォルダの同じ名前", "rm doc.md", away),
+        ("Bash", "ワイルドカード（読めないので通す）", "rm *.tmp", here),
+        ("Bash", "引用符の閉じていない読むだけのコマンド", "echo 'x", here),
+        ("PowerShell", "Get-Content で読む", f"Get-Content {d}", here),
+    ]:
+        check(f"{tool}: 止めない（{name}）", 0, hook(P, tool, {"command": cmd}, extra=extra)[0])
+    check("  止めた試験の後もファイルは残っている", True, doc.is_file() and "[TODO-OWNER" in doc.read_text(encoding="utf-8"))
 
 
 def decision_hook_tests(tmp):

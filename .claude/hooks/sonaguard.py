@@ -229,13 +229,14 @@ class Command:
     """分けた1つのコマンド（split_commands_detail の結果）。
     assigns：前置きの代入、toks：語の列、redirects：書き込み先のリダイレクト、
     stdin_texts：heredoc の本文と <<< の文字列、
-    scope：そのコマンドが動くサブシェルの並び（( … )・$(…)・sh -c などに入るたびに番号が1つ増える。Issue #291）。"""
+    scope：そのコマンドが動くサブシェルの並び（( … )・$(…)・sh -c などに入るたびに番号が1つ増える。Issue #291）、
+    appends：redirects のうち、>> で追記するもの。"""
 
-    __slots__ = ("assigns", "toks", "redirects", "stdin_texts", "scope")
+    __slots__ = ("assigns", "toks", "redirects", "stdin_texts", "scope", "appends")
 
-    def __init__(self, assigns, toks, redirects, stdin_texts, scope):
+    def __init__(self, assigns, toks, redirects, stdin_texts, scope, appends=()):
         self.assigns, self.toks, self.redirects = assigns, toks, redirects
-        self.stdin_texts, self.scope = stdin_texts, scope
+        self.stdin_texts, self.scope, self.appends = stdin_texts, scope, list(appends)
 
 
 def _child(scope):
@@ -247,7 +248,7 @@ class _Cmd:
     """読み途中の1コマンド。"""
 
     def __init__(self, scope=()):
-        self.words, self.redirects, self.stdin_texts = [], [], []
+        self.words, self.redirects, self.stdin_texts, self.appends = [], [], [], []
         self.buf, self.started, self.quoted = [], False, False
         self.redirect_op = None  # 直後の語をリダイレクトの宛先として読む
         self.scope = scope
@@ -266,6 +267,8 @@ class _Cmd:
                 self.stdin_texts.append(w)
             elif ">" in self.redirect_op:
                 self.redirects.append(w)
+                if ">>" in self.redirect_op:
+                    self.appends.append(w)
             self.redirect_op = None
         else:
             self.words.append(w)
@@ -413,7 +416,7 @@ def _finish(cmd, out, depth):
             _parse_marked(toks[script], out, depth, _child(scope), mark)
         for text in cmd.stdin_texts:
             _parse_marked(text, out, depth, _child(scope), mark)
-    out.append(Command(assigns, toks, cmd.redirects, cmd.stdin_texts, scope))
+    out.append(Command(assigns, toks, cmd.redirects, cmd.stdin_texts, scope, cmd.appends))
 
 
 def _find_exec(toks, out, depth, scope):
@@ -633,6 +636,151 @@ def split_commands(cmd):
     引用符が閉じていないなど解析できなければ None。"""
     detail = split_commands_detail(cmd)
     return None if detail is None else [(c.assigns, c.toks, c.redirects) for c in detail]
+
+
+# ---- コマンドの中の今いるフォルダ（guard_github.py と protect_todo_owner.py が共有する） ----
+CD = {"cd", "chdir", "pushd", "set-location", "sl", "push-location"}
+POPD = {"popd", "pop-location"}
+
+
+def native_path(p):
+    """Git Bash 形式の /c/... を Windows の C:/... にする。"""
+    m = re.match(r"^/([a-zA-Z])(/.*)?$", p)
+    if m and os.name == "nt":
+        return f"{m.group(1)}:{m.group(2) or '/'}"
+    return p
+
+
+def resolve_dir(base, arg):
+    """cd・git -C の行き先（ファイルのパスにも使う）。判定できなければ None。"""
+    if base is None or not arg or SUBST in arg or STDIN_ARGS in arg or arg == "-":
+        return None
+    a = re.sub(r"\$env:(\w+)", lambda m: os.environ.get(m.group(1), "\0"), arg, flags=re.I)
+    a = os.path.expandvars(os.path.expanduser(a))
+    if "$" in a or "\0" in a or "`" in a:
+        return None
+    return os.path.normpath(os.path.join(base, native_path(a)))
+
+
+def cd_target(tokens):
+    """cd・pushd・Set-Location の行き先の文字列。引数が無ければ ~。"""
+    args = tokens[1:]
+    for i, a in enumerate(args):
+        low = a.lower()
+        if low in ("-path", "-literalpath", "-lp"):
+            return args[i + 1] if i + 1 < len(args) else None
+        if a == "-":
+            return "-"
+        if a.startswith("-") and len(a) > 1:
+            continue
+        return a
+    return "~"
+
+
+def commands_with_cwd(commands, cwd):
+    """[(Command, そのコマンドが動くフォルダ)]。サブシェルの中の cd は外に効かない。判定できないフォルダは None。
+    cd・popd のコマンド自体も含める（Issue #291）。"""
+    cwds, out = {(): cwd}, []
+    for c in commands:
+        here = next(cwds[c.scope[:k]] for k in range(len(c.scope), -1, -1) if c.scope[:k] in cwds)
+        out.append((c, here))
+        name = _name(c.toks)
+        if name in CD:
+            cwds[c.scope] = resolve_dir(here, cd_target(c.toks))
+        elif name in POPD:
+            cwds[c.scope] = None
+    return out
+
+
+# ---- コマンドが書き換えるファイル（protect_todo_owner.py。Issue #291） ----
+SED_LIKE = {"sed", "perl"}
+REMOVERS = {"rm", "remove-item", "ri", "del", "erase", "unlink"}
+MOVERS = {"mv", "move-item", "mi", "move"}
+COPIERS = {"cp", "copy-item", "cpi", "copy"}
+PS_WRITERS = {"set-content", "sc", "add-content", "ac", "out-file", "clear-content", "clc"}
+# PowerShell の書き込みのコマンドレットの、ファイルではない値を取るオプション
+PS_VALUE_OPTS = {"-value", "-encoding", "-inputobject", "-width", "-stream", "-filter", "-include", "-exclude",
+                 "-credential", "-delimiter"}
+CP_VALUE_OPTS = {"-t", "--target-directory", "-S", "--suffix", "--backup", "--reflink", "--sparse", "--preserve",
+                 "--no-preserve", "--context"}
+
+
+def _plain_args(args, takes_value=(), ignore_case=False):
+    """オプションと、その値を除いた引数（-- より後はそのまま）。ignore_case は PowerShell のオプション。"""
+    out, skip = [], False
+    for i, a in enumerate(args):
+        name = a.split("=", 1)[0]
+        if skip:
+            skip = False
+        elif a == "--":
+            out += args[i + 1:]
+            break
+        elif (name.lower() if ignore_case else name) in takes_value:
+            skip = "=" not in a
+        elif not a.startswith("-"):
+            out.append(a)
+    return out
+
+
+# sed・perl の短いオプションのうち、値を取るもの（その文字より後は値なので、i を探さない）
+IN_PLACE_VALUE_CHARS = {"sed": set("efl"), "perl": set("eEMmIxdDC0l")}
+
+
+def _in_place(name, args):
+    """sed -i・perl -i（-pi・-i.bak・sed --in-place の形を含む）か。"""
+    for a in args:
+        if a == "--":
+            break
+        if a.startswith("--"):
+            if name == "sed" and a.startswith("--in-place"):
+                return True
+            continue
+        if not a.startswith("-") or len(a) < 2:
+            continue
+        for ch in a[1:]:
+            if ch == "i":
+                return True
+            if ch in IN_PLACE_VALUE_CHARS[name]:
+                break
+    return False
+
+
+def write_targets(c):
+    """そのコマンドが書き換える（消す・置き換える）ファイルのパスの語。>> の追記は書き換えに数えない。
+    ファイルかどうかは見ない（呼び出し側が読んで確かめる）。"""
+    toks = [t for t in c.toks if t != STDIN_ARGS]
+    targets = [r for r in c.redirects if r not in c.appends]
+    if not toks:
+        return targets
+    name, args = _name(toks), toks[1:]
+    g = git_invocation(toks)
+    if name in SED_LIKE and _in_place(name, args):
+        targets += _plain_args(args, {"-e", "--expression", "-f", "--file"} if name == "sed" else {"-e", "-E", "-M", "-m"})
+    elif name == "tee":
+        targets += [a for a in _plain_args(args) if a != "-"]
+    elif name in PS_WRITERS:
+        targets += _plain_args(args, PS_VALUE_OPTS, ignore_case=True)
+    elif name in REMOVERS or name in MOVERS:
+        targets += _plain_args(args, {"-t", "--target-directory", "-S", "--suffix", "--backup"})
+    elif name in COPIERS:
+        plain = _plain_args(args, CP_VALUE_OPTS)
+        if any(a in ("-t",) or a.startswith("--target-directory") for a in args):
+            plain = []  # -t の値はフォルダ
+        targets += plain[-1:] if len(plain) >= 2 else []
+    elif g and g["sub"] == "restore":
+        staged_only = any(a in ("-S", "--staged") for a in g["args"]) \
+            and not any(a in ("-W", "--worktree") or (a.startswith("-") and not a.startswith("--") and "W" in a)
+                        for a in g["args"])
+        if not staged_only:
+            targets += _plain_args(g["args"], {"-s", "--source", "--pathspec-from-file"})
+    elif g and g["sub"] == "checkout":
+        args = g["args"]
+        if "--" in args:
+            targets += args[args.index("--") + 1:]
+        else:
+            # ブランチ・コミットの名前も含むが、そういう名前のファイルが無ければ呼び出し側で外れる
+            targets += _plain_args(args, {"-b", "-B", "--orphan", "--conflict", "--pathspec-from-file"})
+    return targets
 
 
 def dynamic_name(tokens):

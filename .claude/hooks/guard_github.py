@@ -33,8 +33,8 @@ import shlex
 import subprocess
 import sys
 
-from sonaguard import (STDIN_ARGS, SUBST, command_name, dynamic_name, git_invocation, split_commands_detail,
-                       use_utf8_stdio)
+from sonaguard import (CD, POPD, STDIN_ARGS, SUBST, cd_target, command_name, dynamic_name, git_invocation,
+                       native_path, resolve_dir, split_commands_detail, use_utf8_stdio)
 
 PROTECTED = {"main", "master"}
 CHANGES_BRANCH = {"commit", "merge", "cherry-pick", "revert", "am", "rebase", "reset", "pull"}
@@ -43,8 +43,6 @@ GH_FIELD = re.compile(r"(?:^|\s)(?:-f|-F|--field|--raw-field|--input)(?:=|\s|$)"
 UNKNOWN = "（判定できないブランチ）"  # 作業ツリーを判定できないときのブランチ。main として扱う
 UNKNOWN_MSG = ("どの作業ツリー（ブランチ）で実行されるかを判定できません（変数・置換を使った cd・git -C、cd -、popd、"
                "まだ無いフォルダ、--git-dir・GIT_DIR など）。cd を別に実行するか、パスをそのまま書いてください（Issue #82）。")
-CD = {"cd", "chdir", "pushd", "set-location", "sl", "push-location"}
-POPD = {"popd", "pop-location"}
 GIT_REPO_ENV = re.compile(r"^(?:\$env:)?GIT_(?:DIR|WORK_TREE|COMMON_DIR)(?:=|$)", re.I)
 # push・fetch の宛先を変える設定（-c と git config での書き込みを止める。Issue #30）
 ROUTING_KEY = re.compile(r"^(?:remote\..+\.(?:push|fetch|mirror|url|pushurl)|push\.default|url\..+\.(?:insteadof|pushinsteadof))$",
@@ -61,40 +59,6 @@ def run_git(cwd, *args):
     except OSError:
         return 1, ""
     return p.returncode, p.stdout.decode("utf-8", "replace").strip()
-
-
-def native_path(p):
-    """Git Bash 形式の /c/... を Windows の C:/... にする。"""
-    m = re.match(r"^/([a-zA-Z])(/.*)?$", p)
-    if m and os.name == "nt":
-        return f"{m.group(1)}:{m.group(2) or '/'}"
-    return p
-
-
-def resolve_dir(base, arg):
-    """cd・git -C の行き先。判定できなければ None。"""
-    if base is None or not arg or SUBST in arg or arg == "-":
-        return None
-    a = re.sub(r"\$env:(\w+)", lambda m: os.environ.get(m.group(1), "\0"), arg, flags=re.I)
-    a = os.path.expandvars(os.path.expanduser(a))
-    if "$" in a or "\0" in a or "`" in a:
-        return None
-    return os.path.normpath(os.path.join(base, native_path(a)))
-
-
-def cd_target(tokens):
-    """cd・pushd・Set-Location の行き先の文字列。引数が無ければ ~。"""
-    args = tokens[1:]
-    for i, a in enumerate(args):
-        low = a.lower()
-        if low in ("-path", "-literalpath", "-lp"):
-            return args[i + 1] if i + 1 < len(args) else None
-        if a == "-":
-            return "-"
-        if a.startswith("-") and len(a) > 1:
-            continue
-        return a
-    return "~"
 
 
 class Trees:
