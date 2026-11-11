@@ -10,13 +10,18 @@ Python の標準ライブラリだけで TrueType（glyf）を読む。依存は
     web/src/brand/logoData.ts                  … 図形・大きさ・色（アプリと動画が読む）
     web/src/brand/sonaquest-logo.svg           … 文字だけの版
     web/src/brand/sonaquest-logo-subtitle.svg  … 下に名前の由来（副題）を添えた版
+書き出す文字は、SVG では属性の値を quoteattr、要素の中身を escape で、TS では json.dumps でエスケープする（Issue #298）。
+試験（フォントは要らない）：web/scripts/test_outline_logo.py
 
 Manrope は SIL Open Font License 1.1（Copyright 2018 The Manrope Project Authors）。
 """
 
+import json
 import struct
 import sys
 from pathlib import Path
+from typing import NamedTuple
+from xml.sax.saxutils import escape, quoteattr
 
 WORD = "SonaQuest"
 ACCENT_CHAR_INDEX = 4  # Q だけ色を変える
@@ -224,10 +229,119 @@ def fmt(value: float) -> str:
     return "0" if text in ("-0", "") else text
 
 
-def main() -> None:
-    if len(sys.argv) != 2:
-        raise SystemExit(__doc__)
-    font = Font(Path(sys.argv[1]).read_bytes())
+class LogoShape(NamedTuple):
+    """フォントから作った図形（path の文字列）と大きさ。"""
+
+    word_path: str
+    accent_path: str
+    width: float
+    height: float
+    baseline: float
+    sub_height: float
+    sub_baseline: float
+    sub_size: float
+    sub_spacing: float
+
+
+class LogoText(NamedTuple):
+    """書き出す文字（語・副題・書体の指定・色）。既定は上の定数。"""
+
+    word: str = WORD
+    subtitle: str = SUBTITLE
+    subtitle_font_family: str = SUBTITLE_FONT_FAMILY
+    subtitle_weight: int = SUBTITLE_WEIGHT
+    color_word: str = COLOR_WORD
+    color_accent: str = COLOR_ACCENT
+
+
+# 生成物の冒頭の注記（固定の文。`--` を含めない。SVG の注釈に入れるため）
+HEADER = (
+    "自動生成（web/scripts/outline-logo.py）。手で直さない。"
+    "文字の図形は Manrope Bold（SIL Open Font License 1.1、"
+    "Copyright 2018 The Manrope Project Authors）から作った。フォントファイルは含まない。"
+)
+
+
+def ts_string(value: str) -> str:
+    """TS の二重引用符の文字列（引用符を含む）にする。二重引用符・バックスラッシュ・改行などをエスケープする（Issue #298）。"""
+    return json.dumps(value, ensure_ascii=False)
+
+
+def build_ts(shape: LogoShape, text: LogoText = LogoText()) -> str:
+    """web/src/brand/logoData.ts の中身。文字列はすべて ts_string で書く。"""
+    return f"""// {HEADER}
+// Issue #263、ADR-0066。アプリ（SonaQuestLogo.tsx）と動画（video/）がここを読む。
+
+/** ロゴの語（Q を除く8字）の図形 */
+export const LOGO_WORD_PATH =
+  {ts_string(shape.word_path)};
+
+/** Q の図形（色を変える） */
+export const LOGO_ACCENT_PATH =
+  {ts_string(shape.accent_path)};
+
+/** 文字だけの版の大きさ（viewBox の幅・高さ）と、上端から基線までの距離 */
+export const LOGO_WIDTH = {fmt(shape.width)};
+export const LOGO_HEIGHT = {fmt(shape.height)};
+export const LOGO_BASELINE = {fmt(shape.baseline)};
+
+/** 色（アプリの基調色に合わせた。語は --go-press、Q は --mint-strong） */
+export const LOGO_COLOR_WORD = {ts_string(text.color_word)};
+export const LOGO_COLOR_ACCENT = {ts_string(text.color_accent)};
+
+/** 副題を添えた版。副題は文字のまま置き、書体は端末のゴシック（ADR-0037） */
+export const LOGO_SUBTITLE = {ts_string(text.subtitle)};
+export const LOGO_SUBTITLE_HEIGHT = {fmt(shape.sub_height)};
+export const LOGO_SUBTITLE_BASELINE = {fmt(shape.sub_baseline)};
+export const LOGO_SUBTITLE_SIZE = {fmt(shape.sub_size)};
+export const LOGO_SUBTITLE_SPACING = {fmt(shape.sub_spacing)};
+export const LOGO_SUBTITLE_WEIGHT = {int(text.subtitle_weight)};
+export const LOGO_SUBTITLE_FONT_FAMILY =
+  {ts_string(text.subtitle_font_family)};
+
+/** 読み上げ・代わりの文字 */
+export const LOGO_LABEL = {ts_string(text.word)};
+"""
+
+
+def _svg_paths(shape: LogoShape, text: LogoText) -> str:
+    return (
+        f"  <path fill={quoteattr(text.color_word)} d={quoteattr(shape.word_path)}/>\n"
+        f"  <path fill={quoteattr(text.color_accent)} d={quoteattr(shape.accent_path)}/>\n"
+    )
+
+
+def build_plain_svg(shape: LogoShape, text: LogoText = LogoText()) -> str:
+    """web/src/brand/sonaquest-logo.svg の中身。属性の値は quoteattr、要素の中身は escape で書く。"""
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {fmt(shape.width)} {fmt(shape.height)}" '
+        f'role="img" aria-label={quoteattr(text.word)}>\n'
+        f"  <!-- {HEADER} -->\n"
+        f"  <title>{escape(text.word)}</title>\n"
+        f"{_svg_paths(shape, text)}"
+        f"</svg>\n"
+    )
+
+
+def build_subtitle_svg(shape: LogoShape, text: LogoText = LogoText()) -> str:
+    """web/src/brand/sonaquest-logo-subtitle.svg の中身。属性の値は quoteattr、要素の中身は escape で書く。"""
+    label = f"{text.word} {text.subtitle}"
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {fmt(shape.width)} {fmt(shape.sub_height)}" '
+        f'role="img" aria-label={quoteattr(label)}>\n'
+        f"  <!-- {HEADER} -->\n"
+        f"  <title>{escape(label)}</title>\n"
+        f"{_svg_paths(shape, text)}"
+        f'  <text x="{fmt(shape.width / 2)}" y="{fmt(shape.sub_baseline)}" text-anchor="middle" '
+        f'font-family={quoteattr(text.subtitle_font_family)} font-size="{fmt(shape.sub_size)}" '
+        f'font-weight="{int(text.subtitle_weight)}" letter-spacing="{fmt(shape.sub_spacing)}" '
+        f"fill={quoteattr(text.color_word)}>{escape(text.subtitle)}</text>\n"
+        f"</svg>\n"
+    )
+
+
+def build_shape(font: Font) -> LogoShape:
+    """語の字形を送り幅で並べ、図形の path と大きさを作る。"""
     scale = OUTPUT_EM / font.units_per_em
     tracking = TRACKING_EM * font.units_per_em
 
@@ -245,6 +359,8 @@ def main() -> None:
         glyph_commands.append(commands)
         pen += font.advance(glyph) + tracking
 
+    # 外接の箱は、線上の点だけでなく2次ベジェの制御点も含めて取るので、実際の輪郭より少し大きくなりうる
+    # （余白が少し広がるだけ。直すとロゴの大きさが変わるため、Issue #298 では直していない）
     all_points = [p for cmds in glyph_commands for c in cmds for p in c[1:]]
     min_x = min(p[0] for p in all_points)
     max_x = max(p[0] for p in all_points)
@@ -277,77 +393,36 @@ def main() -> None:
     # 副題の基線：ロゴの下端（descender の無い語なので図形の下端）から間をあけ、文字の大きさの約0.88 下
     sub_baseline = height - PAD_EM * OUTPUT_EM + SUBTITLE_GAP_EM * OUTPUT_EM + sub_size * 0.88
     sub_height = sub_baseline + sub_size * 0.12 + PAD_EM * OUTPUT_EM
+    return LogoShape(
+        word_path=word_path,
+        accent_path=accent_path,
+        width=width,
+        height=height,
+        baseline=baseline,
+        sub_height=sub_height,
+        sub_baseline=sub_baseline,
+        sub_size=sub_size,
+        sub_spacing=sub_spacing,
+    )
+
+
+def main() -> None:
+    if len(sys.argv) != 2:
+        raise SystemExit(__doc__)
+    font = Font(Path(sys.argv[1]).read_bytes())
+    shape = build_shape(font)
 
     out_dir = Path(__file__).resolve().parent.parent / "src" / "brand"
     out_dir.mkdir(parents=True, exist_ok=True)
-    header = (
-        "自動生成（web/scripts/outline-logo.py）。手で直さない。"
-        "文字の図形は Manrope Bold（SIL Open Font License 1.1、"
-        "Copyright 2018 The Manrope Project Authors）から作った。フォントファイルは含まない。"
+    (out_dir / "logoData.ts").write_text(build_ts(shape), encoding="utf-8", newline="\n")
+    (out_dir / "sonaquest-logo.svg").write_text(build_plain_svg(shape), encoding="utf-8", newline="\n")
+    (out_dir / "sonaquest-logo-subtitle.svg").write_text(
+        build_subtitle_svg(shape), encoding="utf-8", newline="\n"
     )
-
-    ts = f"""// {header}
-// Issue #263、ADR-0066。アプリ（SonaQuestLogo.tsx）と動画（video/）がここを読む。
-
-/** ロゴの語（Q を除く8字）の図形 */
-export const LOGO_WORD_PATH =
-  "{word_path}";
-
-/** Q の図形（色を変える） */
-export const LOGO_ACCENT_PATH =
-  "{accent_path}";
-
-/** 文字だけの版の大きさ（viewBox の幅・高さ）と、上端から基線までの距離 */
-export const LOGO_WIDTH = {fmt(width)};
-export const LOGO_HEIGHT = {fmt(height)};
-export const LOGO_BASELINE = {fmt(baseline)};
-
-/** 色（アプリの基調色に合わせた。語は --go-press、Q は --mint-strong） */
-export const LOGO_COLOR_WORD = "{COLOR_WORD}";
-export const LOGO_COLOR_ACCENT = "{COLOR_ACCENT}";
-
-/** 副題を添えた版。副題は文字のまま置き、書体は端末のゴシック（ADR-0037） */
-export const LOGO_SUBTITLE = "{SUBTITLE}";
-export const LOGO_SUBTITLE_HEIGHT = {fmt(sub_height)};
-export const LOGO_SUBTITLE_BASELINE = {fmt(sub_baseline)};
-export const LOGO_SUBTITLE_SIZE = {fmt(sub_size)};
-export const LOGO_SUBTITLE_SPACING = {fmt(sub_spacing)};
-export const LOGO_SUBTITLE_WEIGHT = {SUBTITLE_WEIGHT};
-export const LOGO_SUBTITLE_FONT_FAMILY =
-  "{SUBTITLE_FONT_FAMILY}";
-
-/** 読み上げ・代わりの文字 */
-export const LOGO_LABEL = "{WORD}";
-"""
-    (out_dir / "logoData.ts").write_text(ts, encoding="utf-8", newline="\n")
-
-    comment = f"<!-- {header} -->"
-    plain = (
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {fmt(width)} {fmt(height)}" '
-        f'role="img" aria-label="{WORD}">\n'
-        f"  {comment}\n"
-        f"  <title>{WORD}</title>\n"
-        f'  <path fill="{COLOR_WORD}" d="{word_path}"/>\n'
-        f'  <path fill="{COLOR_ACCENT}" d="{accent_path}"/>\n'
-        f"</svg>\n"
+    print(
+        f"unitsPerEm={font.units_per_em} width={fmt(shape.width)} "
+        f"height={fmt(shape.height)} baseline={fmt(shape.baseline)}"
     )
-    (out_dir / "sonaquest-logo.svg").write_text(plain, encoding="utf-8", newline="\n")
-
-    with_subtitle = (
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {fmt(width)} {fmt(sub_height)}" '
-        f'role="img" aria-label="{WORD} {SUBTITLE}">\n'
-        f"  {comment}\n"
-        f"  <title>{WORD} {SUBTITLE}</title>\n"
-        f'  <path fill="{COLOR_WORD}" d="{word_path}"/>\n'
-        f'  <path fill="{COLOR_ACCENT}" d="{accent_path}"/>\n'
-        f'  <text x="{fmt(width / 2)}" y="{fmt(sub_baseline)}" text-anchor="middle" '
-        f'font-family="{SUBTITLE_FONT_FAMILY}" font-size="{fmt(sub_size)}" '
-        f'font-weight="{SUBTITLE_WEIGHT}" letter-spacing="{fmt(sub_spacing)}" '
-        f'fill="{COLOR_WORD}">{SUBTITLE}</text>\n'
-        f"</svg>\n"
-    )
-    (out_dir / "sonaquest-logo-subtitle.svg").write_text(with_subtitle, encoding="utf-8", newline="\n")
-    print(f"unitsPerEm={font.units_per_em} width={fmt(width)} height={fmt(height)} baseline={fmt(baseline)}")
 
 
 if __name__ == "__main__":
