@@ -14,7 +14,7 @@ import os
 import re
 import sys
 
-from sonaguard import (commands_with_cwd, git_invocation, main_text, marker_counts, marker_shortfall, markers,
+from sonaguard import (STDIN_ARGS, commands_with_cwd,git_invocation, main_text, marker_counts, marker_shortfall, markers,
                        missing_decisions, native_path, read_text, removed_decisions, resolve_dir, split_commands,
                        split_commands_detail, use_utf8_stdio, write_targets)
 
@@ -48,8 +48,13 @@ def check_write_targets(cmd, cwd):
             block("コマンドを解析できないので、マーカーを含むファイルを書き換えないかを確かめられません。コマンドを分けてください")
         return
     for c, here in commands_with_cwd(commands, cwd):
+        # git -C の後のパス（restore・checkout）は、-C のフォルダから解く。リダイレクトは今いるフォルダから
+        g = git_invocation([t for t in c.toks if t != STDIN_ARGS]) or {}
+        git_dir = here
+        for d in g.get("chdirs", []):
+            git_dir = resolve_dir(git_dir, d)
         for target in write_targets(c):
-            path = resolve_dir(here, target)
+            path = resolve_dir(here if target in c.redirects else git_dir, target)
             if path is None or any(ch in target for ch in "*?["):  # 変数・置換・ワイルドカードは読めない
                 continue
             try:

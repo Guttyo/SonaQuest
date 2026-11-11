@@ -696,6 +696,10 @@ def check_gh(segment, tokens):
         method = gh_api_method(args)
         if endpoint and method in GH_WRITE_METHODS:
             path = api_path(endpoint[0])
+            # issues/../.. や pulls/1//merge、%2e のように、宛先を読み替えられる形は判定できない（Issue #291）
+            if "%" in path or any(s in ("", ".", "..") for s in path.strip("/").split("/")):
+                raise Blocked("gh api の宛先に、空の区切り・. ・..・% の符号化が入っていると、どこへ書き込むかを判定できません。"
+                              "宛先をそのまま書いてください（Issue #291）。")
             if REPO_ITSELF.fullmatch(path):
                 raise Blocked("リポジトリそのものの設定の変更・削除（公開の切り替えなど）はオーナーだけが行います。")
             if MAIN_REF.fullmatch(path):

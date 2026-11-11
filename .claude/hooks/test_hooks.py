@@ -100,6 +100,8 @@ def marker_target_tests(tmp):
         ("Bash", "git restore", "git restore doc.md", here),
         ("Bash", "git restore --staged --worktree", "git restore --staged --worktree doc.md", here),
         ("Bash", "1行目が git commit で、改行の後に行番号で消す", "git commit -m x\nsed -i '2d' doc.md", here),
+        ("Bash", "git -C フォルダ restore", f"git -C '{base.as_posix()}' restore doc.md", away),
+        ("Bash", "git -C フォルダ checkout ファイル", f"git -C '{base.as_posix()}' checkout -- doc.md", away),
         ("PowerShell", "Set-Content -Path", f"Set-Content -Path {d} -Value x", here),
         ("PowerShell", "Remove-Item", f"Remove-Item -Path {d}", here),
         ("PowerShell", "Clear-Content", "Clear-Content doc.md", here),
@@ -120,6 +122,9 @@ def marker_target_tests(tmp):
         ("Bash", "cat で読む", f"cat {d}", here),
         ("Bash", "サブシェルの中の cd は外に効かない", f"( cd '{base.as_posix()}' ) && rm doc.md", away),
         ("Bash", "別のフォルダの同じ名前", "rm doc.md", away),
+        ("Bash", "git -C フォルダ restore（マーカーの無いファイル）", f"git -C '{base.as_posix()}' restore plain.md", away),
+        ("Bash", "git -C 別のフォルダ restore（同じ名前でも -C の側で解く）", f"git -C '{other.as_posix()}' restore doc.md", here),
+        ("Bash", "git -C の後のリダイレクトは今いるフォルダで解く", f"git -C '{base.as_posix()}' log -1 > doc.md", away),
         ("Bash", "ワイルドカード（読めないので通す）", "rm *.tmp", here),
         ("Bash", "引用符の閉じていない読むだけのコマンド", "echo 'x", here),
         ("PowerShell", "Get-Content で読む", f"Get-Content {d}", here),
@@ -694,6 +699,12 @@ def github_hook_tests_291_more(G, on_main, on_work):
         ("Bash", "gh api の書き込み：PR のマージ", "gh api -X PUT repos/o/r/pulls/3/merge", on_work),
         ("Bash", "gh api の書き込み：宛先が変数", "gh api -X POST $URL -f x=y", on_work),
         ("Bash", "gh api の書き込み：リポジトリの外（ユーザーの設定）", "gh api -X PATCH user -f bio=x", on_work),
+        ("Bash", "gh api の書き込み：issues/../.. でリポジトリそのもの", "gh api -X PATCH repos/o/r/issues/../.. -f private=true", on_work),
+        ("Bash", "gh api の書き込み：issues/../../ で main の参照",
+         "gh api -X DELETE repos/o/r/issues/../../git/refs/heads/main", on_work),
+        ("Bash", "gh api の書き込み：%2e%2e の符号化", "gh api -X PATCH repos/o/r/issues/%2e%2e/%2e%2e -f private=true", on_work),
+        ("Bash", "gh api の書き込み：pulls/1//merge（空の区切り）", "gh api -X PUT repos/o/r/pulls/1//merge", on_work),
+        ("Bash", "gh api の書き込み：issues/./1 の . の区切り", "gh api -X PATCH repos/o/r/issues/./1 -f state=closed", on_work),
     ]:
         check(f"{tool}: 止める（{name}）", 2, hook(G, tool, {"command": cmd}, env=extra)[0])
     for tool, name, cmd in [
@@ -718,6 +729,8 @@ def github_hook_tests_291_more(G, on_main, on_work):
         ("Bash", "gh api：Issue のコメントを直す", "gh api -X PATCH repos/o/r/issues/comments/5 -f body=x"),
         ("Bash", "gh api：PR の指摘を ? 付きで読む", "gh api --paginate 'repos/{owner}/{repo}/pulls/3/comments?per_page=100'"),
         ("Bash", "gh api：読むだけの GraphQL（保護の語なし）", "gh api graphql -f query='query { viewer { login } }'"),
+        ("Bash", "gh api：先頭と末尾に / のある Issue のコメント", "gh api /repos/o/r/issues/1/comments/ -f body=x"),
+        ("Bash", "gh api：.. を含む読むだけの宛先", "gh api repos/o/r/issues/../pulls"),
     ]:
         check(f"{tool}: 止めない（{name}）", 0, hook(G, tool, {"command": cmd}, env=on_work)[0])
     code, err = hook(G, "Bash", {"command": "gh zzsecretname 12"}, env=on_work)
