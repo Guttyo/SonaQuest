@@ -3,7 +3,9 @@ import { detectDistress } from "./emergency";
 import { MAX_PROMPT_LENGTH } from "./turnContract";
 import {
   ACK_TEXT,
+  ACK_TEXTS,
   ALL_QUESTIONS,
+  ackFor,
   ANSWER_HINTS,
   CLARIFY_TEXTS,
   CONTACT_CHOICES,
@@ -148,6 +150,18 @@ describe("答える範囲（ADR-0022 案B）", () => {
   it("固定の質問文は、受け止めの一言を前に付けても、画面に出した文の上限に収まる（/api/turn で拒否されない）", () => {
     for (const q of ALL_QUESTIONS) {
       expect((ACK_TEXT + q.text).length).toBeLessThanOrEqual(MAX_PROMPT_LENGTH);
+    }
+  });
+
+  it("固定の進行で出す文（どの受け止めの一言と質問の組み合わせも、聞き返し・質問し直しの文も）は、asked の上限に収まる（Issue #292）", () => {
+    // 画面は ackFor(回答の数) + 質問文を出す（training.ts）。受け止めの一言は ACK_TEXTS を順に回る
+    for (const q of ALL_QUESTIONS) {
+      for (let n = 0; n < ACK_TEXTS.length; n++) {
+        expect((ackFor(n) + q.text).length, `${q.id}/${n}`).toBeLessThanOrEqual(MAX_PROMPT_LENGTH);
+      }
+    }
+    for (const [id, text] of [...Object.entries(CLARIFY_TEXTS), ...Object.entries(REDIRECT_TEXTS)]) {
+      expect(text.length, id).toBeLessThanOrEqual(MAX_PROMPT_LENGTH);
     }
   });
 

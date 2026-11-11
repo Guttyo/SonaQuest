@@ -1,8 +1,26 @@
 // Claude が作った文の検査（ADR-0025、docs/safety-test-plan.md S16〜S18）
 
 import { describe, expect, it } from "vitest";
-import { FIRST_HALF_QUESTIONS, HANDOVER_QUESTION, PROXY_QUESTION } from "../src/flow/content";
-import { isAcceptablePromptText, repeatsUserWords } from "./checks";
+import {
+  ACK_TEXT,
+  ACK_TEXTS,
+  ALL_QUESTIONS,
+  FIRST_HALF_QUESTIONS,
+  HANDOVER_QUESTION,
+  PROXY_QUESTION,
+} from "../src/flow/content";
+import { MAX_QUESTION_TEXT_LENGTH, MAX_REMARK_LENGTH } from "../src/flow/turnContract";
+import {
+  ECHOABLE_PATTERNS,
+  FORBIDDEN_PATTERNS,
+  isAcceptablePromptText,
+  promptTextProblem,
+  remarkTextProblem,
+  repeatsUserWords,
+  textForMatch,
+  unknownTerms,
+} from "./checks";
+import { ALLOWED_VOCABULARY } from "./turn";
 
 const location = FIRST_HALF_QUESTIONS[1].text;
 // 聞き返しで添えてよい例も、turn.ts と同じく許す言葉に入れる（Issue #110）
@@ -183,5 +201,128 @@ describe("係の名前（ソナ・クエ。Issue #164）", () => {
 
   it("固定の質問に名前が無いときに名乗る文は、知らないカタカナの言葉として捨てる", () => {
     expect(isAcceptablePromptText("ソナです。その薬のことは、何を見れば確かめられますか？", context())).toBe(false);
+  });
+});
+
+describe("書式文字（ゼロ幅スペースなど）を挟んだ文（Issue #292）", () => {
+  // 見た目で分からない文字は、ソースに直接書かずエスケープで作る
+  const FORMAT_CHARS = ["​", "⁠", "­", "﻿"];
+  const spread = (text: string, ch: string) => [...text].join(ch);
+  const samples = [
+    ["禁止表現", "早めに受診してください。"],
+    ["病名の言葉", "糖尿病の薬はありますか？"],
+    ["カタカナの言葉", "アムロジピンはありますか？"],
+  ] as const;
+
+  it.each(FORMAT_CHARS.map((ch) => [ch.codePointAt(0)!.toString(16)]))(
+    "U+%s を全部の文字の間に挟んでも、質問文と振り返りの一言の検査で捨てる",
+    (hex) => {
+      const ch = String.fromCodePoint(parseInt(hex, 16));
+      for (const [label, text] of samples) {
+        expect(promptTextProblem(spread(text, ch), context()), label).not.toBeNull();
+        expect(remarkTextProblem(spread(text, ch), []), label).not.toBeNull();
+      }
+      // 利用者の言葉の繰り返し
+      const repeat = spread("台所の引き出しは何で確かめられますか？", ch);
+      expect(promptTextProblem(repeat, context(["台所の引き出しにあります"]))).not.toBeNull();
+    },
+  );
+
+  it("書式文字を含む文は、それだけで捨てる（重ねる守り）", () => {
+    expect(promptTextProblem("はい。​その薬のことは、何を見れば確かめられますか？", context())).toBe("forbidden");
+    expect(remarkTextProblem("お話しくださってありがとうございました。⁠", [])).toBe("forbidden");
+  });
+
+  it("照合用の文は、空白と書式文字を除いてそろえる（文を捨てる守りが無くても、語の照合で見つかる）", () => {
+    const zw = "​";
+    expect(textForMatch(`受${zw}診 して`)).toBe("受診して");
+    expect(FORBIDDEN_PATTERNS.some((p) => p.test(textForMatch(spread("早めに受診してください。", zw))))).toBe(true);
+    expect(FORBIDDEN_PATTERNS.some((p) => p.test(textForMatch(spread("糖尿病の薬", zw))))).toBe(true);
+    expect(unknownTerms(spread("アムロジピンはありますか？", zw), [])).toEqual(["アムロジピン"]);
+    expect(repeatsUserWords(spread("台所の引き出し", zw), ["台所の引き出しにあります"], [])).toBe(true);
+    // 利用者の入力の側に書式文字があっても、同じ言葉として見る
+    expect(repeatsUserWords("ロキソニンは何で確かめますか", [spread("ロキソニンを飲んでいます", zw)], [])).toBe(true);
+  });
+});
+
+describe("区切って書いたカタカナと、固定の言葉の切れ端（Issue #292）", () => {
+  it.each([
+    ["空白で1文字ずつ", "ア ム ロ ジ ピ ンはありますか？"],
+    ["全角の空白で1文字ずつ", "ア　ム　ロ　ジ　ピ　ンはありますか？"],
+    ["中黒で1文字ずつ", "ア・ム・ロ・ジ・ピ・ンはありますか？"],
+    ["半角の中黒で1文字ずつ", "ｱ･ﾑ･ﾛ･ｼﾞ･ﾋﾟ･ﾝはありますか？"],
+    ["中黒と空白で1文字ずつ", "ア ・ ム ・ ロはありますか？"],
+  ])("%s：知らない言葉として捨てる", (_label, text) => {
+    expect(promptTextProblem(text, context())).toBe("unknown_term");
+  });
+
+  it("固定の文にある2つのカタカナの言葉を、中黒でつないだものは通す", () => {
+    const allowed = ["アプリ・マイナポータル"];
+    expect(unknownTerms("アプリ・マイナポータルで確かめられますか？", allowed)).toEqual([]);
+  });
+
+  it("固定の文のカタカナの言葉の切れ端は、許す言葉とみなさない（部分一致で通さない）", () => {
+    const allowed = ["スマートフォン", "アプリ・マイナポータル"];
+    expect(unknownTerms("スマートで確かめられますか？", allowed)).toEqual(["スマート"]);
+    expect(unknownTerms("ポータルで確かめられますか？", allowed)).toEqual(["ポータル"]);
+    expect(unknownTerms("スマートフォンで確かめられますか？", allowed)).toEqual([]);
+  });
+
+  it("固定の質問文を、どの受け止めの一言を前に付けて言い直しても通る（許す言葉の比べ方を変えた後も）", () => {
+    for (const q of ALL_QUESTIONS) {
+      const allowed = [q.text, ...ALLOWED_VOCABULARY];
+      for (const ack of [ACK_TEXT, ...ACK_TEXTS]) {
+        expect(promptTextProblem(`${ack}${q.text}`, { userTexts: [], allowed }), q.id).toBeNull();
+      }
+      if (q.examples !== undefined) {
+        // 聞き返しでは、いまの質問の例を添えてよい（Issue #110）
+        const clarify = `もう少し教えてください。${q.text}たとえば、${q.examples}などです。`;
+        expect(promptTextProblem(clarify, { userTexts: [], allowed: [...allowed, q.examples] }), q.id).toBeNull();
+      }
+    }
+  });
+});
+
+describe("「では？」（Issue #292）", () => {
+  it.each(["ほかの方法では？", "ほかの方法では?", "お薬手帳では？その薬は何で確かめられますか？"])(
+    "全角の？でも半角の ? でも捨てる：%s",
+    (text) => {
+      expect(promptTextProblem(text, context())).toBe("forbidden");
+      expect(remarkTextProblem(text, [])).toBe("forbidden");
+    },
+  );
+
+  it.each(["それでは、その薬のことは、何を見れば確かめられますか？", "ここでは、普段の薬のことを伺っています。"])(
+    "「では」を含むほかの文は捨てない：%s",
+    (text) => {
+      expect(promptTextProblem(text, context())).toBeNull();
+    },
+  );
+});
+
+describe("復唱で許す禁止表現は、名前で指す（Issue #292）", () => {
+  it("許す4つは FORBIDDEN_PATTERNS にあり、それぞれ決まった表現を指す", () => {
+    const echoable = [...ECHOABLE_PATTERNS];
+    expect(echoable).toHaveLength(4);
+    for (const p of echoable) expect(FORBIDDEN_PATTERNS).toContain(p);
+    const sources = echoable.map((p) => p.source);
+    expect(sources[0]).toContain("でしょうか|ですね");
+    expect(sources[1]).toContain("お?薬");
+    expect(sources[2]).toContain("病(?!院)");
+    expect(sources[3]).toContain("血圧");
+    // 番号で選んでいないので、量・助言などの表現は入らない
+    expect(sources.join("\n")).not.toMatch(/正しくは|飲んで|用法|止め/);
+  });
+});
+
+describe("長さの上限（Issue #292）", () => {
+  it("質問文は MAX_QUESTION_TEXT_LENGTH まで通し、超えたら捨てる", () => {
+    expect(promptTextProblem("あ".repeat(MAX_QUESTION_TEXT_LENGTH), context())).toBeNull();
+    expect(promptTextProblem("あ".repeat(MAX_QUESTION_TEXT_LENGTH + 1), context())).toBe("length");
+  });
+
+  it("振り返りの一言は MAX_REMARK_LENGTH まで通し、超えたら捨てる", () => {
+    expect(remarkTextProblem("あ".repeat(MAX_REMARK_LENGTH), [])).toBeNull();
+    expect(remarkTextProblem("あ".repeat(MAX_REMARK_LENGTH + 1), [])).toBe("length");
   });
 });
