@@ -45,8 +45,10 @@ export function pendingChartEdit(records: readonly DemoRecord[], site: SiteId, n
 }
 
 /**
- * 待っている入力を、実際に入った記録と結び付ける。記録は先頭に足されるので、前からあった番号を除いた最初の1件が、その入力の記録。
+ * 待っている入力を、実際に入った記録と結び付ける。前からあった番号を除いた記録が、その入力の記録。
  * 番号を作るのは reducer だけなので、待つあいだに架空の患者が同じ救護所に到着しても番号がずれない。
+ * 待っている入力は渡した順（古い順）で、記録は先頭に足される（新しい順）ので、古い入力から順に、まだ結び付けていない
+ * いちばん古い記録と結び付ける（同じ人の入力が1回の描画にまとめて入っても、入力と番号・操作した人が入れ替わらない）。
  * まだ入っていない入力は rest に残す
  */
 export function claimChartEdits(
@@ -57,7 +59,14 @@ export function claimChartEdits(
   const claimed: { id: string; who: DemoSession }[] = [];
   const rest: PendingChartEdit[] = [];
   for (const p of pending) {
-    const r = records.find((x) => isEntered(x, p.site, p.name) && !p.before.has(x.id) && !used.has(x.id));
+    let r: DemoRecord | undefined;
+    for (let i = records.length - 1; i >= 0; i--) {
+      const x = records[i];
+      if (isEntered(x, p.site, p.name) && !p.before.has(x.id) && !used.has(x.id)) {
+        r = x;
+        break;
+      }
+    }
     if (r === undefined) {
       rest.push(p);
       continue;

@@ -1,7 +1,7 @@
 // アクセス記録を、人がした操作だけ・その操作をした人の名前で・正しい対象に残す決まり（Issue #289）。
 // 試験の環境には DOM が無いので、画面（Board.tsx）の開閉・非同期の処理で使う決まりを、ここで確かめる
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { sessionFor } from "./access";
+import { sessionFor, staffFor } from "./access";
 import { afterAuditWait, claimChartEdits, createTimerBag, opensOnSummaryClick, pendingChartEdit } from "./accessTiming";
 import { demoReducer, initialDemo, nextRecordId, type DemoAction, type DemoState } from "./demo";
 import type { SiteId } from "./data";
@@ -125,6 +125,23 @@ describe("「カルテを編集した」は、reducer が実際に作った記�
     const s2 = run(s0, entry("救護所A"), entry("救護所A"));
     const ids = claimChartEdits([p1, p2], s2.records).claimed.map((c) => c.id);
     expect(new Set(ids).size).toBe(2);
+  });
+
+  it("2つの入力が1回の描画にまとめて入っても、先に渡した入力が先に入った記録の番号・その操作をした人になる", () => {
+    const s0 = initialDemo();
+    const other = { site: "救護所A" as const, staff: staffFor("救護所A")[1] };
+    expect(other.staff).toBeDefined();
+    expect(other.staff).not.toBe(who.staff);
+    const p1 = pendingChartEdit(s0.records, "救護所A", "架空 太郎", who);
+    const p2 = pendingChartEdit(s0.records, "救護所A", "架空 太郎", other);
+    const s1 = demoReducer(s0, entry("救護所A"));
+    const firstId = s1.records[0].id;
+    const s2 = demoReducer(s1, entry("救護所A"));
+    const secondId = s2.records[0].id;
+    expect(claimChartEdits([p1, p2], s2.records).claimed).toEqual([
+      { id: firstId, who },
+      { id: secondId, who: other },
+    ]);
   });
 
   it("到着した架空の患者の記録（番号を持つもの）は、人の入力として拾わない", () => {
