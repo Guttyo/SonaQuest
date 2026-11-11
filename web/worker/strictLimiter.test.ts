@@ -69,6 +69,18 @@ describe("durableLimiter", () => {
     expect(results.slice(10)).toEqual(["limited", "limited"]);
   });
 
+  it("同じ /64 の中の別々の IPv6 アドレスは、合わせて 11 回目から limited（Issue #284）", async () => {
+    const limiter = durableLimiter(fakeNamespace(() => 5_000).ns);
+    const results: string[] = [];
+    for (let i = 0; i < 12; i++) {
+      results.push(await checkRateLimit(req(`2001:db8:abcd:12::${(i + 1).toString(16)}`), { enforce: true, limiter, prefix: "turn" }));
+    }
+    expect(results.slice(0, 10).every((r) => r === "allowed")).toBe(true);
+    expect(results.slice(10)).toEqual(["limited", "limited"]);
+    // 別の /64 は別の窓
+    expect(await checkRateLimit(req("2001:db8:abcd:13::1"), { enforce: true, limiter, prefix: "turn" })).toBe("allowed");
+  });
+
   it("接続元と接頭辞が違えば、別のオブジェクトで数える", async () => {
     const { ns, objects } = fakeNamespace(() => 5_000);
     const limiter = durableLimiter(ns);

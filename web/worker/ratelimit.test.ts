@@ -2,7 +2,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { requestTurn } from "../src/flow/api";
-import { checkRateLimit, type RateLimiter } from "./ratelimit";
+import { checkRateLimit, clientKey, type RateLimiter } from "./ratelimit";
 
 const limiter = (success: boolean) => ({ limit: vi.fn(async (_options: { key: string }) => ({ success })) });
 const req = (headers: Record<string, string> = {}) => new Request("https://sonaquest.example/api/turn", { method: "POST", headers });
@@ -37,12 +37,12 @@ describe("checkRateLimit", () => {
     expect(turn.limit.mock.calls.map(([o]) => o.key)).toEqual(["turn:198.51.100.7", "tts:198.51.100.7"]);
   });
 
-  it("IPv6 も使え、長すぎるヘッダーはキーの長さの上限で切る", async () => {
+  it("IPv6 は /64 にまとめ、長すぎるヘッダーはキーの長さの上限で切る", async () => {
     const turn = limiter(true);
     await checkRateLimit(req({ "cf-connecting-ip": "2001:db8::1" }), { enforce: true, limiter: turn, prefix: "turn" });
     await checkRateLimit(req({ "cf-connecting-ip": "a".repeat(500) }), { enforce: true, limiter: turn, prefix: "turn" });
     const keys = turn.limit.mock.calls.map(([o]) => o.key);
-    expect(keys[0]).toBe("turn:2001:db8::1");
+    expect(keys[0]).toBe("turn:2001:db8:0:0::/64");
     expect(keys[1]).toBe(`turn:${"a".repeat(64)}`);
   });
 
@@ -51,6 +51,42 @@ describe("checkRateLimit", () => {
     await checkRateLimit(req(), { enforce: true, limiter: turn, prefix: "turn" });
     await checkRateLimit(req({ "cf-connecting-ip": "   " }), { enforce: true, limiter: turn, prefix: "turn" });
     expect(turn.limit.mock.calls.map(([o]) => o.key)).toEqual(["turn:unknown", "turn:unknown"]);
+  });
+});
+
+describe("clientKey（回数制限のキーの接続元。Issue #284、IPv6 は /64）", () => {
+  const same64 = "2001:db8:abcd:12::/64";
+  it.each([
+    ["IPv4 はそのまま", "198.51.100.7", "198.51.100.7"],
+    ["IPv4 の前後の空白は除く", "  198.51.100.7 ", "198.51.100.7"],
+    ["IPv6 の完全な形", "2001:0db8:abcd:0012:0000:0000:0000:0001", same64],
+    ["IPv6 の省略した形", "2001:db8:abcd:12::1", same64],
+    ["IPv6 の大文字の形", "2001:DB8:ABCD:12::FFFF", same64],
+    ["同じ /64 の別のアドレス（後ろの64ビットを替えた）", "2001:db8:abcd:12:1:2:3:4", same64],
+    ["先頭が省略された形", "::1", "0:0:0:0::/64"],
+    ["末尾が省略された形", "fe80::", "fe80:0:0:0::/64"],
+    ["IPv4 を埋め込んだ IPv6（::ffff:）は IPv4 として扱う", "::ffff:198.51.100.7", "198.51.100.7"],
+    ["IPv4 を埋め込んだ IPv6 の完全な形", "0:0:0:0:0:ffff:198.51.100.7", "198.51.100.7"],
+    ["16進で書いた ::ffff: の形も IPv4 として扱う", "::ffff:c633:6407", "198.51.100.7"],
+    ["::ffff: 以外の IPv4 の埋め込みは IPv6 として /64 にまとめる", "64:ff9b::198.51.100.7", "64:ff9b:0:0::/64"],
+    ["読めない文字列はそのまま", "not-an-ip", "not-an-ip"],
+    ["区切りが多すぎる IPv6 は読めない文字列として扱う", "1:2:3:4:5:6:7:8:9", "1:2:3:4:5:6:7:8:9"],
+    [":: が2つある形は読めない文字列として扱う", "2001::db8::1", "2001::db8::1"],
+    ["5桁の区切りは読めない文字列として扱う", "2001:db8:12345::1", "2001:db8:12345::1"],
+    ["範囲の外の IPv4 は読めない文字列として扱う", "256.1.1.1", "256.1.1.1"],
+    ["空は全員で共有するキー", "", "unknown"],
+    ["空白だけも全員で共有するキー", "   ", "unknown"],
+    ["ヘッダーなし（null）も全員で共有するキー", null, "unknown"],
+  ])("%s", (_name, raw, expected) => {
+    expect(clientKey(raw)).toBe(expected);
+  });
+
+  it("別の /64 は別のキーになる", () => {
+    expect(clientKey("2001:db8:abcd:12::1")).not.toBe(clientKey("2001:db8:abcd:13::1"));
+  });
+
+  it("読めない長い文字列は、キーの長さの上限で切る", () => {
+    expect(clientKey("x".repeat(500))).toBe("x".repeat(64));
   });
 });
 
