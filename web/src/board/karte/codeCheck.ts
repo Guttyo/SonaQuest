@@ -1,7 +1,8 @@
 // カルテの要約の1段目：コードでの確認（B-10、Issue #142、ADR-0052 の提案）。AI を使わず、要約を出すたびに必ず通す。
 // - quote が、会話の本人の発言のどれか1つに文字どおり含まれるか（含まなければ「根拠なし」）。
 //   照合の前に NFKC などでそろえない（「文字どおり」を守る。前後の空白だけ外す）。聞き手の質問は根拠にしない。
-// - text に出る数字・カタカナ・英字が、quote にもあるか（量や名前が足された・変わったのを拾う）。
+// - text に出る数（算用数字・漢数字）・カタカナ・英字が、quote にもあるか（量や名前が足された・変わったのを拾う）。
+//   数は語として完全一致で比べる（quote の「12」は text の「2」の根拠にしない。Issue #287）。漢字の言葉は見ていない。
 // - text が禁止表現（助言・診断めいた言い方など。下書き）に当たらないか。
 // - 5観点が、items か not_covered のどちらかにちょうど現れるか。
 // 検査は完全ではない（意味が変わった・落ちたは、2段目の監査役と、最後に確定する人が見る）。語の一覧と試験
@@ -41,13 +42,50 @@ export const KARTE_FORBIDDEN_PATTERNS: readonly RegExp[] = [
 const KATAKANA_RUN = /[ァ-ヺー]{2,}/gu;
 const LATIN_RUN = /[A-Za-z]+/gu;
 const DIGIT_RUN = /[0-9]+/gu;
+/** 漢数字の並び（Issue #287）。算用数字とは別の種類として、文字のまま比べる */
+const KANJI_NUMERAL_RUN = /[〇一二三四五六七八九十百千]+/gu;
 
-/** text の中の数字・カタカナ（2文字以上）・英字の並びのうち、quote に無いもの */
-export function termsNotInQuote(text: string, quote: string): string[] {
+const runs = (s: string, re: RegExp): string[] => [...s.matchAll(re)].map((m) => m[0]);
+
+/**
+ * text の中の数（算用数字の並び・漢数字の並び）のうち、source に同じ並びとして無いもの（Issue #287）。
+ * 数は部分文字列では比べない（source の「12」は text の「2」の根拠にしない）。source から同じ正規表現で
+ * 取り出した並びの集合と、語として完全一致で比べる。漢数字を算用数字にそろえない（source の「一緒」の「一」を、
+ * text に足された「1」の根拠にしないため）。そのため、source の「1日」を text で「一日」と書くと指摘になる（安全側）。
+ * text と source は呼び出し側で NFKC にそろえておく
+ */
+function numbersNotIn(t: string, s: string): string[] {
+  const out: string[] = [];
+  for (const re of [DIGIT_RUN, KANJI_NUMERAL_RUN]) {
+    const inSource = new Set(runs(s, re));
+    out.push(...runs(t, re).filter((n) => !inSource.has(n)));
+  }
+  return out;
+}
+
+/**
+ * text の中のカタカナ（2文字以上）・英字の並びのうち、source に部分文字列として無いもの。
+ * 名前を短くした text（「サプリ」など）を通すため、部分一致のままにする
+ */
+function namesNotIn(t: string, s: string): string[] {
+  return [...runs(t, KATAKANA_RUN), ...runs(t, LATIN_RUN)].filter((term) => !s.includes(term));
+}
+
+/**
+ * text の中の数（算用数字・漢数字）・カタカナ（2文字以上）・英字の並びのうち、sources のどれにも無いもの。
+ * 数は語として完全一致、カタカナ・英字は部分一致で比べる（Issue #287）。監査役の理由の文の確かめ（karteAudit.ts）でも使う
+ */
+export function termsNotInSources(text: string, sources: readonly string[]): string[] {
   const t = text.normalize("NFKC");
-  const q = quote.normalize("NFKC");
-  const terms = [...t.matchAll(KATAKANA_RUN), ...t.matchAll(LATIN_RUN), ...t.matchAll(DIGIT_RUN)].map((m) => m[0]);
-  return terms.filter((term) => !q.includes(term));
+  const s = sources.map((x) => x.normalize("NFKC"));
+  const names = namesNotIn(t, s.join("\n"));
+  const numbers = numbersNotIn(t, s.join("\n"));
+  return [...names, ...numbers];
+}
+
+/** text の中の数字・漢数字・カタカナ（2文字以上）・英字の並びのうち、quote に無いもの */
+export function termsNotInQuote(text: string, quote: string): string[] {
+  return termsNotInSources(text, [quote]);
 }
 
 /** quote が本人の発言のどれか1つに、文字どおり含まれるか（発言をまたいだ quote は根拠にしない） */

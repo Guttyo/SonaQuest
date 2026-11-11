@@ -1,11 +1,14 @@
 // /api/karte/*：カルテの抽出型の要約と2段構えの監査（B-10、Issue #142、ADR-0052・ADR-0053 の提案）。
 // - POST /api/karte/summary：見本の ID を受け取り、要約を作るモデル（Messages API）で要約し、1段目のコードでの確認を通して返す。
 //   planted: true のときは、デモ用に誤りを混ぜた固定の要約を返す（AI を呼ばない）
-// - POST /api/karte/audit：見本の ID と要約（要約の入口の返事をそのまま返す）か planted を受け取り、
-//   Managed Agents の監査役で確かめる。一定時間で終わらなければ「監査できず」。セッションは毎回削除する
+// - POST /api/karte/audit：見本の ID と要約（要約の入口の返事を画面がそのまま送り返す）か planted を受け取り、
+//   Managed Agents の監査役で確かめる。画面から受け取った要約は、送る前に1段目のコードでの確認を当て直し、
+//   指摘のある項目と伏せた文の項目を外して送る（Issue #287。要約の由来（要約の入口が返したものか）は確かめていない）。
+//   一定時間で終わらなければ「監査できず」。セッションは毎回削除する
 // - POST /api/karte/transcript-summary：HQ のカルテ画面で架空の患者を演じて話した文字起こし（2000字まで）を受け取り、
 //   同じモデルと決まりで要約し、1段目のコードでの確認を通して返す（Issue #202、ADR-0061 の追記）。監査役には回さない
-// 見本の要約・監査では、会話の本文をブラウザから受け取らない（見本はコードに持つ）。文字起こしの入口だけが本文を受け取る。API キーはブラウザに出さない。
+// 見本の要約・監査では、会話の本文をブラウザから受け取らない（見本はコードに持つ）。監査の入口は要約を受け取るが、
+// 監査役に送るのは、quote が見本の本人の発言に文字どおりある項目だけ。文字起こしの入口だけが会話の本文を受け取る。API キーはブラウザに出さない。
 // 公開する版では、会話・要約・指摘の本文をログに出さない。出すのは失敗の種類・件数・所要時間だけ（ADR-0007）。
 
 import { Hono } from "hono";
@@ -22,6 +25,8 @@ import {
   KARTE_AUDIT_TIMEOUT_MS,
   makeKarteAuditBackend,
   parseAuditOutput,
+  restoreFindings,
+  selectAuditItems,
   unavailableReason,
   type KarteAuditBackend,
   type KarteAuditConfig,
@@ -217,13 +222,28 @@ export function createKarteApp(deps: KarteDeps) {
     const request = parseAuditRequest(read.json);
     const sample = request === null ? undefined : findSample(request.sampleId);
     if (request === null || sample === undefined) return c.json({ error: "bad_request" }, 400);
-    const summary = "planted" in request ? plantedSummary(sample) : request.summary;
+    // 画面から送り返された要約は、形と長さしか確かめていないので、1段目のコードでの確認を当て直し、指摘のある項目・
+    // 伏せた文の項目を外してから送る（Issue #287）。planted は、誤りを混ぜた項目（quote が会話に無いのが正しい）も
+    // 監査役に見せるデモなので、外さずにそのまま送る（サーバーが持つ固定の要約で、画面からの文は入らない）
+    const selection =
+      "planted" in request
+        ? selectAuditItems(plantedSummary(sample), [])
+        : selectAuditItems(request.summary, checkSummary(request.summary, patientUtterances(sample)));
+    const summary = selection.summary;
 
     const config = karteAuditConfig(c.env);
     const apiKey = c.env.ANTHROPIC_API_KEY;
     if (config === null || apiKey === undefined || apiKey === "") {
       fail("audit_not_configured");
       const response: KarteAuditResponse = { status: "unavailable", reason: "not_configured", session: "not_created", ms: 0 };
+      return c.json(response);
+    }
+    if (summary.items.length === 0 && selection.excluded > 0) {
+      // 項目を外した結果、送る項目が1つも残らないときは、監査役を呼ばない（セッションを作らない）。理由の種類は今ある「failed」
+      // （画面は「監査役を呼べませんでした。」と「セッションは作っていません。」）を使い、新しい文を足さない。
+      // もとから items が空の要約（5観点すべてが not_covered）は、落ちている情報を見るために今までどおり送る
+      fail(`audit_no_items excluded=${selection.excluded}`);
+      const response: KarteAuditResponse = { status: "unavailable", reason: "failed", session: "not_created", ms: 0 };
       return c.json(response);
     }
     const rate = await rateGate(c.req.raw, c.env, "karteaudit");
@@ -253,13 +273,16 @@ export function createKarteApp(deps: KarteDeps) {
       return c.json(response);
     }
     logContent(devLog, "karte audit output", result.text);
-    const findings = parseAuditOutput(result.text, summary);
-    if (findings === null) {
+    const parsed = parseAuditOutput(result.text, summary, message);
+    if (parsed === null) {
       fail(`audit_invalid_output session=${result.session} ${ms}ms`);
       const response: KarteAuditResponse = { status: "unavailable", reason: "invalid_output", session: result.session, ms };
       return c.json(response);
     }
-    console.info(`karte: audit findings=${findings.length} session=${result.session} ${ms}ms`);
+    // 位置を、画面が持つ（送り返した）要約の位置に戻す
+    const findings = restoreFindings(parsed, selection);
+    // 件数だけ（外した項目の本文は出さない）
+    console.info(`karte: audit findings=${findings.length} excluded=${selection.excluded} session=${result.session} ${ms}ms`);
     const response: KarteAuditResponse = { status: "audited", findings, session: result.session, ms };
     return c.json(response);
   });

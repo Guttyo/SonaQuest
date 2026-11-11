@@ -54,6 +54,18 @@ describe("根拠のない項目を必ず拾う（10本すべて）", () => {
     }
   });
 
+  it("10本すべての planted で、項目の指摘は混ぜた項目の quote_not_found の1件だけ（数の照合の直しで見本の指摘の数が変わらない。Issue #287）", () => {
+    for (const sample of KARTE_SAMPLES) {
+      const summary = plantedSummary(sample);
+      const findings = checkSummary(summary, patientUtterances(sample));
+      // 観点の指摘（混ぜた項目の観点が not_covered にもある見本の aspect_conflict）は、もとからあるので別に見る
+      expect(findings.filter((f) => f.itemIndex !== null), sample.id).toEqual([
+        { kind: "quote_not_found", itemIndex: summary.items.length - 1, aspect: sample.planted.aspect },
+      ]);
+      expect(findings.filter((f) => f.kind === "text_adds_terms"), sample.id).toEqual([]);
+    }
+  });
+
   it("正解のどの項目でも、quote を1文字変えると quote_not_found になる", () => {
     for (const sample of KARTE_SAMPLES) {
       sample.expected.items.forEach((item, i) => {
@@ -102,6 +114,38 @@ describe("text の確かめ", () => {
     const sample = findSample("karte-01")!;
     const items = sample.expected.items.map((it, j) => (j === 2 ? { ...it, text: "架空の降圧薬Aを朝に2錠" } : it));
     expect(kinds({ ...sample.expected, items }, patientUtterances(sample))).toEqual(["text_adds_terms"]);
+  });
+
+  it("数は部分一致でなく、数として完全一致で比べる（Issue #287）", () => {
+    const at = (text: string, quote: string) =>
+      kinds({ items: [{ aspect: "current", text, quote }], not_covered: ["location", "alternative", "unrecorded", "proxy"] }, [quote]);
+    // quote の「12」は、text の「2」の根拠にしない
+    expect(termsNotInQuote("降圧薬A 2錠", "降圧薬Aを1日12錠")).toEqual(["2"]);
+    expect(at("降圧薬A 2錠", "降圧薬Aを1日12錠")).toEqual(["text_adds_terms"]);
+    // 逆向き（quote の「1日2錠」を text で「12錠」とつなげた）も拾う
+    expect(termsNotInQuote("降圧薬A 12錠", "降圧薬Aを1日2錠")).toEqual(["12"]);
+    // 数も名前も quote にあれば指摘しない
+    expect(at("降圧薬Aを1日3錠", "降圧薬Aは1日3錠です")).toEqual([]);
+    // 全角の数字は NFKC でそろえてから比べる
+    expect(termsNotInQuote("朝に１錠", "朝に1錠です")).toEqual([]);
+  });
+
+  it("漢数字も数として拾い、算用数字とは文字のまま比べる（Issue #287）", () => {
+    const at = (text: string, quote: string) =>
+      kinds({ items: [{ aspect: "current", text, quote }], not_covered: ["location", "alternative", "unrecorded", "proxy"] }, [quote]);
+    // quote に無い漢数字の量
+    expect(termsNotInQuote("朝に三錠", "朝に2錠のんでいます")).toEqual(["三"]);
+    expect(at("朝に三錠", "朝に2錠のんでいます")).toEqual(["text_adds_terms"]);
+    // quote の「一緒」の「一」を、text に足された「1」の根拠にしない
+    expect(at("一緒に1錠", "一緒に飲んでいます")).toEqual(["text_adds_terms"]);
+    // quote にある漢数字はそのまま通す
+    expect(termsNotInQuote("家族と一緒に飲む", "家族と一緒に飲んでいます")).toEqual([]);
+    // 表記をまたいで写すと指摘になる（安全側の誤検出。意図した振る舞い）
+    expect(termsNotInQuote("一日に2回", "1日に2回です")).toEqual(["一"]);
+  });
+
+  it("漢字の言葉は、この照合では見ない（Issue #287 のオーナー判断1。入れるかは決まっていない）", () => {
+    expect(termsNotInQuote("高血圧の降圧薬を朝に", "血圧の薬を朝に飲んでいます")).toEqual([]);
   });
 
   it("助言・診断めいた text は forbidden になり、画面に出す前に伏せる", () => {
