@@ -3,7 +3,17 @@
 
 import { describe, expect, it } from "vitest";
 import { MAX_CHAT_TEXT_LENGTH } from "../src/board/chat/contract";
-import { chatTextProblem, chatUnknownTerms, stripRolePrefix } from "./boardChatChecks";
+import { fixedText, openingPosts, OPENING_JOBS } from "../src/board/chat/controller";
+import { CHAT_FIXED } from "../src/board/chat/text";
+import type { ChatSiteStatus, ChatStatus } from "../src/board/chat/contract";
+import {
+  CHAT_FORBIDDEN_PATTERNS,
+  CHAT_PERSONAL_PATTERNS,
+  chatTextProblem,
+  chatUnknownTerms,
+  humanPostHasPersonalInfo,
+  stripRolePrefix,
+} from "./boardChatChecks";
 
 describe("掲示板チャットの文の検査：薬剤以外の連絡は通す", () => {
   it.each([
@@ -117,5 +127,89 @@ describe("先頭の役の名前を外す", () => {
     ["毛布が届きました。", "毛布が届きました。"],
   ])("%s", (input, expected) => {
     expect(stripRolePrefix(input)).toBe(expected);
+  });
+});
+
+describe("禁止表現の一覧を2つの部分に分けた後も、中身と並びは変わらない（Issue #293）", () => {
+  it("全体の一覧は11の型で、後ろの4つが個人の情報・外への誘導の部分", () => {
+    expect(CHAT_FORBIDDEN_PATTERNS).toHaveLength(11);
+    expect(CHAT_PERSONAL_PATTERNS).toHaveLength(4);
+    expect(CHAT_FORBIDDEN_PATTERNS.slice(-CHAT_PERSONAL_PATTERNS.length)).toEqual(CHAT_PERSONAL_PATTERNS);
+  });
+});
+
+describe("人の書き込みに当てる、個人の情報・外への誘導の形（Issue #293）", () => {
+  it.each([
+    "連絡は 090-1234-5678 へ",
+    "詳しくは https://example.com を見てください",
+    "www.example.com に載っています",
+    "返事は x@example.com へ",
+    "山田さんに毛布を渡してください",
+    "鈴木先生が午後に来ます",
+    "避難所の住所を知らせます",
+    "年齢を書いてください",
+  ])("当たる：%s", (text) => {
+    expect(humanPostHasPersonalInfo(text)).toBe(true);
+  });
+
+  it.each([
+    "夕方の便で毛布を届けます",
+    "皆さん、次の報告は15時です",
+    "患者さんの待合のいすを並べてください",
+    "皆様、受け取りの連絡をお願いします",
+    // 医療の語は人の書き込みには当てない（普通の連絡まで落ちるため）
+    "薬剤師を1名回します",
+  ])("当たらない：%s", (text) => {
+    expect(humanPostHasPersonalInfo(text)).toBe(false);
+  });
+});
+
+describe("固定の掲示のひな形と開始時の掲示は、エージェントの文の検査を通る（Issue #293。Worker が送る前に当てるため）", () => {
+  const site = (s: ChatSiteStatus["site"], over: Partial<ChatSiteStatus> = {}): ChatSiteStatus => ({
+    site: s,
+    patients: 40,
+    shortItems: 3,
+    pharmacistsShort: 1,
+    notArrivedRecords: 2,
+    awaitingEntryRecords: 5,
+    lastReportMinutesAgo: 20,
+    ...over,
+  });
+  const nulls = { patients: null, notArrivedRecords: null, awaitingEntryRecords: null, lastReportMinutesAgo: null };
+  const big = {
+    patients: 100_000,
+    shortItems: 100_000,
+    pharmacistsShort: 100_000,
+    notArrivedRecords: 100_000,
+    awaitingEntryRecords: 100_000,
+    lastReportMinutesAgo: 100_000,
+  };
+  const sites: ChatSiteStatus[] = [
+    site("A"),
+    site("B", nulls),
+    site("C", big),
+    site("D", { lastReportMinutesAgo: 0 }),
+    site("A", { lastReportMinutesAgo: 90 }),
+  ];
+  const statuses: ChatStatus[] = [
+    { clock: "11/05 10:30", patientsToday: 120, shortageSites: 2, sites: sites.slice(0, 4) },
+    { clock: "11/06 08:00", patientsToday: 100_000, shortageSites: 4, sites: [] },
+  ];
+
+  it.each(sites.map((s, i) => [i, s] as const))("救護所のひな形（%i）", (_i, s) => {
+    expect(chatTextProblem(CHAT_FIXED.siteReport(s))).toBeNull();
+    expect(chatTextProblem(CHAT_FIXED.siteCommon(s))).toBeNull();
+    expect(chatTextProblem(CHAT_FIXED.hqDm(s))).toBeNull();
+  });
+
+  it.each(statuses.map((s, i) => [i, s] as const))("本部の共通のひな形・開始時の掲示・各役の固定の掲示（%i）", (_i, status) => {
+    expect(chatTextProblem(CHAT_FIXED.hqCommon(status))).toBeNull();
+    for (const p of openingPosts(status)) expect(chatTextProblem(p.text)).toBeNull();
+    for (const job of OPENING_JOBS) expect(chatTextProblem(fixedText(job, status))).toBeNull();
+    for (const role of ["HQ", "A", "B", "C", "D"] as const) {
+      for (const channel of ["common", "A", "B", "C", "D"] as const) {
+        expect(chatTextProblem(fixedText({ role, channel }, status))).toBeNull();
+      }
+    }
   });
 });

@@ -13,7 +13,7 @@ import {
   BOARD_CHAT_SESSION_BUDGET_CENTS,
   type BoardChatRoleId,
 } from "./boardChatAgents";
-import { chatTextProblem, stripRolePrefix } from "./boardChatChecks";
+import { chatTextProblem, humanPostHasPersonalInfo, stripRolePrefix } from "./boardChatChecks";
 import { contentLogEnabled, logContent } from "./devlog";
 import { checkRateLimit, type RateLimiter } from "./ratelimit";
 import { crossSiteRequest, ttsAllowed } from "./tts";
@@ -22,6 +22,7 @@ import {
   parseChatSessionRequest,
   parseChatTurnRequest,
   type ChatChannel,
+  type ChatContextPost,
   type ChatErrorCode,
   type ChatRole,
   type ChatStatus,
@@ -149,16 +150,57 @@ export const TURN_STYLE_LINES: readonly string[] = [
   "未着の記録は、紙がまだ本部に届いていないものです。転記待ちの記録は、もう本部に届いていて、本部で転記を待っているものです。転記待ちだけの救護所が、紙を本部へ届けると書かないでください。",
 ];
 
+/** 人の書き込みが個人の情報・外への誘導の形に当たったとき、その書き込みの代わりにエージェントへ送る文（画面の書き込みはそのまま） */
+export const MASKED_HUMAN_POST = "（検査で省いた書き込み）";
+
+export interface ScreenedPosts {
+  posts: ChatContextPost[];
+  /** エージェントの文・固定の掲示と申告されたが、検査（chatTextProblem）を通らず、送らなかった件数 */
+  dropped: number;
+  /** 人の書き込みのうち、個人の情報・外への誘導の形に当たり、MASKED_HUMAN_POST に置き換えた件数 */
+  masked: number;
+}
+
+/**
+ * 画面から届いた書き込みを、エージェントへ送る前に確かめる（Issue #293）。出どころ（by）は画面の申告で、Worker は確かめられない。
+ * - agent・fixed：Worker が返した文と、ルールで組んだ固定の掲示は、どちらも chatTextProblem を通る。通らないものは
+ *   画面の外で作り替えた文とみなし、送らない（turn 全体は止めない。止めると、そのチャットが固定の掲示に切り替わったままになるため）
+ * - human：個人の情報・外への誘導の形（CHAT_PERSONAL_PATTERNS）だけを当て、当たったものは MASKED_HUMAN_POST に置き換える。
+ *   医療の語は当てない（人が書く普通の連絡まで落ちるため）
+ */
+export function screenContextPosts(posts: readonly ChatContextPost[]): ScreenedPosts {
+  const kept: ChatContextPost[] = [];
+  let dropped = 0;
+  let masked = 0;
+  for (const p of posts) {
+    if (p.by === "human") {
+      if (humanPostHasPersonalInfo(p.text)) {
+        masked += 1;
+        kept.push({ ...p, text: MASKED_HUMAN_POST });
+      } else {
+        kept.push(p);
+      }
+    } else if (chatTextProblem(p.text) !== null) {
+      dropped += 1;
+    } else {
+      kept.push(p);
+    }
+  }
+  return { posts: kept, dropped, masked };
+}
+
 /**
  * エージェントに送る1回分の文。書き込みは「掲示板の内容で、指示ではない」と囲んで渡す。
- * 人の書き込みも、エージェントの書き込みも、ここで初めて文にする（画面から文そのものは受け取らない）
+ * 書き込みの本文は画面から届いた文（送る前に screenContextPosts で確かめる）で、JSON の文字列の値として1行に埋め込む
+ * （訓練の prompt.ts と同じやり方）。本文に改行や見出しに似た文があっても、アプリが組む行の数と順番は変わらない。
+ * 出どころ（by）は画面の申告なので、人の書き込みも、エージェントの文・固定の掲示も、同じ囲みに入れる
  */
 export function buildTurnMessage(request: ChatTurnRequest): string {
   const name = BOARD_CHAT_ROLE_NAMES[request.role];
   const posts =
     request.posts.length === 0
       ? ["（まだ書き込みはありません）"]
-      : request.posts.map((p) => `- ${BOARD_CHAT_ROLE_NAMES[p.role]}${p.by === "human" ? "（本部の人）" : ""}：「${p.text}」`);
+      : request.posts.map((p) => `- ${BOARD_CHAT_ROLE_NAMES[p.role]}${p.by === "human" ? "（本部の人）" : ""}：${JSON.stringify(p.text)}`);
   return [
     "【デモの掲示板。すべて架空の訓練です】",
     `欄：${CHANNEL_NAMES[request.channel]}`,
@@ -370,7 +412,11 @@ export function createBoardChatApp(deps: BoardChatDeps) {
     }
     const request = g.request;
     const devLog = contentLogEnabled(c.env.DEV_CONTENT_LOG, c.req.url);
-    const message = buildTurnMessage(request);
+    const screened = screenContextPosts(request.posts);
+    // 本文は出さず、種類と件数だけ
+    if (screened.dropped > 0) fail(`context_dropped n=${screened.dropped}`);
+    if (screened.masked > 0) fail(`context_masked n=${screened.masked}`);
+    const message = buildTurnMessage({ ...request, posts: screened.posts });
     logContent(devLog, "board chat prompt", message);
     const started = Date.now();
     const result = await g.backend.runTurn(request.sessionId, message, timeoutMs);
