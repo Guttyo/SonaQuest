@@ -15,7 +15,7 @@ import { TalkButton } from "../voice/TalkButton";
 import { usePushToTalk, useSpeakWhenChanged, useSpeaker } from "../voice/hooks";
 import { appendRecognized, type MicStatus } from "../voice/talk";
 import type { SpeakerSnapshot } from "../voice/speaker";
-import { listenerSpeech, speechKey } from "../voice/speech";
+import { listenerSpeechPlan, speechKey } from "../voice/speech";
 import { listenerActivity } from "../voice/view";
 import { ConfirmSource } from "./ConfirmSource";
 import { EventScene } from "./EventScene";
@@ -53,8 +53,9 @@ export function Dialogue({ state, dispatch }: Props) {
   const { mode } = state;
   const voiceOn = mode === "3d";
   const { speaker, snapshot: speech } = useSpeaker(voiceOn, state.session);
-  const spoken = voiceOn ? listenerSpeech(state) : null;
-  useSpeakWhenChanged(speaker, spoken, spoken === null ? null : speechKey(state, spoken));
+  const plan = voiceOn ? listenerSpeechPlan(state) : null;
+  const spoken = plan?.text ?? null;
+  useSpeakWhenChanged(speaker, spoken, spoken === null ? null : speechKey(state, spoken), plan?.spec);
   const [lostMic, setLostMic] = useState<{ session: number; mic: MicStatus } | null>(null);
   const [listening, setListening] = useState(false);
   // 回答・確認を受け取るたびに、係が1回うなずく

@@ -64,7 +64,7 @@ describe("Claude を使う進行", () => {
     );
     expect(next.waiting).toBe(false);
     expect(next.stage).toEqual({ name: "first", index: 1 });
-    expect(next.prompt).toEqual({
+    expect(next.prompt).toMatchObject({
       questionId: "first_location",
       text: "その薬は、何で確かめられますか？",
       type: "ask",
@@ -230,7 +230,7 @@ describe("Claude を使う進行", () => {
       state,
       result(state, reply({ type: "clarify", question_id: "first_medicines", text: null })),
     );
-    expect(state.prompt).toEqual({
+    expect(state.prompt).toMatchObject({
       questionId: "first_medicines",
       text: CLARIFY_TEXTS.first_medicines,
       type: "clarify",
@@ -423,7 +423,7 @@ describe("Claude を使う進行", () => {
     }
     expect(state.stage).toEqual({ name: "confirm" });
     state = run([{ type: "confirm", source: "notebook" }, { type: "continue_after_event" }], state);
-    expect(state.prompt).toEqual({
+    expect(state.prompt).toMatchObject({
       questionId: "second_recovery",
       text: currentQuestion(state)?.text,
       type: "ask",

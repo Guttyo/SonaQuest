@@ -1,8 +1,17 @@
 // 回数を1か所で数える Durable Object（ADR-0065、safety-test-plan P7）の単体試験。本物の Durable Object は使わず、偽の名前空間を渡す。
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { checkRateLimit } from "./ratelimit";
-import { attachLimiter, durableLimiter, RateCounter, STRICT_LIMIT, STRICT_PERIOD_MS, takeSlot, type CounterNamespace } from "./strictLimiter";
+import {
+  attachLimiter,
+  durableLimiter,
+  RATE_COUNTER_TIMEOUT_MS,
+  RateCounter,
+  STRICT_LIMIT,
+  STRICT_PERIOD_MS,
+  takeSlot,
+  type CounterNamespace,
+} from "./strictLimiter";
 import worker from "./index";
 
 /** 名前ごとに1つの RateCounter を持つ偽の名前空間（どの拠点からでも同じ名前なら同じオブジェクトに届く、を写す） */
@@ -60,6 +69,18 @@ describe("durableLimiter", () => {
     expect(results.slice(10)).toEqual(["limited", "limited"]);
   });
 
+  it("同じ /64 の中の別々の IPv6 アドレスは、合わせて 11 回目から limited（Issue #284）", async () => {
+    const limiter = durableLimiter(fakeNamespace(() => 5_000).ns);
+    const results: string[] = [];
+    for (let i = 0; i < 12; i++) {
+      results.push(await checkRateLimit(req(`2001:db8:abcd:12::${(i + 1).toString(16)}`), { enforce: true, limiter, prefix: "turn" }));
+    }
+    expect(results.slice(0, 10).every((r) => r === "allowed")).toBe(true);
+    expect(results.slice(10)).toEqual(["limited", "limited"]);
+    // 別の /64 は別の窓
+    expect(await checkRateLimit(req("2001:db8:abcd:13::1"), { enforce: true, limiter, prefix: "turn" })).toBe("allowed");
+  });
+
   it("接続元と接頭辞が違えば、別のオブジェクトで数える", async () => {
     const { ns, objects } = fakeNamespace(() => 5_000);
     const limiter = durableLimiter(ns);
@@ -89,6 +110,57 @@ describe("durableLimiter", () => {
     expect(seen[0].url).not.toContain("198.51.100.7");
     expect(await seen[0].text()).toBe("");
     expect([...seen[0].headers.keys()]).toEqual([]);
+  });
+});
+
+describe("オブジェクトの応答を待つ上限（Issue #284）", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const hanging: CounterNamespace = { idFromName: (n) => n, get: () => ({ fetch: () => new Promise<Response>(() => {}) }) };
+  const call = (ns: CounterNamespace, timeoutMs?: number) =>
+    checkRateLimit(req("198.51.100.7"), { enforce: true, limiter: durableLimiter(ns, timeoutMs), prefix: "turn" });
+
+  it("上限は2秒（画面の読み上げがブラウザに切り替わる5秒より十分短い）", () => {
+    expect(RATE_COUNTER_TIMEOUT_MS).toBe(2_000);
+  });
+
+  it("オブジェクトが答えなければ、上限の時間で error（呼び出し口を閉じる）", async () => {
+    vi.useFakeTimers();
+    let settled: string | null = null;
+    const pending = call(hanging).then((r) => (settled = r));
+    await vi.advanceTimersByTimeAsync(RATE_COUNTER_TIMEOUT_MS - 1);
+    expect(settled).toBeNull();
+    await vi.advanceTimersByTimeAsync(1);
+    await pending;
+    expect(settled).toBe("error");
+  });
+
+  it("応答の本文が届かないときも、上限の時間で error", async () => {
+    vi.useFakeTimers();
+    const stalled = { ok: true, json: () => new Promise<unknown>(() => {}) } as unknown as Response;
+    const ns: CounterNamespace = { idFromName: (n) => n, get: () => ({ fetch: async () => stalled }) };
+    const pending = call(ns);
+    await vi.advanceTimersByTimeAsync(RATE_COUNTER_TIMEOUT_MS);
+    expect(await pending).toBe("error");
+  });
+
+  it("答えたとき・失敗したときは、待ちのタイマーを残さない", async () => {
+    vi.useFakeTimers();
+    const { ns } = fakeNamespace(() => 5_000);
+    expect(await call(ns)).toBe("allowed");
+    expect(vi.getTimerCount()).toBe(0);
+    const throwing: CounterNamespace = { idFromName: (n) => n, get: () => ({ fetch: async () => { throw new Error("down"); } }) };
+    expect(await call(throwing)).toBe("error");
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("待つ時間は渡して替えられる", async () => {
+    vi.useFakeTimers();
+    const pending = call(hanging, 50);
+    await vi.advanceTimersByTimeAsync(50);
+    expect(await pending).toBe("error");
   });
 });
 

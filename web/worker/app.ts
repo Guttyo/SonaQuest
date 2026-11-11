@@ -1,16 +1,22 @@
-// /api/turn の受け口（ADR-0003）。画面のファイルは assets（dist/）から配り、/api/turn だけをここで受ける。
+// Workers の /api/* の受け口（ADR-0003）。画面のファイルは assets（dist/）から配り、/api/* だけをここで受ける。
+// ここで直接受けるのは /api/turn と、手元の比較実験の /api/dev/audit。読み上げ（tts.ts・ttsLab.ts）、掲示板チャット
+// （boardChat.ts）、カルテ（karte.ts）、ボードの権限の確認（boardAuthorize.ts）は、それぞれのファイルの入口を下でつなぐ。
+// 入口全体の共通の前処理（middleware）は置かず、各入口で関門（別サイトの検査・本文の上限・回数制限）を明示的に呼ぶ。
 // 会話を保存しない。公開する版では本文をログに出さず、出すのは失敗の種類だけ（ADR-0007）。
 // Workers の入口（index.ts）は default だけを出す（ほかの名前を出すと、Workers が起動しない）。
 
 import { Hono } from "hono";
-import { parseTurnRequest } from "../src/flow/turnContract";
+import { MAX_PROMPT_LENGTH, parseTurnRequest } from "../src/flow/turnContract";
 import { MODEL, makeCallClaude, type CallClaude, type ClaudeOptions } from "./claude";
 import { AUDIT_MODEL, makeAudit, type Audit } from "./audit";
 import { contentLogEnabled, devOverrides, logContent } from "./devlog";
 import { promptTextProblem } from "./checks";
 import { checkRateLimit, type RateLimiter } from "./ratelimit";
 import { ALLOWED_VOCABULARY, followsGoalRules, runTurn } from "./turn";
+import { crossSiteRequest } from "./guard";
 import { createTtsApp, type TtsEnv } from "./tts";
+import { signSpeechText, usableSigningKey } from "./speechSign";
+import type { SpeechTokens, TurnResponse } from "../src/flow/turnContract";
 import { createTtsLabApp } from "./ttsLab";
 import { createBoardChatApp, makeChatBackend, type BoardChatEnv } from "./boardChat";
 import { createKarteApp, type KarteEnv } from "./karte";
@@ -54,6 +60,11 @@ export const MAX_BODY_LENGTH = 20_000;
 /** 本文を読み込む前に確かめるバイト数の上限（UTF-8 の日本語は1文字3バイト） */
 export const MAX_BODY_BYTES = MAX_BODY_LENGTH * 3;
 
+/** /api/dev/audit で受け取る文（text・fixed_question）の文字数の上限。監査役に渡す Claude の文と固定の質問文の上限（MAX_PROMPT_LENGTH）にそろえる */
+export const MAX_DEV_AUDIT_TEXT_LENGTH = MAX_PROMPT_LENGTH;
+/** /api/dev/audit の本文のバイト数の上限（日本語は1文字3バイト。2つの文と、形・引用符などを逃がした分の余裕） */
+export const MAX_DEV_AUDIT_BODY_BYTES = MAX_DEV_AUDIT_TEXT_LENGTH * 2 * 3 + 512;
+
 /** 手元（localhost・127.0.0.1）からの呼び出しか、公開の切り替えが入っているときだけ Claude を呼ぶ */
 export function turnAllowed(env: Env, requestUrl: string): boolean {
   return env.PUBLIC_TURN === "1" || contentLogEnabled("1", requestUrl);
@@ -89,6 +100,16 @@ export async function readLimitedText(request: Request, maxBytes: number): Promi
   return new TextDecoder().decode(bytes);
 }
 
+/** 応答の Claude の文（next.text と remark）の署名。秘密の値が使えなければ、どちらも null */
+export async function signResponseTexts(secret: string | undefined, response: TurnResponse): Promise<SpeechTokens> {
+  if (!usableSigningKey(secret)) return { text: null, remark: null };
+  const now = Date.now();
+  return {
+    text: response.next.text === null ? null : await signSpeechText(secret, response.next.text, now),
+    remark: response.remark === null ? null : await signSpeechText(secret, response.remark, now),
+  };
+}
+
 export function createApp(
   makeClaude: (apiKey: string, options?: ClaudeOptions) => CallClaude = makeCallClaude,
   makeAuditor: (apiKey: string) => Audit = makeAudit,
@@ -101,6 +122,12 @@ export function createApp(
     if (!turnAllowed(c.env, c.req.url)) {
       console.warn("turn: public_disabled");
       return c.json({ error: "unavailable" }, 503);
+    }
+    // 別のサイトのページからの呼び出し（JSON の形を宣言しない・Sec-Fetch-Site: cross-site）は、本文を読まずに拒む
+    // （/api/tts などと同じ関門。Issue #284）。画面（src/flow/api.ts）は同じサイトから application/json で送る
+    if (crossSiteRequest(c.req.raw)) {
+      console.warn("turn: cross_site");
+      return c.json({ error: "forbidden" }, 403);
     }
     const body = await readLimitedText(c.req.raw, MAX_BODY_BYTES);
     // 大きすぎる入力や形の違う入力は、Claude を呼ばずに拒否する（ADR-0003、safety-test-plan P8）
@@ -178,7 +205,10 @@ export function createApp(
     if (outcome.goalOverride !== null) console.warn(`turn: goal_overridden:${outcome.goalOverride}`);
     if (outcome.remarkRejectReason !== null) console.warn(`turn: remark_rejected:${outcome.remarkRejectReason}`);
     if (outcome.remarkAudit?.failure) console.warn(`turn: remark_audit_failed:${outcome.remarkAudit.failure}`);
-    return c.json(outcome.response);
+    // 読み上げの中継（/api/tts）が読めるよう、Claude の文に署名を付ける（Issue #284 の指摘3、案A）。
+    // 秘密の値（TTS_SIGNING_KEY）が無いときも /api/turn は止めず、署名を null にする（読み上げはブラウザの読み上げになる）
+    const speech = await signResponseTexts(c.env.TTS_SIGNING_KEY, outcome.response);
+    return c.json({ ...outcome.response, speech });
   });
 
   // 監査役の比較実験だけで使う採点の入口（ADR-0030 の実験。docs/evidence.md）。
@@ -189,11 +219,20 @@ export function createApp(
     if (experiment === null || apiKey === undefined || apiKey === "") {
       return c.json({ error: "not_found" }, 404);
     }
-    const body = (await c.req.json().catch(() => null)) as {
-      text?: unknown;
-      fixed_question?: unknown;
-    } | null;
+    // ほかの課金の入口と同じ関門：別サイトの検査、本文の大きさの上限、文の長さの上限（Issue #284）
+    if (crossSiteRequest(c.req.raw)) return c.json({ error: "forbidden" }, 403);
+    const raw = await readLimitedText(c.req.raw, MAX_DEV_AUDIT_BODY_BYTES);
+    if (raw === null) return c.json({ error: "too_large" }, 413);
+    let body: { text?: unknown; fixed_question?: unknown } | null;
+    try {
+      body = JSON.parse(raw) as { text?: unknown; fixed_question?: unknown } | null;
+    } catch {
+      return c.json({ error: "bad_request" }, 400);
+    }
     if (typeof body?.text !== "string" || typeof body.fixed_question !== "string") {
+      return c.json({ error: "bad_request" }, 400);
+    }
+    if (body.text.length > MAX_DEV_AUDIT_TEXT_LENGTH || body.fixed_question.length > MAX_DEV_AUDIT_TEXT_LENGTH) {
       return c.json({ error: "bad_request" }, 400);
     }
     // 比べるため、正規表現の検査（checks.ts）の結果も返す

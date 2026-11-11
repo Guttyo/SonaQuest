@@ -17,6 +17,11 @@ ANTHROPIC_API_KEY=
 ELEVENLABS_API_KEY=
 ELEVENLABS_VOICE_ID=
 
+# 読み上げる Claude の文の署名に使う秘密の値（Issue #284。32 文字以上）。/api/turn が署名し、/api/tts が確かめる。
+# 無いときは /api/tts が ElevenLabs を呼ばず、画面はブラウザの読み上げに切り替える（訓練は最後まで進む）。
+# 値は自分で作る（例：openssl rand -base64 32 の出力）。公開する Workers では secrets に同じ名前で入れる
+TTS_SIGNING_KEY=
+
 # 開発中だけ会話の本文をログに出す切り替え（ADR-0007 の追記）は、秘密情報ではないのでここに書かない。
 # 既定でオフにしておき、使うときだけ次のように指定する：
 #   npx --prefix web wrangler dev --port 8787 --var DEV_CONTENT_LOG:1

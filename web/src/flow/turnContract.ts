@@ -78,11 +78,28 @@ export interface TurnRequest {
   next_question_id: string | null;
   /** 聞き返し（回数に数える）をしてよいか */
   allow_clarify: boolean;
-  /** 質問し直し（回数に数えない。質問ごとに1回まで）をしてよいか */
+  /**
+   * 質問し直し（回数に数えない。質問ごとに1回まで）をしてよいか。
+   * Worker はこの値を信じる（allow_clarify と違い、確かめない）。質問し直した入力は送られないので、Worker は inputs から数え直せない。偽った値で通るのは、送った本人の訓練の進み方と、そのぶんの /api/turn の呼び出し（回数制限の内）だけ（Issue #284）
+   */
   allow_redirect: boolean;
 }
 
 export type JudgmentValue = "confirmed" | "aware_unconfirmed" | "not_mentioned";
+
+/**
+ * 読み上げの中継（/api/tts）に渡す、Claude の文の署名（Issue #284 の指摘3、案A）。`期限の秒.署名` の形。
+ * 文が無いとき、Worker に署名の秘密の値（TTS_SIGNING_KEY）が無いときは null。画面は値を確かめずにそのまま /api/tts へ返す
+ */
+export interface SpeechTokens {
+  /** next.text の署名 */
+  text: string | null;
+  /** remark の署名 */
+  remark: string | null;
+}
+
+/** 署名の形（worker/speechSign.ts の SPEECH_TOKEN_PATTERN と同じ） */
+const SPEECH_TOKEN_FORM = /^\d{1,12}\.[A-Za-z0-9_-]{43}$/;
 
 export interface TurnResponse {
   /** 補助。中断の主は語の照合（ADR-0011、docs/phase2-decisions.md 項目10） */
@@ -102,6 +119,8 @@ export interface TurnResponse {
    * 文の検査と監査役を通ったものだけ。無ければ null（振り返りは固定文だけで出す）
    */
   remark: string | null;
+  /** Claude の文の署名（Issue #284）。Worker は必ず付ける。無い応答（試験の見本など）は、署名が無いのと同じに扱う */
+  speech?: SpeechTokens;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -177,10 +196,17 @@ export function parseTurnRequest(body: unknown): TurnRequest | null {
 /** ブラウザが受け取る応答の検査。Workers の検査を通ったものでも、形が違えば使わない */
 export function parseTurnResponse(body: unknown): TurnResponse | null {
   if (!isRecord(body)) return null;
-  if (!hasExactKeys(body, ["emergency", "viewpoints", "next", "recall", "source_guess", "remark"])) {
+  const baseKeys = ["emergency", "viewpoints", "next", "recall", "source_guess", "remark"];
+  if (!hasExactKeys(body, baseKeys) && !hasExactKeys(body, [...baseKeys, "speech"])) {
     return null;
   }
   const { emergency, viewpoints, next, recall, source_guess, remark } = body;
+  let speech: SpeechTokens | undefined;
+  if (Object.hasOwn(body, "speech")) {
+    const parsed = parseSpeechTokens(body.speech);
+    if (parsed === null) return null;
+    speech = parsed;
+  }
   if (typeof emergency !== "string" || !EMERGENCY_KINDS.has(emergency)) return null;
   if (typeof recall !== "boolean") return null;
 
@@ -228,5 +254,18 @@ export function parseTurnResponse(body: unknown): TurnResponse | null {
     recall,
     source_guess: source_guess as TurnResponse["source_guess"],
     remark: remark as string | null,
+    ...(speech === undefined ? {} : { speech }),
   };
+}
+
+function isTokenOrNull(value: unknown): value is string | null {
+  return value === null || (typeof value === "string" && SPEECH_TOKEN_FORM.test(value));
+}
+
+/** 署名の欄の形だけを確かめる（署名が合うかは /api/tts の Worker が確かめる） */
+export function parseSpeechTokens(value: unknown): SpeechTokens | null {
+  if (!isRecord(value) || !hasExactKeys(value, ["text", "remark"])) return null;
+  const { text, remark } = value;
+  if (!isTokenOrNull(text) || !isTokenOrNull(remark)) return null;
+  return { text, remark };
 }

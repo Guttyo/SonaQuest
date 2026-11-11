@@ -2,7 +2,10 @@
 // まず Workers の中継（/api/tts）経由で ElevenLabs を使い、失敗したとき・始まるまでが長いときは、
 // ブラウザの読み上げ（speechSynthesis）に切り替えて、その回の残りでは ElevenLabs を呼ばない。
 // 読み上げるのはソナの文と固定文だけ。利用者の回答は渡さない（speech.ts）。
+// /api/tts には文そのものではなく、文の設計図（speechPlan.ts の SpeechSpec）を送る（Issue #284）。
 // 音声はメモリにだけ持ち、保存しない。本文はログに出さない（ADR-0007）。
+
+import type { SpeechSpec } from "./speechPlan";
 
 /** ElevenLabs の読み上げが始まるまで待つ上限。過ぎたらブラウザの読み上げに切り替える（ADR-0033。オーナーに確かめる） */
 export const TTS_START_TIMEOUT_MS = 5_000;
@@ -60,8 +63,8 @@ export interface SynthLike {
 }
 
 export interface SpeakerDeps {
-  /** /api/tts から音声を取る。失敗は例外にする */
-  fetchAudio: (text: string, signal: AbortSignal) => Promise<Blob>;
+  /** /api/tts から音声を取る。spec は /api/tts に送る設計図（無ければ ElevenLabs を使わない）。失敗は例外にする */
+  fetchAudio: (text: string, signal: AbortSignal, spec?: SpeechSpec) => Promise<Blob>;
   createAudio: () => AudioLike;
   createObjectUrl: (blob: Blob) => string;
   revokeObjectUrl: (url: string) => void;
@@ -93,6 +96,7 @@ export class Speaker {
   /** 古い読み上げの知らせを捨てるための番号 */
   private token = 0;
   private lastText: string | null = null;
+  private lastSpec: SpeechSpec | undefined = undefined;
   private disposed = false;
   private state: SpeakerSnapshot;
 
@@ -108,23 +112,24 @@ export class Speaker {
     return this.state;
   }
 
-  /** 文を読み上げる。前の読み上げは止める。最初のタップの前なら、押されるまで待つ */
-  speak(text: string): void {
+  /** 文を読み上げる。spec は /api/tts に送る設計図。前の読み上げは止める。最初のタップの前なら、押されるまで待つ */
+  speak(text: string, spec?: SpeechSpec): void {
     if (this.disposed) return;
     this.stop();
     this.lastText = text;
+    this.lastSpec = spec;
     if (!this.deps.hasUserActivation()) {
       this.set({ blocked: true });
       return;
     }
     const token = ++this.token;
-    if (this.state.engine === "elevenlabs") void this.speakElevenLabs(text, token);
+    if (this.state.engine === "elevenlabs") void this.speakElevenLabs(text, token, spec);
     else this.speakBrowser(text, token);
   }
 
   /** 利用者が押した（自動再生の制限のときの続き、もう一度聞く） */
   replay(): void {
-    if (this.lastText !== null) this.speak(this.lastText);
+    if (this.lastText !== null) this.speak(this.lastText, this.lastSpec);
   }
 
   /** 読み上げを止める（マイクを開く前、画面を離れる、中断） */
@@ -152,7 +157,7 @@ export class Speaker {
     this.cache.clear();
   }
 
-  private async speakElevenLabs(text: string, token: number): Promise<void> {
+  private async speakElevenLabs(text: string, token: number, spec: SpeechSpec | undefined): Promise<void> {
     this.set({ loading: true });
     const controller = new AbortController();
     this.abortFetch = controller;
@@ -163,7 +168,7 @@ export class Speaker {
     try {
       let blob = this.cache.get(text);
       if (blob === undefined) {
-        blob = await this.deps.fetchAudio(text, controller.signal);
+        blob = await this.deps.fetchAudio(text, controller.signal, spec);
         this.cache.set(text, blob);
       }
       if (token !== this.token) return;
@@ -268,16 +273,19 @@ function isNotAllowed(error: unknown): boolean {
   return typeof error === "object" && error !== null && (error as { name?: unknown }).name === "NotAllowedError";
 }
 
-/** 読み上げの中継（Workers の /api/tts）。送るのは読み上げる文だけ。失敗は例外にする */
+/**
+ * 読み上げの中継（Workers の /api/tts）。送るのは読み上げる文の設計図だけ（固定文の ID・判定・出来事の値と、署名つきの Claude の文）。
+ * Worker が同じ関数で文を作り直す（Issue #284）。失敗は例外にする
+ */
 export async function fetchTtsAudio(
-  text: string,
+  spec: SpeechSpec,
   signal: AbortSignal,
   fetchImpl: typeof fetch = (input, init) => fetch(input, init),
 ): Promise<Blob> {
   const response = await fetchImpl("/api/tts", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ speech: spec }),
     signal,
   });
   if (!response.ok) throw new Error(`tts_status_${response.status}`);

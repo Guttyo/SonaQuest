@@ -163,6 +163,7 @@ export function buildUserMessage(request: TurnRequest): string {
   );
   const allowed = ["ask"];
   if (request.allow_clarify) allowed.push("clarify");
+  // allow_redirect は画面の値を信じる。質問し直した入力は送られないので、Worker は inputs から数え直せない。偽った値で通るのは、送った本人の訓練の進み方と、そのぶんの /api/turn の呼び出し（回数制限の内）だけ（Issue #284）
   if (request.allow_redirect) allowed.push("redirect");
   const payload = {
     inputs: request.inputs.map((i) => ({

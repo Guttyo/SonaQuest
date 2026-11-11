@@ -5,12 +5,12 @@
 
 import { Hono } from "hono";
 import { devOverrides } from "./devlog";
+import { crossSiteRequest } from "./guard";
 import {
   MAX_TTS_BODY_BYTES,
   MAX_TTS_TEXT_LENGTH,
   TTS_OUTPUT_FORMAT,
   TTS_UPSTREAM_TIMEOUT_MS,
-  crossSiteRequest,
   upstreamErrorCode,
   type TtsDeps,
   type TtsEnv,

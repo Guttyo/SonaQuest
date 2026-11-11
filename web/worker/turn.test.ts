@@ -6,10 +6,19 @@ import { MAX_ANSWER_LENGTH } from "../src/flow/rules";
 import { MAX_PROMPT_LENGTH, MAX_TURN_INPUTS, type TurnRequest } from "../src/flow/turnContract";
 import { usesFallback, type CallClaude, type ClaudeResult } from "./claude";
 import { contentLogEnabled, devOverrides, logContent } from "./devlog";
-import { DEV_METRICS_HEADER, MAX_BODY_BYTES, MAX_BODY_LENGTH, createApp as createAppWith, type Env } from "./app";
+import {
+  DEV_METRICS_HEADER,
+  MAX_BODY_BYTES,
+  MAX_BODY_LENGTH,
+  MAX_DEV_AUDIT_BODY_BYTES,
+  MAX_DEV_AUDIT_TEXT_LENGTH,
+  createApp as createAppWith,
+  type Env,
+} from "./app";
 import { AUDIT_CATEGORIES, AUDIT_SYSTEM_PROMPT, buildAuditMessage, type Audit, type AuditResult } from "./audit";
 import * as entry from "./index";
 import { SYSTEM_PROMPT, buildUserMessage } from "./prompt";
+import { MIN_SIGNING_KEY_LENGTH, verifySpeechToken } from "./speechSign";
 import {
   auditedQuestion,
   chooseNext,
@@ -249,7 +258,28 @@ describe("/api/turn の入口", () => {
       recall: false,
       source_guess: null,
       remark: null,
+      // 署名の秘密の値（TTS_SIGNING_KEY）が無いときも返事は返し、署名だけを null にする（Issue #284）
+      speech: { text: null, remark: null },
     });
+  });
+
+  it("署名の秘密の値があれば、Claude の文に /api/tts で確かめられる署名を付ける（Issue #284）", async () => {
+    const secret = "k".repeat(MIN_SIGNING_KEY_LENGTH);
+    const app = createApp(() => fake(ok(output)));
+    const response = await post(app, JSON.stringify(request), { ...env, TTS_SIGNING_KEY: secret });
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as { next: { text: string }; speech: { text: string; remark: null } };
+    expect(json.speech.remark).toBeNull();
+    expect(await verifySpeechToken(secret, json.next.text, json.speech.text)).toBe("ok");
+    // 別の秘密の値では合わない。署名も秘密の値も、ほかの欄には出ない
+    expect(await verifySpeechToken("x".repeat(MIN_SIGNING_KEY_LENGTH), json.next.text, json.speech.text)).toBe("bad");
+    expect(JSON.stringify(json)).not.toContain(secret);
+  });
+
+  it("短すぎる秘密の値は無いものとして扱い、署名しない（Issue #284）", async () => {
+    const app = createApp(() => fake(ok(output)));
+    const response = await post(app, JSON.stringify(request), { ...env, TTS_SIGNING_KEY: "short" });
+    expect(((await response.json()) as { speech: unknown }).speech).toEqual({ text: null, remark: null });
   });
 
   it("形の違う入力・大きすぎる入力は、Claude を呼ばずに拒否する（P8）", async () => {
@@ -408,6 +438,40 @@ describe("監査役の採点の入口（ADR-0030 の実験）", () => {
     expect(published.status).toBe(404);
   });
 
+  it("比較実験の切り替えが無ければ、別サイトの形の呼び出しでも今までどおり 404（Issue #284）", async () => {
+    const app = createApp(() => fake(ok(output)));
+    const plain = { ...init, headers: { "Content-Type": "text/plain" } };
+    expect((await app.request("http://localhost/api/dev/audit", plain, { ANTHROPIC_API_KEY: "test-key" })).status).toBe(404);
+  });
+
+  it("ほかの課金の入口と同じ関門を通す：別サイトは 403、大きすぎる本文は 413、長すぎる文は 400（Issue #284）", async () => {
+    // 関門で止まれば監査役（makeAudit）に届く前に返る。この入口は makeAudit を直接呼ぶので、状態の番号で確かめる
+    const app = createApp(() => fake(ok(output)));
+    const devEnv: Env = { ANTHROPIC_API_KEY: "test-key", DEV_EXPERIMENT: "1" };
+    const send = (body: string, headers: Record<string, string> = { "Content-Type": "application/json" }) =>
+      app.request("http://localhost/api/dev/audit", { method: "POST", body, headers }, devEnv);
+    expect((await send(init.body, { "Content-Type": "text/plain" })).status).toBe(403);
+    expect((await send(init.body, {})).status).toBe(403);
+    expect((await send(init.body, { "Content-Type": "application/json", "Sec-Fetch-Site": "cross-site" })).status).toBe(403);
+    expect((await send("x".repeat(MAX_DEV_AUDIT_BODY_BYTES + 1))).status).toBe(413);
+    expect(
+      (await send(init.body, { "Content-Type": "application/json", "Content-Length": String(MAX_DEV_AUDIT_BODY_BYTES + 1) })).status,
+    ).toBe(413);
+    expect((await send("not json")).status).toBe(400);
+    expect((await send(JSON.stringify({ text: 1, fixed_question: "薬はありますか？" }))).status).toBe(400);
+    const long = "あ".repeat(MAX_DEV_AUDIT_TEXT_LENGTH + 1);
+    expect((await send(JSON.stringify({ text: long, fixed_question: "薬はありますか？" }))).status).toBe(400);
+    expect((await send(JSON.stringify({ text: "はい。", fixed_question: long }))).status).toBe(400);
+  });
+
+  it("いちばん長い文（2つとも上限の字数、すべて日本語）でも、本文のバイト数の上限に収まる", () => {
+    const largest = JSON.stringify({
+      text: "あ".repeat(MAX_DEV_AUDIT_TEXT_LENGTH),
+      fixed_question: "あ".repeat(MAX_DEV_AUDIT_TEXT_LENGTH),
+    });
+    expect(new TextEncoder().encode(largest).byteLength).toBeLessThanOrEqual(MAX_DEV_AUDIT_BODY_BYTES);
+  });
+
   it("監査役に送るのは、Claude の文と固定の質問文だけ", () => {
     const message = buildAuditMessage("その薬は何で確かめられますか？", "その薬のことは、何を見れば確かめられますか？");
     const payload = JSON.parse(message.slice(message.indexOf("\n") + 1));
@@ -461,6 +525,32 @@ describe("2026-11-04 の PR #39 のレビューへの対応", () => {
     });
     expect(response.status).toBe(413);
     expect(call).not.toHaveBeenCalled();
+  });
+
+  it("別のサイトのページからの呼び出し（JSON の形を宣言しない・Sec-Fetch-Site: cross-site）は 403 で、Claude も監査役も呼ばない（Issue #284）", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const call = vi.fn(fake(ok(output)));
+    const audit = vi.fn(fakeAudit(passed));
+    const app = createApp(() => call, () => audit);
+    const body = JSON.stringify(request);
+    const send = (headers: Record<string, string>, e: Env = env, url = "http://localhost/api/turn") =>
+      app.request(url, { method: "POST", body, headers }, e);
+    expect((await send({ "Content-Type": "text/plain" })).status).toBe(403);
+    expect((await send({})).status).toBe(403);
+    expect((await send({ "Content-Type": "application/json", "Sec-Fetch-Site": "cross-site" })).status).toBe(403);
+    // 公開の切り替えのときも同じ（回数制限で数える前に止める）
+    const counted = vi.fn(async () => ({ success: true }));
+    const publicEnv: Env = { ...env, PUBLIC_TURN: "1", TURN_LIMITER: { limit: counted } };
+    expect((await send({ "Content-Type": "text/plain" }, publicEnv, "https://sonaquest.example/api/turn")).status).toBe(403);
+    expect(call).not.toHaveBeenCalled();
+    expect(audit).not.toHaveBeenCalled();
+    expect(counted).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith("turn: cross_site");
+    // 画面と同じ形（application/json、同じサイト・見出しなし）は今までどおり通る
+    expect((await send({ "Content-Type": "application/json", "Sec-Fetch-Site": "same-origin" })).status).toBe(200);
+    expect((await send({ "Content-Type": "application/json; charset=utf-8" })).status).toBe(200);
+    expect(call).toHaveBeenCalledTimes(2);
+    warn.mockRestore();
   });
 
   it("次の質問が固定の順番と合わない問い合わせは拒否する", async () => {

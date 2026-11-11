@@ -153,6 +153,7 @@ export function followsGoalRules(request: TurnRequest): boolean {
   const counted = askedIn(request, half).length;
   const max = half === "first" ? MAX_FIRST_HALF_ANSWERS : MAX_SECOND_HALF_ANSWERS;
   if (counted > max) return false;
+  // allow_clarify は回数から求め直して確かめる。allow_redirect は画面の値を信じる。質問し直した入力は送られないので、Worker は inputs から数え直せない。偽った値で通るのは、送った本人の訓練の進み方と、そのぶんの /api/turn の呼び出し（回数制限の内）だけ（Issue #284）
   return request.next_question_id === planFor(request).fallback && request.allow_clarify === counted < max;
 }
 
@@ -177,6 +178,7 @@ export function chooseNext(
   let text = output.text;
   let questionId: string | null = current;
   let overridden: GoalOverride | null = null;
+  // allow_redirect は画面の値を信じる。質問し直した入力は送られないので、Worker は inputs から数え直せない。偽った値で通るのは、送った本人の訓練の進み方と、そのぶんの /api/turn の呼び出し（回数制限の内）だけ（Issue #284）
   if ((type === "clarify" && !request.allow_clarify) || (type === "redirect" && !request.allow_redirect)) {
     type = "ask";
     text = null;
