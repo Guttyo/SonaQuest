@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import { initialDemo } from "../demo";
-import type { ChatTurnRequest } from "./contract";
+import { parseChatTurnRequest, type ChatTurnRequest } from "./contract";
 import { ChatController, MAX_AGENT_TURNS, MAX_AUTO_TURNS, OPENING_JOBS, type ChatFetch } from "./controller";
 import { chatStatus } from "./status";
 
@@ -199,7 +199,47 @@ describe("掲示板チャットの進め方", () => {
     c.seed();
     expect(c.sendHuman("A", "   ")).toBe(false);
     expect(c.sendHuman("A", "あ".repeat(201))).toBe(false);
+    expect(c.sendHuman("A", "\t\u0001\t")).toBe(false);
     expect(c.getSnapshot().posts).toHaveLength(OPENING_JOBS.length);
+  });
+
+  it("人の書き込みのタブなどの制御文字は空白に置き換えて書き込み、次の turn も Workers の形の検査を通って live のまま続く（Issue #293）", async () => {
+    // 偽の Workers も、本物と同じ形の検査（parseChatTurnRequest）を当て、通らなければ 400 を返す
+    const { calls, fetchFn } = fakeFetch((req) =>
+      parseChatTurnRequest(req) === null ? json({ error: "bad_request" }, 400) : json({ text: "毛布を受け取ります。", rejected: null }),
+    );
+    const c = controller(fetchFn);
+    c.seed();
+    c.start();
+    await c.idle();
+    expect(c.sendHuman("B", "毛布\t20枚\r\n夕方の便で届けます")).toBe(true);
+    expect(c.getSnapshot().posts.filter((p) => p.by === "human").at(-1)?.text).toBe("毛布 20枚 \n夕方の便で届けます");
+    await c.idle();
+    c.sendHuman("B", "受け取りの連絡をお願いします");
+    await c.idle();
+    const turns = calls.filter((x) => x.url === "/api/board/chat/turn");
+    for (const t of turns) {
+      for (const p of t.body.posts as { text: string }[]) expect(p.text).not.toMatch(/[\u0000-\u0009\u000B-\u001F\u007F]/);
+    }
+    expect(c.getSnapshot().phase).toBe("live");
+    expect(c.getSnapshot().posts.filter((p) => p.by === "fixed")).toHaveLength(OPENING_JOBS.length);
+  });
+
+  it("エージェントの文に制御文字が混じっていても、次の turn では空白に置き換えて送る（Issue #293）", async () => {
+    const { calls, fetchFn } = fakeFetch((req, n) =>
+      parseChatTurnRequest(req) === null
+        ? json({ error: "bad_request" }, 400)
+        : json({ text: n === 2 ? "毛布を\t受け取ります。" : "了解です。", rejected: null }),
+    );
+    const c = controller(fetchFn);
+    c.seed();
+    c.start();
+    await c.idle();
+    c.sendHuman("B", "次の便の時刻を知らせます");
+    await c.idle();
+    expect(c.getSnapshot().phase).toBe("live");
+    const last = calls.filter((x) => x.url === "/api/board/chat/turn").at(-1)!;
+    expect((last.body.posts as { by: string; text: string }[]).some((p) => p.by === "agent" && p.text === "毛布を 受け取ります。")).toBe(true);
   });
 });
 

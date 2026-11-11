@@ -17,7 +17,9 @@ const NUM = "[0-9０-９一二三四五六七八九十百千半]";
 /** 禁止表現（語の照合）。空白を除き、NFKC でそろえた文に当てる */
 // 決定済み：掲示板チャットで禁止する表現の一覧（Claude Code の下書き）
 // → オーナー決定（2026-11-07、チャット、Issue #207）：「案は提出後、今の下書きは採る（推奨）」（ボードの AI の守り）
-export const CHAT_FORBIDDEN_PATTERNS: readonly RegExp[] = [
+// Issue #293 で、中身を変えずに「医療の語」と「個人の情報・外への誘導」の2つの部分に分けた。2つとも上の決定の一覧の一部で、
+// CHAT_FORBIDDEN_PATTERNS は2つをつなげたもの（並びも今までと同じ）。分けたのは、人の書き込みに後ろの部分だけを当てるため
+const CHAT_MEDICAL_PATTERNS: readonly RegExp[] = [
   // 薬の言葉そのもの。「薬剤師」（人員）と「処方箋」（用紙）は連絡に使うので除く
   /薬(?!剤師)|(?<![薬洗])剤(?!師)|錠|カプセル|処方(?!箋)|服用|服薬|内服|頓服|投与|投薬|点滴|注射|吸入|貼付|軟膏|湿布|座薬|目薬|インスリン|ワクチン|抗生/,
   // 量の単位
@@ -31,6 +33,10 @@ export const CHAT_FORBIDDEN_PATTERNS: readonly RegExp[] = [
   /診断|診察|受診|治療|手当て|容体|容態|症状|体調|具合|重症|軽症|重篤|危篤|命に|救急|トリアージ|安静|様子を見/,
   // 公的な制度の説明
   /制度|助成|補助金|特例/,
+];
+
+/** 個人の情報と外への誘導（上の決定の一覧の一部）。エージェントの文のほか、エージェントへ送る人の書き込みにも当てる */
+export const CHAT_PERSONAL_PATTERNS: readonly RegExp[] = [
   // 個人の情報（人は役割で書く）。「皆さん」「皆様」「患者さん」は照合の前に外す
   /電話番号|住所|氏名|フルネーム|生年月日|年齢|何歳/,
   new RegExp(`${KANJI}{1,4}(?:さん|先生)`),
@@ -38,6 +44,13 @@ export const CHAT_FORBIDDEN_PATTERNS: readonly RegExp[] = [
   // 外への誘導
   /https?:|www\.|@/i,
 ];
+
+export const CHAT_FORBIDDEN_PATTERNS: readonly RegExp[] = [...CHAT_MEDICAL_PATTERNS, ...CHAT_PERSONAL_PATTERNS];
+
+/** 照合に使う形。語の間に空白や改行をはさんですり抜けないよう、空白を除く。「皆さん」「皆様」「患者さん」は外す */
+function matchForm(trimmed: string): string {
+  return trimmed.normalize("NFKC").replace(/\s+/g, "").replace(/皆さん|皆様|患者さん/g, "");
+}
 
 /** 文を捨てた理由の種類。本文を含まないので、公開する版でもログに出してよい */
 export type ChatRejectReason = "length" | "forbidden" | "unknown_term";
@@ -88,9 +101,18 @@ export function stripRolePrefix(text: string): string {
 export function chatTextProblem(text: string): ChatRejectReason | null {
   const trimmed = text.trim();
   if (trimmed.length === 0 || trimmed.length > MAX_CHAT_TEXT_LENGTH) return "length";
-  // 語の間に空白や改行をはさんですり抜けないよう、空白を除いた文で照合する（表示は元の文のまま）
-  const nfkc = trimmed.normalize("NFKC").replace(/\s+/g, "").replace(/皆さん|皆様|患者さん/g, "");
-  if (CHAT_FORBIDDEN_PATTERNS.some((p) => p.test(nfkc))) return "forbidden";
+  // 空白を除いた文で照合する（表示は元の文のまま）
+  const form = matchForm(trimmed);
+  if (CHAT_FORBIDDEN_PATTERNS.some((p) => p.test(form))) return "forbidden";
   if (chatUnknownTerms(trimmed).length > 0) return "unknown_term";
   return null;
+}
+
+/**
+ * 人が本部として書いた文が、個人の情報か外への誘導の形（CHAT_PERSONAL_PATTERNS）に当たるか（Issue #293）。
+ * エージェントへ送る前に Worker で当てる。医療の語は当てない（人が書く普通の連絡まで落ちるため）
+ */
+export function humanPostHasPersonalInfo(text: string): boolean {
+  const form = matchForm(text.trim());
+  return CHAT_PERSONAL_PATTERNS.some((p) => p.test(form));
 }

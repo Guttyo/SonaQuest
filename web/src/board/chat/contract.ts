@@ -95,6 +95,24 @@ export type ChatErrorCode =
 export const SESSION_ID_PATTERN = /^sesn_[A-Za-z0-9_]{8,128}$/;
 const CLOCK_PATTERN = /^\d{2}\/\d{2} \d{2}:\d{2}$/;
 
+/**
+ * 改行のほかの制御文字（タブ・復帰・NUL など。文字起こしの入口 karte/transcript.ts と同じ範囲）。
+ * エージェントへ送る書き込みに入っていたら受け付けない（Issue #293）。改行は、Worker が文を JSON の文字列の値として
+ * 埋め込むので、プロンプトの枠を崩さない
+ */
+const CHAT_CONTROL_CHARS = /[\u0000-\u0009\u000B-\u001F\u007F]/;
+const CHAT_CONTROL_CHARS_ALL = new RegExp(CHAT_CONTROL_CHARS.source, "g");
+
+/** 改行のほかの制御文字が入っているか */
+export function hasChatControlChars(text: string): boolean {
+  return CHAT_CONTROL_CHARS.test(text);
+}
+
+/** 改行のほかの制御文字を空白に置き換える。画面が書き込みに入れる前と、Worker へ送る前に使う */
+export function replaceChatControlChars(text: string): string {
+  return text.replace(CHAT_CONTROL_CHARS_ALL, " ");
+}
+
 /** DM の欄に書けるのは、本部とその救護所だけ。共通の欄は全員 */
 export function roleCanPost(role: ChatRole, channel: ChatChannel): boolean {
   return channel === "common" || role === "HQ" || role === channel;
@@ -147,7 +165,7 @@ export function parseChatStatus(v: unknown): ChatStatus | null {
 function parseContextPost(v: unknown): ChatContextPost | null {
   if (!isRecord(v) || !hasOnlyKeys(v, ["role", "by", "text"])) return null;
   if (!isOneOf(CHAT_ROLES, v.role) || !isOneOf(["agent", "human", "fixed"] as const, v.by)) return null;
-  if (typeof v.text !== "string") return null;
+  if (typeof v.text !== "string" || hasChatControlChars(v.text)) return null;
   const text = v.text.trim();
   // 人の書き込みの上限がいちばん長い（エージェントの文と固定の掲示はそれより短い）
   if (text === "" || text.length > MAX_HUMAN_TEXT_LENGTH) return null;

@@ -6,6 +6,7 @@
 import {
   MAX_CONTEXT_POSTS,
   MAX_HUMAN_TEXT_LENGTH,
+  replaceChatControlChars,
   type ChatChannel,
   type ChatPostBy,
   type ChatRole,
@@ -165,9 +166,13 @@ export class ChatController {
     this.enqueue(...OPENING_JOBS);
   }
 
-  /** 人が本部として書き込む。エージェントにつながっていれば、その欄の相手に返事を頼む */
+  /**
+   * 人が本部として書き込む。エージェントにつながっていれば、その欄の相手に返事を頼む。
+   * 改行のほかの制御文字（貼り付けたタブなど）は、書き込む前に空白に置き換える。Worker はそれを含む書き込みを受け付けず、
+   * 受け付けられないとその欄の turn が失敗し続けて、チャットが固定の掲示に切り替わるため（Issue #293）
+   */
   sendHuman(channel: ChatChannel, raw: string): boolean {
-    const text = raw.trim();
+    const text = replaceChatControlChars(raw).trim();
     if (text === "" || text.length > MAX_HUMAN_TEXT_LENGTH) return false;
     this.addPost({ role: "HQ", channel }, "human", text);
     if (this.snapshot.phase !== "live") return true;
@@ -269,7 +274,9 @@ export class ChatController {
     const posts = this.snapshot.posts
       .filter((p) => p.channel === job.channel)
       .slice(-MAX_CONTEXT_POSTS)
-      .map((p) => ({ role: p.role, by: p.by, text: p.text }));
+      // エージェントの文に制御文字が混じっていても、Worker に拒まれないよう空白に置き換えて送る（Issue #293）
+      .map((p) => ({ role: p.role, by: p.by, text: replaceChatControlChars(p.text) }))
+      .filter((p) => p.text.trim() !== "");
     const request: ChatTurnRequest = { role: job.role, sessionId, channel: job.channel, status, posts };
     const result = await this.post("/api/board/chat/turn", request);
     if (!result.ok) {
