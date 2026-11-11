@@ -1,7 +1,7 @@
 // ボードのデモの reducer（Issue #102）。メモリの中の在庫の足し引きと時刻だけを確かめる
 import { describe, expect, it } from "vitest";
 import { HQ, INBOUND, STOCK, SYNC } from "./data";
-import { chartUndelivered, chartsFor, clockText, demoReducer, initialDemo, minutesAt, patientsWithExtra, prescriptionTotals, type DemoAction } from "./demo";
+import { chartUndelivered, chartsFor, clockText, demoReducer, dispense, initialDemo, minutesAt, patientsWithExtra, prescriptionTotals, type DemoAction } from "./demo";
 import { caseRows, stockStatus } from "./summary";
 import { syncStatusText } from "./text";
 import { ITEMS, SHELTERS, SITES } from "./data";
@@ -185,6 +185,62 @@ describe("架空の問診を加える", () => {
   });
 });
 
+describe("交付の算数（Issue #288）", () => {
+  it("dispense：交付は画面に出す数（切り捨て）まで。交付は整数で、在庫の端数は残す", () => {
+    expect(dispense(8, 14)).toEqual({ out: 8, undelivered: 6, nextOnHand: 0 });
+    expect(dispense(420, 14)).toEqual({ out: 14, undelivered: 0, nextOnHand: 406 });
+    expect(dispense(0.9, 6)).toEqual({ out: 0, undelivered: 6, nextOnHand: 0.9 });
+    const r = dispense(5.4, 10);
+    expect(r.out).toBe(5);
+    expect(r.undelivered).toBe(5);
+    expect(r.nextOnHand).toBeCloseTo(0.4, 10);
+    expect(dispense(0, 3)).toEqual({ out: 0, undelivered: 3, nextOnHand: 0 });
+  });
+
+  const withStock = (onHand: number) => {
+    const base = initialDemo();
+    return { ...base, stock: base.stock.map((r) => (r.site === "救護所B" && r.item === "抗てんかん薬C" ? { ...r, onHand } : r)) };
+  };
+  const rx = (qty: number): DemoAction => ({
+    type: "add_record",
+    site: "救護所B",
+    name: "架空 太郎",
+    items: [],
+    prescription: { item: "抗てんかん薬C", qty, days: 3 },
+  });
+
+  it("在庫が1単位未満（0.9錠）の品目に処方 6 を入れると、交付 0・未交付 6 で需要に 6 が載り、在庫は 0.9 のまま", () => {
+    const before = withStock(0.9);
+    const s = demoReducer(before, rx(6));
+    expect(find(s, "救護所B", "抗てんかん薬C").onHand).toBeCloseTo(0.9, 10);
+    expect(s.records[0].undelivered).toBe(6);
+    expect(s.records[0].prescriptions[0].undelivered).toBe(6);
+    expect(s.needs.slice(before.needs.length)).toEqual([expect.objectContaining({ site: "救護所B", item: "抗てんかん薬C", qty: 6 })]);
+    expect(s.log.some((l) => l.text === "救護所B：抗てんかん薬C 0錠 を出庫（処方 6錠・3日分）")).toBe(true);
+    expect(s.log.some((l) => l.text.includes("抗てんかん薬C 6錠 が未交付"))).toBe(true);
+  });
+
+  it("在庫に端数があるときは整数だけ交付し、記録の文に小数が出ない。入力フォームの完了の文（dispense）と記録の未交付が同じ", () => {
+    const before = withStock(5.916666666666667);
+    const s = demoReducer(before, rx(10));
+    expect(s.records[0].undelivered).toBe(5);
+    // Board.tsx の IntakeForm は、送る前の在庫と処方の数で dispense を呼んで未交付を出す
+    expect(dispense(find(before, "救護所B", "抗てんかん薬C").onHand!, 10).undelivered).toBe(s.records[0].undelivered);
+    expect(find(s, "救護所B", "抗てんかん薬C").onHand).toBeCloseTo(0.916666666666667, 10);
+    for (const l of s.log.slice(0, s.log.length - before.log.length)) expect(l.text).not.toMatch(/\d\.\d/);
+  });
+});
+
+describe("時計の進め方（Issue #288）", () => {
+  it("1時間の倍数でない時間・0・負の時間では状態を変えない（到着の予定は1時間ごとに読み進めるため）", () => {
+    const s = demoReducer(initialDemo(), { type: "arrivals", active: true });
+    for (const hours of [0.5, 1.5, 0, -1, Number.NaN]) expect(demoReducer(s, { type: "tick", hours })).toBe(s);
+    const t = demoReducer(s, { type: "tick", hours: 2 });
+    expect(t.minutes).toBe(120);
+    expect(t.arrivals.hours).toBe(2);
+  });
+});
+
 describe("カルテの処方の累計（Issue #114）", () => {
   const rx = (site: "救護所A" | "救護所B", item: string, qty: number): DemoAction => ({
     type: "add_record",
@@ -356,6 +412,17 @@ describe("架空の患者の到着（Issue #122）", () => {
     expect(more.records).toHaveLength(s.records.length);
     expect(arrivalRows(s)).toHaveLength(100);
     expect(arrivalRows(s, "救護所A").every((r) => r.site === "救護所A")).toBe(true);
+  });
+
+  it("到着で在庫が小数になっても、交付・未交付・需要は整数で、記録の文に1単位未満の数が出ない（Issue #288）", () => {
+    const s = hours(start(), 400);
+    const fromArrivals = s.records.filter((r) => r.patientNo !== undefined);
+    for (const r of fromArrivals) {
+      expect(Number.isInteger(r.undelivered)).toBe(true);
+      for (const x of r.prescriptions) expect(Number.isInteger(x.undelivered)).toBe(true);
+    }
+    for (const n of s.needs) expect(Number.isInteger(n.qty)).toBe(true);
+    for (const l of s.log) expect(l.text).not.toMatch(/\d\.\d/);
   });
 
   it("同じ種・同じ操作なら同じ動き。1日進めても1時間ずつ24回でも、同じ人が同じ時刻に同じ救護所に着く。種を替えると変わる", () => {

@@ -24,6 +24,7 @@ import {
   chartsFor,
   clockText,
   demoReducer,
+  dispense,
   initialDemo,
   nextFictionalName,
   patientsWithExtra,
@@ -430,7 +431,8 @@ function IntakeForm({
       setMessage("");
       return;
     }
-    const undelivered = prescription ? Math.max(0, prescription.qty - Math.floor(before)) : 0;
+    // reducer の記録（admit）と同じ算数で未交付を出す（Issue #288）
+    const undelivered = prescription ? dispense(before, prescription.qty).undelivered : 0;
     setMessage(
       `${site}${BOARD_INTAKE_FORM.added}${undelivered > 0 ? ` ${BOARD_INTAKE_FORM.undelivered}${item} ${fmt.format(undelivered)}${unit}` : ""}`,
     );
