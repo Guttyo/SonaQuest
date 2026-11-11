@@ -337,6 +337,15 @@ describe("監査の入口で、画面から来た要約を確かめ直す（Issu
     expect(logged).not.toContain("車の鍵");
   });
 
+  it("もとから items が空の要約（5観点すべてが not_covered）は、今までどおり監査役に送る", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const summary: KarteSummary = { items: [], not_covered: ["location", "alternative", "current", "unrecorded", "proxy"] };
+    const { state, app } = fakes();
+    const body = (await (await post(app, "audit", { sampleId: sample.id, summary })).json()) as KarteAuditResponse;
+    expect(body.status).toBe("audited");
+    expect(state.audited).toEqual([buildAuditMessage(sample, summary)]);
+  });
+
   it("planted は、誤りを混ぜた項目も外さずに監査役に送る", async () => {
     vi.spyOn(console, "info").mockImplementation(() => {});
     for (const s of KARTE_SAMPLES) {

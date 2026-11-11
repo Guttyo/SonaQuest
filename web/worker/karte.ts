@@ -238,9 +238,10 @@ export function createKarteApp(deps: KarteDeps) {
       const response: KarteAuditResponse = { status: "unavailable", reason: "not_configured", session: "not_created", ms: 0 };
       return c.json(response);
     }
-    if (summary.items.length === 0) {
-      // 送る項目が1つも残らないときは、監査役を呼ばない（セッションを作らない）。理由の種類は今ある「failed」
-      // （画面は「監査役を呼べませんでした。」と「セッションは作っていません。」）を使い、新しい文を足さない
+    if (summary.items.length === 0 && selection.excluded > 0) {
+      // 項目を外した結果、送る項目が1つも残らないときは、監査役を呼ばない（セッションを作らない）。理由の種類は今ある「failed」
+      // （画面は「監査役を呼べませんでした。」と「セッションは作っていません。」）を使い、新しい文を足さない。
+      // もとから items が空の要約（5観点すべてが not_covered）は、落ちている情報を見るために今までどおり送る
       fail(`audit_no_items excluded=${selection.excluded}`);
       const response: KarteAuditResponse = { status: "unavailable", reason: "failed", session: "not_created", ms: 0 };
       return c.json(response);
