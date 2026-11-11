@@ -14,6 +14,7 @@ import {
   STOCK,
   SYNC,
   routeTo,
+  siteInfo,
   type InboundRow,
   type NeedRow,
   type PatientRow,
@@ -221,8 +222,8 @@ const SYNC_TIMES: Readonly<Record<string, readonly number[]>> = {
   本部備蓄: [],
 };
 
-/** 入荷・搬送が届く時刻（到着見込みの日の 10:00） */
-const ARRIVAL_MINUTE_OF_DAY = 10 * 60;
+/** 入荷・搬送が届く時刻（到着見込みの日の 10:00）。地図の便（live.ts）と時間軸（timeline.ts）もこの値を使う */
+export const ARRIVAL_MINUTE_OF_DAY = 10 * 60;
 
 const AS_OF_DATE = BOARD_AS_OF.slice(0, 10);
 const AS_OF_MINUTE = Number(BOARD_AS_OF.slice(11, 13)) * 60 + Number(BOARD_AS_OF.slice(14, 16));
@@ -237,24 +238,32 @@ export function minutesAt(date: string, minuteOfDay: number): number {
   return (dayIndex(date) - AS_OF_DAY) * 1440 + minuteOfDay - AS_OF_MINUTE;
 }
 
-/** 経過（分）→ 画面の文字「11/05 12:30」 */
-export function clockText(minutes: number): string {
+const pad2 = (n: number): string => String(n).padStart(2, "0");
+
+/** 経過（分）→ 年・月・日と「12:30」の文字の部分（clockText と stampText が使う） */
+function clockParts(minutes: number): { year: number; mm: string; dd: string; hhmm: string } {
   const total = AS_OF_MINUTE + minutes;
   const days = Math.floor(total / 1440);
   const mod = ((total % 1440) + 1440) % 1440;
   const d = new Date(Date.UTC(2026, 0, 1 + AS_OF_DAY + days));
-  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(d.getUTCDate()).padStart(2, "0");
-  return `${mm}/${dd} ${String(Math.floor(mod / 60)).padStart(2, "0")}:${String(mod % 60).padStart(2, "0")}`;
+  return {
+    year: d.getUTCFullYear(),
+    mm: pad2(d.getUTCMonth() + 1),
+    dd: pad2(d.getUTCDate()),
+    hhmm: `${pad2(Math.floor(mod / 60))}:${pad2(mod % 60)}`,
+  };
+}
+
+/** 経過（分）→ 画面の文字「11/05 12:30」 */
+export function clockText(minutes: number): string {
+  const { mm, dd, hhmm } = clockParts(minutes);
+  return `${mm}/${dd} ${hhmm}`;
 }
 
 /** 経過（分）→ 「2026-11-05 12:30」（SYNC の lastSync と同じ形） */
 function stampText(minutes: number): string {
-  const total = AS_OF_MINUTE + minutes;
-  const days = Math.floor(total / 1440);
-  const mod = ((total % 1440) + 1440) % 1440;
-  const d = new Date(Date.UTC(2026, 0, 1 + AS_OF_DAY + days));
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")} ${String(Math.floor(mod / 60)).padStart(2, "0")}:${String(mod % 60).padStart(2, "0")}`;
+  const { year, mm, dd, hhmm } = clockParts(minutes);
+  return `${year}-${mm}-${dd} ${hhmm}`;
 }
 
 export function initialDemo(seed: number = DEFAULT_ARRIVAL_SEED): DemoState {
@@ -298,8 +307,11 @@ const roundDownTo = (q: number, step: number) => Math.floor(q / step) * step;
 export const DISPATCH_DELAY_MINUTES = 60;
 /** 通行止めで所要時間の目安が無い拠点へ、連絡員が運ぶときの時間（分。デモの仮の値） */
 export const FALLBACK_TRANSIT_MINUTES = 120;
-/** 日付だけの搬送（最初からある引当済みの行）が本部を出る時刻（到着見込みの日の 07:00） */
-const DEPART_MINUTE_OF_DAY = 7 * 60;
+/**
+ * 日付だけの搬送（最初からある引当済みの行）が本部を出る時刻（到着見込みの日の 07:00）。
+ * 地図の便（live.ts）と時間軸（timeline.ts）もこの値を使う
+ */
+export const DEPART_MINUTE_OF_DAY = 7 * 60;
 
 /** 救護所に向かっているものとして数える状態（受領・融通の調整中は数えない） */
 const INCOMING: ReadonlySet<InboundRow["status"]> = new Set(["確定", "引当済み", "搬送中", "卸に照会中・到着未定"]);
@@ -916,6 +928,19 @@ export function changesSince(
 /** 架空の時刻の文字（「2026-11-05 07:30」）→ BOARD_AS_OF からの経過（分） */
 export function stampMinutes(stamp: string): number {
   return minutesAt(stamp.slice(0, 10), Number(stamp.slice(11, 13)) * 60 + Number(stamp.slice(14, 16)));
+}
+
+/**
+ * 最終報告（在庫の確認か、記録が本部に届いた、新しいほうの時刻。BOARD_AS_OF からの分）。無ければ null。
+ * 地図の光（live.ts）とチャットの状況（chat/status.ts）はこれを使う。Board.tsx の lastReportMinutes とは試験（live.test.ts）で突き合わせる
+ */
+export function lastReportAt(sync: readonly SyncRow[], site: SiteId): number | null {
+  const times: number[] = [];
+  const checked = siteInfo(site)?.stockCheckedAt;
+  if (checked) times.push(stampMinutes(checked));
+  const synced = sync.find((s) => s.site === site)?.lastSync;
+  if (synced) times.push(stampMinutes(synced));
+  return times.length > 0 ? Math.max(...times) : null;
 }
 
 /** 救護所×品目の、カルテの処方の累計（Issue #114）。画面で入力した記録の数量を足すだけ */

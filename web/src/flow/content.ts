@@ -7,9 +7,11 @@ import type {
   EventId,
   PrepActionId,
   Question,
+  QuestionId,
   SourceId,
   TimingId,
   ViewpointId,
+  WeakJudgment,
 } from "./types";
 
 // --- はじめに -------------------------------------------------------------
@@ -384,16 +386,16 @@ export const PROXY_QUESTION_AFTER_FAMILY: Question = {
 };
 
 /**
- * 後半の4問目（Issue #41 で足した問い）。思い出せなかったことと、あとで何で確かめられるかを聞く。
- * 候補は出さず、確かめた内容の入力も求めない（ADR-0022）。回答は最大5回で、残りの1回は聞き返しの余裕
- */
-/**
  * 後半の終わりに、受け止めの後に言う固定文（2026-11-07 のオーナーの言葉「今回思い出せなかった薬がないか、お薬手帳で
  * しっかりと確認しておきましょう。という感じの応答で会話終了でいい」）。RECHECK_QUESTION は聞かなくなった
  */
 export const RECHECK_CLOSING = "今回思い出せなかった薬がないか、お薬手帳でしっかりと確認しておきましょう。";
 
-/** 2026-11-07 から聞かない（後半の問いの一覧から外した）。以前の記録の項目と試験のために残す */
+/**
+ * 以前の後半の4問目（Issue #41 で足した問い）。思い出せなかったことと、あとで何で確かめられるかを聞く。
+ * 候補は出さず、確かめた内容の入力も求めない（ADR-0022）。
+ * 2026-11-07 から聞かない（後半の問いの一覧から外した）。以前の記録の項目と試験のために残す
+ */
 export const RECHECK_QUESTION: Question = {
   id: "second_recheck",
   viewpoint: "location",
@@ -420,7 +422,7 @@ export const ALL_QUESTIONS: readonly Question[] = [
  */
 // 決定済み：聞き返しと質問し直しの固定文（Claude Codeの下書き）
 // → オーナー決定（2026-11-07、チャット、Issue #163）：「以下を修正し、書いていない番号は「下書きのまま」で進めてください」（C3〜C6・C10〜C12・C15・C16・C20・C21・C23・C24 はオーナーの文）
-export const CLARIFY_TEXTS: Record<string, string> = {
+export const CLARIFY_TEXTS: Readonly<Record<QuestionId, string>> = {
   first_medicines:
     "もう少し教えてください。飲み薬のほか、注射・貼り薬・塗り薬も含めて、毎日、または決まった日に使う薬はありますか？薬の中身は架空の内容で答えてください。",
   first_location:
@@ -444,7 +446,7 @@ export const CLARIFY_TEXTS: Record<string, string> = {
   second_recheck: "あとで確認するとしたら、何を見ますか？または、誰に聞けそうですか？",
 };
 
-export const REDIRECT_TEXTS: Record<string, string> = {
+export const REDIRECT_TEXTS: Readonly<Record<QuestionId, string>> = {
   first_medicines:
     "お話しくださってありがとうございます。いまは普段の薬のことを伺っています。飲み薬のほか、注射・貼り薬・塗り薬も含めて、毎日、または決まった日に使う薬はありますか？",
   first_location:
@@ -741,17 +743,17 @@ export const RECALL_FEEDBACK: readonly string[] = [
 ];
 
 /**
- * 中断すると体調を崩しやすい薬についての、振り返りの固定文（Issue #94、ADR-0040 の決定7）。
- * 薬の種類は挙げない（2026-11-05 オーナー決定）。飲む・やめるの助言にしない。名前を言えるようにしておくことだけを勧める
- */
-// 決定済み：中断で体調を崩しやすい薬についての振り返りの固定文（Claude Code の下書き。出典があれば添える）
-// → オーナー決定（2026-11-07、チャット、Issue #163）：「以下を修正し、書いていない番号は「下書きのまま」で進めてください」（R4 はオーナーの文）
-/**
  * 振り返りの一言の近くに出す固定文（Issue #200）。2026-11-07 に別のセッション経由で伝わったオーナーの求め
  * （「最後の結果のところに、ご不明点はかかりつけ薬局等へご確認ください。と書いておこうか」）の文をそのまま使う
  */
 export const REVIEW_CONTACT_NOTE = "ご不明点はかかりつけ薬局等へご確認ください。";
 
+/**
+ * 中断すると体調を崩しやすい薬についての、振り返りの固定文（Issue #94、ADR-0040 の決定7）。
+ * 薬の種類は挙げない（2026-11-05 オーナー決定）。飲む・やめるの助言にしない。名前を言えるようにしておくことだけを勧める
+ */
+// 決定済み：中断で体調を崩しやすい薬についての振り返りの固定文（Claude Code の下書き。出典があれば添える）
+// → オーナー決定（2026-11-07、チャット、Issue #163）：「以下を修正し、書いていない番号は「下書きのまま」で進めてください」（R4 はオーナーの文）
 // 2026-11-07 オーナーの文（R4）。中断による影響の説明を外し、訓練で準備してほしい行動に絞った（薬の名前の暗記を目標にしない）
 export const INTERRUPTION_NOTE =
   "薬の名前や量を思い出せないときに備えて、お薬手帳などで確認し、医療者に伝えられるようにしておきましょう。";
@@ -794,6 +796,19 @@ export const PREP_ACTIONS: readonly {
     viewpoints: ["location", "alternative"],
   },
 ];
+
+/** 準備行動1件 */
+export type PrepAction = (typeof PREP_ACTIONS)[number];
+
+/**
+ * 準備行動を ID から引く（Issue #299）。PREP_ACTIONS の中身は変えずに、そこから引く。
+ * すべての PrepActionId が PREP_ACTIONS にあることは ids.test.ts で確かめる。見つからなければ、分かる名前で例外にする
+ */
+export function prepActionOf(id: PrepActionId): PrepAction {
+  const action = PREP_ACTIONS.find((a) => a.id === id);
+  if (action === undefined) throw new Error(`準備行動が PREP_ACTIONS にありません：${id}`);
+  return action;
+}
 
 export const TIMINGS: readonly { id: TimingId; label: string }[] = [
   { id: "today", label: "今日中" },
@@ -889,7 +904,7 @@ export function viewpointShortLabel(v: ViewpointId, event: EventId | null): stri
 /** 弱いときの一言（係の交代のときだけ「代わりの手段」を替える） */
 export function weakPointLine(
   v: ViewpointId,
-  judgment: "not_mentioned" | "aware_unconfirmed",
+  judgment: WeakJudgment,
   event: EventId | null,
 ): string {
   return isHandoverAlternative(v, event) ? HANDOVER_ALTERNATIVE.weak[judgment] : WEAK_POINT_LINES[v][judgment];

@@ -152,11 +152,19 @@ export function awaitingHuman(review: ChartReview | undefined): boolean {
   return review !== undefined && review.status !== "human_confirmed";
 }
 
+/**
+ * カルテの key のハッシュ（割る前の値）。見本の下書き（sampleIndex）と、架空の会話の見本（karte/client.ts の sampleForChart）が
+ * 同じ式で選ぶ（同じカルテはいつも同じ見本）。Issue #299 で1か所にまとめた
+ */
+export function keyHash(key: string): number {
+  let h = 0;
+  for (const ch of key) h = (h * 31 + (ch.codePointAt(0) ?? 0)) >>> 0;
+  return h;
+}
+
 /** 見本の下書きと監査の結果を、カルテの key から決まった形で選ぶ（同じカルテはいつも同じ見本。画面で両方の例が見える） */
 function sampleIndex(key: string): number {
-  let h = 0;
-  for (const ch of key) h = (h * 31 + ch.codePointAt(0)!) >>> 0;
-  return h % 2;
+  return keyHash(key) % 2;
 }
 
 /** 見本の AI 下書き（固定の文。患者の記録からは作らない） */

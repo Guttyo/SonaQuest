@@ -269,13 +269,7 @@ a:focus-visible {
   color: var(--ink-soft);
 }
 
-/* ソナの吹き出しの並び。.listener-light（光の存在。ADR-0020）は、3D を読み込む間の仮の姿（puppet3d/PuppetView.tsx）にだけ残す。2D の係はパペットの 2D 版（.p2d-*、ADR-0038） */
-.listener {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-}
-
+/* .listener-light（光の存在。ADR-0020）は、3D を読み込む間の仮の姿（puppet3d/PuppetView.tsx）にだけ残す。2D の係はパペットの 2D 版（.p2d-*、ADR-0038） */
 .listener-light {
   flex: none;
   width: 40px;
@@ -283,14 +277,6 @@ a:focus-visible {
   border-radius: 50%;
   background: radial-gradient(circle at 40% 35%, #fff 0%, var(--cream) 35%, var(--mint) 70%, rgba(244, 162, 89, 0.5) 100%);
   box-shadow: 0 0 16px 4px rgba(244, 162, 89, 0.35);
-}
-
-.listener-speech {
-  flex: 1;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: var(--surface);
-  border: 1px solid var(--line);
 }
 
 .listener-name {
@@ -1606,16 +1592,6 @@ body,
    状態ごとの姿勢は止まった transform で決め（data-activity）、動きは別の要素に重ねる。
    動きを減らす設定では、上の prefers-reduced-motion で動きだけが止まり、状態ごとの姿勢が残る。
    舞台は 3D と同じ .puppet3d-stage（ミントの地）なので、出来事の暗い場面でも係が地に沈まない */
-.listener.listener-2d {
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.listener-2d .listener-speech {
-  align-self: stretch;
-}
-
 .puppet2d-stage {
   display: flex;
   align-items: flex-end;

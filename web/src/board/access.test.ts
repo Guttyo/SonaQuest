@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ACCESS_LOG_MAX, appendAccess, authorizeWrite, canDecideOrders, canEdit, localAllowed, makeSession, siteCode, staffFor, type FetchLike } from "./access";
+import { ACCESS_LOG_MAX, appendAccess, authorizeWrite, canDecideOrders, canEdit, localAllowed, makeSession, sessionFor, siteCode, staffFor, type FetchLike } from "./access";
 import { parseAuthorizeRequest, writeAllowed } from "./authorizeContract";
 import { FICTIONAL_NAMES } from "./demo";
 import { HQ, SHELTERS } from "./data";
@@ -38,6 +38,14 @@ describe("デモ用ログイン（Issue #141）", () => {
     for (const s of [...SHELTERS, HQ]) expect(canEdit(hq, s)).toBe(false);
     expect(localAllowed(hq!, "救護所A")).toBe(false);
     for (const n of staffFor(HQ)) expect(FICTIONAL_NAMES).not.toContain(n);
+  });
+
+  it("試験と見本のための sessionFor は、その拠点の最初の担当者。HQ を渡すと HQ のセッション（Issue #299）", () => {
+    for (const s of SHELTERS) expect(sessionFor(s)).toEqual({ site: s, staff: staffFor(s)[0] });
+    const hq = sessionFor(HQ);
+    expect(hq).toEqual({ site: HQ, staff: staffFor(HQ)[0] });
+    expect(canDecideOrders(hq)).toBe(true);
+    expect(canEdit(hq, HQ)).toBe(false);
   });
 
   it("アクセス記録は新しいものが先で、上限を超えた古い行は消える", () => {

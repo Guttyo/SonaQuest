@@ -22,6 +22,7 @@ import type {
   Judgment,
   Judgments,
   PrepActionId,
+  WeakJudgment,
   Question,
   SourceId,
   ViewpointId,
@@ -29,7 +30,7 @@ import type {
 
 /**
  * 前半・後半それぞれの回答の上限と、合計の上限（ADR-0019。Issue #41 で 3＋3 から 5＋5 にした）。
- * 固定の質問は半分ごとに4問で、残りの1回は聞き返しの余裕
+ * 固定の質問は前半が4問、後半が3問で、残りは聞き返しなどの余裕
  */
 export const MAX_FIRST_HALF_ANSWERS = 5;
 export const MAX_SECOND_HALF_ANSWERS = 5;
@@ -60,7 +61,8 @@ export function firstHalfQuestions(): readonly Question[] {
 }
 
 /**
- * 後半の質問。最初は立て直しの問い（係の交代のときは交代用の問い）。最後は思い出せなかったことの問い（Issue #41）。
+ * 後半の質問。最初は立て直しの問い（係の交代のときは交代用の問い）、次に記録の新しさ、最後に代わりに伝えられる人。
+ * 思い出せなかったことの問い（Issue #41 で足した RECHECK_QUESTION）は聞かず、後半の終わりに RECHECK_CLOSING で促す。
  * 出来事で答えが決まってしまう問いは、出来事に合わせて言い方を変える（家族と連絡がつかない → 家族のほかの人）
  */
 export function secondHalfQuestions(event: EventId): readonly Question[] {
@@ -99,8 +101,8 @@ export interface GoalPlan {
  *   掘り下げ（ほかには？）は、1問目の後に FOLLOWUP_LIMIT 回まで。
  *   前半は、必ず聞くゴールをすべて聞くまで終えない。終えると③確認から④出来事へ進む（出来事を起こす時点。
  *   情報の在りかは必ずその前に聞いている）
- * - 後半の必ず聞くゴール：立て直し（最初、固定）、記録の新しさ、代わりに伝えられる人。思い出せなかったことの問いは、
- *   残りの回数に余裕があるときだけ選べる（固定の進行では今までどおり最後に出す）
+ * - 後半の必ず聞くゴール：立て直し（最初、固定。係の交代のときは交代用の問い）、記録の新しさ、代わりに伝えられる人。
+ *   後半に選べるゴールは無い。思い出せなかったことは聞かず、後半の終わりに RECHECK_CLOSING（content.ts）で促す
  * - 必ず聞くゴールが残りの回数で聞ききれなくなるときは、掘り下げなどの選べるゴールを出さない
  * - 固定の順番（fallback）は、今までの固定の質問の順番の、まだ聞いていない最初のもの。Claude を使わない進行は今までと同じになる
  */
@@ -178,7 +180,7 @@ export function undeterminedJudgments(): Judgments {
 }
 
 /** 手薄なところ：「確認していない」「未確認と気づいた」の観点 */
-export function isWeak(judgment: Judgment): boolean {
+export function isWeak(judgment: Judgment): judgment is WeakJudgment {
   return judgment === "not_mentioned" || judgment === "aware_unconfirmed";
 }
 
@@ -214,7 +216,7 @@ export function verifiedSourcesFor(
 /** 振り返りの先頭の「まだ弱いところ → 次の一手」1件（ADR-0054） */
 export interface NextStep {
   viewpoint: ViewpointId;
-  judgment: Judgment;
+  judgment: WeakJudgment;
   /** その観点に関係する準備行動のうち、規則で選んだ1つ */
   action: PrepActionId;
 }
@@ -242,16 +244,21 @@ export const EVENT_PREP_PRIORITY: Record<EventId, readonly PrepActionId[]> = {
  * 「判定できませんでした」は手薄として扱わないので、すべて undetermined の回は空になる
  */
 export function nextSteps(judgments: Judgments): NextStep[] {
-  const weak = VIEWPOINT_ORDER.filter((v) => isWeak(judgments[v]));
+  // 先に観点と判定の組にして、isWeak で判定の型を手薄なもの（WeakJudgment）に絞る
+  const weak = VIEWPOINT_ORDER.flatMap((viewpoint) => {
+    const judgment = judgments[viewpoint];
+    return isWeak(judgment) ? [{ viewpoint, judgment }] : [];
+  });
   const ordered = [
-    ...weak.filter((v) => judgments[v] === "not_mentioned"),
-    ...weak.filter((v) => judgments[v] === "aware_unconfirmed"),
+    ...weak.filter((w) => w.judgment === "not_mentioned"),
+    ...weak.filter((w) => w.judgment === "aware_unconfirmed"),
   ];
   const used = new Set<PrepActionId>();
-  return ordered.map((viewpoint) => {
+  return ordered.map(({ viewpoint, judgment }) => {
+    // どの観点にも準備行動が1つ以上あることは、ids.test.ts で確かめる
     const related = PREP_ACTIONS.filter((a) => a.viewpoints.includes(viewpoint));
     const pick = related.find((a) => !used.has(a.id)) ?? related[0];
     used.add(pick.id);
-    return { viewpoint, judgment: judgments[viewpoint], action: pick.id };
+    return { viewpoint, judgment, action: pick.id };
   });
 }

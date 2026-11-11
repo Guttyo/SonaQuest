@@ -2,14 +2,14 @@
 // 固定の質問ごとの回答を、記録の項目に並べるだけ。回答は原文のまま（ADR-0009）で、要約・言い換え・補いをしない。
 // Claude は使わない。質問 ID と項目の対応は固定で、ここにだけ持つ。
 
-import type { Answer } from "./types";
+import type { Answer, QuestionId } from "./types";
 
 export interface RecordItem {
   id: string;
   /** 項目の名前。薬の中身は架空で答えているので「（架空）」を添える（ADR-0022） */
   label: string;
   /** この項目に対応する固定の質問の ID。聞き返しの後の回答も同じ ID で入る */
-  questionIds: readonly string[];
+  questionIds: readonly QuestionId[];
 }
 
 // 決定済み：記録の項目の名前と、質問との対応（Claude Code の下書き）
@@ -41,11 +41,12 @@ export interface RecordRow {
 
 /** 回答（関係のない話として受け止めたものは除く）を項目に並べる。文は書き換えない */
 export function recordRows(answers: readonly Answer[]): RecordRow[] {
-  return RECORD_ITEMS.map((item) => ({
-    id: item.id,
-    label: item.label,
-    values: answers
-      .filter((a) => a.kind === "answer" && item.questionIds.includes(a.questionId))
-      .map((a) => a.text),
-  }));
+  return RECORD_ITEMS.map((item) => {
+    const ids: readonly string[] = item.questionIds;
+    return {
+      id: item.id,
+      label: item.label,
+      values: answers.filter((a) => a.kind === "answer" && ids.includes(a.questionId)).map((a) => a.text),
+    };
+  });
 }

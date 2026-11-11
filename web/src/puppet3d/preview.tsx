@@ -1,12 +1,13 @@
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Listener } from "../screens/Listener";
+import { ListenerStage } from "../screens/ListenerStage";
 import "../styles.css";
 import { ACTIVITY_LABELS, type ListenerActivity, type ListenerMode } from "./types";
 
 /**
  * ソナの見本のページ（開発用。web/puppet-preview.html。ADR-0032）。
  * 状態・係の交代・見せ方を切り替えて、形と 2D への戻りを確かめる。実際の会話は使わない。
+ * 対話の画面と同じ ListenerStage で描く（場面は「普段の薬を伝える」に固定。Issue #299）。
  * ?webgl=off で WebGL が使えない場合を、?motion=reduce で動きを減らす設定を、まねて確かめる。
  * まねるための置き換えはこのページの中だけで、アプリの画面には入れない。
  */
@@ -61,9 +62,9 @@ function Preview() {
       <main className="app-main">
         <section className="screen" aria-label="見本">
           {shown ? (
-            <Listener mode={mode} activity={activity} relief={relief}>
+            <ListenerStage mode={mode} activity={activity} relief={relief} showState scene="tell">
               <p>{SAMPLE_TEXT}</p>
-            </Listener>
+            </ListenerStage>
           ) : (
             <p className="small">ソナを外しました（中断の画面に移ったときと同じ）。</p>
           )}

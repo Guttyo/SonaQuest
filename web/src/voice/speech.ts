@@ -15,7 +15,7 @@ import {
   OPENING_SPEECH,
   ORDINALS,
   PREP_SPEECH,
-  PREP_ACTIONS,
+  prepActionOf,
   RECALL_NOW,
   UNDETERMINED_NOTE,
   VIEWPOINT_ORDER,
@@ -50,7 +50,7 @@ export const REVIEW_SPEECH_MAX = 480;
 export function eventPrepSpeech(state: TrainingState): string {
   if (state.event === null) return "";
   const items = EVENT_PREP_PRIORITY[state.event].map((id, i) => {
-    const label = PREP_ACTIONS.find((a) => a.id === id)!.label;
+    const label = prepActionOf(id).label;
     return `${ORDINALS[i]}、${label}。`;
   });
   return EVENT_PREP_INTRO + items.join("");
@@ -72,8 +72,8 @@ function reviewSpeechBody(state: TrainingState, withFirstStep: boolean): string 
     .join("");
   if (!withFirstStep) return `${ack}${NEXT_STEPS_HEADING}。${names}`;
   const first = steps[0];
-  const line = weakPointLine(first.viewpoint, first.judgment as "not_mentioned" | "aware_unconfirmed", state.event);
-  const action = PREP_ACTIONS.find((a) => a.id === first.action)!.label;
+  const line = weakPointLine(first.viewpoint, first.judgment, state.event);
+  const action = prepActionOf(first.action).label;
   return `${ack}${NEXT_STEPS_HEADING}。${names}${line}${NEXT_STEP_LABEL}は、${action}。`;
 }
 

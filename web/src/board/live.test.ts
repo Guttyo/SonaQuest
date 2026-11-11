@@ -1,13 +1,11 @@
 // 動く地図（Issue #128）の位置と光の純粋な関数。デモの状態と時計だけから求まることを確かめる
 import { describe, expect, it } from "vitest";
 import { HQ, PATIENTS, ROUTES, SHELTERS, SITES, STOCK, SYNC, type RouteRow } from "./data";
-import { demoReducer, initialDemo, minutesAt, type DemoInbound } from "./demo";
+import { ARRIVAL_MINUTE_OF_DAY, demoReducer, initialDemo, lastReportAt, minutesAt, type DemoInbound } from "./demo";
 import { MAP_LOCAL_ROADS, MAP_ROUTES, MAP_SITES, STREETS_H, STREETS_V } from "./map";
 import { siteOverview } from "./summary";
 import {
-  ARRIVAL_MINUTE_OF_DAY,
   STALE_REPORT_HOURS,
-  lastReportAt,
   lineLength,
   parsePath,
   pointAt,
