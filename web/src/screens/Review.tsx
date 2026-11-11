@@ -45,6 +45,7 @@ import { reviewSpeech, speechKey } from "../voice/speech";
 import { SceneBar } from "./ListenerStage";
 import { RecordCard } from "./RecordCard";
 import { LostSources, PREP_ICON, SourceIcon, VIEWPOINT_ICON } from "./SourceIcon";
+import { BlankCardBox } from "./BlankCard";
 import { Exchange, ListenerLine } from "./Transcript";
 
 interface Props {
@@ -256,6 +257,9 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
       >
         これに決める
       </button>
+
+      {/* 記入用のカード（Issue #278、ADR-0067）。空欄の用紙だけを印刷する。回答は渡さない */}
+      <BlankCardBox />
 
       <PublicSources actions={orderedActions} sourcesFor={sourcesFor} />
 

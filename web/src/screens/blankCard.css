@@ -1,0 +1,77 @@
+/* 記入用のカード（Issue #278）。画面では印刷の箱だけを出し、用紙は印刷のときだけ見せる */
+
+.blank-card-box {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.blank-card-box h3 {
+  margin: 0;
+}
+.blank-card-box p {
+  margin: 0;
+  font-size: var(--fs-sub);
+  color: var(--ink-soft);
+}
+
+/* 用紙は画面では出さない */
+.blank-card-sheet {
+  display: none;
+}
+
+@media print {
+  /* 印刷のボタンを押したときだけ（<html> にクラスが付く）、用紙だけを印刷する */
+  html.print-blank-card body > *:not(.blank-card-sheet) {
+    display: none !important;
+  }
+  html.print-blank-card body {
+    background: #fff;
+  }
+  html.print-blank-card .blank-card-sheet {
+    display: block;
+    color: #000;
+    font-family: var(--font-gothic);
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+  .blank-card-sheet h1 {
+    margin: 0 0 4mm;
+    font-size: 18pt;
+  }
+  .blank-card-lead {
+    margin: 0 0 6mm;
+  }
+  .blank-card-fields {
+    margin: 0;
+  }
+  .blank-card-field {
+    margin: 0 0 5mm;
+    break-inside: avoid;
+  }
+  .blank-card-field dt {
+    font-weight: var(--fw-bold);
+  }
+  .blank-card-hint {
+    margin-left: 3mm;
+    font-weight: var(--fw-regular);
+    font-size: 9pt;
+  }
+  .blank-card-line {
+    margin: 0;
+    height: 9mm;
+    border-bottom: 0.3mm solid #555;
+  }
+  .blank-card-notes {
+    margin: 6mm 0 0;
+    padding-left: 5mm;
+    font-size: 9pt;
+  }
+  @page {
+    size: A4 portrait;
+    margin: 14mm;
+  }
+}
