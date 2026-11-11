@@ -6,7 +6,8 @@
 //
 // API キーは、SDK が環境変数から読む（このスクリプトはキーを読まない・表示しない・ファイルに書かない）。
 // 何度も --apply すると、そのたびに新しい Agent と Environment ができる（古いものは消えない）。
-// Node の型を外して動かす機能（Node 23.6 以上）で、.ts のまま実行する。
+// Node の型を外して動かす機能で、.ts のまま実行する。この機能が既定で使える Node 22.18 以上（22系）か 23.6 以上が要る
+// （web/package.json の engines。Issue #298）。ExperimentalWarning が出ることがあるが、失敗ではない。
 
 import Anthropic from "@anthropic-ai/sdk";
 import {
