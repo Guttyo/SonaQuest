@@ -7,6 +7,9 @@ import { demoReducer, initialDemo } from "./demo";
 import { Fold } from "./Fold";
 import { caseRows } from "./summary";
 
+/** 発注の提案を承認・却下する人（本部でログインした架空の担当者。Issue #289） */
+const HQ_ACTOR = sessionFor(HQ);
+
 const render = (site: SiteId = HQ, tab: BoardTab = "overview", state = initialDemo()) =>
   renderToStaticMarkup(
     <Board onBack={() => {}} reducedMotion={false} initialSite={site} initialTab={tab} initialState={state} initialSession={sessionFor(site)} />,
@@ -57,7 +60,7 @@ describe("開閉できる欄（Issue #159）", () => {
 
   it("承認待ちが無ければ、本部の提案の欄は閉じる", () => {
     let state = initialDemo();
-    for (const p of state.proposals.filter((x) => x.status === "提案")) state = demoReducer(state, { type: "reject_proposal", id: p.id });
+    for (const p of state.proposals.filter((x) => x.status === "提案")) state = demoReducer(state, { type: "reject_proposal", id: p.id, actor: HQ_ACTOR });
     expect(foldOpen(render(HQ, "overview", state), "board-hq-orders")).toBe(false);
   });
 
