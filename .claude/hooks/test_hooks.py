@@ -706,6 +706,31 @@ def worktree_hook_tests(tmp):
     check("main の作業コピーから ( cd 作業ブランチ ) の後のコミット", 2, run(shared, f'( cd "{wt}" ) && git commit -m x'))
     check("iex の中の cd は外に効く", 2, run(wt, f"iex 'cd \"{shared}\"'; git commit -m x"))
     check("worktree で switch -c してコミット", 0, run(wt, "git switch -c feat/2-y && git commit -m x"))
+    # Issue #291：設定にある git のエイリアスは、中身を展開して判定する（名前は全体の設定と重ならないものにする）
+    nv = "-" + "n"
+    aliases = {"zzci": f"commit {nv}", "zzco": "commit", "zzpush": "push origin main", "zzsh": "!git commit -m x",
+               "commit": "status", "zzhp": "config core.hooksPath .x", "zznest": "zzco", "zzfm": "push --force"}
+    for k, v in aliases.items():
+        git(shared, "config", f"alias.{k}", v)
+    check("エイリアス：-n 付きの commit を main で呼ぶ", 2, run(shared, "git zzci -m x"))
+    check("エイリアス：-n 付きの commit を作業ブランチで呼ぶ", 2, run(wt, "git zzci -m x"))
+    check("エイリアス：commit を main で呼ぶ", 2, run(shared, "git zzco -m x"))
+    check("エイリアス：commit を作業ブランチで呼ぶ", 0, run(wt, "git zzco -m x"))
+    check("エイリアス：大文字で呼んでも展開する", 2, run(shared, "git ZZCO -m x"))
+    check("エイリアス：エイリアスのエイリアスを main で呼ぶ", 2, run(shared, "git zznest -m x"))
+    check("エイリアス：git -C で main の作業コピーを指して呼ぶ", 2, run(wt, f'git -C "{shared}" zzco -m x'))
+    check("エイリアス：中身が main への push", 2, run(wt, "git zzpush"))
+    check("エイリアス：中身が force push", 2, run(wt, "git zzfm origin feat/1-x"))
+    check("エイリアス：中身が core.hooksPath を変える config", 2, run(wt, "git zzhp"))
+    check("エイリアス：! で始まるものを main で呼ぶ", 2, run(shared, "git zzsh"))
+    check("エイリアス：! で始まるものを作業ブランチで呼ぶ", 0, run(wt, "git zzsh"))
+    check("エイリアス：作業ツリーを判定できない場所で呼ぶ", 2, run(wt, 'cd "$NO_SUCH_DIR_X" && git zzco -m x'))
+    check("エイリアス：本物と同じ名前の alias.commit があっても、main の commit は止める", 2, run(shared, "git commit -m x"))
+    check("エイリアス：本物と同じ名前の alias.commit があっても、作業ブランチの commit は通す", 0, run(wt, "git commit -m x"))
+    check("エイリアス：設定に無い名前は通す（git が知らないコマンドとして失敗する）", 0, run(wt, "git zznone"))
+    check("エイリアス：本物のコマンドの git log は main でも通す", 0, run(shared, "git log -1"))
+    for k in aliases:
+        git(shared, "config", "--unset", f"alias.{k}")
     # @{-1} が本物の前のブランチを指すとき
     git(wt, "switch", "-q", "-c", "feat/2-y")
     check("checkout - で前の作業ブランチへ戻ってコミット", 0, run(wt, "git checkout - && git commit -m x"))

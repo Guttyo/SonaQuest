@@ -29,6 +29,7 @@ main を変えうる操作を止める。
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 
@@ -166,6 +167,23 @@ class Trees:
         # refs/remotes/<リモート>/<name> がちょうど1つなら、git がブランチを作って切り替える
         code, out = run_git(k, "for-each-ref", "--format=%(refname)", "refs/remotes")
         return code == 0 and sum(1 for r in out.splitlines() if r.split("/", 3)[3:] == [name]) == 1
+
+    def git_commands(self):
+        """git の本物のコマンドの名前（組み込みと、PATH にある git-*）。取れなければ None。
+        git は、本物のコマンドと同じ名前のエイリアスを無視する（Issue #291）。"""
+        if not hasattr(self, "_git_commands"):
+            code, out = run_git(self.cwd if self.cwd and os.path.isdir(self.cwd) else None,
+                                "--list-cmds=main,others,nohelpers")
+            self._git_commands = set(out.split()) if code == 0 and out else None
+        return self._git_commands
+
+    def alias(self, d, name):
+        """その作業ツリーで alias.<name> に設定されている中身（全体の設定を含む）。無ければ None。"""
+        k = self.key(d)
+        if not k or k == "<test>":
+            return None
+        code, out = run_git(k, "config", "--get", f"alias.{name}")
+        return out if code == 0 else None
 
     def config(self, d, pattern):
         """[(キー, 値)]。作業ツリーが分からない・git の外なら空。"""
@@ -507,6 +525,61 @@ def check_routing(sub, args, configs):
         raise Blocked("リモートの設定（git remote add・set-url など）はオーナーが変えます。")
 
 
+# hook がサブコマンドの名前で判定している git のコマンド。エイリアスを引かずに、本物のコマンドとして判定する
+# （alias.commit のような設定があっても、git は本物のコマンドを優先するため。Issue #291）
+JUDGED_SUBS = CHANGES_BRANCH | {"push", "branch", "tag", "update-ref", "symbolic-ref", "fetch", "switch", "checkout",
+                                "worktree", "config", "remote"}
+MAX_ALIAS_DEPTH = 5
+ALIAS_UNKNOWN_MSG = ("git のエイリアスかもしれない名前を、作業ツリーを判定できない場所で実行しようとしています。"
+                     "エイリアスの中身を確かめられないので、コマンドをそのまま書くか、cd を別に実行してください（Issue #291）。")
+
+
+def tree_dir(g, trees, repo_env):
+    """git の -C・--git-dir と GIT_DIR を考えた、git が操作する作業ツリーのフォルダ。判定できなければ None。"""
+    d = trees.cwd
+    for c in g["chdirs"]:
+        d = resolve_dir(d, c)
+    return None if g["repo_opts"] or repo_env else d
+
+
+def expand_alias(tokens, g, trees, repo_env, depth=0):
+    """設定にある git のエイリアスを展開した (語の列, git_invocation の結果) を返す（Issue #291）。
+    ! で始まる（シェルで実行する）エイリアスは、main と判定できないブランチでは止める。"""
+    sub = g["sub"]
+    if not sub or sub in JUDGED_SUBS or sub.startswith("-") or SUBST in sub or "$" in sub:
+        return tokens, g
+    commands = trees.git_commands()
+    if commands is not None and sub in commands:
+        return tokens, g
+    d = tree_dir(g, trees, repo_env)
+    if trees.key(d) is None:
+        if commands is None:  # 本物のコマンドの一覧が取れないときは、git status なども止めないよう通す
+            return tokens, g
+        raise Blocked(ALIAS_UNKNOWN_MSG)
+    value = trees.alias(d, sub.lower())
+    if value is None:
+        return tokens, g
+    if value.startswith("!"):
+        branch = trees.branch(d)
+        if branch == UNKNOWN:
+            raise Blocked(UNKNOWN_MSG)
+        if is_main(branch):
+            raise Blocked(f"今は {branch} にいます。シェルで実行する git のエイリアス（! で始まるもの）は、中身を判定できないので"
+                          "main では使えません。作業ブランチで実行するか、コマンドをそのまま書いてください（Issue #291）。")
+        return tokens, g
+    if "core.hookspath" in value.lower():
+        raise Blocked("core.hooksPath を変える git のエイリアスは使えません。コミット前の検査が外れるためです（Issue #291）。")
+    try:
+        words = shlex.split(value)
+    except ValueError:
+        raise Blocked("git のエイリアスの中身を読めません。コマンドをそのまま書いてください（Issue #291）。")
+    if depth >= MAX_ALIAS_DEPTH:
+        raise Blocked("git のエイリアスの入れ子が深すぎます。コマンドをそのまま書いてください（Issue #291）。")
+    prefix = tokens[:len(tokens) - len(g["args"]) - 1]
+    expanded = prefix + words + g["args"]
+    return expand_alias(expanded, git_invocation(expanded), trees, repo_env, depth + 1)
+
+
 def check_git(sub, args, branch, configs=(), trees=None, d=None):
     """1つのgitコマンドを調べ、実行後のブランチを返す。branch が None なら判定しない（status_check.py）。"""
     check_moves_main(sub, args)
@@ -732,11 +805,9 @@ def check_command(cmd, trees):
             if g["sub"] == STDIN_ARGS or (g["sub"] in STDIN_SENSITIVE and STDIN_ARGS in g["args"]):
                 raise Blocked(f"xargs・find -exec の後の git {'' if g['sub'] == STDIN_ARGS else g['sub']} は、"
                               "引数が実行時に足されるので判定できません。宛先などをそのまま書いてください。")
-            d = trees.cwd
-            for c in g["chdirs"]:
-                d = resolve_dir(d, c)
-            if g["repo_opts"] or repo_env:
-                d = None
+            # 設定にあるエイリアスは、中身を展開してから判定する（Issue #291）
+            tokens, g = expand_alias(tokens, g, trees, repo_env)
+            d = tree_dir(g, trees, repo_env)
             branch = trees.branch(d)
             after = check_git(g["sub"], g["args"], branch, g["configs"], trees, d)
             if g["sub"] in ("switch", "checkout") and after != branch:
