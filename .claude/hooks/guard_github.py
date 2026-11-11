@@ -694,7 +694,8 @@ def main():
     cwd = data.get("cwd") or os.getcwd()
     cwd = os.path.normpath(native_path(cwd))
     try:
-        asks = check_command(cmd, Trees(cwd, data.get("_test_branch")))
+        # 試験用のブランチは、hook の入力ではなく環境変数で受け取る（Issue #291）
+        asks = check_command(cmd, Trees(cwd, os.environ.get("SONAQUEST_TEST_BRANCH")))
     except Blocked as e:
         print(f"BLOCKED（main・GitHubの保護）: {e}", file=sys.stderr)
         sys.exit(2)

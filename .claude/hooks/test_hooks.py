@@ -324,11 +324,12 @@ def secret_hook_tests(tmp):
                                                 {"SONAQUEST_BLOCKLIST": str(tmp / "none.txt")})[0])
 
 
-def decision(script, tool, tool_input, extra=None):
+def decision(script, tool, tool_input, extra=None, env=None):
     """hook の判定を "ask"・"block"・"allow" で返す。確認を求めるときは、標準出力が決まった形の JSON だけか確かめる。"""
     payload = json.dumps({"tool_name": tool, "tool_input": tool_input, **(extra or {})},
                          ensure_ascii=False).encode("utf-8")
-    p = subprocess.run([PY, str(HOOKS / script)], input=payload, capture_output=True)
+    p = subprocess.run([PY, str(HOOKS / script)], input=payload, capture_output=True,
+                       env={**os.environ, **(env or {})})
     out = p.stdout.decode("utf-8", "replace").strip()
     if p.returncode == 2:
         return "block" if not out else "block+stdout"
@@ -378,87 +379,88 @@ def merge_hook_ask_tests(G, on_work):
             ("git status", "allow"),
             ("gh pr view 12", "allow"),
             ("git push origin main", "block")):
-        check(f"Bash: {cmd}", want, decision(G, "Bash", {"command": cmd}, extra=on_work))
-    check("PowerShell: gh pr merge 12 --merge", "ask", decision(G, "PowerShell", {"command": "gh pr merge 12 --merge"}, extra=on_work))
-    check("PowerShell: gh pr merge 12 --admin", "block", decision(G, "PowerShell", {"command": "gh pr merge 12 --admin"}, extra=on_work))
+        check(f"Bash: {cmd}", want, decision(G, "Bash", {"command": cmd}, env=on_work))
+    check("PowerShell: gh pr merge 12 --merge", "ask", decision(G, "PowerShell", {"command": "gh pr merge 12 --merge"}, env=on_work))
+    check("PowerShell: gh pr merge 12 --admin", "block", decision(G, "PowerShell", {"command": "gh pr merge 12 --admin"}, env=on_work))
 
 
 def github_hook_tests():
     G = "guard_github.py"
-    on_main, on_work = {"_test_branch": "main"}, {"_test_branch": "docs/1-x"}
+    # 試験用のブランチは環境変数で渡す（hook の入力の _test_branch は読まない。Issue #291）
+    on_main, on_work = {"SONAQUEST_TEST_BRANCH": "main"}, {"SONAQUEST_TEST_BRANCH": "docs/1-x"}
     print("--- main・GitHubの保護（Claude Code hook）")
-    check("Bash: git push --force", 2, hook(G, "Bash", {"command": "git push --force origin docs/1-x"}, extra=on_work)[0])
-    check("Bash: git push -f", 2, hook(G, "Bash", {"command": "git push -f"}, extra=on_work)[0])
-    check("Bash: main へpush", 2, hook(G, "Bash", {"command": "git push origin main"}, extra=on_work)[0])
-    check("Bash: 作業ブランチをpush", 0, hook(G, "Bash", {"command": "git push -u origin docs/1-x"}, extra=on_work)[0])
-    check("Bash: main を削除", 2, hook(G, "Bash", {"command": "git branch -D main"}, extra=on_work)[0])
+    check("Bash: git push --force", 2, hook(G, "Bash", {"command": "git push --force origin docs/1-x"}, env=on_work)[0])
+    check("Bash: git push -f", 2, hook(G, "Bash", {"command": "git push -f"}, env=on_work)[0])
+    check("Bash: main へpush", 2, hook(G, "Bash", {"command": "git push origin main"}, env=on_work)[0])
+    check("Bash: 作業ブランチをpush", 0, hook(G, "Bash", {"command": "git push -u origin docs/1-x"}, env=on_work)[0])
+    check("Bash: main を削除", 2, hook(G, "Bash", {"command": "git branch -D main"}, env=on_work)[0])
     merge_hook_ask_tests(G, on_work)
-    check("Bash: 保護設定を変更", 2, hook(G, "Bash", {"command": "gh api -X PUT repos/o/r/branches/main/protection"}, extra=on_work)[0])
-    check("Bash: 保護設定を読むだけ", 0, hook(G, "Bash", {"command": "gh api repos/o/r/rulesets"}, extra=on_work)[0])
-    check("Bash: main にいてコミット", 2, hook(G, "Bash", {"command": "git commit -m x"}, extra=on_main)[0])
-    check("Bash: main にいてマージ", 2, hook(G, "Bash", {"command": "git merge docs/1-x"}, extra=on_main)[0])
-    check("Bash: main から作業ブランチを作る", 0, hook(G, "Bash", {"command": "git switch -c docs/2-y"}, extra=on_main)[0])
-    check("Bash: main で pull --ff-only", 0, hook(G, "Bash", {"command": "git pull --ff-only"}, extra=on_main)[0])
-    check("Bash: 作業ブランチでコミット", 0, hook(G, "Bash", {"command": "git commit -m x"}, extra=on_work)[0])
+    check("Bash: 保護設定を変更", 2, hook(G, "Bash", {"command": "gh api -X PUT repos/o/r/branches/main/protection"}, env=on_work)[0])
+    check("Bash: 保護設定を読むだけ", 0, hook(G, "Bash", {"command": "gh api repos/o/r/rulesets"}, env=on_work)[0])
+    check("Bash: main にいてコミット", 2, hook(G, "Bash", {"command": "git commit -m x"}, env=on_main)[0])
+    check("Bash: main にいてマージ", 2, hook(G, "Bash", {"command": "git merge docs/1-x"}, env=on_main)[0])
+    check("Bash: main から作業ブランチを作る", 0, hook(G, "Bash", {"command": "git switch -c docs/2-y"}, env=on_main)[0])
+    check("Bash: main で pull --ff-only", 0, hook(G, "Bash", {"command": "git pull --ff-only"}, env=on_main)[0])
+    check("Bash: 作業ブランチでコミット", 0, hook(G, "Bash", {"command": "git commit -m x"}, env=on_work)[0])
     # Issue #19 のレビュー：マーカー解除の判定が見るローカルの main を動かす・隠す操作（ADR-0024）
     for cmd in ("git branch -f main HEAD", "git branch --force main docs/1-x", "git branch -M docs/1-x main",
                 "git branch -c docs/1-x main", "git update-ref refs/heads/main HEAD", "git update-ref refs/main HEAD",
                 "git tag main", "git tag -f main HEAD", "git fetch . HEAD:main", "git fetch origin +docs/1-x:refs/heads/main",
                 "git switch -C main", "git checkout -B main HEAD", "git symbolic-ref refs/heads/main refs/heads/docs/1-x"):
-        check(f"Bash: ローカルの main を動かす（{cmd}）", 2, hook(G, "Bash", {"command": cmd}, extra=on_work)[0])
+        check(f"Bash: ローカルの main を動かす（{cmd}）", 2, hook(G, "Bash", {"command": cmd}, env=on_work)[0])
     # 2回目のレビュー：書き方を変えて main を動かす（止める）と、main を起点に使うだけの操作（止めない）
     for cmd in ("git push . HEAD:heads/main", "git checkout -fBmain", "git switch --force-create=main",
                 "git checkout -B main HEAD --", "git rebase HEAD main", "git update-ref --stdin"):
-        check(f"Bash: ローカルの main を動かす（{cmd}）", 2, hook(G, "Bash", {"command": cmd}, extra=on_work)[0])
-    check("Bash: main で手元のブランチから pull --ff-only", 2, hook(G, "Bash", {"command": "git pull --ff-only . docs/1-x"}, extra=on_main)[0])
-    check("Bash: main で origin から pull --ff-only", 0, hook(G, "Bash", {"command": "git pull --ff-only origin main"}, extra=on_main)[0])
+        check(f"Bash: ローカルの main を動かす（{cmd}）", 2, hook(G, "Bash", {"command": cmd}, env=on_work)[0])
+    check("Bash: main で手元のブランチから pull --ff-only", 2, hook(G, "Bash", {"command": "git pull --ff-only . docs/1-x"}, env=on_main)[0])
+    check("Bash: main で origin から pull --ff-only", 0, hook(G, "Bash", {"command": "git pull --ff-only origin main"}, env=on_main)[0])
     for cmd in ("git branch -f feat/3-x main", "git switch -C feat/3-x main", "git checkout -B feat/3-x origin/main",
                 "git tag v0.1.0 main", "git tag --contains main", "git branch -c main backup", "git rebase main",
                 "git branch --merged main"):
-        check(f"Bash: main を起点・条件に使うだけ（{cmd}）", 0, hook(G, "Bash", {"command": cmd}, extra=on_work)[0])
+        check(f"Bash: main を起点・条件に使うだけ（{cmd}）", 0, hook(G, "Bash", {"command": cmd}, env=on_work)[0])
     # PR #29 のレビュー：symbolic-ref の設定先、小文字の作成オプション（止める）と、末尾が main なだけの別の名前（止めない）
     for cmd in ("git symbolic-ref HEAD refs/heads/main", "git switch -c main", "git checkout -b main",
                 "git switch --create main", "git switch --create=main"):
-        check(f"Bash: ローカルの main を作る・切り替えたように見せる（{cmd}）", 2, hook(G, "Bash", {"command": cmd}, extra=on_work)[0])
+        check(f"Bash: ローカルの main を作る・切り替えたように見せる（{cmd}）", 2, hook(G, "Bash", {"command": cmd}, env=on_work)[0])
     for cmd in ("git push origin feature/main", "git branch -f feature/main HEAD", "git tag release/main",
                 "git switch -c docs/main"):
-        check(f"Bash: 末尾が main なだけの別の名前（{cmd}）", 0, hook(G, "Bash", {"command": cmd}, extra=on_work)[0])
-    check("Bash: 作業ブランチを -f で作り直す", 0, hook(G, "Bash", {"command": "git branch -f docs/2-y HEAD"}, extra=on_work)[0])
-    check("Bash: origin を fetch する", 0, hook(G, "Bash", {"command": "git fetch origin"}, extra=on_work)[0])
-    check("Bash: リモート追跡の origin/main へ fetch", 0, hook(G, "Bash", {"command": "git fetch origin main:refs/remotes/origin/main"}, extra=on_work)[0])
-    check("Bash: 作業用のタグを付ける", 0, hook(G, "Bash", {"command": "git tag v0.1"}, extra=on_work)[0])
+        check(f"Bash: 末尾が main なだけの別の名前（{cmd}）", 0, hook(G, "Bash", {"command": cmd}, env=on_work)[0])
+    check("Bash: 作業ブランチを -f で作り直す", 0, hook(G, "Bash", {"command": "git branch -f docs/2-y HEAD"}, env=on_work)[0])
+    check("Bash: origin を fetch する", 0, hook(G, "Bash", {"command": "git fetch origin"}, env=on_work)[0])
+    check("Bash: リモート追跡の origin/main へ fetch", 0, hook(G, "Bash", {"command": "git fetch origin main:refs/remotes/origin/main"}, env=on_work)[0])
+    check("Bash: 作業用のタグを付ける", 0, hook(G, "Bash", {"command": "git tag v0.1"}, env=on_work)[0])
     # PR #3 のレビューで指摘された抜け道
-    check("Bash: git push -uf（短縮オプションの結合）", 2, hook(G, "Bash", {"command": "git push -uf origin docs/1-x"}, extra=on_work)[0])
-    check("Bash: +refspec での force push", 2, hook(G, "Bash", {"command": "git push origin +docs/1-x"}, extra=on_work)[0])
-    check("Bash: HEAD:refs/heads/main へpush", 2, hook(G, "Bash", {"command": "git push origin HEAD:refs/heads/main"}, extra=on_work)[0])
-    check("Bash: refs/heads/work:refs/heads/main へpush", 2, hook(G, "Bash", {"command": "git push origin refs/heads/work:refs/heads/main"}, extra=on_work)[0])
-    check("Bash: :main でリモートの main を削除", 2, hook(G, "Bash", {"command": "git push origin :main"}, extra=on_work)[0])
-    check("Bash: main 上で宛先を省いた git push", 2, hook(G, "Bash", {"command": "git push"}, extra=on_main)[0])
-    check("Bash: main 上で git push origin HEAD", 2, hook(G, "Bash", {"command": "git push origin HEAD"}, extra=on_main)[0])
-    check("Bash: git push --all", 2, hook(G, "Bash", {"command": "git push --all origin"}, extra=on_work)[0])
-    check("Bash: 作業ブランチ上で宛先を省いた git push", 0, hook(G, "Bash", {"command": "git push"}, extra=on_work)[0])
-    check("Bash: 作業ブランチ上で git push origin HEAD", 0, hook(G, "Bash", {"command": "git push origin HEAD"}, extra=on_work)[0])
-    check("Bash: gh api --method=PUT で保護設定", 2, hook(G, "Bash", {"command": "gh api --method=PUT repos/o/r/branches/main/protection"}, extra=on_work)[0])
-    check("Bash: gh api -f でRulesetを作る（暗黙のPOST）", 2, hook(G, "Bash", {"command": "gh api repos/o/r/rulesets -f name=x"}, extra=on_work)[0])
-    check("Bash: main 上で commit && switch -c", 2, hook(G, "Bash", {"command": "git commit -m x && git switch -c docs/2-y"}, extra=on_main)[0])
-    check("Bash: main 上で switch -c && commit", 0, hook(G, "Bash", {"command": "git switch -c docs/2-y && git commit -m x"}, extra=on_main)[0])
-    check("Bash: 作業ブランチから checkout main && merge", 2, hook(G, "Bash", {"command": "git checkout main && git merge docs/1-x"}, extra=on_work)[0])
-    check("Bash: git branch --delete main", 2, hook(G, "Bash", {"command": "git branch --delete main"}, extra=on_work)[0])
+    check("Bash: git push -uf（短縮オプションの結合）", 2, hook(G, "Bash", {"command": "git push -uf origin docs/1-x"}, env=on_work)[0])
+    check("Bash: +refspec での force push", 2, hook(G, "Bash", {"command": "git push origin +docs/1-x"}, env=on_work)[0])
+    check("Bash: HEAD:refs/heads/main へpush", 2, hook(G, "Bash", {"command": "git push origin HEAD:refs/heads/main"}, env=on_work)[0])
+    check("Bash: refs/heads/work:refs/heads/main へpush", 2, hook(G, "Bash", {"command": "git push origin refs/heads/work:refs/heads/main"}, env=on_work)[0])
+    check("Bash: :main でリモートの main を削除", 2, hook(G, "Bash", {"command": "git push origin :main"}, env=on_work)[0])
+    check("Bash: main 上で宛先を省いた git push", 2, hook(G, "Bash", {"command": "git push"}, env=on_main)[0])
+    check("Bash: main 上で git push origin HEAD", 2, hook(G, "Bash", {"command": "git push origin HEAD"}, env=on_main)[0])
+    check("Bash: git push --all", 2, hook(G, "Bash", {"command": "git push --all origin"}, env=on_work)[0])
+    check("Bash: 作業ブランチ上で宛先を省いた git push", 0, hook(G, "Bash", {"command": "git push"}, env=on_work)[0])
+    check("Bash: 作業ブランチ上で git push origin HEAD", 0, hook(G, "Bash", {"command": "git push origin HEAD"}, env=on_work)[0])
+    check("Bash: gh api --method=PUT で保護設定", 2, hook(G, "Bash", {"command": "gh api --method=PUT repos/o/r/branches/main/protection"}, env=on_work)[0])
+    check("Bash: gh api -f でRulesetを作る（暗黙のPOST）", 2, hook(G, "Bash", {"command": "gh api repos/o/r/rulesets -f name=x"}, env=on_work)[0])
+    check("Bash: main 上で commit && switch -c", 2, hook(G, "Bash", {"command": "git commit -m x && git switch -c docs/2-y"}, env=on_main)[0])
+    check("Bash: main 上で switch -c && commit", 0, hook(G, "Bash", {"command": "git switch -c docs/2-y && git commit -m x"}, env=on_main)[0])
+    check("Bash: 作業ブランチから checkout main && merge", 2, hook(G, "Bash", {"command": "git checkout main && git merge docs/1-x"}, env=on_work)[0])
+    check("Bash: git branch --delete main", 2, hook(G, "Bash", {"command": "git branch --delete main"}, env=on_work)[0])
     # 共通のコマンド分解に変えたことで塞いだもの・誤検出しないもの
-    check("Bash: env を前置きして main へpush", 2, hook(G, "Bash", {"command": "env git push origin main"}, extra=on_work)[0])
-    check("Bash: $(...) の中で main へpush", 2, hook(G, "Bash", {"command": "x=$(git push origin main)"}, extra=on_work)[0])
-    check("Bash: 単独の & の後で force push", 2, hook(G, "Bash", {"command": "git status & git push --force"}, extra=on_work)[0])
-    check("Bash: git --no-pager push origin main", 2, hook(G, "Bash", {"command": "git --no-pager push origin main"}, extra=on_work)[0])
-    check("Bash: メッセージ中の ; と push の文字", 0, hook(G, "Bash", {"command": 'git commit -m "a; git push origin main"'}, extra=on_work)[0])
-    check("Bash: main 上で fast-forward になる git merge", 2, hook(G, "Bash", {"command": "git merge --ff-only docs/1-x"}, extra=on_main)[0])
-    check("Bash: 二重引用符の中の $(...) で main へpush", 2, hook(G, "Bash", {"command": 'echo "$(git push origin main)"'}, extra=on_work)[0])
-    check("Bash: 先頭のリダイレクトの後で main へpush", 2, hook(G, "Bash", {"command": "> /dev/null git push origin main"}, extra=on_work)[0])
-    check("Bash: コマンド名を変数にして main へpush", 2, hook(G, "Bash", {"command": "$G push origin main"}, extra=on_work)[0])
-    check("Bash: bash に heredoc で main へpush", 2, hook(G, "Bash", {"command": "bash <<'EOF'\ngit push origin main\nEOF"}, extra=on_work)[0])
-    check("Bash: コミットメッセージの heredoc に push の文字", 0, hook(G, "Bash", {"command": "git commit -F - <<'EOF'\ngit push origin main を止める\nEOF"}, extra=on_work)[0])
-    check("Bash: env -u 名前 の後で main へpush", 2, hook(G, "Bash", {"command": "env -u X git push origin main"}, extra=on_work)[0])
-    check("Bash: 本文に ) と \" を含むコミットメッセージ", 0, hook(G, "Bash", {"command": "git commit -m \"$(cat <<'EOF'\n修正) \"; git push origin main\nEOF\n)\""}, extra=on_work)[0])
-    check("Bash: 2>&1 付きの作業ブランチのpush", 0, hook(G, "Bash", {"command": "git push -u origin docs/1-x 2>&1"}, extra=on_work)[0])
+    check("Bash: env を前置きして main へpush", 2, hook(G, "Bash", {"command": "env git push origin main"}, env=on_work)[0])
+    check("Bash: $(...) の中で main へpush", 2, hook(G, "Bash", {"command": "x=$(git push origin main)"}, env=on_work)[0])
+    check("Bash: 単独の & の後で force push", 2, hook(G, "Bash", {"command": "git status & git push --force"}, env=on_work)[0])
+    check("Bash: git --no-pager push origin main", 2, hook(G, "Bash", {"command": "git --no-pager push origin main"}, env=on_work)[0])
+    check("Bash: メッセージ中の ; と push の文字", 0, hook(G, "Bash", {"command": 'git commit -m "a; git push origin main"'}, env=on_work)[0])
+    check("Bash: main 上で fast-forward になる git merge", 2, hook(G, "Bash", {"command": "git merge --ff-only docs/1-x"}, env=on_main)[0])
+    check("Bash: 二重引用符の中の $(...) で main へpush", 2, hook(G, "Bash", {"command": 'echo "$(git push origin main)"'}, env=on_work)[0])
+    check("Bash: 先頭のリダイレクトの後で main へpush", 2, hook(G, "Bash", {"command": "> /dev/null git push origin main"}, env=on_work)[0])
+    check("Bash: コマンド名を変数にして main へpush", 2, hook(G, "Bash", {"command": "$G push origin main"}, env=on_work)[0])
+    check("Bash: bash に heredoc で main へpush", 2, hook(G, "Bash", {"command": "bash <<'EOF'\ngit push origin main\nEOF"}, env=on_work)[0])
+    check("Bash: コミットメッセージの heredoc に push の文字", 0, hook(G, "Bash", {"command": "git commit -F - <<'EOF'\ngit push origin main を止める\nEOF"}, env=on_work)[0])
+    check("Bash: env -u 名前 の後で main へpush", 2, hook(G, "Bash", {"command": "env -u X git push origin main"}, env=on_work)[0])
+    check("Bash: 本文に ) と \" を含むコミットメッセージ", 0, hook(G, "Bash", {"command": "git commit -m \"$(cat <<'EOF'\n修正) \"; git push origin main\nEOF\n)\""}, env=on_work)[0])
+    check("Bash: 2>&1 付きの作業ブランチのpush", 0, hook(G, "Bash", {"command": "git push -u origin docs/1-x 2>&1"}, env=on_work)[0])
 
     # Issue #30：コミット前の検査（pre-commit）を通らない操作と、push・fetch の宛先を設定で変える操作
     nv = "--no-" + "verify"
@@ -474,7 +476,7 @@ def github_hook_tests():
                 "git fetch . docs/1-x:refs/remotes/origin/main", "git fetch origin +refs/heads/*:refs/heads/*",
                 "git pull origin docs/1-x:main", "git update-ref refs/remotes/origin/main HEAD",
                 "git push . HEAD:refs/remotes/origin/main", "git worktree add -b main ../x", "git worktree add -B main ../x HEAD"):
-        check(f"Bash: 塞いだ経路（{cmd}）", 2, hook(G, "Bash", {"command": cmd}, extra=on_work)[0])
+        check(f"Bash: 塞いだ経路（{cmd}）", 2, hook(G, "Bash", {"command": cmd}, env=on_work)[0])
     for cmd in ("git revert --no-commit HEAD", "git revert -n HEAD~2..HEAD", "git cherry-pick -n abc123",
                 "git cherry-pick --no-commit abc123", "git revert --abort", "git cherry-pick --quit", "git am --abort",
                 "git am --show-current-patch=diff", "git merge origin/main", "git merge --no-edit origin/main",
@@ -484,14 +486,14 @@ def github_hook_tests():
                 "git fetch origin", "git fetch origin main:refs/remotes/origin/main", "git worktree add ../x feat/3-x",
                 "git worktree add -b feat/3-x ../x origin/main", "git -c core.autocrlf=false commit -m x", "git remote -v",
                 "git merge --abort", "git rebase origin/main"):
-        check(f"Bash: ふだんの操作は止めない（{cmd}）", 0, hook(G, "Bash", {"command": cmd}, extra=on_work)[0])
-    check("Bash: main で revert --no-commit", 2, hook(G, "Bash", {"command": "git revert --no-commit HEAD"}, extra=on_main)[0])
-    check("Bash: GIT_DIR を前置きしてコミット", 2, hook(G, "Bash", {"command": "GIT_DIR=../x/.git git commit -m x"}, extra=on_work)[0])
-    check("Bash: --git-dir を付けてコミット", 2, hook(G, "Bash", {"command": "git --git-dir=../x/.git commit -m x"}, extra=on_work)[0])
-    check("Bash: export GIT_WORK_TREE の後でコミット", 2, hook(G, "Bash", {"command": "export GIT_WORK_TREE=../x; git commit -m x"}, extra=on_work)[0])
-    check("Bash: checkout refs/heads/main の後でコミット", 2, hook(G, "Bash", {"command": "git checkout refs/heads/main && git commit -m x"}, extra=on_work)[0])
-    check("Bash: checkout - の後でコミット（前のブランチが判定できない）", 2, hook(G, "Bash", {"command": "git checkout - && git commit -m x"}, extra=on_work)[0])
-    check("Bash: switch @{-1} の後でコミット", 2, hook(G, "Bash", {"command": "git switch @{-1} && git commit -m x"}, extra=on_work)[0])
+        check(f"Bash: ふだんの操作は止めない（{cmd}）", 0, hook(G, "Bash", {"command": cmd}, env=on_work)[0])
+    check("Bash: main で revert --no-commit", 2, hook(G, "Bash", {"command": "git revert --no-commit HEAD"}, env=on_main)[0])
+    check("Bash: GIT_DIR を前置きしてコミット", 2, hook(G, "Bash", {"command": "GIT_DIR=../x/.git git commit -m x"}, env=on_work)[0])
+    check("Bash: --git-dir を付けてコミット", 2, hook(G, "Bash", {"command": "git --git-dir=../x/.git commit -m x"}, env=on_work)[0])
+    check("Bash: export GIT_WORK_TREE の後でコミット", 2, hook(G, "Bash", {"command": "export GIT_WORK_TREE=../x; git commit -m x"}, env=on_work)[0])
+    check("Bash: checkout refs/heads/main の後でコミット", 2, hook(G, "Bash", {"command": "git checkout refs/heads/main && git commit -m x"}, env=on_work)[0])
+    check("Bash: checkout - の後でコミット（前のブランチが判定できない）", 2, hook(G, "Bash", {"command": "git checkout - && git commit -m x"}, env=on_work)[0])
+    check("Bash: switch @{-1} の後でコミット", 2, hook(G, "Bash", {"command": "git switch @{-1} && git commit -m x"}, env=on_work)[0])
     github_hook_tests_291(G, on_main, on_work)
 
 
@@ -547,7 +549,7 @@ def github_hook_tests_291(G, on_main, on_work):
         ("main で git push --repo 値", "git push --repo origin", on_main),
         ("git push -o 値 リモート main", "git push -o ci.skip origin main", on_work),
     ]:
-        check(f"Bash: 止める（{name}）", 2, hook(G, "Bash", {"command": cmd}, extra=extra)[0])
+        check(f"Bash: 止める（{name}）", 2, hook(G, "Bash", {"command": cmd}, env=extra)[0])
     for name, cmd in [
         ("git config --get alias.*（読むだけ）", "git config --get alias.ci"),
         ("timeout の後の作業ブランチの push", "timeout 10 git push origin docs/1-x"),
@@ -564,7 +566,7 @@ def github_hook_tests_291(G, on_main, on_work):
         ("gh api の PR を直す", "gh api -X PATCH repos/o/r/pulls/3 -f title=x"),
         ("gh api の main の参照を読む", "gh api repos/o/r/git/refs/heads/main"),
     ]:
-        check(f"Bash: 止めない（{name}）", 0, hook(G, "Bash", {"command": cmd}, extra=on_work)[0])
+        check(f"Bash: 止めない（{name}）", 0, hook(G, "Bash", {"command": cmd}, env=on_work)[0])
     for cmd, want in (
             ("gh.exe pr merge 12 --admin", "block"),
             ("gh.exe pr merge 12 --merge", "ask"),
@@ -575,11 +577,11 @@ def github_hook_tests_291(G, on_main, on_work):
             ("gh pr -R Owner/Repo merge 12 --merge", "ask"),
             ("gh pr --repo Owner/Repo merge --merge", "block"),
             ("timeout 60 gh pr merge 12 --admin", "block")):
-        check(f"Bash: {cmd}", want, decision(G, "Bash", {"command": cmd}, extra=on_work))
+        check(f"Bash: {cmd}", want, decision(G, "Bash", {"command": cmd}, env=on_work))
     check("PowerShell: & \"…\\gh.exe\" pr merge 12 --admin", "block",
-          decision(G, "PowerShell", {"command": '& "C:\\Program Files\\GitHub CLI\\gh.exe" pr merge 12 --admin'}, extra=on_work))
+          decision(G, "PowerShell", {"command": '& "C:\\Program Files\\GitHub CLI\\gh.exe" pr merge 12 --admin'}, env=on_work))
     check("PowerShell: & \"…\\gh.exe\" pr merge 12 --merge", "ask",
-          decision(G, "PowerShell", {"command": '& "C:\\Program Files\\GitHub CLI\\gh.exe" pr merge 12 --merge'}, extra=on_work))
+          decision(G, "PowerShell", {"command": '& "C:\\Program Files\\GitHub CLI\\gh.exe" pr merge 12 --merge'}, env=on_work))
 
 
 def worktree_hook_tests(tmp):
@@ -621,6 +623,11 @@ def worktree_hook_tests(tmp):
     check("cd - の後でコミット", 2, run(wt, "cd - && git commit -m x"))
     check("popd の後でコミット", 2, run(wt, "popd; git commit -m x"))
     check("変数の cd の後でもブランチを変えない操作は通す", 0, run(wt, 'cd "$NO_SUCH_DIR_X" && git status && git log'))
+    # Issue #291：hook の入力に _test_branch を入れても、ブランチの判定に使わない
+    check("hook の入力の _test_branch（main）は読まない（作業ブランチでコミット）", 0,
+          hook(G, "Bash", {"command": "git commit -m x"}, extra={"cwd": str(wt), "_test_branch": "main"})[0])
+    check("hook の入力の _test_branch（作業ブランチ）は読まない（main でコミット）", 2,
+          hook(G, "Bash", {"command": "git commit -m x"}, extra={"cwd": str(shared), "_test_branch": "docs/1-x"})[0])
     # Issue #291：checkout でのファイルの復元と、サブシェルの中の cd
     git(shared, "branch", "feat/9-z")
     git(shared, "update-ref", "refs/remotes/origin/feat/8-r", "HEAD")
