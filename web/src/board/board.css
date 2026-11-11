@@ -2,15 +2,9 @@
 
 .board {
   display: grid;
-  gap: 20px;
 }
 .board .board-badge {
   display: inline-block;
-  padding: 2px 10px;
-  border: 1px solid var(--control-border);
-  border-radius: 999px;
-  font-size: var(--fs-caption);
-  color: var(--ink-soft);
 }
 .board .board-lead {
   margin: 0;
@@ -40,7 +34,6 @@
   gap: 2px;
   padding: 12px 14px;
   border: 1px solid var(--line);
-  border-radius: 12px;
   background: var(--surface);
   min-width: 0;
 }
@@ -63,14 +56,7 @@
 .board-tablebox {
   overflow-x: auto;
   border: 1px solid var(--line);
-  border-radius: 12px;
   background: var(--surface);
-}
-.board table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--fs-sub);
-  font-variant-numeric: tabular-nums;
 }
 .board th,
 .board td {
@@ -82,12 +68,6 @@
 .board tr:last-child td {
   border-bottom: 0;
 }
-.board th {
-  font-size: var(--fs-caption);
-  font-weight: var(--fw-bold);
-  color: var(--ink-soft);
-  white-space: nowrap;
-}
 .board td.num,
 .board th.num {
   text-align: right;
@@ -97,29 +77,7 @@
 /* 段階の札。色だけに頼らず、文字でも示す */
 .board-pill {
   display: inline-block;
-  padding: 1px 8px;
-  border: 1px solid var(--control-border);
-  border-radius: 999px;
-  font-size: var(--fs-caption);
   white-space: nowrap;
-}
-.board-pill.bad {
-  color: var(--orange-strong-text);
-  border-color: var(--orange-strong);
-  background: var(--alert-bg);
-}
-.board-pill.warn {
-  color: var(--orange-strong-text);
-  border-color: var(--orange);
-}
-.board-pill.ok {
-  color: var(--mint-strong);
-  border-color: var(--mint-strong);
-}
-.board-pill.none {
-  color: var(--ink);
-  border-color: var(--control-border);
-  background: var(--cream);
 }
 
 /* 見出しの直下：架空データの印と集計時点 */
@@ -149,8 +107,6 @@
 }
 .board-case details {
   border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface);
 }
 .board-case summary {
   cursor: pointer;
@@ -270,8 +226,6 @@
 .board-site {
   padding: 12px 14px;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface);
   min-width: 0;
 }
 .board-site h3 {
@@ -313,9 +267,6 @@
   color: var(--orange-strong-text);
   font-weight: var(--fw-bold);
 }
-.board-site dl > div.warn dd {
-  color: var(--orange-strong-text);
-}
 
 /* 救護所ごとの一覧（1タップ目）。開くと品目の行（Issue #102） */
 .board-groups {
@@ -327,8 +278,6 @@
 }
 .board-group > details {
   border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface);
 }
 .board-group > details > summary {
   cursor: pointer;
@@ -383,9 +332,6 @@
 .board-group-cell.short {
   color: var(--orange-strong-text);
   font-weight: var(--fw-bold);
-}
-.board-group-cell.warn {
-  color: var(--orange-strong-text);
 }
 .board-group-body {
   padding: 4px 12px 12px;
@@ -488,7 +434,6 @@
   margin: 0;
   padding: 8px 12px 12px;
   border: 1px dashed var(--control-border);
-  border-radius: 10px;
 }
 .board-form-rx legend {
   font-size: var(--fs-caption);
@@ -519,12 +464,7 @@
 }
 .board-chart-card > details {
   border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface);
   min-width: 0;
-}
-.board-chart-added > details {
-  border-color: var(--mint-strong);
 }
 .board-chart-card > details > summary {
   cursor: pointer;
@@ -608,7 +548,6 @@
 .board-chart-body .board-prescription {
   margin: 0;
   padding: 8px 10px;
-  border-radius: 8px;
   background: var(--cream);
   font-size: var(--fs-sub);
 }
@@ -656,7 +595,6 @@
   width: 100%;
   height: auto;
   border: 1px solid var(--line);
-  border-radius: 12px;
   background: #fff;
 }
 /* 狭い画面では、文字が読める大きさを保ち、図の枠の中で横に送る（ページははみ出さない） */
@@ -695,12 +633,6 @@
   vertical-align: middle;
   margin-right: 4px;
 }
-.board-map-legend .dot.hq {
-  background: #1f4e8c;
-}
-.board-map-legend .dot.site {
-  background: #c62828;
-}
 .board-map-side {
   display: grid;
   gap: 10px;
@@ -710,8 +642,6 @@
 .board-map-side section {
   padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface);
   display: grid;
   gap: 6px;
 }
@@ -745,10 +675,12 @@
 .board-map-routes,
 .board-map-notes {
   margin: 0;
-  padding-left: 0;
-  list-style: none;
   display: grid;
   gap: 4px;
+}
+.board-map-routes {
+  padding-left: 0;
+  list-style: none;
 }
 .board-map-notes {
   padding-left: 1.2em;
@@ -769,8 +701,6 @@
 /* 下部の詳細。閉じた状態で置く */
 .board-more {
   border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface);
 }
 .board-more > summary {
   cursor: pointer;
@@ -815,7 +745,6 @@
   margin-top: 8px;
 }
 .board-heat .cell.none {
-  color: var(--ink-soft);
   border-style: dashed;
 }
 
@@ -835,22 +764,7 @@
   display: inline-block;
   min-width: 2.6em;
   padding: 2px 6px;
-  border-radius: 6px;
   border: 1px solid var(--line);
-}
-.board-heat .cell.bad {
-  background: var(--alert-bg);
-  border-color: var(--orange-strong);
-  color: var(--orange-strong-text);
-  font-weight: var(--fw-bold);
-}
-.board-heat .cell.warn {
-  border-color: var(--orange);
-  color: var(--orange-strong-text);
-}
-.board-heat .cell.ok,
-.board-heat .cell.hq {
-  color: var(--ink-soft);
 }
 .board-legend {
   display: flex;
@@ -897,7 +811,6 @@
   display: block; /* 空の span は inline のままだと幅が効かない（PR #98 のレビュー指摘） */
   height: 100%;
   border-radius: 5px;
-  background: var(--mint-strong);
   opacity: 0.55;
 }
 .board-bar-fill.bad {
@@ -925,8 +838,6 @@
   gap: 6px;
   padding: 12px 14px;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface);
   min-width: 0;
 }
 .board-record-head {
@@ -957,7 +868,6 @@
 }
 .board-record .board-prescription {
   padding: 8px 10px;
-  border-radius: 8px;
   background: var(--cream);
   font-size: var(--fs-sub);
 }
@@ -974,7 +884,6 @@
   margin: 0;
   padding: 12px 14px;
   border: 1px dashed var(--control-border);
-  border-radius: 12px;
   background: var(--surface);
 }
 .board-image img {
@@ -1010,34 +919,20 @@
 }
 .board-head {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 16px;
   min-width: 0;
 }
 .board-head-title {
   display: flex;
-  flex-wrap: wrap;
   align-items: baseline;
-  gap: 4px 12px;
-}
-.board-head h1 {
-  margin: 0;
-  font-size: var(--fs-title);
-  line-height: 1.2;
 }
 .board-disaster {
-  font-size: var(--fs-emphasis);
-  font-weight: var(--fw-bold);
   color: var(--ink-soft);
-}
-.board-head .board-demo-controls {
-  margin-left: auto;
 }
 .board-head .board-demo-controls .board-back {
   margin-left: 8px;
 }
 .board-head .board-demo-controls {
+  margin-left: auto;
   gap: 6px;
 }
 .board-head .board-demo-controls button {
@@ -1062,7 +957,6 @@
 /* 左のペイン。スマホでは上に横並び（横に送る）、PC では左に縦に並べる */
 .board-pane {
   display: flex;
-  gap: 8px;
   overflow-x: auto;
   padding: 2px 2px 6px;
   min-width: 0;
@@ -1074,15 +968,12 @@
 }
 .board-pane-district-sites {
   display: flex;
-  gap: 8px;
   align-items: stretch;
 }
 .board-pane-district-name {
   margin: 0 0 4px;
   white-space: nowrap;
-  font-size: var(--fs-caption);
   font-weight: var(--fw-bold);
-  color: var(--ink-soft);
   cursor: pointer;
   list-style: none;
 }
@@ -1109,9 +1000,6 @@
   gap: 2px 10px;
   margin: 8px 0 0;
   padding: 6px 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
   font-size: var(--fs-sub);
 }
 .board-changes-label {
@@ -1131,23 +1019,12 @@
   font-weight: var(--fw-regular);
   color: var(--ink-soft);
 }
-@container board-panel (min-width: 900px) {
-  .board-tile-lead {
-    grid-column: span 2;
-  }
-}
 .board-pane-item {
   flex: 0 0 auto;
-  display: grid;
   gap: 2px;
   align-content: start;
   min-width: 9.5rem;
-  min-height: 44px;
-  padding: 8px 12px;
-  border: 1px solid var(--line);
   border-left: 5px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface);
   color: var(--ink);
   font: inherit;
   text-align: left;
@@ -1155,11 +1032,6 @@
 }
 .board-pane-item:hover {
   border-color: var(--control-border);
-}
-.board-pane-item.current {
-  border-color: var(--ink);
-  border-left-color: var(--ink);
-  background: var(--cream);
 }
 .board-pane-item:focus-visible,
 .board-tab:focus-visible,
@@ -1179,29 +1051,10 @@
   flex-wrap: wrap;
   gap: 4px;
 }
-.board-pane-mark {
-  padding: 0 7px;
-  border: 1px solid var(--control-border);
-  border-radius: 999px;
-  font-size: var(--fs-caption);
-  line-height: var(--lh-tight);
-  color: var(--ink-soft);
-}
-.board-pane-mark.bad {
-  border-color: var(--orange-strong);
-  background: var(--alert-bg);
-  color: var(--orange-strong-text);
-  font-weight: var(--fw-bold);
-}
-.board-pane-mark.warn {
-  border-color: var(--orange);
-  color: var(--orange-strong-text);
-}
 
 /* メイン：上部タブと中身 */
 .board-main {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 12px;
   min-width: 0;
 }
@@ -1210,7 +1063,6 @@
   gap: 2px;
   overflow-x: auto;
   overflow-y: hidden;
-  box-shadow: inset 0 -2px 0 var(--line);
   min-width: 0;
 }
 .board-tab {
@@ -1220,25 +1072,16 @@
   border: 0;
   border-bottom: 3px solid transparent;
   background: transparent;
-  color: var(--ink-soft);
   font: inherit;
   white-space: nowrap;
   cursor: pointer;
 }
 .board-tab.current {
-  border-bottom-color: var(--ink);
-  color: var(--ink);
   font-weight: var(--fw-bold);
 }
 .board-tab-count {
   display: inline-block;
   margin-left: 6px;
-  padding: 0 7px;
-  border-radius: 999px;
-  background: var(--alert-bg);
-  color: var(--orange-strong-text);
-  font-size: var(--fs-caption);
-  font-weight: var(--fw-bold);
 }
 .board-panel {
   container: board-panel / inline-size;
@@ -1329,8 +1172,6 @@
   height: 100%;
   padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface);
   color: var(--ink);
   font: inherit;
   text-align: left;
@@ -1373,13 +1214,9 @@
   margin: 0;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
-  gap: 8px;
 }
 .board-stats > div {
   padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface);
 }
 .board-stats dt {
   font-size: var(--fs-caption);
@@ -1393,7 +1230,6 @@
 }
 .board-stats > div.short {
   border-color: var(--orange-strong);
-  background: var(--alert-bg);
 }
 .board-stats .board-pill {
   margin-left: 6px;
@@ -1483,10 +1319,7 @@
   display: grid;
   gap: 4px;
   padding: 10px 12px;
-  border: 1px solid var(--line);
   border-left: 5px solid var(--orange);
-  border-radius: 10px;
-  background: var(--surface);
 }
 .board-order.approved {
   border-left-color: var(--mint-strong);
@@ -1518,11 +1351,6 @@
   gap: 8px;
   margin-top: 4px;
 }
-.board-order-actions button {
-  min-height: 40px;
-  padding: 0 18px;
-  font-size: var(--fs-sub);
-}
 .board-approve {
   border: 2px solid var(--mint-strong);
   border-radius: 999px;
@@ -1534,7 +1362,6 @@
 }
 .board-new {
   padding: 0 7px;
-  border-radius: 999px;
   background: var(--ink);
   color: #fff;
   font-size: var(--fs-caption);
@@ -1559,28 +1386,13 @@
   .board {
     flex: 1 1 0;
     min-height: 0;
-    display: grid;
     grid-template-rows: auto minmax(0, 1fr);
-  }
-  .board-body {
-    grid-template-columns: 16.5rem minmax(0, 1fr);
-    min-height: 0;
   }
   .board-pane {
     flex-direction: column;
     overflow-x: hidden;
     overflow-y: auto;
     min-height: 0;
-    padding-right: 6px;
-  }
-  .board-pane-district-sites {
-    flex-direction: column;
-    gap: 6px;
-  }
-  .board-pane-district-name {
-    margin-top: 10px;
-    padding-left: 4px;
-    font-size: var(--fs-sub);
   }
   .board-pane-item {
     min-width: 0;
@@ -1598,51 +1410,20 @@
 
 /* ===== 色の点検（Issue #107）：赤・黄・緑は状態（在庫切れ／見込み・注意／問題なし、通行止め／迂回／通行可）だけに使う。
    ボタン・枠・見出し・図の飾りは無彩色。色の印には必ず文字を並べる。明るい配色のまま ===== */
-.board {
-  --board-bad: #b42318;
-  --board-bad-bg: #fdeceb;
-  --board-bad-text: #a31d14;
-  --board-warn: #c99a06;
-  --board-warn-bg: #fff5d6;
-  --board-warn-text: #6b5000;
-  --orange-strong: var(--board-bad);
-  --orange-strong-text: var(--board-bad-text);
-  --alert-bg: var(--board-bad-bg);
-  --orange: var(--board-warn);
-  --focus: var(--ink);
-}
+/* （注）この節の変数（赤・黄の --board-bad*・--board-warn* など）は、後の Issue #143 の節の .board で定義し直している。
+   上書きされて効いていなかった宣言は Issue #297 で消した。いまの色は Issue #143 の節の .board を見る */
 .board button.secondary {
   border-color: var(--control-border);
-  color: var(--ink);
 }
 .board .board-approve {
-  border-color: var(--ink);
-  background: var(--ink);
-  color: #fff;
-}
-.board-chart-added > details {
   border-color: var(--ink);
 }
 .board-bar-fill {
   background: var(--ink-soft);
 }
-.board-pill.warn,
-.board-pane-mark.warn,
-.board-heat .cell.warn {
-  border-color: var(--board-warn);
-  background: var(--board-warn-bg);
-  color: var(--board-warn-text);
-}
 .board-site dl > div.warn dd,
 .board-group-cell.warn {
   color: var(--board-warn-text);
-}
-.board-tab-count {
-  background: var(--board-warn-bg);
-  color: var(--board-warn-text);
-}
-.board-map-legend .dot.site {
-  background: #3d3a36;
 }
 
 /* ===== 本部の全体：指標の札を右の細い列に（Issue #107。オーナー「タイルが大きすぎてスペースがもったいない。サイドカラムでよい」） ===== */
@@ -1684,13 +1465,6 @@
   font-size: 0.75rem;
   line-height: 1.4;
 }
-.board-hq-side .board-tile-lead {
-  grid-column: auto;
-  border-width: 2px;
-}
-.board-hq-side .board-tile-lead .board-tile-big {
-  font-size: 1.75rem;
-}
 @container board-panel (min-width: 900px) {
   .board-hq-layout {
     grid-template-columns: minmax(0, 1fr) 15rem;
@@ -1705,9 +1479,6 @@
   .board-hq-side .board-tiles {
     grid-template-columns: 1fr;
   }
-  .board-hq-side .board-tile-lead {
-    grid-column: auto;
-  }
   .board-hq-main {
     grid-column: 1;
     grid-row: 1;
@@ -1715,9 +1486,12 @@
 }
 /* 一番大きな数は、題の下に数を置く（題が細く折り返さないように） */
 .board-hq-side .board-tile-lead {
+  grid-column: auto;
+  border-width: 2px;
   grid-template-columns: minmax(0, 1fr);
 }
 .board-hq-side .board-tile-lead .board-tile-big {
+  font-size: 1.75rem;
   grid-column: 1;
   grid-row: 2;
 }
@@ -1885,7 +1659,6 @@
   color: #3d3a36;
 }
 .board-map-legend .mk.vehicle {
-  background: #1f4e8c;
   border: 2px solid #1f4e8c;
   color: #fff;
 }
@@ -1910,9 +1683,12 @@
 .board-map-mover-info {
   padding: 6px 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
   background: #fafafa;
   overflow-wrap: anywhere;
+}
+/* .board-map-mover-info の角は、後ろの「角丸は 0 か 4px」の一覧で 0 にしている */
+.board-map-route-info {
+  border-radius: 8px;
 }
 .board-map-glow-list,
 .board-map-mover-list {
@@ -1925,22 +1701,23 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 4px;
-  min-height: 32px;
   padding: 2px 8px;
   border: 1px solid transparent;
-  border-radius: 6px;
   background: none;
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
+/* .board-map-mover-btn の角は、後ろの「角丸は 0 か 4px」の一覧で 0 にしている */
+.board-map-route-btn {
+  border-radius: 6px;
+}
 .board-map-route-btn:hover,
 .board-map-mover-btn:hover {
   border-color: var(--line);
 }
-.board-map-route-btn[aria-pressed="true"],
-.board-map-mover-btn[aria-pressed="true"] {
+.board-map-route-btn[aria-pressed="true"] {
   border-color: #3d3a36;
   background: #f1f0ee;
 }
@@ -1954,52 +1731,15 @@
 }
 
 /* ===== Issue #113（レビュー対応）：数字 → 対応事項 → 地図の順、ごく薄いグレーの背景＋白い面、基本色は青緑の1色 ===== */
-.app:has(.board),
-.app:has(.board) .app-main {
-  background: #f3f5f7;
-}
-.board {
-  --surface: #ffffff;
-  --cream: #eef4f6;
-  --line: #dde2e7;
-  --ink: #23272b;
-  --ink-soft: #4d555d;
-  --board-accent: #1d6f86;
-  --board-accent-bg: #e6f2f5;
-}
-.board-tablebox,
-.board-tile,
-.board-pane-item,
-.board-order,
-.board-stats > div,
-.board-changes {
-  border-radius: 6px;
-}
-.board-pill,
-.board-pane-mark {
-  border-radius: 4px;
-}
+/* （注）この節の色（背景の #f3f5f7、青緑の1色）と札の大きさ・列は、後の Issue #143・#159 の節で上書き済み。
+   上書きされて効いていなかった宣言は Issue #297 で消した。いまの色は Issue #143 の節の .board を見る */
 
 /* 上部：題・集計時点（架空の時刻）・はじめにへ戻る・デモ操作（ふだん閉じる） */
 .board-head .board-back {
-  margin-left: auto;
-  min-height: 40px;
   padding: 0 14px;
 }
 .board-demo-box {
   flex: 0 0 auto;
-}
-.board-demo-box > summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 0 12px;
-  border: 1px solid var(--control-border);
-  border-radius: 6px;
-  background: var(--surface);
-  font-size: var(--fs-sub);
-  cursor: pointer;
 }
 .board-demo-box > summary:focus-visible {
   outline: 3px solid var(--ink);
@@ -2015,49 +1755,22 @@
   margin-top: 8px;
 }
 .board-demo-box .board-demo-controls button {
-  min-height: 36px;
   padding: 0 12px;
 }
 .board-demo-running {
   padding: 0 6px;
   border-radius: 4px;
-  background: var(--board-accent-bg);
-  color: var(--board-accent);
   font-size: var(--fs-caption);
 }
 
 /* 指標の札：上段に横一列。重要な2つ（不足が出ている救護所、在庫切れ・不足見込み）を大きく */
-.board-kpi-row {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10.5rem), 1fr));
-  gap: 8px;
-}
 .board-kpi-row .board-tile {
   align-content: start;
-  padding: 10px 12px;
-}
-.board-kpi-row .board-tile .board-tile-big {
-  font-size: 1.5rem;
-}
-.board-kpi-row .board-tile-lead,
-.board-kpi-row .board-tile-major {
-  border: 2px solid var(--board-accent);
-}
-.board-kpi-row .board-tile-lead .board-tile-big,
-.board-kpi-row .board-tile-major .board-tile-big {
-  font-size: 2.25rem;
-}
-.board-kpi-row .board-tile-sub {
-  font-size: var(--fs-caption);
-  line-height: 1.45;
 }
 .board-kpi-row .board-tile.stale {
   border-color: var(--board-warn);
-  background: var(--board-warn-bg);
 }
 @container board-panel (min-width: 900px) {
-  .board-kpi-row {
-    grid-template-columns: 1.35fr 1.6fr 1fr 1fr 1fr;
-  }
   .board-tile-lead {
     grid-column: auto;
   }
@@ -2067,13 +1780,6 @@
 .board-stale {
   display: inline-block;
   margin-left: 6px;
-  padding: 0 6px;
-  border: 1px solid var(--board-warn);
-  border-radius: 4px;
-  background: var(--board-warn-bg);
-  color: var(--board-warn-text);
-  font-size: var(--fs-caption);
-  font-weight: var(--fw-bold);
   white-space: nowrap;
 }
 .board-pane-item.stale {
@@ -2081,7 +1787,6 @@
 }
 .board-stats > div.stale {
   border-color: var(--board-warn);
-  background: var(--board-warn-bg);
 }
 .board-stats .board-stale {
   vertical-align: middle;
@@ -2094,17 +1799,9 @@
 .board-pane-item.current {
   border-color: var(--line);
   border-left-color: var(--board-accent);
-  background: var(--board-accent-bg);
 }
 .board-pane-item.current.stale {
   border-left-color: var(--board-accent);
-}
-.board-pane-mark.none {
-  background: var(--surface);
-  color: var(--ink);
-}
-.board-tab.current {
-  border-bottom-color: var(--board-accent);
 }
 
 /* 狭い幅：ペインの横スクロールをやめ、選択式で拠点を選ぶ。タブは折り返す */
@@ -2134,7 +1831,6 @@
   .board-tabs {
     flex-wrap: wrap;
     overflow: visible;
-    box-shadow: none;
     gap: 4px;
   }
   .board-tab {
@@ -2142,24 +1838,17 @@
     min-height: 40px;
     padding: 6px 10px;
     border: 1px solid var(--line);
-    border-radius: 6px;
     background: var(--surface);
   }
   .board-tab.current {
     border-color: var(--board-accent);
     background: var(--board-accent-bg);
   }
-  .board-head .board-back {
-    margin-left: 0;
-  }
 }
 
 /* 確認・手配が必要な事項の表 */
 .board-action-table td {
   font-size: var(--fs-sub);
-}
-.board-action-site {
-  white-space: nowrap;
 }
 .board-action-site .board-stale {
   display: block;
@@ -2177,13 +1866,11 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--board-accent);
   font: inherit;
   font-weight: var(--fw-bold);
   text-decoration: underline;
   text-underline-offset: 3px;
   cursor: pointer;
-  min-height: 32px;
 }
 .board-link:focus-visible {
   outline: 3px solid var(--ink);
@@ -2227,8 +1914,6 @@
 /* ヘルプ（画面の見方）：ふだん閉じる */
 .board-help > summary {
   width: max-content;
-  min-height: 32px;
-  color: var(--board-accent);
   font-size: var(--fs-sub);
   cursor: pointer;
 }
@@ -2245,10 +1930,7 @@
 /* 「直近1時間で変わったこと」が空のときは小さな補助表示 */
 .board-changes.empty {
   padding: 2px 0;
-  border: 0;
-  background: transparent;
   font-size: var(--fs-caption);
-  color: var(--ink-soft);
 }
 
 /* 報告の時刻（在庫確認・記録到着・経路確認） */
@@ -2275,7 +1957,6 @@
 .board-order-basis-box > summary {
   width: max-content;
   font-size: var(--fs-sub);
-  color: var(--board-accent);
   cursor: pointer;
 }
 .board-order-basis-box[open] > summary {
@@ -2284,16 +1965,6 @@
 .board-activity-line {
   margin: 0;
   font-size: var(--fs-sub);
-}
-@media (max-width: 640px) {
-  /* 狭い幅：重要な2つは横幅いっぱい、ほかの札は2列 */
-  .board-kpi-row {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-  .board-kpi-row .board-tile-lead,
-  .board-kpi-row .board-tile-major {
-    grid-column: 1 / -1;
-  }
 }
 /* 読み上げ用に隠した文字（絶対配置）がスクロールの枠の外でページを伸ばさないよう、枠を配置の基準にする */
 .board-panel,
@@ -2314,14 +1985,9 @@
   font-size: var(--fs-sub);
 }
 .board-session-who {
-  padding: 4px 10px;
-  border: 1px solid var(--ink);
-  border-radius: 6px;
-  background: var(--surface);
   font-weight: var(--fw-bold);
 }
 .board .board-session-logout {
-  min-height: 36px;
   padding: 0 12px;
 }
 .board-intake-head .board-session {
@@ -2340,7 +2006,6 @@
   max-width: 32rem;
   padding: 20px;
   border: 1px solid var(--line);
-  border-radius: 8px;
   background: var(--surface);
 }
 .board-login-card h1 {
@@ -2350,10 +2015,6 @@
 .board-login-notice {
   margin: 0;
   padding: 8px 12px;
-  border: 1px solid var(--board-warn);
-  border-radius: 6px;
-  background: var(--board-warn-bg);
-  color: var(--board-warn-text);
   font-weight: var(--fw-bold);
 }
 .board-login-sites {
@@ -2375,12 +2036,7 @@
   min-height: 44px;
   padding: 0 12px;
   border: 1px solid var(--control-border);
-  border-radius: 6px;
   cursor: pointer;
-}
-.board-login-site.current {
-  border-color: var(--ink);
-  box-shadow: inset 0 0 0 1px var(--ink);
 }
 .board-login-staff {
   display: grid;
@@ -2396,8 +2052,6 @@
 /* 編集できる／閲覧のみ。色だけにせず、必ず文字で理由を出す。左の線の箱にせず灰の文字1行（見た目は下の Issue #143 の節） */
 .board-permission {
   display: grid;
-  gap: 6px;
-  margin: 0 0 12px;
 }
 .board-permission-line {
   margin: 0;
@@ -2414,21 +2068,11 @@
   margin: 0;
   font-weight: var(--fw-bold);
 }
-.board-permission-result.denied {
-  color: var(--board-bad-text);
-}
-.board button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
 
 /* カルテの中の、AI 下書き・監査・人の確認 */
 .board-review {
   display: grid;
   gap: 8px;
-  padding: 10px 12px;
-  border: 1px dashed var(--control-border);
-  border-radius: 6px;
 }
 .board-review h4 {
   display: flex;
@@ -2442,15 +2086,6 @@
   border: 1px solid var(--control-border);
   border-radius: 4px;
   font-size: var(--fs-sub);
-}
-.board-review-status.wait {
-  border-color: var(--board-warn);
-  background: var(--board-warn-bg);
-  color: var(--board-warn-text);
-}
-.board-review-status.done {
-  border-color: var(--ink);
-  font-weight: var(--fw-bold);
 }
 .board-review-draft {
   margin: 0;
@@ -2520,14 +2155,11 @@
 /* 開閉できるアクセス記録の一覧。右下に浮かせず、ボードでは帯の「アクセス記録」から帯のすぐ下に開く
    （Issue #143、2026-11-06 オーナー決定「計画書どおり帯に入れる」。置き場所は下の Issue #143 の節） */
 .board-access-log {
-  display: grid;
   gap: 6px;
 }
 .board-access-toggle {
-  min-height: 44px;
   padding: 0 14px;
   border: 1px solid var(--ink);
-  border-radius: 4px;
   background: var(--surface, #fff);
   color: var(--ink);
 }
@@ -2565,7 +2197,24 @@
   --b-mark-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1.2l7.3 13.3H.7z' fill='%23f2c230' stroke='%23222' stroke-width='1.2' stroke-linejoin='round'/%3E%3Cpath d='M8 5.6v4.3' stroke='%23222' stroke-width='2' stroke-linecap='round'/%3E%3Ccircle cx='8' cy='12.3' r='1.1' fill='%23222'/%3E%3C/svg%3E");
   --b-mark-lock: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='2.5' y='7' width='11' height='8' rx='1' fill='%23555'/%3E%3Cpath d='M5 7V5a3 3 0 0 1 6 0v2' fill='none' stroke='%23555' stroke-width='1.8'/%3E%3C/svg%3E");
 
-  /* 既存の変数を、無彩色と赤・黄に向け直す（青緑と緑はもう使わない） */
+  /* 既存の変数を、無彩色と赤・黄に向け直す（青緑と緑はもう使わない）
+     board.css の中で変数を定義しているのは、この規則だけ（Issue #297 で、上書きされて効いていなかった前の節の定義を消した）。
+     名前と中身が合わないので、読むときは右の「実際の色」で読む。名前は styles.css の共有の規則
+     （焦点の枠・textarea など）と前の節の規則が使っているので、そのまま残している（値は変えていない）。
+       --mint-strong（名前は緑）      → 墨 --b-ink
+       --mint（名前は薄い緑）         → 灰の地 --b-ground
+       --cream                        → 灰の地 --b-ground
+       --orange（名前は橙）           → 墨 --b-ink
+       --orange-strong（名前は濃い橙）→ 赤 --b-stop（styles.css の焦点の枠もこの赤になる）
+       --orange-strong-text           → 赤の文字 --b-stop-text
+       --alert-bg                     → 赤の面 --b-stop-bg
+       --board-accent（名前は強調）   → 墨 --b-ink
+       --board-accent-bg              → 灰の地 --b-ground
+       --board-warn（名前は注意）     → 墨 --b-ink（黄ではない）
+       --board-warn-bg                → 黄 --b-check
+       --board-warn-text              → 墨 --b-ink
+       --board-bad*                   → 赤 --b-stop*
+       --focus（styles.css には無い） → 墨 --b-ink */
   --surface: var(--b-surface);
   --cream: var(--b-ground);
   --line: var(--b-rule);
@@ -2593,6 +2242,7 @@
   --fs-caption: 0.875rem;
   font-variant-numeric: tabular-nums;
 }
+/* .board の祖先なので --b-* が届かず、直書きしている。#ededed は --b-ground と同じ値 */
 .app:has(.board),
 .app:has(.board) .app-main {
   background: #ededed;
@@ -2602,6 +2252,8 @@
   justify-items: center;
   margin-top: 12px;
 }
+/* .board の外なので --b-* が届かず、色を直書きしている。#222222 は --b-ink、#ffffff は --b-surface と同じ値。
+   色を直すときは、上の .board の --b-* と一緒に直す */
 .board-login + .board-access-log .board-access-toggle {
   border: 1px solid #222222;
   border-radius: 4px;
@@ -2611,13 +2263,8 @@
 }
 
 /* 角丸は 0 か 4px、影なし（計画書 4.1・5.1） */
-.board .board-badge,
 .board-tile,
 .board-tablebox,
-.board-pill,
-.board-pane-item,
-.board-pane-mark,
-.board-tab-count,
 .board-order,
 .board-stats > div,
 .board-changes,
@@ -2634,31 +2281,37 @@
 .board-map-side section,
 .board-map-mover-info,
 .board-map-mover-btn,
-.board-heat .cell,
 .board-form-rx,
 .board-image,
 .board-login-card,
 .board-login-notice,
-.board-login-site,
 .board-permission,
 .board-review,
 .board-session-who,
 .board-access-toggle,
-.board-access-body,
-.board-new,
-.board-demo-box > summary {
+.board-new {
   border-radius: 0;
   box-shadow: none;
 }
+/* 角は後ろの一覧（4px の一覧、0 の一覧、ボタンの一覧）で決めるもの。ここでは影だけを消す */
+.board .board-badge,
+.board-pill,
+.board-pane-item,
+.board-pane-mark,
+.board-tab-count,
+.board-heat .cell,
+.board-login-site,
+.board-access-body,
+.board-demo-box > summary {
+  box-shadow: none;
+}
 .board button,
-.board .board-approve,
 .board-pill,
 .board-pane-mark,
 .board-tab-count,
 .board-stale,
 .board .board-badge,
 .board-heat .cell,
-.board-demo-box > summary,
 .board-login-site {
   border-radius: 4px;
 }
@@ -2674,16 +2327,21 @@
   padding: 0 16px;
   border-radius: 4px;
   border: 1px solid var(--b-ink);
-  background: var(--b-surface);
-  color: var(--b-ink);
   font-size: var(--fs-body);
   font-weight: var(--fw-bold);
+}
+/* 承認のボタン（.board .board-approve）の面と文字の色は、次の規則で墨の地に白の文字にする */
+.board button.secondary,
+.board-demo-box > summary {
+  background: var(--b-surface);
+  color: var(--b-ink);
 }
 .board .board-approve {
   background: var(--b-ink);
   color: #fff;
 }
 .board button:disabled {
+  cursor: not-allowed;
   opacity: 1;
   border-style: dashed;
   border-color: var(--b-ink-soft);
@@ -2737,11 +2395,15 @@
 .board-tab-count {
   padding: 1px 7px;
   border: 1px solid var(--b-rule);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-tight);
+}
+/* .board-stale・.board-tab-count の面・文字の色・太さは、すぐ後ろの黄の札の一覧で決める */
+.board-pill,
+.board-pane-mark {
   background: var(--b-surface);
   color: var(--b-ink);
-  font-size: var(--fs-caption);
   font-weight: var(--fw-regular);
-  line-height: var(--lh-tight);
 }
 .board-pill.bad,
 .board-pane-mark.bad,
@@ -2792,9 +2454,9 @@
   min-width: 0;
 }
 .board-head h1 {
+  margin: 0;
+  line-height: 1.2;
   flex: 0 0 auto;
-}
-.board-head h1 {
   font-size: 1.25rem;
   white-space: nowrap;
 }
@@ -2870,6 +2532,8 @@
   order: 7;
 }
 .board-demo-box > summary {
+  gap: 8px;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
 }
@@ -2916,9 +2580,13 @@
   align-items: start;
   border: 0;
   border-bottom: 1px solid var(--b-rule);
-  background: var(--b-surface);
   min-height: 52px;
   padding: 8px 10px;
+}
+/* 選んだ行（.current）の面は、後ろの規則で墨にする */
+.board-pane-item,
+.board-pane-item.stale {
+  background: var(--b-surface);
 }
 .board-pane-item .board-pane-name {
   grid-column: 1;
@@ -2990,6 +2658,7 @@
     font-size: var(--fs-caption);
   }
   .board-pane-district-sites {
+    flex-direction: column;
     gap: 0;
   }
 }
@@ -3030,7 +2699,6 @@
 /* 本部の数字：箱を5つ並べるのをやめ、1行の表に（計画書 4.2）。0 は灰 */
 .board-kpi-row {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0;
   border: 1px solid var(--b-rule);
   background: var(--b-surface);
@@ -3071,18 +2739,11 @@
   white-space: nowrap;
 }
 .board-kpi-row .board-tile-sub {
+  line-height: 1.45;
   font-size: var(--fs-caption);
   color: var(--b-ink-soft);
 }
-@container board-panel (min-width: 900px) {
-  .board-kpi-row {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-}
 @media (max-width: 640px) {
-  .board-kpi-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
   .board-kpi-row .board-tile {
     border-top: 1px solid var(--b-rule);
   }
@@ -3090,9 +2751,14 @@
 
 /* 表：白い面に罫線。列の見出しは 14px の太字、中身は 16px */
 .board table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
   font-size: var(--fs-body);
 }
 .board th {
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
   font-size: var(--fs-caption);
   color: var(--b-ink-soft);
 }
@@ -3125,6 +2791,8 @@
   background: var(--b-surface);
 }
 .board-order-actions button {
+  padding: 0 18px;
+  font-size: var(--fs-sub);
   min-height: 44px;
 }
 
@@ -3364,20 +3032,7 @@
 .board-label-short {
   display: none;
 }
-@media (max-width: 1179px) {
-  .board-tile-label .board-label-full:has(+ .board-label-short) {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
-  .board-label-short {
-    display: inline;
-  }
-}
+/* 1180 幅より狭いときの短い見出しは、この下の @media (max-width: 1179px) にまとめた */
 
 /* 救護所の不足状況：在庫と薬剤師の2つの数。在庫は在庫切れなら赤の記号、見込みだけなら黄の記号、0 は灰。薬剤師は色なし */
 .board-kpi-row .board-tile-lead .board-lead-split {
@@ -3419,6 +3074,18 @@
   color: var(--b-stop-text);
 }
 @media (max-width: 1179px) {
+  .board-tile-label .board-label-full:has(+ .board-label-short) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .board-label-short {
+    display: inline;
+  }
   .board-kpi-row .board-tile-lead .board-lead-split {
     font-size: var(--fs-body);
     font-weight: var(--fw-bold);
@@ -3463,9 +3130,6 @@
 }
 
 /* 確認・手配が必要な事項の表：4列。数量と根拠は行を開いて見せる */
-.board-action-table .board-action-item {
-  display: block;
-}
 .board-action-site {
   white-space: normal;
 }
@@ -3596,9 +3260,7 @@
   .board-action-table {
     table-layout: auto;
   }
-}
-/* 狭い幅：1行目に「救護所・品目」と「状態＋開く」を左右に並べ、入荷・融通と次の確認はその下に。列名は下の2つだけに付ける */
-@media (max-width: 640px) {
+  /* 狭い幅：1行目に「救護所・品目」と「状態＋開く」を左右に並べ、入荷・融通と次の確認はその下に。列名は下の2つだけに付ける */
   .board-action-table tr[data-case] {
     grid-template-columns: minmax(0, 1fr) auto;
     column-gap: 8px;
