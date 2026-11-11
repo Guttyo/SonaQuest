@@ -8,7 +8,7 @@ import { SYMPTOM_CHECK_TEXT } from "../flow/emergency";
 import { buildTurnRequest, initialState, trainingReducer, type TrainingAction, type TrainingState } from "../flow/training";
 import type { TurnResponse } from "../flow/turnContract";
 import { listenerSpeech, listenerSpeechPlan, reviewSpeech, reviewSpeechPlan } from "./speech";
-import { FIXED_SPEECH, claudeParts, composeSpeech, fixedId, type SpeechSpec } from "./speechPlan";
+import { FIXED_SPEECH, claudeParts, composeSpeech, fixedId, parseSpeechSpec, type SpeechSpec } from "./speechPlan";
 
 const judged = {
   location: "confirmed",
@@ -77,6 +77,8 @@ describe("設計図から作った文は、画面の読み上げの文と同じ"
         expect(plan.text).toBe(screen);
         // /api/tts に送る形（JSON）を通しても、同じ文になる
         expect(composeSpeech(JSON.parse(JSON.stringify(plan.spec)) as SpeechSpec)).toBe(plan.text);
+        // Worker の検査（parseSpeechSpec）も、画面が作った設計図をそのまま通す
+        expect(parseSpeechSpec(JSON.parse(JSON.stringify(plan.spec)))).toEqual(plan.spec);
         // Claude の文は必ず署名つき。Claude を使わない進行では Claude の文の部品が無い
         for (const part of claudeParts(plan.spec)) expect(part.token).not.toBeNull();
         if (!withText) expect(claudeParts(plan.spec)).toEqual([]);

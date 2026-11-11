@@ -11,7 +11,7 @@
 [Cloudflare Workers + Hono]  ← secrets: ANTHROPIC_API_KEY、ELEVENLABS_API_KEY、ELEVENLABS_VOICE_ID
    ├─ /api/turn    1ターン分の判定と次の手を返す。Claudeの出力を検証してから返す（ADR-0015）。
    │               検査を通った Claude の文は、監査役の Claude（Haiku 5.5）にも確かめさせる（ADR-0030）
-   ├─ /api/tts     読み上げの中継。読み上げる文（{ text } だけ）を ElevenLabs へ送り、音声をそのまま返す
+   ├─ /api/tts     読み上げの中継。読み上げる文の設計図（{ speech } だけ。固定文の ID と /api/turn が署名した Claude の文）から、画面と同じ関数で文を作り直して ElevenLabs へ送り、音声をそのまま返す（Issue #284、ADR-0033 の追記）
    │               （利用者の回答は送らない。ADR-0005）。/api/turn と同じく、手元からか PUBLIC_TURN=1 のときだけ通し、
    │               公開の切り替えのときは回数制限（ADR-0035）を通す。別のサイトのページからの呼び出しは拒む（ADR-0033）
    └─ 保存なし。公開する版では本文のログ出力なし（開発中だけの出力は ADR-0007 の追記）

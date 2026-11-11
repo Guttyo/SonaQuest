@@ -16,6 +16,10 @@ import {
 import { ALL_QUESTIONS } from "../src/flow/content";
 import { composeSpeech, fixedId, type SpeechSpec } from "../src/voice/speechPlan";
 import { MIN_SIGNING_KEY_LENGTH, SPEECH_TOKEN_TTL_MS, signSpeechText } from "./speechSign";
+import { signResponseTexts } from "./app";
+import { buildTurnRequest, initialState, trainingReducer, type TrainingState } from "../src/flow/training";
+import { parseTurnResponse, type TurnResponse } from "../src/flow/turnContract";
+import { listenerSpeechPlan } from "../src/voice/speech";
 import { crossSiteRequest } from "./guard";
 import type { RateLimiter } from "./ratelimit";
 
@@ -398,5 +402,65 @@ describe("読むのは固定文と、/api/turn が署名した Claude の文だ�
     const sent = JSON.parse(String(calls[0].init.body)).text as string;
     expect(sent).toBe(composeSpeech(spec));
     expect(sent.length).toBeLessThanOrEqual(MAX_TTS_TEXT_LENGTH);
+  });
+});
+
+describe("/api/turn の署名から /api/tts までのつながり（Issue #284）", () => {
+  it("/api/turn の応答の署名を訓練の状態に入れ、画面が作った設計図を /api/tts が 200 で読む", async () => {
+    const claudeText = "ありがとうございます。そのお薬手帳は、いまどこにありますか？";
+    let state: TrainingState = trainingReducer({ ...initialState, ai: "on" }, { type: "start", mode: "3d" });
+    state = trainingReducer(state, { type: "answer", text: "お薬手帳は台所の引き出しにあります" });
+    const next = buildTurnRequest(state)!.next_question_id!;
+    const response: TurnResponse = {
+      emergency: "none",
+      viewpoints: { location: "confirmed", alternative: "not_mentioned", current: "not_mentioned", unrecorded: "not_mentioned", proxy: "not_mentioned" },
+      next: { type: "ask", question_id: next, text: claudeText },
+      recall: false,
+      source_guess: null,
+      remark: null,
+    };
+    // Worker の /api/turn と同じ関数で署名し、画面と同じく JSON を通して受け取る
+    const wire = parseTurnResponse(JSON.parse(JSON.stringify({ ...response, speech: await signResponseTexts(SIGNING_KEY, response) })))!;
+    state = trainingReducer(state, { type: "turn_result", session: state.session, seq: state.answers.length, result: wire });
+    const plan = listenerSpeechPlan(state)!;
+    expect(plan.text).toBe(claudeText);
+
+    const { calls, fetchImpl } = fakeUpstream();
+    const app = createTtsApp({ readBody: readLimitedText, fetchImpl });
+    const ok = await post(app, JSON.stringify({ speech: plan.spec }));
+    expect(ok.status).toBe(200);
+    expect(JSON.parse(String(calls[0].init.body)).text).toBe(plan.text);
+    // 送る設計図に、利用者の回答は入らない
+    expect(JSON.stringify(plan.spec)).not.toContain("台所の引き出し");
+
+    // 署名の無い応答（TTS_SIGNING_KEY が無い Worker）から作った設計図は読まない
+    const unsigned = parseTurnResponse(JSON.parse(JSON.stringify({ ...response, speech: await signResponseTexts(undefined, response) })))!;
+    let other: TrainingState = trainingReducer({ ...initialState, ai: "on" }, { type: "start", mode: "3d" });
+    other = trainingReducer(other, { type: "answer", text: "お薬手帳は台所の引き出しにあります" });
+    other = trainingReducer(other, { type: "turn_result", session: other.session, seq: other.answers.length, result: unsigned });
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect((await post(app, JSON.stringify({ speech: listenerSpeechPlan(other)!.spec }))).status).toBe(400);
+    expect(calls).toHaveLength(1);
+  });
+});
+
+describe("回数制限のキーの接続元を、ログにも応答にも出さない（Issue #284）", () => {
+  it("IPv6 の接続元で数えて上限を超えても、アドレスも /64 のキーも出さない", async () => {
+    const spies = (["log", "info", "warn", "error", "debug"] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}));
+    const limiter = fakeLimiter(false);
+    const app = createTtsApp({ readBody: readLimitedText, fetchImpl: fakeUpstream().fetchImpl });
+    const ip = "2001:db8:abcd:12::7";
+    const response = await app.request(
+      PUBLIC_URL,
+      { method: "POST", body: BODY, headers: { "Content-Type": "application/json", "cf-connecting-ip": ip } },
+      { ...env, PUBLIC_TURN: "1", TURN_LIMITER: limiter },
+    );
+    expect(response.status).toBe(429);
+    expect(limiter.keys).toEqual(["tts:2001:db8:abcd:12::/64"]);
+    const text = await response.text();
+    for (const shown of [text, JSON.stringify([...response.headers]), ...spies.flatMap((s) => s.mock.calls.map((c) => JSON.stringify(c)))]) {
+      expect(shown).not.toContain("2001");
+      expect(shown).not.toContain("db8");
+    }
   });
 });
