@@ -2,6 +2,11 @@
 // 環境変数 DEV_CONTENT_LOG が "1" で、かつリクエストの宛先が手元（localhost・127.0.0.1）のときだけ出す。
 // 宛先は利用者が書き換えられる Host ヘッダーではなく、request.url の hostname で見る。
 
+/**
+ * 手元とみなす宛先。注意：ここに名前を足すと、その名前で公開した版で、本文のログ（logContent）・比較実験の見出し
+ * （app.ts の DEV_METRICS_HEADER。Claude の文を含む）・/api/dev/audit・手元からの課金の入口（turnAllowed など）が開きうる。
+ * 公開版で止まるのは、この判定と、wrangler.jsonc の vars に DEV_ で始まる値を書かないことの2つに頼っている（Issue #284）
+ */
 const LOCAL_HOSTS: ReadonlySet<string> = new Set(["localhost", "127.0.0.1"]);
 
 export function contentLogEnabled(devContentLog: string | undefined, requestUrl: string): boolean {

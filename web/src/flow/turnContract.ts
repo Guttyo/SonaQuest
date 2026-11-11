@@ -78,7 +78,10 @@ export interface TurnRequest {
   next_question_id: string | null;
   /** 聞き返し（回数に数える）をしてよいか */
   allow_clarify: boolean;
-  /** 質問し直し（回数に数えない。質問ごとに1回まで）をしてよいか */
+  /**
+   * 質問し直し（回数に数えない。質問ごとに1回まで）をしてよいか。
+   * Worker はこの値を信じる（allow_clarify と違い、確かめない）。質問し直した入力は送られないので、Worker は inputs から数え直せない。偽った値で通るのは、送った本人の訓練の進み方と、そのぶんの /api/turn の呼び出し（回数制限の内）だけ（Issue #284）
+   */
   allow_redirect: boolean;
 }
 
