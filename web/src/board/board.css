@@ -58,11 +58,6 @@
   border: 1px solid var(--line);
   background: var(--surface);
 }
-.board table {
-  width: 100%;
-  border-collapse: collapse;
-  font-variant-numeric: tabular-nums;
-}
 .board th,
 .board td {
   text-align: left;
@@ -72,10 +67,6 @@
 }
 .board tr:last-child td {
   border-bottom: 0;
-}
-.board th {
-  font-weight: var(--fw-bold);
-  white-space: nowrap;
 }
 .board td.num,
 .board th.num {
@@ -932,20 +923,14 @@
   display: flex;
   align-items: baseline;
 }
-.board-head h1 {
-  margin: 0;
-  line-height: 1.2;
-}
 .board-disaster {
   color: var(--ink-soft);
-}
-.board-head .board-demo-controls {
-  margin-left: auto;
 }
 .board-head .board-demo-controls .board-back {
   margin-left: 8px;
 }
 .board-head .board-demo-controls {
+  margin-left: auto;
   gap: 6px;
 }
 .board-head .board-demo-controls button {
@@ -1364,10 +1349,6 @@
   gap: 8px;
   margin-top: 4px;
 }
-.board-order-actions button {
-  padding: 0 18px;
-  font-size: var(--fs-sub);
-}
 .board-approve {
   border: 2px solid var(--mint-strong);
   border-radius: 999px;
@@ -1410,9 +1391,6 @@
     overflow-x: hidden;
     overflow-y: auto;
     min-height: 0;
-  }
-  .board-pane-district-sites {
-    flex-direction: column;
   }
   .board-pane-item {
     min-width: 0;
@@ -1485,13 +1463,6 @@
   font-size: 0.75rem;
   line-height: 1.4;
 }
-.board-hq-side .board-tile-lead {
-  grid-column: auto;
-  border-width: 2px;
-}
-.board-hq-side .board-tile-lead .board-tile-big {
-  font-size: 1.75rem;
-}
 @container board-panel (min-width: 900px) {
   .board-hq-layout {
     grid-template-columns: minmax(0, 1fr) 15rem;
@@ -1516,9 +1487,12 @@
 }
 /* 一番大きな数は、題の下に数を置く（題が細く折り返さないように） */
 .board-hq-side .board-tile-lead {
+  grid-column: auto;
+  border-width: 2px;
   grid-template-columns: minmax(0, 1fr);
 }
 .board-hq-side .board-tile-lead .board-tile-big {
+  font-size: 1.75rem;
   grid-column: 1;
   grid-row: 2;
 }
@@ -1762,10 +1736,6 @@
 .board-demo-box {
   flex: 0 0 auto;
 }
-.board-demo-box > summary {
-  gap: 8px;
-  cursor: pointer;
-}
 .board-demo-box > summary:focus-visible {
   outline: 3px solid var(--ink);
   outline-offset: 2px;
@@ -1791,9 +1761,6 @@
 /* 指標の札：上段に横一列。重要な2つ（不足が出ている救護所、在庫切れ・不足見込み）を大きく */
 .board-kpi-row .board-tile {
   align-content: start;
-}
-.board-kpi-row .board-tile-sub {
-  line-height: 1.45;
 }
 .board-kpi-row .board-tile.stale {
   border-color: var(--board-warn);
@@ -2096,9 +2063,6 @@
   margin: 0;
   font-weight: var(--fw-bold);
 }
-.board button:disabled {
-  cursor: not-allowed;
-}
 
 /* カルテの中の、AI 下書き・監査・人の確認 */
 .board-review {
@@ -2365,6 +2329,7 @@
   color: #fff;
 }
 .board button:disabled {
+  cursor: not-allowed;
   opacity: 1;
   border-style: dashed;
   border-color: var(--b-ink-soft);
@@ -2473,9 +2438,9 @@
   min-width: 0;
 }
 .board-head h1 {
+  margin: 0;
+  line-height: 1.2;
   flex: 0 0 auto;
-}
-.board-head h1 {
   font-size: 1.25rem;
   white-space: nowrap;
 }
@@ -2551,6 +2516,8 @@
   order: 7;
 }
 .board-demo-box > summary {
+  gap: 8px;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
 }
@@ -2671,6 +2638,7 @@
     font-size: var(--fs-caption);
   }
   .board-pane-district-sites {
+    flex-direction: column;
     gap: 0;
   }
 }
@@ -2751,6 +2719,7 @@
   white-space: nowrap;
 }
 .board-kpi-row .board-tile-sub {
+  line-height: 1.45;
   font-size: var(--fs-caption);
   color: var(--b-ink-soft);
 }
@@ -2762,9 +2731,14 @@
 
 /* 表：白い面に罫線。列の見出しは 14px の太字、中身は 16px */
 .board table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
   font-size: var(--fs-body);
 }
 .board th {
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
   font-size: var(--fs-caption);
   color: var(--b-ink-soft);
 }
@@ -2797,6 +2771,8 @@
   background: var(--b-surface);
 }
 .board-order-actions button {
+  padding: 0 18px;
+  font-size: var(--fs-sub);
   min-height: 44px;
 }
 
