@@ -1,10 +1,20 @@
 // ボードで1か所にまとめた決まり（時刻の定数・最終報告の求め方・カルテの key のハッシュ・日時の文字）が、
 // まとめる前と同じ値を返すこと（Issue #299）
 import { describe, expect, it } from "vitest";
-import { lastReportMinutes } from "../screens/Board";
+import { isStaleReport } from "../screens/Board";
+import { BOARD_CHANGES } from "./text";
 import { chatStatus } from "./chat/status";
-import { HQ, SHELTERS, SITES, SYNC } from "./data";
-import { ARRIVAL_MINUTE_OF_DAY, DEPART_MINUTE_OF_DAY, clockText, demoReducer, initialDemo, lastReportAt } from "./demo";
+import { HQ, SHELTERS, SITES, SYNC, siteInfo, type SiteId } from "./data";
+import {
+  ARRIVAL_MINUTE_OF_DAY,
+  DEPART_MINUTE_OF_DAY,
+  clockText,
+  demoReducer,
+  initialDemo,
+  lastReportAt,
+  stampMinutes,
+  type DemoState,
+} from "./demo";
 import { sampleForChart } from "./karte/client";
 import { KARTE_SAMPLES } from "./karte/samples";
 import { keyHash, sampleDraft } from "./review";
@@ -17,6 +27,16 @@ function hashBefore(key: string): number {
   return h;
 }
 
+/** まとめる前の式（Board.tsx の lastReportMinutes にあったもの） */
+function lastReportBefore(state: DemoState, site: SiteId): number | null {
+  const times: number[] = [];
+  const checked = siteInfo(site)?.stockCheckedAt;
+  if (checked) times.push(stampMinutes(checked));
+  const synced = state.sync.find((s) => s.site === site)?.lastSync;
+  if (synced) times.push(stampMinutes(synced));
+  return times.length > 0 ? Math.max(...times) : null;
+}
+
 const KEYS = ["", "x", "A", "救護所A|架空 一郎", "救護所C|x", "救護所D|見本 花子|2", "🙂 絵文字"];
 
 describe("時刻の定数（Issue #299）", () => {
@@ -27,11 +47,22 @@ describe("時刻の定数（Issue #299）", () => {
 });
 
 describe("最終報告の求め方（Issue #299）", () => {
-  it("demo.ts の lastReportAt は、ボードの lastReportMinutes と同じ値（時計を進めても）", () => {
+  it("demo.ts の lastReportAt は、まとめる前の Board.tsx の lastReportMinutes と同じ値（時計を進めても）", () => {
     let state = initialDemo();
     for (let i = 0; i < 4; i += 1) {
-      for (const site of [...SHELTERS, HQ]) expect(lastReportAt(state.sync, site)).toBe(lastReportMinutes(state, site));
+      for (const site of [...SHELTERS, HQ]) expect(lastReportAt(state.sync, site)).toBe(lastReportBefore(state, site));
       state = demoReducer(state, { type: "tick", hours: 3 });
+    }
+  });
+
+  it("ボードの古い報告の印（isStaleReport）は、lastReportAt と閾値から決まる（まとめる前と同じ）", () => {
+    let state = initialDemo();
+    for (let i = 0; i < 6; i += 1) {
+      for (const site of [...SHELTERS, HQ]) {
+        const at = lastReportBefore(state, site);
+        expect(isStaleReport(state, site)).toBe(at !== null && state.minutes - at >= BOARD_CHANGES.staleHours * 60);
+      }
+      state = demoReducer(state, { type: "tick", hours: 4 });
     }
   });
 

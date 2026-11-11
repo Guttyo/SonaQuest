@@ -932,7 +932,7 @@ export function stampMinutes(stamp: string): number {
 
 /**
  * 最終報告（在庫の確認か、記録が本部に届いた、新しいほうの時刻。BOARD_AS_OF からの分）。無ければ null。
- * 地図の光（live.ts）とチャットの状況（chat/status.ts）はこれを使う。Board.tsx の lastReportMinutes とは試験（live.test.ts）で突き合わせる
+ * 求め方はここだけに置く。ボードの「最終報告」と古い報告の印（Board.tsx）、地図の光（live.ts）、チャットの状況（chat/status.ts）はこれを使う（Issue #299）
  */
 export function lastReportAt(sync: readonly SyncRow[], site: SiteId): number | null {
   const times: number[] = [];
