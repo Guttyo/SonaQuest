@@ -14,6 +14,7 @@ import {
   NEXT_STEP_FIRST_TAG,
   NEXT_STEP_LABEL,
   NEXT_STEP_PICK,
+  NEXT_STEP_PICKED,
   NO_WEAK_POINTS_NOTE,
   PREP_ACTIONS,
   PREP_ACTION_EFFECTS,
@@ -36,7 +37,7 @@ import { initialState, type TrainingState } from "../flow/training";
 import type { Answer, Judgments, PrepActionId } from "../flow/types";
 import { reviewSpeech } from "../voice/speech";
 import { Done, doneMemoText } from "./Done";
-import { Review } from "./Review";
+import { NextStepPick, Review } from "./Review";
 
 /** 試験は DOM の無い環境で動くので、文字列に描いて確かめる。回答はすべて架空の試験用の文 */
 const answer = (questionId: string, half: Answer["half"], text: string): Answer => ({
@@ -169,6 +170,21 @@ describe("⑥振り返りの並び（A-05 の⑥、Issue #49、ADR-0054）", () 
 });
 
 describe("まだ弱いところと、次の一手（ADR-0054）", () => {
+  it("「これを準備する」は、選ぶ前も選んだ後も、見える文と準備行動の名前がボタンの中にあり、aria-label を使わない（Issue #295）", () => {
+    const name = PREP_ACTIONS[0].label;
+    const before = renderToStaticMarkup(<NextStepPick actionLabel={name} picked={false} onPick={() => {}} />);
+    const after = renderToStaticMarkup(<NextStepPick actionLabel={name} picked onPick={() => {}} />);
+    for (const html of [before, after]) {
+      expect(html).not.toContain("aria-label=");
+      expect(html).toContain(`<span class="visually-hidden">：${name}</span>`);
+    }
+    expect(before).toContain('aria-pressed="false"');
+    expect(before).toContain(`>${NEXT_STEP_PICK}<span class="visually-hidden">`);
+    // 選んだ後の ✓ は飾りで読ませない
+    expect(after).toContain('aria-pressed="true"');
+    expect(after).toContain(`<span aria-hidden="true">✓ </span>${NEXT_STEP_PICKED}<span class="visually-hidden">`);
+  });
+
   it("手薄な観点だけを、絵・短い名前・判定の文字・一言・準備行動1つ・「これを準備する」で示す", () => {
     const html = render(battery);
     const section = between(html, H.next, H.recall);
@@ -185,15 +201,17 @@ describe("まだ弱いところと、次の一手（ADR-0054）", () => {
     expect(section).toContain(WEAK_POINT_LINES.current.not_mentioned);
     expect(section).not.toContain(WEAK_POINT_LINES.alternative.aware_unconfirmed);
     expect(section).not.toContain(WEAK_POINT_LINES.current.aware_unconfirmed);
-    // ボタンには、読み上げ用に準備行動の名前を含む名前を付ける（同じ文字のボタンが並ぶため）
+    // ボタンの名前は、見える文の後ろに準備行動の名前を隠して足す（同じ文字のボタンが並ぶため）。
+    // aria-label で見える文を上書きしない（音声操作で見える文を言っても押せるように。Issue #295）
+    expect(section).not.toContain("aria-label=");
     for (const s of nextSteps(mixed)) {
-      expect(section).toContain(`aria-label="${NEXT_STEP_PICK}：${label(s.action)}"`);
+      expect(section).toContain(`>${NEXT_STEP_PICK}<span class="visually-hidden">：${label(s.action)}</span></button>`);
     }
     // 次の一手は nextSteps と同じ準備行動
     for (const s of nextSteps(mixed)) {
       expect(section).toContain(`<span class="label">${NEXT_STEP_LABEL}：</span>${label(s.action)}`);
     }
-    expect(section.match(new RegExp(`>${NEXT_STEP_PICK}</button>`, "g"))).toHaveLength(2);
+    expect(section.match(new RegExp(`>${NEXT_STEP_PICK}<span class="visually-hidden">`, "g"))).toHaveLength(2);
     expect(section.match(/aria-pressed="false"/g)).toHaveLength(2);
     // 確認できた観点は、ここでは「伝えられたこと」の1行にだけ出る
     const strong = section.slice(section.indexOf(STRONG_POINTS_LABEL));

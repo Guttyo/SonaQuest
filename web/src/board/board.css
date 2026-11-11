@@ -795,8 +795,10 @@
   outline: 3px solid var(--focus, var(--mint-strong));
   outline-offset: 2px;
 }
-.board-more > summary h2 {
+.board-more > summary h2,
+.board-more > summary h4 {
   display: inline;
+  margin: 0;
   font-size: var(--fs-body);
 }
 .board-more-body {
@@ -820,13 +822,21 @@
 }
 
 /* 在庫の見込み日数の表（救護所×薬） */
-.board-heat td {
+.board-heat td,
+.board-heat th.item {
   text-align: center;
   padding: 6px 4px;
 }
-.board-heat td.item {
+/* 品目は行の見出し（th scope="row"。Issue #295）。見た目は中身のセルと同じにする（.board th の小さい太字・薄い色を打ち消す） */
+.board-heat th.item {
   text-align: left;
   white-space: nowrap;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+}
+.board-heat tr:last-child th.item {
+  border-bottom: 0;
 }
 .board-heat th.site {
   text-align: center;
@@ -1351,16 +1361,9 @@
   overflow-wrap: anywhere;
 }
 
-/* 模式図の拠点（押せるとき） */
+/* 模式図の拠点（押せるとき）。マウス・タッチだけで、焦点は当てない（キーボードは左のペインで選ぶ。Issue #295） */
 .board-map-site.pressable {
   cursor: pointer;
-}
-.board-map-site.pressable:focus {
-  outline: none;
-}
-.board-map-site.pressable:focus-visible > rect:nth-child(2) {
-  stroke: #111;
-  stroke-width: 4;
 }
 
 /* 救護所の詳細 */

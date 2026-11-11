@@ -16,6 +16,7 @@ import {
   inboundKind,
   routeTo,
   siteInfo,
+  type DemandRow,
   type SiteId,
 } from "../board/data";
 import {
@@ -88,6 +89,7 @@ import { BoardTimeline } from "./BoardTimeline";
 import { BoardChat } from "../board/chat/BoardChat";
 import { ArrivalControls, PatientArrivals } from "../board/PatientArrivals";
 import { Fold, Help } from "../board/Fold";
+import { nextBoardTab } from "../board/tabs";
 import { appendAccess, authorizeWrite, canDecideOrders, canEdit as canEditSite, makeSession, type AccessEntry, type AccessEventKind, type DemoSession } from "../board/access";
 import type { AuthorizeKind } from "../board/authorizeContract";
 import { BOARD_LOGIN, BOARD_PERMISSION, CHART_REVIEW_TEXT } from "../board/accessText";
@@ -134,6 +136,10 @@ interface Props {
 }
 
 const fmt = new Intl.NumberFormat("ja-JP");
+
+/** 需要の棒の詳しい数字（避難者数と1日に要る量の見込み）。title と読み上げ用の隠した文で同じ文を使う（Issue #295） */
+const demandDetail = (d: DemandRow) => `避難者 ${fmt.format(d.evacuees)} 人、1日に要る量の見込み ${fmt.format(d.dailyNeed)}`;
+
 // 推移の線は無彩色（Issue #143、計画書 2.3）。色の代わりに濃さと線の形で分け、線の端に救護所名を直接書く
 const SITE_COLORS = ["#222222", "#555555", "#555555", "#222222"];
 const SITE_DASHES = ["", "6 4", "2 4", "10 4 2 4"];
@@ -684,12 +690,30 @@ function Trend({ state }: { state: DemoState }) {
   );
 }
 
-/** 下部の詳細。閉じた状態で置き、開くと中身が出る */
-function More({ id, title, note, children, open }: { id: string; title: string; note?: string; children: ReactNode; open?: boolean }) {
+/**
+ * 下部の詳細。閉じた状態で置き、開くと中身が出る。
+ * 見出しの段（level）は置く場所の外側の見出しに合わせて呼ぶ側で決める（Issue #295。省くと h2）
+ */
+function More({
+  id,
+  title,
+  note,
+  children,
+  open,
+  level = 2,
+}: {
+  id: string;
+  title: string;
+  note?: string;
+  children: ReactNode;
+  open?: boolean;
+  level?: 2 | 3 | 4;
+}) {
+  const Heading = `h${level}` as "h2" | "h3" | "h4";
   return (
     <details className="board-more" open={open}>
       <summary>
-        <h2 id={id}>{title}</h2>
+        <Heading id={id}>{title}</Heading>
       </summary>
       <div className="board-more-body">
         {note && <p className="board-note">{note}</p>}
@@ -1615,7 +1639,19 @@ export function Board({
         </nav>
 
         <div className="board-main">
-          <div className="board-tabs" role="tablist" aria-label={BOARD_LAYOUT.tabsLabel}>
+          {/* 左右の矢印・Home・End でタブを替え、焦点も移す。Tab の順には選んでいるタブだけを入れ、次の Tab でパネルへ入る（Issue #295） */}
+          <div
+            className="board-tabs"
+            role="tablist"
+            aria-label={BOARD_LAYOUT.tabsLabel}
+            onKeyDown={(e) => {
+              const next = nextBoardTab(TABS, tab, e.key);
+              if (next === null) return;
+              e.preventDefault();
+              setTab(next);
+              document.getElementById(`board-tab-${next}`)?.focus();
+            }}
+          >
             {TABS.map((t) => (
               <button
                 key={t}
@@ -1624,6 +1660,7 @@ export function Board({
                 id={`board-tab-${t}`}
                 aria-selected={tab === t}
                 aria-controls="board-panel"
+                tabIndex={tab === t ? 0 : -1}
                 className={`board-tab${tab === t ? " current" : ""}`}
                 onClick={() => setTab(t)}
               >
@@ -1752,7 +1789,7 @@ export function Board({
                   <p className="board-activity-line" data-testid="today-activity">
                     {BOARD_TILES.activityLine(today.patients, today.chronic, DEMAND.reduce((a, d) => a + d.evacuees, 0))}
                   </p>
-                <More id="board-shelters" title={BOARD_SECTIONS.shelters} note={BOARD_SECTIONS.sheltersNote}>
+                <More id="board-shelters" level={4} title={BOARD_SECTIONS.shelters} note={BOARD_SECTIONS.sheltersNote}>
                   <div className="board-tablebox">
                     <table>
                       <thead>
@@ -1785,7 +1822,7 @@ export function Board({
                   </div>
                 </More>
 
-                <More id="board-sites" title={BOARD_SECTIONS.sites} note={BOARD_SECTIONS.sitesNote}>
+                <More id="board-sites" level={4} title={BOARD_SECTIONS.sites} note={BOARD_SECTIONS.sitesNote}>
                   <div className="board-tablebox">
                     <table>
                       <thead>
@@ -1830,7 +1867,7 @@ export function Board({
                   </div>
                 </More>
 
-                <More id="board-trend" title={BOARD_SECTIONS.trend} note={BOARD_SECTIONS.trendNote}>
+                <More id="board-trend" level={4} title={BOARD_SECTIONS.trend} note={BOARD_SECTIONS.trendNote}>
                   <div className="board-chart">
                     <Trend state={state} />
                   </div>
@@ -1886,7 +1923,10 @@ export function Board({
                     <tbody>
                       {ITEMS.map((item) => (
                         <tr key={item}>
-                          <td className="item">{item}</td>
+                          {/* 品目は行の見出し。在庫の数と1日の出庫は title（マウス）に加えて、読み上げ用の隠した文にも入れる（Issue #295） */}
+                          <th scope="row" className="item">
+                            {item}
+                          </th>
                           {sites.map((site) => {
                             const c = heatCell(state.stock, site, item);
                             if (c === null) return <td key={site}>—</td>;
@@ -1898,6 +1938,7 @@ export function Board({
                                 <span className={`cell ${c.level}`} title={`${site}：${item}。${onHand}、${pace}`}>
                                   {c.label}
                                 </span>
+                                <span className="visually-hidden">{`。${onHand}、${pace}`}</span>
                               </td>
                             );
                           })}
@@ -1916,16 +1957,19 @@ export function Board({
                     {BOARD_SUPPLY_LINK.note}（{BOARD_SUPPLY_LINK.checkedLabel} {BOARD_SUPPLY_LINK.checkedOn}）
                   </p>
                 </div>
-                <More id="board-demand" title={BOARD_SECTIONS.demand} note={BOARD_SECTIONS.demandNote}>
+                <More id="board-demand" level={3} title={BOARD_SECTIONS.demand} note={BOARD_SECTIONS.demandNote}>
                   <div className="board-chart board-bars">
                     {DEMAND.map((d) => (
                       <div key={d.site} className="board-bar-row">
                         <span>{d.site}</span>
-                        <span className="board-bar-track" title={`避難者 ${fmt.format(d.evacuees)} 人、1日に要る量の見込み ${fmt.format(d.dailyNeed)}`}>
+                        <span className="board-bar-track" title={demandDetail(d)}>
                           <span className={`board-bar-fill ${d.daysCovered < COVER_GUIDE_DAYS ? "warn" : ""}`} style={{ width: `${(d.daysCovered / maxDays) * 100}%` }} />
                           <span className="board-bar-guide" style={{ left: `${(COVER_GUIDE_DAYS / maxDays) * 100}%` }} />
                         </span>
-                        <span className="board-bar-value">{d.daysCovered} 日</span>
+                        {/* 避難者数と1日に要る量の見込みは、title（マウス）に加えて読み上げ用の隠した文にも入れる。行は3列の格子で横に足す幅が無い（Issue #295） */}
+                        <span className="board-bar-value">
+                          {d.daysCovered} 日<span className="visually-hidden">{`。${demandDetail(d)}`}</span>
+                        </span>
                       </div>
                     ))}
                     <p className="board-note">点線：{COVER_GUIDE_DAYS}日の目安（仮に置いた値）。この見込みはデータの開始時の値で、デモでは動かない。</p>
@@ -2171,7 +2215,7 @@ export function Board({
                     <p className="board-image-caption">{INTAKE_IMAGE.qr}</p>
                   </figure>
                 )}
-                <More id="board-about" title={BOARD_SECTIONS.about}>
+                <More id="board-about" level={3} title={BOARD_SECTIONS.about}>
                   <p className="board-note">{BOARD_LEAD}</p>
                   <ul>
                     {BOARD_ABOUT.map((line) => (

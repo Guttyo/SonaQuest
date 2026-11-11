@@ -105,6 +105,17 @@ describe("動く地図（Issue #128）", () => {
     expect(dc).not.toContain('class="board-map-flow"');
   });
 
+  it("押せる拠点も、図（role=\"img\"）の中では操作要素にしない（焦点・role・名前を付けない。Issue #295）", () => {
+    const pressable = renderToStaticMarkup(<BoardMap overview={overview} onSelect={() => {}} selected="救護所A" />);
+    const svg = pressable.slice(pressable.indexOf("<svg"), pressable.indexOf("</svg>"));
+    expect(svg).toContain('role="img"');
+    expect(svg.match(/<g class="board-map-site pressable[^"]*"/g)).toHaveLength(5);
+    expect(svg).not.toContain('role="button"');
+    expect(svg).not.toContain("tabindex");
+    expect(svg).not.toContain("aria-pressed");
+    expect(svg).not.toContain("aria-label=");
+  });
+
   it("経路の行は押せるボタンで、タッチでも道筋を出せる", () => {
     expect(html.match(/class="board-map-route-btn" aria-pressed="false"/g)).toHaveLength(4);
   });

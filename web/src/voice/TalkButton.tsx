@@ -1,3 +1,4 @@
+import { useId, type ButtonHTMLAttributes } from "react";
 import { TALK_HINT, TALK_INSERTED, TALK_LABELS, TALK_NOTICES } from "./messages";
 import { TALK_STYLE, micNotice, type TalkNotice, type TalkSnapshot, type TalkStyle } from "./talk";
 import "./voice.css";
@@ -7,6 +8,48 @@ export interface TalkButtonTexts {
   hint: string;
   inserted: string;
   notices: Readonly<Record<TalkNotice, string>>;
+}
+
+/** 押し方ごとに、ボタンに付ける事件のハンドラー */
+export type TalkButtonHandlers = Pick<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "onClick" | "onPointerDown" | "onPointerUp" | "onPointerCancel" | "onLostPointerCapture" | "onKeyDown" | "onKeyUp" | "onBlur"
+>;
+
+/**
+ * 押し方ごとのハンドラー（Issue #295）。どちらの押し方でも、1回押すと onPress がちょうど1回呼ばれる。
+ * - tap：click だけで聞き始める（指・マウスは離したとき、Enter・Space はボタンの既定の動きで click になる）。
+ *   click だけを送る支援技術（読み上げの閲覧モードの一部、スイッチ操作など）でも押せる。
+ *   pointerdown も付けると、1回押すたびに press() が2回呼ばれて、すぐ止まってしまうので付けない。
+ *   tap の onRelease は talk.ts の側で何もしないので付けない。
+ * - hold：押している間だけ聞く。pointerdown・Enter・Space の keydown で聞き始め、離したら止める。click は付けない。
+ */
+export function talkButtonHandlers(style: TalkStyle, onPress: () => void, onRelease: () => void): TalkButtonHandlers {
+  if (style === "tap") return { onClick: () => onPress() };
+  return {
+    onPointerDown: (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+      onPress();
+    },
+    onPointerUp: onRelease,
+    onPointerCancel: onRelease,
+    onLostPointerCapture: onRelease,
+    onKeyDown: (e) => {
+      if ((e.key === " " || e.key === "Enter") && !e.repeat) {
+        e.preventDefault();
+        onPress();
+      }
+    },
+    onKeyUp: (e) => {
+      if (e.key === " " || e.key === "Enter") {
+        e.preventDefault();
+        onRelease();
+      }
+    },
+    onBlur: onRelease,
+  };
 }
 
 /**
@@ -35,6 +78,8 @@ export function TalkButton({
   const notice = snapshot.notice ?? micNotice(snapshot.mic);
   const t = texts ?? { hint: TALK_HINT, inserted: TALK_INSERTED, notices: TALK_NOTICES };
   const status = notice !== null ? t.notices[notice] : inserted ? t.inserted : t.hint;
+  // 状態の文の id は部品ごとに作る（同じ画面に2つ並んでも、それぞれ自分の状態の文を指す。Issue #295）
+  const statusId = useId();
 
   return (
     <div className="talk">
@@ -44,29 +89,8 @@ export function TalkButton({
           className="talk-button"
           data-listening={snapshot.listening ? "true" : "false"}
           aria-pressed={snapshot.listening}
-          aria-describedby="talk-status"
-          onPointerDown={(e) => {
-            if (e.button !== 0) return;
-            e.preventDefault();
-            e.currentTarget.setPointerCapture?.(e.pointerId);
-            onPress();
-          }}
-          onPointerUp={onRelease}
-          onPointerCancel={onRelease}
-          onLostPointerCapture={onRelease}
-          onKeyDown={(e) => {
-            if ((e.key === " " || e.key === "Enter") && !e.repeat) {
-              e.preventDefault();
-              onPress();
-            }
-          }}
-          onKeyUp={(e) => {
-            if (e.key === " " || e.key === "Enter") {
-              e.preventDefault();
-              onRelease();
-            }
-          }}
-          onBlur={onRelease}
+          aria-describedby={statusId}
+          {...talkButtonHandlers(style, onPress, onRelease)}
           // 長押しで出るメニューで、押している状態が切れないように
           onContextMenu={(e) => e.preventDefault()}
         >
@@ -74,7 +98,7 @@ export function TalkButton({
           {snapshot.listening ? labels.listening : labels.idle}
         </button>
       )}
-      <p id="talk-status" className="talk-status small" role="status">
+      <p id={statusId} className="talk-status small" role="status">
         {status}
       </p>
       {snapshot.interim !== "" && (

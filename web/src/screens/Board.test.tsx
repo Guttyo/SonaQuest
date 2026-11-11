@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { HQ, INBOUND, INTAKE_RECORDS, ITEMS, NEEDS, PATIENTS, SITES, STOCK, SYNC, type SiteId } from "../board/data";
+import { DEMAND, HQ, INBOUND, INTAKE_RECORDS, ITEMS, NEEDS, PATIENTS, SITES, STOCK, SYNC, type SiteId } from "../board/data";
 import { clockText, demoReducer, initialDemo, type DemoAction } from "../board/demo";
 import { caseRows, criticalItems, pendingSummary, todaySummary } from "../board/summary";
 import { timelineRows } from "../board/timeline";
@@ -18,6 +18,7 @@ import {
   BOARD_MOCK_BADGE,
   BOARD_ORDERS,
   BOARD_DISASTER_NAME,
+  BOARD_SECTIONS,
   BOARD_SUPPLY_LINK,
   BOARD_TIMELINE,
   BOARD_TITLE,
@@ -126,6 +127,13 @@ describe("ボードの題とレイアウト（Issue #107）", () => {
     expect(html).toContain('id="board-tab-overview" aria-selected="true"');
     const stock = render(HQ, "stock");
     expect(stock).toContain('id="board-tab-stock" aria-selected="true"');
+    // Tab の順には選んでいるタブだけを入れ、ほかは矢印キーで移る（Issue #295）
+    const tabs = (h: string) => h.match(/<button type="button" role="tab"[^>]*>/g) ?? [];
+    expect(tabs(stock)).toHaveLength(6);
+    for (const t of tabs(stock)) {
+      expect(t).toContain(t.includes('aria-selected="true"') ? 'tabindex="0"' : 'tabindex="-1"');
+    }
+    expect(tabs(stock).filter((t) => t.includes('tabindex="0"'))).toEqual([expect.stringContaining('id="board-tab-stock"')]);
     // 救護所を選ぶと、全体のタブは「詳細」になる。題の横に「／詳細」を重ねない
     expect(render("救護所A")).toContain(`>${BOARD_LAYOUT.siteTabs.overview}</button>`);
     expect(render("救護所A")).not.toContain('class="board-panel-tab"');
@@ -159,7 +167,12 @@ describe("本部（HQ）の全体", () => {
     expect(order.every((x) => x >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(p.match(/<g class="board-map-site pressable[^"]*"/g)).toHaveLength(5);
-    expect(p).toContain('role="button" tabindex="0" aria-label="救護所A（小学校の体育館）を選ぶ"');
+    // 図（role="img"）の中の拠点は、マウス・タッチで押せるだけ。焦点・role を付けない（キーボードは左のペインで選ぶ。Issue #295）
+    const svg = p.slice(p.indexOf("<svg"), p.indexOf("</svg>"));
+    expect(svg).not.toContain('role="button"');
+    expect(svg).not.toContain("tabindex");
+    expect(svg).not.toContain("を選ぶ");
+    expect(pane(html)).toContain('data-pane="救護所A"');
     expect(p).toContain(`${BOARD_CASES.title} <span class="board-count">${cases.length} 件</span>`);
     // 表の行は caseRows の並び（業務のルール）のまま。初めは4列：救護所・品目／状態／入荷・融通／次の確認（Issue #159 第2段。言葉は今のまま）
     const t = p.slice(p.indexOf('data-testid="action-table"'), p.indexOf("</table>", p.indexOf('data-testid="action-table"')));
@@ -279,7 +292,12 @@ describe("在庫・発注・搬送・記録・デモのタブ", () => {
   it("在庫：本部は救護所×薬の表、救護所はその救護所の行だけ", () => {
     const heat = panel(render(HQ, "stock"));
     expect(heat.match(/<th class="site">/g)).toHaveLength(5);
-    expect(heat.match(/<td class="item">/g)).toHaveLength(ITEMS.length);
+    // 品目は行の見出し。在庫の数と1日の出庫は title だけでなく、読み上げ用の隠した文にも入れる（Issue #295）
+    expect(heat).not.toContain('<td class="item">');
+    expect(heat.match(/<th scope="row" class="item">/g)).toHaveLength(ITEMS.length);
+    expect(heat).toMatch(/<\/span><span class="visually-hidden">。在庫 [^<]+、(1日の出庫 [^<]+|出庫のペースなし)<\/span><\/td>/);
+    const body = heat.slice(heat.indexOf("<tbody>"), heat.indexOf("</tbody>"));
+    expect(body.match(/<span class="visually-hidden">。在庫 /g)?.length).toBe(body.match(/<span class="cell /g)?.length);
     expect(heat).toContain(">在庫なし<");
     expect(heat).toContain(">算出不可<");
     const b = panel(render("救護所B", "stock"));
@@ -894,5 +912,33 @@ describe("発注・搬送の時間軸（Issue #118、ADR-0043 の追記 13）", 
     const at = h.indexOf('data-timeline-row="救護所B|抗凝固薬F"');
     expect(h.slice(at, at + 200)).toContain('data-stage="承認済み（引当済み）"');
     expect(h.slice(at, h.indexOf("</li>", at))).toContain(`${BOARD_TIMELINE.stageLabel}：${BOARD_TIMELINE.stage["承認済み（引当済み）"]}`);
+  });
+});
+
+describe("アクセシビリティ（Issue #295）", () => {
+  it("需要の棒の避難者数と1日に要る量の見込みは、title だけでなく読み上げ用の隠した文にも入れる", () => {
+    const stock = panel(render(HQ, "stock"));
+    const fmt = new Intl.NumberFormat("ja-JP");
+    for (const d of DEMAND) {
+      const detail = `避難者 ${fmt.format(d.evacuees)} 人、1日に要る量の見込み ${fmt.format(d.dailyNeed)}`;
+      expect(stock).toContain(`<span class="board-bar-value">${d.daysCovered} 日<span class="visually-hidden">。${detail}</span></span>`);
+      expect(stock).toContain(`title="${detail}"`);
+    }
+  });
+
+  it("開く欄（More）の見出しの段は外側に合わせる：h3「今日の様子」の中は h4、在庫とデモのタブは h3", () => {
+    const overview = panel(html);
+    const activity = overview.slice(overview.indexOf('aria-labelledby="board-activity"'));
+    expect(overview).toContain('<h3 id="board-activity">');
+    for (const [id, title] of [
+      ["board-shelters", BOARD_SECTIONS.shelters],
+      ["board-sites", BOARD_SECTIONS.sites],
+      ["board-trend", BOARD_SECTIONS.trend],
+    ] as const) {
+      expect(activity).toContain(`<summary><h4 id="${id}">${title}</h4></summary>`);
+    }
+    expect(overview).not.toMatch(/<summary><h2 /);
+    expect(panel(render(HQ, "stock"))).toContain(`<summary><h3 id="board-demand">${BOARD_SECTIONS.demand}</h3></summary>`);
+    expect(panel(render(HQ, "demo"))).toContain(`<summary><h3 id="board-about">${BOARD_SECTIONS.about}</h3></summary>`);
   });
 });

@@ -15,6 +15,14 @@ import "./transcribe.css";
 
 const TALK_TEXTS = { hint: T.hint, inserted: T.inserted, notices: TRANSCRIBE_NOTICES };
 
+/**
+ * 上限の知らせ（role="status"）の中身。上限に達したときだけ、今の文字数の文（T.count）を入れる。それ以外は空（Issue #295）。
+ * 文字数の表示そのものは aria-live にしない（打つたびに読み上げが割り込むため）
+ */
+export function transcriptLimitStatus(length: number): string {
+  return length >= TRANSCRIPT_MAX_LENGTH ? T.count(length, TRANSCRIPT_MAX_LENGTH) : "";
+}
+
 export function KarteTranscribe() {
   const [draft, setDraft] = useState("");
   const [acked, setAcked] = useState(false);
@@ -82,8 +90,10 @@ export function KarteTranscribe() {
         />
       </label>
       <div className="board-transcribe-foot">
-        <span className="board-note" aria-live="polite">
-          {T.count(draft.length, TRANSCRIPT_MAX_LENGTH)}
+        <span className="board-note">{T.count(draft.length, TRANSCRIPT_MAX_LENGTH)}</span>
+        {/* いつも描いておき（後から差し込むと読まれないことがある）、上限に達したときだけ中に文を入れる。見える文字数と同じ文なので隠す */}
+        <span className="visually-hidden" role="status">
+          {transcriptLimitStatus(draft.length)}
         </span>
         <button
           type="button"

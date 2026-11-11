@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { HQ, INBOUND, ROUTES, SYNC, type RouteRow, type SiteId, type SyncRow } from "../board/data";
 import { clockText, type DemoInbound } from "../board/demo";
 import { STALE_REPORT_HOURS, shipmentMarkers, siteGlows, toPathD, travelLine } from "../board/live";
@@ -203,8 +203,9 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
       return s ? shipmentText(s) : null;
     })();
   const toggleMover = (id: string) => setMover((cur) => (cur === id ? null : id));
-  // 図（role="img"）の中の印は、マウス・タッチで押せるだけにする。キーボード・読み上げでは、図の下の一覧のボタンで同じ操作をする
-  // （画像として扱われる SVG の中の操作要素は読み上げに出ないため。PR #130 のレビュー）
+  // 図（role="img"）の中の印と拠点は、マウス・タッチで押せるだけにする（焦点を当てず、role も付けない）。
+  // キーボード・読み上げでは、便・車は図の下の一覧のボタン、拠点は左のペインのボタン（狭い幅では選択式）で同じ操作をする
+  // （画像として扱われる SVG の中の操作要素は読み上げに出ないため。PR #130 のレビュー、Issue #295）
   const moverPress = (id: string) => ({ onClick: () => toggleMover(id) });
   const moverRows = [
     { id: "car", text: `${BOARD_MAP_LIVE.vehicleName}：${carText}` },
@@ -371,30 +372,15 @@ export function BoardMap({ overview, routes = ROUTES, onSelect, selected, side =
                 const left = s.labelSide === "left" ? -28 - plateW : s.labelSide === "right" ? 28 : -plateW / 2;
                 const cx = left + plateW / 2;
                 const isSelected = selected === s.site;
-                const press = onSelect
-                  ? {
-                      role: "button",
-                      tabIndex: 0,
-                      "aria-label": `${name}（${s.place}）を選ぶ`,
-                      "aria-pressed": isSelected,
-                      onClick: () => onSelect(s.site),
-                      onKeyDown: (e: KeyboardEvent<SVGGElement>) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          onSelect(s.site);
-                        }
-                      },
-                    }
-                  : {};
-                // カーソル・焦点で、本部からの道筋を浮かび上がらせる（本部は道筋を持たない）
+                // マウス・タッチで押せるだけ（便・車の印の moverPress と同じ扱い。上のコメント）
+                const press = onSelect ? { onClick: () => onSelect(s.site) } : {};
+                // カーソルで、本部からの道筋を浮かび上がらせる（本部は道筋を持たない）
                 const hover =
                   isHq
                     ? {}
                     : {
                         onMouseEnter: () => setFocused(s.site),
                         onMouseLeave: () => setFocused((cur) => (cur === s.site ? null : cur)),
-                        onFocus: () => setFocused(s.site),
-                        onBlur: () => setFocused((cur) => (cur === s.site ? null : cur)),
                       };
                 return (
                   <g
