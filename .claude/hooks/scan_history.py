@@ -78,7 +78,7 @@ def messages(repo, revs):
 
 def diffs(repo, revs):
     """全コミット（マージは親ごと）の {コミット: 差分}。最初のコミットの差分も含む。"""
-    return by_commit(git(repo, "log", *revs, "-m", "-p", "--format=@@@%H"))
+    return by_commit(git(repo, "log", *revs, "-m", "-p", "--no-ext-diff", "--no-textconv", "--format=@@@%H"))
 
 
 def path_commits(repo, revs):

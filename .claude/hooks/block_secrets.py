@@ -10,7 +10,7 @@ import json
 import re
 import sys
 
-from sonaguard import (blocklist_hits, dynamic_name, git_invocation, load_blocklist, secret_hits,
+from sonaguard import (SUBST, WRAPPERS, blocklist_hits, dynamic_name, git_invocation, load_blocklist, secret_hits,
                        sensitive_path, shell_reads_stdin, split_commands, use_utf8_stdio)
 
 FILE_TOOLS = {"Read", "Edit", "MultiEdit", "Write", "NotebookEdit"}
@@ -24,10 +24,11 @@ GIT_INTERNAL = re.compile(r"(?:^|[/\\])\.git[/\\]")
 GIT_INTERNAL_MSG = (".git/ の下（config・hooks/・refs/・packed-refs・HEAD など）は書き換えられません"
                     "（コミット前フックの設定とローカルの main を守るため。ADR-0024）。")
 READ_ONLY = {"cat", "head", "tail", "less", "more", "grep", "rg", "type", "Get-Content", "ls", "stat", "git"}
-SAFE_SENSITIVE_CMD = [
-    re.compile(r"^\s*(?:ls|stat|test|\[|git\s+(?:status|check-ignore))\b[^;|&]*$"),
-    re.compile(r"^\s*cp\s+\S*\.example\s+\S+\s*$"),
-]
+# 秘密ファイルの名前が出てもよいコマンド（存在の確認と、雛形からのコピー）。コマンドを分けた各部分に当てる（Issue #290）
+SAFE_SENSITIVE_NAMES = {"ls", "stat", "test", "["}
+SAFE_SENSITIVE_GIT = {"status", "check-ignore"}
+# 名前を見つけるための語の切り方（記号と空白で切る）
+WORD_SPLIT = re.compile(r"[\s;|&()<>\"'`=]+")
 
 
 def block(why):
@@ -84,6 +85,45 @@ def check_hooks_bypass(cmd):
                 block("core.hooksPath は読むことと .githooks への設定だけができます（--unset などは不可）。")
 
 
+def names_sensitive(cmd, commands):
+    """コマンドに秘密ファイルの名前が出るか（Issue #290）。
+    - 元の文字列を記号で切った語（引用符の中の文字列や、Windows の \\ の区切りのパスも拾う）
+    - 解析した語（引用符とバックスラッシュが外れている。名前の途中に引用符を置いた書き方を拾う）
+    - 引用符とバックスラッシュを取り除いてから切った語（入力のリダイレクトの宛先は解析の結果に残らないため）"""
+    words = WORD_SPLIT.split(cmd)
+    words += WORD_SPLIT.split(re.sub(r"[\"'\\]", "", cmd))
+    for assigns, toks, redirects in commands or []:
+        words += toks + redirects + [a.split("=", 1)[1] for a in assigns]
+    return any(sensitive_path(w) for w in words if w)
+
+
+def safe_command(assigns, toks, redirects):
+    """分けた1つのコマンドが、秘密ファイルを扱ってよい形か。"""
+    if assigns or any(SUBST in w for w in toks + redirects):
+        return False
+    if any(sensitive_path(r) for r in redirects):  # ls の出力で秘密ファイルを上書きする形も止める
+        return False
+    if not toks:
+        return False
+    if toks[0] in SAFE_SENSITIVE_NAMES:
+        return True
+    # git の後にすぐ status・check-ignore が来るものだけ（-c・-C などで設定や場所を差し替えさせない）
+    if toks[0] == "git" and len(toks) > 1 and toks[1] in SAFE_SENSITIVE_GIT:
+        return True
+    return toks[0] == "cp" and len(toks) == 3 and toks[1].endswith(".example")
+
+
+def safe_sensitive_cmd(cmd, commands):
+    """秘密ファイルの名前が出るコマンドを通してよいか。分けたコマンドがすべて安全な形のときだけ通す（Issue #290）。
+    解析できないときと、前置きのコマンド（env・xargs・time など）があるときは通さない。前置きの値を取るオプションは、
+    解析の結果に残らないため。"""
+    if commands is None:
+        return False
+    if any(w.lower() in WRAPPERS for w in WORD_SPLIT.split(cmd) if w):
+        return False
+    return bool(commands) and all(safe_command(*c) for c in commands)
+
+
 def main():
     use_utf8_stdio()
     try:
@@ -116,8 +156,8 @@ def main():
             block("--no-verify はコミット前の検査を迂回するので使えません。")
         check_hooks_bypass(cmd)
         # 秘密ファイルの名前がコマンドに出る場合、存在確認と雛形からのコピーだけ通す。
-        tokens = [t for t in re.split(r"[\s;|&()<>\"'`=]+", cmd) if t]
-        if any(sensitive_path(t) for t in tokens) and not any(p.search(cmd) for p in SAFE_SENSITIVE_CMD):
+        commands = split_commands(cmd)
+        if names_sensitive(cmd, commands) and not safe_sensitive_cmd(cmd, commands):
             block("秘密情報・非公開ファイルを扱うコマンドです。中身の表示、コピー、git add はできません"
                   "（ls・stat・git check-ignore と、*.example からの cp は可）。")
 

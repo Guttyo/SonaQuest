@@ -211,7 +211,7 @@ def scan_staged():
     added_m, removed_m, added_d, removed_d = {}, {}, {}, {}
     old_path, current, line_no = "", "", 0
     for line in git("-c", "core.quotePath=false", "diff", "--cached", "-U0", "-M", "--no-color",
-                    "--no-ext-diff").splitlines():
+                    "--no-ext-diff", "--no-textconv").splitlines():
         if line.startswith("--- "):
             old_path = header_path(line[4:], "a/")
         elif line.startswith("+++ "):
