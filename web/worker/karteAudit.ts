@@ -125,9 +125,6 @@ export function unavailableReason(failure: SessionFailure): AuditUnavailableReas
   return "failed";
 }
 
-// 後片付け（cleanupSession）と、その操作（SessionOps）は共通の部品にある。試験と karte.ts のために、ここからも出す
-export { cleanupSession, type SessionOps };
-
 /** セッションの作成の引数（budget を必ず付ける） */
 export function auditSessionParams(config: KarteAuditConfig) {
   return {
