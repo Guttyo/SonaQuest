@@ -315,7 +315,6 @@ export function Review({ state, onChoose, sourcesFor = verifiedSourcesFor }: Pro
   );
 }
 
-/** 出来事の文と、使えなくなったもの（絵と斜線と文字。LOST_BY_EVENT と PRD「出来事で使えなくなるもの」） */
 /**
  * 「これを準備する」のボタン。aria-label で見える文を上書きせず、見える文の後ろに、読み上げ用に準備行動の名前を隠して足す
  * （同じ文字のボタンが並ぶため。音声操作で見える文を言っても押せるように。WCAG 2.5.3、Issue #295）。
@@ -337,6 +336,7 @@ export function NextStepPick({ actionLabel, picked, onPick }: { actionLabel: str
   );
 }
 
+/** 出来事の文と、使えなくなったもの（絵と斜線と文字。LOST_BY_EVENT と PRD「出来事で使えなくなるもの」） */
 function EventSummary({ event }: { event: EventId }) {
   return (
     <>
