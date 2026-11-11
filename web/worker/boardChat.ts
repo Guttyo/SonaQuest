@@ -16,7 +16,8 @@ import {
 import { chatTextProblem, stripRolePrefix } from "./boardChatChecks";
 import { contentLogEnabled, logContent } from "./devlog";
 import { checkRateLimit, type RateLimiter } from "./ratelimit";
-import { crossSiteRequest, ttsAllowed } from "./tts";
+import { crossSiteRequest } from "./guard";
+import { ttsAllowed } from "./tts";
 import {
   CHAT_ROLES,
   parseChatSessionRequest,

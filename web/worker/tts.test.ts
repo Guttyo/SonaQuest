@@ -9,11 +9,11 @@ import {
   TTS_VOICE_SETTINGS,
   TTS_OUTPUT_FORMAT,
   createTtsApp,
-  crossSiteRequest,
   parseTtsText,
   ttsAllowed,
   type TtsFetch,
 } from "./tts";
+import { crossSiteRequest } from "./guard";
 import type { RateLimiter } from "./ratelimit";
 
 const TEXT = "普段の薬の情報は、どこに記録していますか？";

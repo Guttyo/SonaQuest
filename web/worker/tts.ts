@@ -8,6 +8,7 @@
 
 import { Hono } from "hono";
 import { contentLogEnabled } from "./devlog";
+import { crossSiteRequest } from "./guard";
 import { checkRateLimit, type RateLimiter } from "./ratelimit";
 
 export interface TtsEnv {
@@ -50,17 +51,6 @@ const VOICE_ID_PATTERN = /^[A-Za-z0-9]{8,64}$/;
 /** /api/turn（app.ts の turnAllowed）と同じ条件：手元からの呼び出しか、公開の切り替えが入っているとき */
 export function ttsAllowed(env: Pick<TtsEnv, "PUBLIC_TURN">, requestUrl: string): boolean {
   return env.PUBLIC_TURN === "1" || contentLogEnabled("1", requestUrl);
-}
-
-/**
- * 別のサイトのページからの呼び出しか。画面は同じサイトから `Content-Type: application/json` で送る。
- * JSON の形を宣言しない呼び出し（別のサイトから事前の確認なしで送れる形）と、ブラウザが `Sec-Fetch-Site: cross-site`
- * を付けた呼び出しを拒む。手元の `wrangler dev` を開いている間に、ほかのページから課金の呼び出しをされないため
- */
-export function crossSiteRequest(request: Request): boolean {
-  const type = (request.headers.get("content-type") ?? "").toLowerCase();
-  if (!type.startsWith("application/json")) return true;
-  return request.headers.get("sec-fetch-site") === "cross-site";
 }
 
 /** 受け取る形は { "text": "読み上げる文" } だけ。ほかの値は受け取らない */

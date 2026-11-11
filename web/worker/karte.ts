@@ -30,7 +30,8 @@ import { makeSummarize, makeTranscriptSummarize, summaryModel, type Summarize, t
 import { parseTranscriptSummaryRequest, transcriptUtterances, type TranscriptSummaryResponse } from "../src/board/karte/transcript";
 import { contentLogEnabled, logContent } from "./devlog";
 import { checkRateLimit, type RateLimiter } from "./ratelimit";
-import { crossSiteRequest, ttsAllowed } from "./tts";
+import { crossSiteRequest } from "./guard";
+import { ttsAllowed } from "./tts";
 
 export interface KarteEnv {
   ANTHROPIC_API_KEY?: string;
