@@ -1479,9 +1479,6 @@
   .board-hq-side .board-tiles {
     grid-template-columns: 1fr;
   }
-  .board-hq-side .board-tile-lead {
-    grid-column: auto;
-  }
   .board-hq-main {
     grid-column: 1;
     grid-row: 1;
@@ -2296,7 +2293,7 @@
   border-radius: 0;
   box-shadow: none;
 }
-/* 角は次の2つの一覧で決めるもの。ここでは影だけを消す */
+/* 角は後ろの一覧（4px の一覧、0 の一覧、ボタンの一覧）で決めるもの。ここでは影だけを消す */
 .board .board-badge,
 .board-pill,
 .board-pane-item,
