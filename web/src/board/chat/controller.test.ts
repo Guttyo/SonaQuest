@@ -1,9 +1,9 @@
 // ボードの掲示板チャット（B-07、ADR-0047）の進め方の試験。Workers は呼ばず、偽物の fetch を使う（docs/safety-test-plan.md H11）。
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { initialDemo } from "../demo";
 import type { ChatTurnRequest } from "./contract";
-import { ChatController, MAX_AGENT_TURNS, MAX_AUTO_TURNS, OPENING_JOBS, type ChatFetch } from "./controller";
+import { CHAT_CLIENT_TIMEOUT_MS, ChatController, MAX_AGENT_TURNS, MAX_AUTO_TURNS, OPENING_JOBS, type ChatFetch } from "./controller";
 import { chatStatus } from "./status";
 
 const STATUS = chatStatus(initialDemo());
@@ -163,6 +163,71 @@ describe("掲示板チャットの進め方", () => {
     c.start();
     await c.idle();
     expect(c.getSnapshot()).toMatchObject({ phase: "fallback", reason: "unavailable", waitingFor: null });
+  });
+
+  describe("Workers の呼び出しの待ち時間の上限（Issue #294）", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    /** 応答を返さない Workers。本物の fetch と同じく、signal が止まったら投げる */
+    function hangingFetch(hangOn: "session" | "turn", honorSignal = true) {
+      const inits: RequestInit[] = [];
+      const fetchFn: ChatFetch = (url, init) => {
+        inits.push(init);
+        if (hangOn === "turn" && url === "/api/board/chat/session") return Promise.resolve(json({ sessionId: "sesn_fake0000001" }));
+        return new Promise<Response>((_resolve, reject) => {
+          if (honorSignal) init.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+        });
+      };
+      return { inits, fetchFn };
+    }
+
+    it.each(["session", "turn"] as const)("%s が返らないとき、上限の時間の後に固定の掲示に切り替える（reason は timeout、待ちは残さない）", async (hangOn) => {
+      vi.useFakeTimers();
+      const { inits, fetchFn } = hangingFetch(hangOn);
+      const c = controller(fetchFn);
+      c.seed();
+      c.start();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(c.getSnapshot()).toMatchObject({ phase: "live", waitingFor: "A" });
+      await vi.advanceTimersByTimeAsync(CHAT_CLIENT_TIMEOUT_MS - 1);
+      expect(c.getSnapshot().phase).toBe("live");
+      await vi.advanceTimersByTimeAsync(1);
+      expect(c.getSnapshot()).toMatchObject({ phase: "fallback", reason: "timeout", waitingFor: null });
+      expect(c.getSnapshot().posts.at(-1)?.by).toBe("fixed");
+      expect(inits.every((init) => init.signal instanceof AbortSignal)).toBe(true);
+      expect(inits.at(-1)?.signal?.aborted).toBe(true);
+    });
+
+    it("signal を聞かない fetch でも、上限の時間で待つのをやめる", async () => {
+      vi.useFakeTimers();
+      const { fetchFn } = hangingFetch("turn", false);
+      const c = controller(fetchFn);
+      c.seed();
+      c.start();
+      await vi.advanceTimersByTimeAsync(CHAT_CLIENT_TIMEOUT_MS);
+      expect(c.getSnapshot()).toMatchObject({ phase: "fallback", reason: "timeout", waitingFor: null });
+    });
+
+    it("上限は Worker の打ち切り（25秒）より長い", () => {
+      expect(CHAT_CLIENT_TIMEOUT_MS).toBeGreaterThan(25_000);
+    });
+
+    it("時間内に返った呼び出しは、今までどおり進む（fetch には signal を渡す）", async () => {
+      const inits: RequestInit[] = [];
+      const { fetchFn } = fakeFetch();
+      const c = controller((url, init) => {
+        inits.push(init);
+        return fetchFn(url, init);
+      });
+      c.seed();
+      c.start();
+      await c.idle();
+      expect(c.getSnapshot()).toMatchObject({ phase: "live", waitingFor: null });
+      expect(inits.length).toBeGreaterThan(0);
+      expect(inits.every((init) => init.signal instanceof AbortSignal && !init.signal.aborted)).toBe(true);
+    });
   });
 
   it("自動で進むのは上限の回数まで", async () => {

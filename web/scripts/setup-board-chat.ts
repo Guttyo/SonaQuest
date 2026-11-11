@@ -6,6 +6,8 @@
 //
 // API キーは、SDK が環境変数から読む（このスクリプトはキーを読まない・表示しない・ファイルに書かない）。
 // 何度も --apply すると、そのたびに新しい Agent と Environment ができる（古いものは消えない）。
+// 1つ作るたびに、その ID をすぐ表示する。途中で失敗しても、それまでに作った ID が画面に残る（Issue #294）。
+// 作った Agent がツールを持っていないことを、返ってきた定義で確かめる（持っていたら注意を出し、終わりのコードを 1 にする）。
 // Node の型を外して動かす機能（Node 23.6 以上）で、.ts のまま実行する。
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -34,6 +36,7 @@ async function main(): Promise<void> {
     return;
   }
   const client = new Anthropic();
+  console.log("\n作るたびに、web/wrangler.jsonc の vars に入れる値（秘密ではない ID）を表示する：");
   const environment = await client.beta.environments.create({
     name: BOARD_CHAT_ENVIRONMENT.name,
     description: BOARD_CHAT_ENVIRONMENT.description,
@@ -43,6 +46,8 @@ async function main(): Promise<void> {
     },
   });
   const lines = [`${BOARD_CHAT_VAR_NAMES.environment}=${environment.id}`];
+  console.log(lines[0]);
+  let withTools = 0;
   for (const role of BOARD_CHAT_ROLE_IDS) {
     const def = boardChatAgentDefinition(role);
     // ツールは渡さない（エージェントはサンドボックスの道具も web も使わない）
@@ -53,14 +58,27 @@ async function main(): Promise<void> {
       system: def.system,
       metadata: { ...def.metadata },
     });
-    lines.push(`${BOARD_CHAT_VAR_NAMES.agents[role]}=${agent.id}`);
+    const line = `${BOARD_CHAT_VAR_NAMES.agents[role]}=${agent.id}`;
+    lines.push(line);
+    console.log(line);
+    // tools を渡さないとツールなしになるかは、公式ドキュメントに明記が無いので、返ってきた定義で確かめる（setup-karte-audit.ts と同じ）
+    const tools = Array.isArray(agent.tools) ? agent.tools.length : -1;
+    if (tools !== 0) {
+      withTools += 1;
+      console.error(`注意：${BOARD_CHAT_VAR_NAMES.agents[role]} の Agent のツールの数が 0 ではない（${tools}）。この ID は vars に入れず、Claude Console で確かめる。`);
+    }
   }
-  console.log("\n作った。次の値を web/wrangler.jsonc の vars に入れる（秘密ではない ID）：");
+  console.log("\n作った。まとめると、次の値を web/wrangler.jsonc の vars に入れる（秘密ではない ID）：");
   for (const line of lines) console.log(line);
+  if (withTools > 0) {
+    process.exitCode = 1;
+  } else {
+    console.log("確かめた：作った Agent のツールは、どれも 0 個。");
+  }
 }
 
 main().catch((error: unknown) => {
-  // 失敗の種類だけを出す（キーや本文は出さない）
+  // 失敗の種類だけを出す（キーや本文は出さない）。それまでに作った ID は、上にもう表示してある
   const name = error instanceof Error ? error.name : "unknown";
   const status = error instanceof Anthropic.APIError ? ` status=${String(error.status)}` : "";
   console.error(`作れなかった：${name}${status}`);

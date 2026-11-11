@@ -53,6 +53,13 @@ export const MAX_AUTO_TURNS = 10;
 /** 自動で次の役に書いてもらう間隔 */
 export const AUTO_INTERVAL_MS = 40_000;
 
+/**
+ * Workers の呼び出しを待つ上限（Issue #294）。Worker はエージェントの文を 25 秒で打ち切って応答する
+ * （worker/boardChat.ts の CHAT_TURN_TIMEOUT_MS）ので、それより少し長くする。Worker の定数は画面から import しない。
+ * 接続が途中で止まっても「返事を待っています」のまま残さず、固定の掲示に切り替える
+ */
+export const CHAT_CLIENT_TIMEOUT_MS = 30_000;
+
 /** 始めたときの順番：各救護所が本部へ報告し、本部が共通の欄に書く */
 export const OPENING_JOBS: readonly Job[] = [
   { role: "A", channel: "A" },
@@ -116,10 +123,12 @@ export class ChatController {
   private seq = 0;
   private statusSource: (() => ChatStatus) | null = null;
   private readonly fetchFn: ChatFetch;
+  private readonly timeoutMs: number;
 
-  constructor(fetchFn?: ChatFetch) {
+  constructor(fetchFn?: ChatFetch, timeoutMs: number = CHAT_CLIENT_TIMEOUT_MS) {
     // 既定は実行の時点の fetch（試験では偽物を渡す）
     this.fetchFn = fetchFn ?? ((url, init) => fetch(url, init));
+    this.timeoutMs = timeoutMs;
   }
 
   subscribe = (listener: () => void): (() => void) => {
@@ -223,13 +232,35 @@ export class ChatController {
     }
   }
 
+  /**
+   * Workers を呼ぶ。上限の時間（timeoutMs）を過ぎたら、待つのをやめて timeout にする（network にしない）。
+   * AbortController があれば、fetch にも signal を渡して接続を閉じる。無い環境でも、待つのは上限の時間まで
+   */
   private async post(url: string, body: unknown): Promise<PostResult> {
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<PostResult>((resolve) => {
+      timer = setTimeout(() => {
+        controller?.abort();
+        resolve({ ok: false, code: "timeout" });
+      }, this.timeoutMs);
+    });
     try {
-      const res = await this.fetchFn(url, {
+      return await Promise.race([this.request(url, body, controller?.signal), timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private async request(url: string, body: unknown, signal: AbortSignal | undefined): Promise<PostResult> {
+    try {
+      const init: RequestInit = {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      });
+      };
+      if (signal !== undefined) init.signal = signal;
+      const res = await this.fetchFn(url, init);
       const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
       if (!res.ok || json === null) {
         const code = json !== null && typeof json.error === "string" ? json.error : "unavailable";
@@ -237,7 +268,7 @@ export class ChatController {
       }
       return { ok: true, json };
     } catch {
-      return { ok: false, code: "network" };
+      return { ok: false, code: signal?.aborted ? "timeout" : "network" };
     }
   }
 
