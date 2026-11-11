@@ -97,7 +97,7 @@ const started = trainingReducer({ ...initialState, ai: "on" }, { type: "start" }
 describe("Claude が選んだゴールで進む（Issue #200）", () => {
   it("掘り下げを選んだら、その質問と Claude の文を出す", () => {
     const s = answerWith(started, reply({ type: "ask", question_id: "first_medicines_more", text: "はい。ほかにも、使っている薬はありますか？" }));
-    expect(s.prompt).toEqual({ questionId: "first_medicines_more", text: "はい。ほかにも、使っている薬はありますか？", type: "ask" });
+    expect(s.prompt).toMatchObject({ questionId: "first_medicines_more", text: "はい。ほかにも、使っている薬はありますか？", type: "ask" });
     expect(s.stage).toEqual({ name: "first", index: 1 });
   });
 

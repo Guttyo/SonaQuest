@@ -24,7 +24,8 @@ import {
   selectEvent,
   type GoalPlan,
 } from "./rules";
-import type { TurnRequest, TurnResponse } from "./turnContract";
+import type { SpeechTokens, TurnRequest, TurnResponse } from "./turnContract";
+import { ackIndex, fixedId } from "../voice/speechPlan";
 import type {
   Answer,
   EventId,
@@ -34,6 +35,7 @@ import type {
   Prompt,
   Question,
   SourceId,
+  SpeechPart,
   TimingId,
 } from "./types";
 
@@ -84,6 +86,10 @@ export interface TrainingState {
   closingAck: string | null;
   /** 振り返りの冒頭に添える Claude の一言（Issue #200）。検査と監査役を通ったものだけ。無ければ null */
   closingRemark: string | null;
+  /** closingAck の組み立て（固定文の ID と署名つきの Claude の文。読み上げの中継 /api/tts に送る。Issue #284） */
+  closingAckParts?: readonly SpeechPart[] | null;
+  /** closingRemark の署名（/api/turn が付けたもの。Issue #284）。無ければ null */
+  closingRemarkToken?: string | null;
   /** 固定の進行に切り替えたときの入力の件数。その回答の後に1回だけ知らせを出す（ADR-0029 の4） */
   failedAfter: number | null;
   /** 体調の訴えらしい入力の後、確かめの問いを出している間だけ値がある（ADR-0011 の追記）。保存しない */
@@ -126,6 +132,8 @@ export const initialState: TrainingState = {
   sourceGuess: null,
   closingAck: null,
   closingRemark: null,
+  closingAckParts: null,
+  closingRemarkToken: null,
   failedAfter: null,
   symptomCheck: null,
 };
@@ -158,8 +166,18 @@ export function countedAnswers(answers: readonly Answer[], half: Half): number {
   return answers.filter((a) => a.half === half && a.kind === "answer").length;
 }
 
-function askPrompt(question: Question, text: string | null): Prompt {
-  return { questionId: question.id, text: text ?? question.text, type: "ask" };
+function askPrompt(question: Question, text: string | null, parts?: readonly SpeechPart[]): Prompt {
+  return {
+    questionId: question.id,
+    text: text ?? question.text,
+    type: "ask",
+    parts: parts ?? (text === null ? [{ fixed: fixedId.question(question.id) }] : [{ claude: text, token: null }]),
+  };
+}
+
+/** Claude の文の部品（署名は /api/turn の speech。無ければ null） */
+function claudePart(text: string, token: string | null | undefined): SpeechPart {
+  return { claude: text, token: token ?? null };
 }
 
 /** その半分の、次に聞いてよいゴール（rules.ts の planGoals。Workers と同じ関数。Issue #200） */
@@ -179,6 +197,7 @@ function advance(
   text: string | null,
   target: string | null = null,
   remark: string | null = null,
+  speech: SpeechTokens | undefined = undefined,
 ): TrainingState {
   const { stage } = state;
   if (stage.name !== "first" && stage.name !== "second") return state;
@@ -190,15 +209,35 @@ function advance(
       ...state,
       stage: { name: half, index: stage.index + 1 },
       // 固定の受け止めは回答の数で替え、同じ言い方を続けない
-      prompt: askPrompt(question, text ?? ackFor(state.answers.length) + question.text),
+      prompt:
+        text !== null
+          ? askPrompt(question, text, [claudePart(text, speech?.text)])
+          : askPrompt(question, ackFor(state.answers.length) + question.text, [
+              { fixed: fixedId.ack(ackIndex(state.answers.length)) },
+              { fixed: fixedId.question(question.id) },
+            ]),
     };
   }
+  return { ...state, ...closing(half, text, remark, speech) };
+}
+
+/** 半分を終えるときの受け止めと一言（と、その組み立て・署名） */
+function closing(
+  half: Half,
+  text: string | null,
+  remark: string | null,
+  speech: SpeechTokens | undefined,
+): Pick<TrainingState, "stage" | "prompt" | "closingAck" | "closingRemark" | "closingAckParts" | "closingRemarkToken"> {
+  const ackParts: SpeechPart[] = [text === null ? { fixed: fixedId.closingAck } : claudePart(text, speech?.text)];
+  if (half === "second") ackParts.push({ fixed: fixedId.recheckClosing });
+  const closingRemark = half === "second" ? remark : null;
   return {
-    ...state,
     stage: half === "first" ? { name: "confirm" } : { name: "review" },
     prompt: null,
     closingAck: closingAckOf(half, text),
-    closingRemark: half === "second" ? remark : null,
+    closingAckParts: ackParts,
+    closingRemark,
+    closingRemarkToken: closingRemark === null ? null : (speech?.remark ?? null),
   };
 }
 
@@ -285,6 +324,7 @@ function applyTurn(state: TrainingState, result: TurnResponse): TrainingState {
         questionId: last.questionId,
         text: text ?? REDIRECT_TEXTS[last.questionId] ?? last.prompt,
         type: "redirect",
+        parts: fallbackParts(text, result.speech, REDIRECT_TEXTS[last.questionId], fixedId.redirect(last.questionId), state.prompt),
       },
     };
   }
@@ -299,6 +339,7 @@ function applyTurn(state: TrainingState, result: TurnResponse): TrainingState {
         questionId: last.questionId,
         text: text ?? CLARIFY_TEXTS[last.questionId] ?? last.prompt,
         type: "clarify",
+        parts: fallbackParts(text, result.speech, CLARIFY_TEXTS[last.questionId], fixedId.clarify(last.questionId), state.prompt),
       },
     };
   }
@@ -306,18 +347,27 @@ function applyTurn(state: TrainingState, result: TurnResponse): TrainingState {
   // 半分を終えるのは、必ず聞くゴールが残っていないときだけ。どちらでもなければ、固定の順番の次の質問へ（文は使わない）
   const plan = planOf(state, stage.name);
   if (type === "ask" && question_id !== null && plan.choices.includes(question_id)) {
-    return advance(judged, text, question_id);
+    return advance(judged, text, question_id, null, result.speech);
   }
   if (type === "finish" && (plan.canFinish || plan.choices.length === 0)) {
-    return {
-      ...judged,
-      stage: stage.name === "first" ? { name: "confirm" } : { name: "review" },
-      prompt: null,
-      closingAck: closingAckOf(stage.name, text),
-      closingRemark: stage.name === "second" ? result.remark : null,
-    };
+    return { ...judged, ...closing(stage.name, text, result.remark, result.speech) };
   }
   return advance(judged, null);
+}
+
+/**
+ * 聞き返し・質問し直しの文の組み立て。Claude の文があればそれ、無ければ固定文、それも無ければ直前の発言（その組み立てを引き継ぐ）
+ */
+function fallbackParts(
+  text: string | null,
+  speech: SpeechTokens | undefined,
+  fixedText: string | undefined,
+  id: string,
+  previous: Prompt | null,
+): readonly SpeechPart[] | undefined {
+  if (text !== null) return [claudePart(text, speech?.text)];
+  if (fixedText !== undefined) return [{ fixed: id }];
+  return previous?.parts;
 }
 
 /** 回答を受け取る（体調の照合の後）。Claude を使うときは返事を待ち、使わないときは固定の順番で進める */
@@ -362,7 +412,7 @@ function eventReask(
   return {
     ...state,
     answers: [...answers.slice(0, -1), { ...last, kind: "event_reasked" }],
-    prompt: { questionId: question.id, text: reask.text, type: "clarify" },
+    prompt: { questionId: question.id, text: reask.text, type: "clarify", parts: [{ fixed: fixedId.eventReask(state.event) }] },
   };
 }
 
@@ -375,7 +425,7 @@ function startSymptomCheck(
   return {
     ...state,
     symptomCheck: { resume: state.prompt, ...pending },
-    prompt: { questionId, text: SYMPTOM_CHECK_TEXT, type: "symptom_check" },
+    prompt: { questionId, text: SYMPTOM_CHECK_TEXT, type: "symptom_check", parts: [{ fixed: fixedId.symptomCheck }] },
   };
 }
 
@@ -495,6 +545,7 @@ export function trainingReducer(
         stage: { name: "second", index: 0 },
         prompt: askPrompt(opening, null),
         closingAck: null,
+        closingAckParts: null,
       };
     }
 

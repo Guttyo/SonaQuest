@@ -132,7 +132,7 @@ describe("出来事の後の固定の聞き返し（訓練の進行）", () => {
     expect(state.prompt?.questionId).toBe("second_recovery");
     state = trainingReducer(state, answer("家族に電話して聞く"));
     expect(state.stage).toEqual({ name: "second", index: 0 });
-    expect(state.prompt).toEqual({ questionId: "second_recovery", text: EVENT_REASK.network?.text, type: "clarify" });
+    expect(state.prompt).toMatchObject({ questionId: "second_recovery", text: EVENT_REASK.network?.text, type: "clarify" });
     // 止めた入力は原文のまま残し、回答の回数に数えない
     expect(state.answers.at(-1)).toMatchObject({ text: "家族に電話して聞く", kind: "event_reasked" });
     expect(countedAnswers(state.answers, "second")).toBe(0);
@@ -163,7 +163,7 @@ describe("出来事の後の固定の聞き返し（訓練の進行）", () => {
     state = trainingReducer(state, answer("家族に電話して聞く"));
     // 返事を待たない（Claude を呼ばない）
     expect(state.waiting).toBe(false);
-    expect(state.prompt).toEqual({ questionId: "second_recovery", text: EVENT_REASK.network?.text, type: "clarify" });
+    expect(state.prompt).toMatchObject({ questionId: "second_recovery", text: EVENT_REASK.network?.text, type: "clarify" });
     // 3D の読み上げも同じ固定文を読む
     expect(listenerSpeech({ ...state, mode: "3d" })).toBe(EVENT_REASK.network?.text);
     // 次の回答は Claude に送る。止めた入力は送らず、回数にも数えない

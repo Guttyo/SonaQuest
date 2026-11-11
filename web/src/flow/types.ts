@@ -82,7 +82,18 @@ export interface Prompt {
   text: string;
   /** symptom_check は、体調の訴えらしい入力の後の確かめの問い（ADR-0011 の追記） */
   type: "ask" | "clarify" | "redirect" | "symptom_check";
+  /**
+   * text の組み立て（Issue #284。読み上げの中継 /api/tts に送る）。つなげると text と同じになる。
+   * 無いとき（試験で作った発言など）は、text を署名の無い Claude の文として扱い、/api/tts は読まない（ブラウザの読み上げになる）
+   */
+  parts?: readonly SpeechPart[];
 }
+
+/**
+ * 読み上げる文の部品（Issue #284 の指摘3、案A。src/voice/speechPlan.ts）。
+ * fixed は固定文の ID（speechPlan.ts の FIXED_SPEECH）。claude は Claude の文と、/api/turn が付けた署名（無ければ null）
+ */
+export type SpeechPart = { fixed: string } | { claude: string; token: string | null };
 
 export type PrepActionId =
   | "notebook_bag"
