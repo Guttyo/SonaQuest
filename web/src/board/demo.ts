@@ -191,8 +191,9 @@ export type DemoAction =
   | { type: "arrivals"; active: boolean }
   /** 到着の並びの種を替えて、最初からやり直す（Issue #122） */
   | { type: "reseed"; seed: number }
-  | { type: "approve_proposal"; id: string }
-  | { type: "reject_proposal"; id: string }
+  /** 発注の提案の承認・却下。actor が本部（HQ）のときだけ効く（画面の判定に加えた3段目の守り。Issue #169・#289） */
+  | { type: "approve_proposal"; id: string; actor: ChartActor }
+  | { type: "reject_proposal"; id: string; actor: ChartActor }
   | {
       type: "add_record";
       site: SiteId;
@@ -756,8 +757,11 @@ export function demoReducer(state: DemoState, action: DemoAction): DemoState {
       return { ...state, chartReview };
     }
     case "approve_proposal":
+      // 承認・却下は HQ でログインした人だけ（Issue #169）。画面の判定を通らずに渡されても、HQ でなければ変えない（Issue #289 の 4）
+      if (action.actor.site !== HQ) return state;
       return refreshProposals(approve({ ...state, rev: state.rev + 1 }, action.id));
     case "reject_proposal":
+      if (action.actor.site !== HQ) return state;
       return refreshProposals(reject({ ...state, rev: state.rev + 1 }, action.id));
   }
 }

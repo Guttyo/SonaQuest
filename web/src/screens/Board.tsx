@@ -107,7 +107,8 @@ import { auditResultAfterStop, sampleAudit, sampleDraft, type ChartAuditResult, 
 import { auditNotConfigured, NOT_CONFIGURED_AUDIT, requestAudit, requestSummary, sampleForChart } from "../board/karte/client";
 import { KarteTranscribe } from "../board/karte/Transcribe";
 import { TRANSCRIBE_TEXT } from "../board/karte/transcribeText";
-import { nextRecordId } from "../board/demo";
+import { nextRecordId, type ChartActor } from "../board/demo";
+import { afterAuditWait, claimChartEdits, createTimerBag, opensOnSummaryClick, pendingChartEdit, type PendingChartEdit } from "../board/accessTiming";
 
 /** 見本の監査の結果が届くまでの時間（ミリ秒。「AI監査中」が画面で見えるように。Issue #141） */
 const SAMPLE_AUDIT_MS = 1500;
@@ -534,9 +535,10 @@ function ChartCard({ chart, open }: { chart: PatientChart; open: boolean }) {
   const review = access?.reviews[chart.key];
   return (
     <li className={`board-chart-card ${chart.added ? "board-chart-added" : ""}`} data-chart={chart.id}>
-      {/* 開いたときだけ「カルテを開いた」をアクセス記録に残す（閉じたときは残さない。Issue #141） */}
-      <details open={open} onToggle={(e) => e.currentTarget.open && access?.logOpen(chart)}>
-        <summary>
+      {/* 人が開いたときだけ「カルテを開いた」をアクセス記録に残す（閉じたときは残さない。Issue #141）。
+          toggle は open 属性による自動の開閉でも起きるので、見出しの click で拾う（Issue #289） */}
+      <details open={open}>
+        <summary onClick={(e) => opensOnSummaryClick(e.currentTarget.parentElement as HTMLDetailsElement | null) && access?.logOpen(chart)}>
           <span className="board-chart-head">
             <b>{title}</b>
             {chart.name !== null && <span className="board-record-id">{chart.id}</span>}
@@ -731,6 +733,8 @@ function ProposalGroups(props: {
   state: DemoState;
   proposals: readonly OrderProposal[];
   canDecide: boolean;
+  /** 承認・却下をする人（ログイン中の拠点と担当者）。reducer も HQ かを確かめる（Issue #289 の 4） */
+  actor: ChartActor | null;
   dispatch: (a: DemoAction) => void;
 }) {
   const { state, proposals } = props;
@@ -779,12 +783,15 @@ function ProposalList({
   state,
   proposals,
   canDecide,
+  actor,
   dispatch,
   showSite = true,
 }: {
   state: DemoState;
   proposals: readonly OrderProposal[];
   canDecide: boolean;
+  /** 承認・却下をする人。null のときはボタンを押しても何もしない（Issue #289 の 4） */
+  actor: ChartActor | null;
   dispatch: (a: DemoAction) => void;
   showSite?: boolean;
 }) {
@@ -826,10 +833,10 @@ function ProposalList({
             </details>
             {p.status === "提案" && canDecide && (
               <div className="board-order-actions">
-                <button type="button" className="board-approve" onClick={() => dispatch({ type: "approve_proposal", id: p.id })}>
+                <button type="button" className="board-approve" onClick={() => actor !== null && dispatch({ type: "approve_proposal", id: p.id, actor })}>
                   {BOARD_ORDERS.approve}
                 </button>
-                <button type="button" className="secondary" onClick={() => dispatch({ type: "reject_proposal", id: p.id })}>
+                <button type="button" className="secondary" onClick={() => actor !== null && dispatch({ type: "reject_proposal", id: p.id, actor })}>
                   {BOARD_ORDERS.reject}
                 </button>
               </div>
@@ -1167,7 +1174,7 @@ function SiteDetail({
         count={`${fmt.format(proposals.length)} ${BOARD_ORDERS.count}`}
         open={proposals.some((p) => p.status === "提案")}
       >
-        <ProposalList state={state} proposals={proposals} canDecide={false} dispatch={dispatch} showSite={false} />
+        <ProposalList state={state} proposals={proposals} canDecide={false} actor={null} dispatch={dispatch} showSite={false} />
         {proposals.some((p) => p.status === "提案") && <p className="board-note">{BOARD_ORDERS.approveOnlyHq}</p>}
       </Fold>
 
@@ -1222,8 +1229,21 @@ export function Board({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<PermissionNotice | null>(null);
   // 非同期の処理（Worker の応答・見本の監査）の後でも、今の時計・ログイン・AI の停止を読むため
-  const live = useRef({ minutes: state.minutes, session, aiStopped, reviews: state.chartReview });
-  live.current = { minutes: state.minutes, session, aiStopped, reviews: state.chartReview };
+  const live = useRef({ minutes: state.minutes, session, aiStopped, reviews: state.chartReview, records: state.records });
+  live.current = { minutes: state.minutes, session, aiStopped, reviews: state.chartReview, records: state.records };
+  // 画面に付いているか・見本の監査の待ちのタイマー。画面を離れたら、タイマーを消し、届いた結果を入れない（Issue #289 の 2）
+  const mounted = useRef(true);
+  const auditTimers = useRef(createTimerBag());
+  useEffect(() => {
+    mounted.current = true;
+    const timers = auditTimers.current;
+    return () => {
+      mounted.current = false;
+      timers.clearAll();
+    };
+  }, []);
+  // 「カルテを編集した」を、reducer が実際に作った記録の番号で残すために待っている入力（Issue #289 の 3）
+  const pendingEdits = useRef<PendingChartEdit[]>([]);
   // AI 要約を待っているカルテ（Issue #148）。待つ間も、ほかの操作は止めない
   const [drafting, setDrafting] = useState<ReadonlySet<string>>(() => new Set());
   const [selected, setSelected] = useState<SiteId>(initialSite);
@@ -1303,6 +1323,13 @@ export function Board({
     // 自分の救護所の画面から始める（URL でカルテ入力の専用画面を開いたときは、その画面のまま）
     if (intake === null) setSelected(s.site);
   }
+  // 記録が加わったら、待っている入力と結び付け、その記録の番号で「カルテを編集した」を残す（Issue #289 の 3）
+  useEffect(() => {
+    if (pendingEdits.current.length === 0) return;
+    const { claimed, rest } = claimChartEdits(pendingEdits.current, state.records);
+    pendingEdits.current = rest;
+    for (const c of claimed) logAccess("chart_edit", c.id, c.who);
+  }, [state.records]);
   function logout() {
     logAccess("logout", "");
     setSession(null);
@@ -1329,11 +1356,13 @@ export function Board({
     }
   }
   async function addRecord(a: Extract<DemoAction, { type: "add_record" }>): Promise<boolean> {
+    // 拒否されたときの対象の文字は、待つ前の番号のままでよい（拒否されたら記録は入らない）
     const id = nextRecordId(state, a.site);
     const who = await guarded(a.site, "chart_add", id);
     if (who === null) return false;
+    // 待つあいだも自動進行で架空の患者が到着するので、番号はここで作らず、reducer が作った記録の番号で残す（Issue #289 の 3）
+    pendingEdits.current = [...pendingEdits.current, pendingChartEdit(live.current.records, a.site, a.name, who)];
     dispatch(a);
-    logAccess("chart_edit", id, who);
     return true;
   }
   async function chartOp(chart: PatientChart, op: ChartOp) {
@@ -1368,9 +1397,12 @@ export function Board({
     } else if (op === "audit") {
       const draft = live.current.reviews[chart.key]?.draft;
       dispatch({ type: "chart_audit_start", key: chart.key, actor });
+      // 待った後：画面を離れていたら何もしない。結果は今までどおりカルテに入れる（「AI監査中」のまま止めない）。
+      // 「監査の結果」は、待つ前と同じログインのときだけ残す（前の担当者の名前で残さない。Issue #289 の 2）
       const done = (result: ChartAuditResult) => {
-        dispatch({ type: "chart_audit_result", key: chart.key, result });
-        logAccess("audit_result", chart.id, who);
+        const next = afterAuditWait({ mounted: mounted.current, sameLogin: live.current.session === who });
+        if (next.apply) dispatch({ type: "chart_audit_result", key: chart.key, result });
+        if (next.log) logAccess("audit_result", chart.id, who);
       };
       if (auditNotConfigured(draft) && !live.current.aiStopped) {
         // この環境に監査役が設定されていない（Issue #244）。Worker を呼ばずに「監査できず（設定なし）」へ進め、人の確認に進めるようにする
@@ -1381,7 +1413,7 @@ export function Board({
         void requestAudit(draft).then((result) => done(auditResultAfterStop(result, live.current.aiStopped)));
       } else {
         // 見本の下書き・AI を止めた状態は、見本の監査。少し待ってから結果を返す。AI を止めた状態なら「監査できず」
-        window.setTimeout(() => done(sampleAudit(chart.key, live.current.aiStopped)), SAMPLE_AUDIT_MS);
+        auditTimers.current.set(() => done(sampleAudit(chart.key, live.current.aiStopped)), SAMPLE_AUDIT_MS);
       }
     } else if (op === "discard") {
       // アクセス記録の出来事の種類（8種類）は増やさず、「カルテを編集した」として残す
@@ -1399,6 +1431,8 @@ export function Board({
   const canEdit = (site: SiteId) => canEditSite(session, site);
   // 発注の提案の承認・却下は HQ でログインしたときだけ（Issue #169。2026-11-06 オーナー決定）
   const canDecide = canDecideOrders(session);
+  // 承認・却下の action に渡す操作する人。画面の判定（canDecide）に加え、reducer でも HQ かを確かめる（Issue #289 の 4）
+  const orderActor: ChartActor | null = session === null ? null : { site: session.site, staff: session.staff };
   const access: BoardAccessValue | null =
     session === null
       ? null
@@ -1741,7 +1775,7 @@ export function Board({
                   count={`${fmt.format(pendingProposals.length)} ${BOARD_ORDERS.count}`}
                   open={pendingProposals.length > 0}
                 >
-                  <ProposalGroups state={state} proposals={pendingProposals} canDecide={canDecide} dispatch={dispatch} />
+                  <ProposalGroups state={state} proposals={pendingProposals} canDecide={canDecide} actor={orderActor} dispatch={dispatch} />
                   {!canDecide && pendingProposals.length > 0 && <p className="board-note">{BOARD_ORDERS.approveOnlyHq}</p>}
                 </Fold>
 
@@ -1994,12 +2028,13 @@ export function Board({
                   </h3>
                   <p className="board-note">{BOARD_ORDERS.note}</p>
                   {isHq ? (
-                    <ProposalGroups state={state} proposals={state.proposals} canDecide={canDecide} dispatch={dispatch} />
+                    <ProposalGroups state={state} proposals={state.proposals} canDecide={canDecide} actor={orderActor} dispatch={dispatch} />
                   ) : (
                     <ProposalList
                       state={state}
                       proposals={state.proposals.filter((p) => p.site === selected)}
                       canDecide={false}
+                      actor={null}
                       dispatch={dispatch}
                       showSite={false}
                     />

@@ -1,10 +1,14 @@
 // 発注・搬送の時間軸の集計（Issue #118）
 import { describe, expect, it } from "vitest";
-import { SITES } from "./data";
+import { HQ, SITES } from "./data";
+import { sessionFor } from "./access";
 import { clockText, demoReducer, initialDemo, type DemoAction, type DemoState } from "./demo";
 import { caseRows } from "./summary";
 import { TIMELINE_DAYS, timelineRows, timelineWindow } from "./timeline";
 import { timelineTexts } from "../screens/BoardTimeline";
+
+/** 発注の提案を承認・却下する人（本部でログインした架空の担当者。Issue #289） */
+const HQ_ACTOR = sessionFor(HQ);
 
 const run = (s: DemoState, ...actions: DemoAction[]) => actions.reduce(demoReducer, s);
 const row = (s: DemoState, site: string, item: string) => timelineRows(s).find((r) => r.site === site && r.item === item)!;
@@ -96,7 +100,7 @@ describe("時間軸の行（Issue #118）", () => {
     const p = sR.proposals.find((x) => x.site === "救護所B" && x.item === "抗凝固薬F")!;
     expect(p.fromHq).toBeGreaterThan(0);
     expect(row(sR, p.site, p.item).stage).toBe("提案");
-    const s1 = run(sR, { type: "approve_proposal", id: p.id });
+    const s1 = run(sR, { type: "approve_proposal", id: p.id, actor: HQ_ACTOR });
     const r1 = row(s1, p.site, p.item);
     expect(r1.stage).toBe("承認済み（引当済み）");
     // 印の時刻は、承認で足した搬送の出発・到着と同じ（地図の便・時計と食い違わない）
@@ -118,7 +122,7 @@ describe("時間軸の行（Issue #118）", () => {
   it("本部に無い分を承認すると「卸に照会中」。卸への照会分は到着未定で、日付を作らない", () => {
     const p = s0.proposals.find((x) => x.site === "救護所B" && x.item === "抗てんかん薬C")!;
     expect(p.fromHq).toBe(0);
-    const s1 = run(s0, { type: "approve_proposal", id: p.id });
+    const s1 = run(s0, { type: "approve_proposal", id: p.id, actor: HQ_ACTOR });
     const r1 = row(s1, "救護所B", "抗てんかん薬C");
     expect(r1.stage).toBe("卸に照会中");
     const ws = r1.arrivals.filter((a) => a.kind === "卸への照会分");

@@ -33,6 +33,9 @@ import { CODE_FINDING_LABELS, checkSummary, maskForbidden } from "../board/karte
 import { findSample, patientUtterances, plantedSummary } from "../board/karte/samples";
 import { AUDIT_SESSION_LABELS, KARTE_AUDIT_NOT_CONFIGURED_TEXT, KARTE_PANEL_TEXT, KARTE_UNRESOLVED_TEXT } from "../board/karte/text";
 
+/** 発注の提案を承認・却下する人（本部でログインした架空の担当者。Issue #289） */
+const HQ_ACTOR = sessionFor(HQ);
+
 /** 試験は DOM の無い環境で動くので、拠点とタブを最初の値で渡して文字列に描き、画面の切り替えを確かめる */
 const render = (site: SiteId = HQ, tab: BoardTab = "overview", state = initialDemo(), session: DemoSession | null = sessionFor(site)) =>
   renderToStaticMarkup(
@@ -353,7 +356,7 @@ describe("デモの状態を渡すと、登録 → 提案 → 承認が画面に
   });
 
   it("承認すると、提案は承認済み（引当済み）になり、救護所向けの搬送が載る。承認・却下のボタンは消える", () => {
-    const s2 = demoReducer(s1, { type: "approve_proposal", id: "P-03" });
+    const s2 = demoReducer(s1, { type: "approve_proposal", id: "P-03", actor: HQ_ACTOR });
     const h = panel(render(HQ, "supply", s2));
     const p = h.slice(h.indexOf('data-proposal="P-03"'), h.indexOf("</li>", h.indexOf('data-proposal="P-03"')));
     expect(p).toContain(">承認済み（引当済み）</span>");
@@ -472,7 +475,7 @@ describe("直近1時間で変わったこと・最終報告・一番大きな数
     const s1 = demoReducer(initialDemo(), record);
     expect(changes(render(HQ, "overview", s1))).toContain("<span>登録 1 件、未交付 +1 件、提案 1 件</span>");
     expect(changes(render("救護所A", "overview", s1))).toContain(BOARD_CHANGES.none);
-    const s2 = demoReducer(s1, { type: "approve_proposal", id: "P-03" });
+    const s2 = demoReducer(s1, { type: "approve_proposal", id: "P-03", actor: HQ_ACTOR });
     expect(changes(render("救護所B", "overview", s2))).toContain("<span>登録 1 件、未交付 +1 件、提案 1 件、承認 1 件</span>");
     // 3時間進めると、登録・承認は1時間より前になり数えない
     const s3 = demoReducer(s2, { type: "tick", hours: 3 });
@@ -889,7 +892,7 @@ describe("発注・搬送の時間軸（Issue #118、ADR-0043 の追記 13）", 
       prescription: { item: "抗凝固薬F", qty: 60, days: 7 },
     });
     const p = s0.proposals.find((x) => x.site === "救護所B" && x.item === "抗凝固薬F")!;
-    const s1 = run(s0, { type: "approve_proposal", id: p.id });
+    const s1 = run(s0, { type: "approve_proposal", id: p.id, actor: HQ_ACTOR });
     const h = panel(render(HQ, "supply", s1));
     const at = h.indexOf('data-timeline-row="救護所B|抗凝固薬F"');
     expect(h.slice(at, at + 200)).toContain('data-stage="承認済み（引当済み）"');

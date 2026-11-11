@@ -1,6 +1,8 @@
 // ボードの書き込みの権限の確認（Issue #141、ADR-0050）で、画面と Worker が共有する形。
 // 送るのは、ログイン中の救護所・書き込み先の救護所・出来事の種類の3つだけ。担当者名・カルテの番号や中身・氏名は送らない。
 // デモ用の確認で、偽装は簡単（画面の値をそのまま信じる）。本人確認ではない。
+// 位置づけ（Issue #289 の 5）：writeAllowed は画面（access.ts の localAllowed）と Worker（worker/boardAuthorize.ts）の両方で同じ入力に使う。
+// Worker での確認は画面と同じ判定の繰り返しで、新しく加わる判断は無い。カルテの入口（/api/karte/*）はこの確認の結果を求めない。
 
 /** 救護所の短い記号（画面の SiteId「救護所A」の「A」）。本部備蓄は書き込み先にならない */
 export const AUTHORIZE_SITES = ["A", "B", "C", "D"] as const;

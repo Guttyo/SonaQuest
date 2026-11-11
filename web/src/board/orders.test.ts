@@ -12,6 +12,10 @@ import {
   type DemoState,
 } from "./demo";
 import { orderQtyText } from "./text";
+import { sessionFor } from "./access";
+
+/** 発注の提案を承認・却下する人（本部でログインした架空の担当者。Issue #289） */
+const HQ_ACTOR = sessionFor(HQ);
 
 const run = (s: DemoState, ...actions: DemoAction[]) => actions.reduce(demoReducer, s);
 const onHand = (s: DemoState, site: string, item: string) => s.stock.find((r) => r.site === site && r.item === item)!.onHand;
@@ -159,7 +163,7 @@ describe("カルテに登録 → 提案 → 承認 → 搬送中 → 受領", ()
     const s1 = run(initialDemo(), recordB);
     const id = prop(s1, "救護所B", "抗凝固薬F")!.id;
     const hqBefore = onHand(s1, HQ, "抗凝固薬F")!;
-    const s2 = run(s1, { type: "approve_proposal", id });
+    const s2 = run(s1, { type: "approve_proposal", id, actor: HQ_ACTOR });
     const p = s2.proposals.find((x) => x.id === id)!;
     expect(p.status).toBe("承認済み");
     expect(onHand(s2, HQ, "抗凝固薬F")).toBe(hqBefore - 70);
@@ -187,7 +191,7 @@ describe("カルテに登録 → 提案 → 承認 → 搬送中 → 受領", ()
   it("本部に無い分は卸への照会（本部向け・到着未定）として載り、その救護所の提案から差し引かれる", () => {
     const s0 = initialDemo();
     const id = prop(s0, "救護所B", "抗てんかん薬C")!.id;
-    const s1 = run(s0, { type: "approve_proposal", id });
+    const s1 = run(s0, { type: "approve_proposal", id, actor: HQ_ACTOR });
     const p = s1.proposals.find((x) => x.id === id)!;
     expect(p.fromHq).toBe(0);
     expect(p.fromVendor).toBe(40);
@@ -204,7 +208,7 @@ describe("カルテに登録 → 提案 → 承認 → 搬送中 → 受領", ()
   it("却下は提案を消すだけで、在庫・搬送は変わらない。時計を進めても出し直さず、未交付が増えたら出し直す", () => {
     const s0 = initialDemo();
     const id = prop(s0, "救護所B", "抗てんかん薬C")!.id;
-    const s1 = run(s0, { type: "reject_proposal", id });
+    const s1 = run(s0, { type: "reject_proposal", id, actor: HQ_ACTOR });
     expect(prop(s1, "救護所B", "抗てんかん薬C")).toBeUndefined();
     expect(s1.stock).toEqual(s0.stock);
     expect(s1.inbound).toEqual(s0.inbound);
@@ -213,9 +217,22 @@ describe("カルテに登録 → 提案 → 承認 → 搬送中 → 受領", ()
     const s2 = run(s1, { ...recordB, prescription: { item: "抗てんかん薬C", qty: 10, days: 5 } }, recordB);
     expect(prop(s2, "救護所B", "抗てんかん薬C")?.basis.need).toBe(26);
     // 承認済みのものは却下できない
-    const s3 = run(s2, { type: "approve_proposal", id: prop(s2, "救護所B", "抗凝固薬F")!.id });
+    const s3 = run(s2, { type: "approve_proposal", id: prop(s2, "救護所B", "抗凝固薬F")!.id, actor: HQ_ACTOR });
     const approvedId = s3.proposals.find((x) => x.status === "承認済み")!.id;
-    expect(run(s3, { type: "reject_proposal", id: approvedId }).proposals).toEqual(s3.proposals);
+    expect(run(s3, { type: "reject_proposal", id: approvedId, actor: HQ_ACTOR }).proposals).toEqual(s3.proposals);
+  });
+
+  it("承認・却下は HQ の actor のときだけ効く。救護所の actor を渡しても state は変わらない（Issue #289 の 4）", () => {
+    const s0 = initialDemo();
+    const id = prop(s0, "救護所B", "抗てんかん薬C")!.id;
+    for (const site of SHELTERS) {
+      const actor = sessionFor(site);
+      expect(demoReducer(s0, { type: "approve_proposal", id, actor })).toBe(s0);
+      expect(demoReducer(s0, { type: "reject_proposal", id, actor })).toBe(s0);
+    }
+    const approved = run(s0, { type: "approve_proposal", id, actor: HQ_ACTOR });
+    expect(approved.proposals.find((x) => x.id === id)?.status).toBe("承認済み");
+    expect(prop(run(s0, { type: "reject_proposal", id, actor: HQ_ACTOR }), "救護所B", "抗てんかん薬C")).toBeUndefined();
   });
 
   it("最初からある引当済みの搬送も、到着見込みの日の 07:00 に搬送中、10:00 に受領になる", () => {
@@ -228,7 +245,7 @@ describe("カルテに登録 → 提案 → 承認 → 搬送中 → 受領", ()
   });
 
   it("元の架空データを書き換えない", () => {
-    run(initialDemo(), recordB, { type: "approve_proposal", id: "P-03" }, { type: "tick", hours: 24 });
+    run(initialDemo(), recordB, { type: "approve_proposal", id: "P-03", actor: HQ_ACTOR }, { type: "tick", hours: 24 });
     expect(STOCK.find((r) => r.site === HQ && r.item === "抗凝固薬F")?.onHand).toBe(500);
     expect(INBOUND).toHaveLength(10);
   });
@@ -245,9 +262,9 @@ describe("直近1時間で変わったこと（件数だけ。Issue #107 の追�
     const s1 = run(initialDemo(), recordB);
     expect(changesSince(s1.log, s1.minutes)).toMatchObject({ 登録: 1, 未交付: 1, 提案: 1, 承認: 0 });
     expect(changesSince(s1.log, s1.minutes, "救護所A")).toMatchObject({ 登録: 0, 未交付: 0, 提案: 0 });
-    const approved = run(s1, { type: "approve_proposal", id: "P-03" });
+    const approved = run(s1, { type: "approve_proposal", id: "P-03", actor: HQ_ACTOR });
     expect(changesSince(approved.log, approved.minutes, "救護所B").承認).toBe(1);
-    const rejected = run(s1, { type: "reject_proposal", id: "P-03" });
+    const rejected = run(s1, { type: "reject_proposal", id: "P-03", actor: HQ_ACTOR });
     expect(changesSince(rejected.log, rejected.minutes).承認).toBe(0);
   });
 
@@ -264,7 +281,7 @@ describe("直近1時間で変わったこと（件数だけ。Issue #107 の追�
   });
 
   it("承認した搬送が届くと受領を数える。1時間を過ぎた出来事は数えない", () => {
-    const s = run(initialDemo(), recordB, { type: "approve_proposal", id: "P-03" }, { type: "tick", hours: 3 });
+    const s = run(initialDemo(), recordB, { type: "approve_proposal", id: "P-03", actor: HQ_ACTOR }, { type: "tick", hours: 3 });
     expect(changesSince(s.log, s.minutes, "救護所B", Infinity).受領).toBeGreaterThanOrEqual(1);
     const long = run(s, ...Array.from({ length: 48 }, () => ({ type: "tick", hours: 1 }) as DemoAction));
     expect(changesSince(long.log, long.minutes).登録).toBe(0);
@@ -288,7 +305,7 @@ describe("PR #108 のレビューで直したこと", () => {
     const b = prop(s, "救護所B", "抗凝固薬F")!;
     const d = prop(s, "救護所D", "抗凝固薬F")!;
     expect(b.fromHq + d.fromHq).toBeLessThanOrEqual(hqF(initialDemo()));
-    const afterD = run(s, { type: "approve_proposal", id: d.id });
+    const afterD = run(s, { type: "approve_proposal", id: d.id, actor: HQ_ACTOR });
     expect(hqF(s) - hqF(afterD)).toBe(d.fromHq);
     const ship = afterD.inbound.find((r) => r.proposalId === d.id && r.from === HQ);
     expect(ship?.qty ?? 0).toBe(d.fromHq);
@@ -298,7 +315,7 @@ describe("PR #108 のレビューで直したこと", () => {
   it("却下した提案に本部の在庫を割り当てない（残りの提案が本部の在庫を使える）", () => {
     const s = run(initialDemo(), rec("救護所B", 450), rec("救護所D", 350));
     const b = prop(s, "救護所B", "抗凝固薬F")!;
-    const after = run(s, { type: "reject_proposal", id: b.id });
+    const after = run(s, { type: "reject_proposal", id: b.id, actor: HQ_ACTOR });
     const d = prop(after, "救護所D", "抗凝固薬F")!;
     expect(d.fromHq).toBe(Math.min(d.qty, hqF(after)));
   });
@@ -306,11 +323,11 @@ describe("PR #108 のレビューで直したこと", () => {
   it("本部の分が届いても、卸の分が残っていれば「一部受領・卸に照会中」で、「受領」にしない", () => {
     const s = run(initialDemo(), rec("救護所B", 450), rec("救護所D", 350));
     const b = prop(s, "救護所B", "抗凝固薬F")!;
-    const s1 = run(s, { type: "approve_proposal", id: b.id });
+    const s1 = run(s, { type: "approve_proposal", id: b.id, actor: HQ_ACTOR });
     const d = prop(s1, "救護所D", "抗凝固薬F")!;
     expect(d.fromHq).toBeGreaterThan(0);
     expect(d.fromVendor).toBeGreaterThan(0);
-    const s2 = run(s1, { type: "approve_proposal", id: d.id }, { type: "tick", hours: 24 });
+    const s2 = run(s1, { type: "approve_proposal", id: d.id, actor: HQ_ACTOR }, { type: "tick", hours: 24 });
     const dp = s2.proposals.find((x) => x.id === d.id)!;
     expect(s2.inbound.find((r) => r.id === dp.shipmentId)?.status).toBe("受領");
     expect(proposalStage(dp, s2.inbound)).toBe("一部受領・卸に照会中");

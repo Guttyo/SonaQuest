@@ -4,6 +4,9 @@
 // ログは結果の種類だけ（拒否・形の違い）で、値は出さない。
 // 外部のサービスを呼ばず費用がかからないので、/api/turn の公開の切り替え（PUBLIC_TURN）と回数制限はかけない。
 // デモ用の確認：画面が送る値をそのまま信じるので、偽装は簡単。本人確認・本番の権限の仕組みではない。
+// 位置づけ（Issue #289 の 5）：判定は writeAllowed で、画面側の localAllowed（src/board/access.ts）と同じ関数を同じ入力で呼ぶだけ。
+// Worker で新しく確かめるものは無く、権限の境界ではない。カルテの入口（/api/karte/*）はこの確認の結果を求めず、
+// ログインの状態も確かめない。カルテの入口の費用の守りは、公開の切り替え（PUBLIC_TURN）と回数制限（worker/karte.ts の rateGate）。
 
 import { Hono } from "hono";
 import { AUTHORIZE_MAX_BYTES, parseAuthorizeRequest, writeAllowed } from "../src/board/authorizeContract";
