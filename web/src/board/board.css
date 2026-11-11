@@ -2229,7 +2229,7 @@
   --b-mark-lock: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='2.5' y='7' width='11' height='8' rx='1' fill='%23555'/%3E%3Cpath d='M5 7V5a3 3 0 0 1 6 0v2' fill='none' stroke='%23555' stroke-width='1.8'/%3E%3C/svg%3E");
 
   /* 既存の変数を、無彩色と赤・黄に向け直す（青緑と緑はもう使わない）
-     ボードの中で変数を定義しているのは、この規則だけ（Issue #297 で、上書きされて効いていなかった前の節の定義を消した）。
+     board.css の中で変数を定義しているのは、この規則だけ（Issue #297 で、上書きされて効いていなかった前の節の定義を消した）。
      名前と中身が合わないので、読むときは右の「実際の色」で読む。名前は styles.css の共有の規則
      （焦点の枠・textarea など）と前の節の規則が使っているので、そのまま残している（値は変えていない）。
        --mint-strong（名前は緑）      → 墨 --b-ink
