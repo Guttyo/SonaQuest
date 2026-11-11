@@ -680,6 +680,15 @@ def github_hook_tests_291_more(G, on_main, on_work):
         ("PowerShell", "スクリプトブロックの中で main にいてコミット", "1 | ForEach-Object { git commit -m x }", on_main),
         ("Bash", "xargs -I{} sh -c '… {}' の push", "echo main | xargs -I{} sh -c 'git push origin {}'", on_work),
         ("Bash", "xargs bash -c の gh", "echo 12 | xargs bash -c 'gh pr merge \"$0\"'", on_work),
+        ("Bash", "gh api の書き込み：? の問い合わせを付けたリポジトリそのもの", "gh api -X PATCH 'repos/o/r?x=1' -f private=false", on_work),
+        ("Bash", "gh api の書き込み：完全な URL のリポジトリそのもの", "gh api -X PATCH https://api.github.com/repos/o/r -f private=false", on_work),
+        ("Bash", "gh api の書き込み：Secrets", "gh api -X PUT repos/o/r/actions/secrets/X -f encrypted_value=x", on_work),
+        ("Bash", "gh api の書き込み：webhook", "gh api repos/o/r/hooks -f name=web", on_work),
+        ("Bash", "gh api の書き込み：共同作業者", "gh api -X PUT repos/o/r/collaborators/someone", on_work),
+        ("Bash", "gh api の書き込み：ほかのブランチの参照", "gh api -X PATCH repos/o/r/git/refs/heads/feat -f sha=abc", on_work),
+        ("Bash", "gh api の書き込み：PR のマージ", "gh api -X PUT repos/o/r/pulls/3/merge", on_work),
+        ("Bash", "gh api の書き込み：宛先が変数", "gh api -X POST $URL -f x=y", on_work),
+        ("Bash", "gh api の書き込み：リポジトリの外（ユーザーの設定）", "gh api -X PATCH user -f bio=x", on_work),
     ]:
         check(f"{tool}: 止める（{name}）", 2, hook(G, tool, {"command": cmd}, env=extra)[0])
     for tool, name, cmd in [
@@ -699,6 +708,11 @@ def github_hook_tests_291_more(G, on_main, on_work):
         ("PowerShell", "try { git status } catch {}", "try { git status } catch {}"),
         ("Bash", "xargs -I{} sh -c の読むだけの git", "echo x | xargs -I{} sh -c 'git log -1 {}'"),
         ("Bash", "sh -c の作業ブランチの push（xargs なし）", "sh -c 'git push origin docs/1-x'"),
+        ("Bash", "gh api：PR の行ごとの指摘に返信", "gh api repos/{owner}/{repo}/pulls/3/comments/9/replies -f body=x"),
+        ("Bash", "gh api：Issue にラベルを付ける", "gh api repos/o/r/issues/1/labels -f 'labels[]=bug'"),
+        ("Bash", "gh api：Issue のコメントを直す", "gh api -X PATCH repos/o/r/issues/comments/5 -f body=x"),
+        ("Bash", "gh api：PR の指摘を ? 付きで読む", "gh api --paginate 'repos/{owner}/{repo}/pulls/3/comments?per_page=100'"),
+        ("Bash", "gh api：読むだけの GraphQL（保護の語なし）", "gh api graphql -f query='query { viewer { login } }'"),
     ]:
         check(f"{tool}: 止めない（{name}）", 0, hook(G, tool, {"command": cmd}, env=on_work)[0])
     code, err = hook(G, "Bash", {"command": "gh zzsecretname 12"}, env=on_work)

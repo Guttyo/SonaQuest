@@ -14,7 +14,8 @@
 - push・fetch の宛先を設定で変える操作（-c remote.*.push=…、push.default、remote.*.fetch、git remote add 等）
 - git のエイリアスを作る操作（-c alias.*、--config-env=alias.*、git config alias.*。Issue #291）
 - xargs・find -exec の後の push などと gh（引数が実行時に足されるので判定できない。Issue #291）
-- gh api での、リポジトリそのものと main の参照（git/refs/heads/main）への書き込み（Issue #291）
+- gh api での書き込みは、Issue・PR とそのコメントだけを通す（許可の一覧。PR のマージの API は止める。
+  GraphQL は保護の語の判定だけ。Issue #291）
 - gh の別名を作る操作（gh alias set・import）と、gh の既知のコマンドに無い名前（別名・拡張。Issue #291）
 - pwsh・powershell の -EncodedCommand（中身を読めない）と、Start-Process で git・gh を起動する操作（Issue #291）
 
@@ -621,6 +622,16 @@ GH_API_VALUE_OPTS = {"-X", "--method", "-H", "--header", "-f", "-F", "--field", 
                      "-t", "--template", "--hostname", "--cache", "-p", "--preview"}
 REPO_ITSELF = re.compile(r"/?repos/[^/\s]+/[^/\s]+/?")
 MAIN_REF = re.compile(r"/?repos/[^/\s]+/[^/\s]+/git/refs/heads/(?:main|master)/?")
+GH_WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+# gh api で書き込んでよい宛先（許可の一覧。Issue #291）：Issue・PR と、そのコメント・ラベル・返信など
+GH_API_WRITABLE = re.compile(r"/?repos/[^/\s]+/[^/\s]+/(?:issues|pulls)(?:/[^\s]*)?", re.I)
+PR_MERGE_API = re.compile(r"/?repos/[^/\s]+/[^/\s]+/pulls/[^/\s]+/merge/?", re.I)
+
+
+def api_path(endpoint):
+    """gh api の宛先から、https://api.github.com/ と ? の問い合わせを外したもの。"""
+    path = re.sub(r"^https?://[^/]+/(?:api/v3/)?", "", endpoint, flags=re.I)
+    return path.split("?", 1)[0].split("#", 1)[0]
 
 
 def gh_subcommand(tokens):
@@ -683,11 +694,19 @@ def check_gh(segment, tokens):
             raise Blocked("ブランチ保護・Rulesetsの変更はオーナーだけが行います。")
         endpoint = positionals(args, GH_API_VALUE_OPTS)[:1]
         method = gh_api_method(args)
-        if endpoint and method != "GET":
-            if REPO_ITSELF.fullmatch(endpoint[0]) and method in ("PATCH", "DELETE", "PUT", "POST"):
+        if endpoint and method in GH_WRITE_METHODS:
+            path = api_path(endpoint[0])
+            if REPO_ITSELF.fullmatch(path):
                 raise Blocked("リポジトリそのものの設定の変更・削除（公開の切り替えなど）はオーナーだけが行います。")
-            if MAIN_REF.fullmatch(endpoint[0]):
+            if MAIN_REF.fullmatch(path):
                 raise Blocked("リモートの main の参照（git/refs/heads/main）は書き換えられません。")
+            if path.lower() == "graphql":  # GraphQL の mutation の扱いはオーナーの判断（Issue #291）。上の保護の語の判定だけ
+                return None
+            if PR_MERGE_API.fullmatch(path):
+                raise Blocked("gh api での PR のマージはできません。gh pr merge <番号> で、確認の画面を通してください（ADR-0041）。")
+            if not GH_API_WRITABLE.fullmatch(path):
+                raise Blocked("gh api での書き込みは、Issue・PR とそのコメントだけにしています（設定・参照・Secrets などは"
+                              "オーナーが変えます。Issue #291）。")
 
 
 # xargs・find -exec の後で、引数が足されると判定が変わる git のサブコマンド（Issue #291）
