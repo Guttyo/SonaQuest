@@ -3,7 +3,9 @@
 **備える ＋ クエスト ＝ SonaQuest。** ゲームのクエストに挑むような気軽さで、「お薬の避難訓練」ができる Web アプリです。
 
 - **試す**：https://sonaquest.takafumi-mizuguchi.workers.dev/ （スマートフォンとパソコンのブラウザで開けます。ログインは要りません）
-- **デモ動画**（約3分）：https://www.youtube.com/watch?v=kEnz2BS5uBw
+- **デモ動画**（約3分。画像を押すと YouTube で開きます）
+
+[![SonaQuest のデモ動画（約3分。YouTube で開く）](https://img.youtube.com/vi/kEnz2BS5uBw/maxresdefault.jpg)](https://www.youtube.com/watch?v=kEnz2BS5uBw)
 
 災害のとき、お薬手帳もスマートフォンも手元に無い場面で、自分の飲んでいる薬をどう伝えますか。
 
