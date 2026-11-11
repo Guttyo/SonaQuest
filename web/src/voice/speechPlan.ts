@@ -185,3 +185,94 @@ export function claudeParts(spec: SpeechSpec): Extract<SpeechPart, { claude: str
     spec.kind === "ask" ? spec.prompt : spec.kind === "confirm" ? spec.ack : spec.kind === "review" ? [...spec.ack, ...spec.remark] : [];
   return parts.filter((p): p is Extract<SpeechPart, { claude: string }> => "claude" in p);
 }
+
+/** 1つの欄に並べてよい部品の数（質問は「受け止め＋質問」、締めは「受け止め＋固定の締め」の 2 つまで。余裕を足す） */
+export const MAX_SPEECH_PARTS = 4;
+/** Claude の文の部品の長さの上限（/api/turn の MAX_PROMPT_LENGTH と同じ） */
+const MAX_CLAUDE_PART_LENGTH = 200;
+/** 署名の文字列の長さの上限（形は worker/speechSign.ts が確かめる） */
+const MAX_TOKEN_LENGTH = 64;
+const MAX_FIXED_ID_LENGTH = 64;
+
+const SPEECH_EVENTS: ReadonlySet<string> = new Set(Object.keys(EVENT_SPEECH));
+const SPEECH_AI: ReadonlySet<string> = new Set(["on", "failed", "off"]);
+const SPEECH_JUDGMENTS: ReadonlySet<string> = new Set(["confirmed", "aware_unconfirmed", "not_mentioned", "undetermined"]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const actual = Object.keys(value);
+  return actual.length === keys.length && keys.every((k) => Object.hasOwn(value, k));
+}
+
+function parseParts(value: unknown, allowEmpty: boolean): SpeechPart[] | null {
+  if (!Array.isArray(value) || value.length > MAX_SPEECH_PARTS || (!allowEmpty && value.length === 0)) return null;
+  const parts: SpeechPart[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) return null;
+    if (exactKeys(item, ["fixed"])) {
+      const { fixed } = item;
+      if (typeof fixed !== "string" || fixed.length > MAX_FIXED_ID_LENGTH || !FIXED_SPEECH.has(fixed)) return null;
+      parts.push({ fixed });
+    } else if (exactKeys(item, ["claude", "token"])) {
+      const { claude, token } = item;
+      if (typeof claude !== "string" || claude.trim().length === 0 || claude.length > MAX_CLAUDE_PART_LENGTH) return null;
+      if (token !== null && (typeof token !== "string" || token.length > MAX_TOKEN_LENGTH)) return null;
+      parts.push({ claude, token });
+    } else {
+      return null;
+    }
+  }
+  return parts;
+}
+
+function parseJudgments(value: unknown): Judgments | null {
+  if (!isRecord(value) || !exactKeys(value, VIEWPOINT_ORDER)) return null;
+  for (const v of VIEWPOINT_ORDER) {
+    const j = value[v];
+    if (typeof j !== "string" || !SPEECH_JUDGMENTS.has(j)) return null;
+  }
+  return value as Judgments;
+}
+
+/**
+ * /api/tts が受け取る設計図の検査（Worker が使う）。決めた形と値の範囲に合うものだけを通す。
+ * 固定文は一覧（FIXED_SPEECH）にある ID だけ。署名が合うかは、ここでは見ない（worker/speechSign.ts）
+ */
+export function parseSpeechSpec(value: unknown): SpeechSpec | null {
+  if (!isRecord(value)) return null;
+  switch (value.kind) {
+    case "ask": {
+      if (!exactKeys(value, ["kind", "opening", "recall", "prompt"])) return null;
+      if (typeof value.opening !== "boolean" || typeof value.recall !== "boolean") return null;
+      const prompt = parseParts(value.prompt, false);
+      return prompt === null ? null : { kind: "ask", opening: value.opening, recall: value.recall, prompt };
+    }
+    case "confirm": {
+      if (!exactKeys(value, ["kind", "recall", "ack"]) || typeof value.recall !== "boolean") return null;
+      const ack = parseParts(value.ack, true);
+      return ack === null ? null : { kind: "confirm", recall: value.recall, ack };
+    }
+    case "event": {
+      if (!exactKeys(value, ["kind", "event"])) return null;
+      const { event } = value;
+      return typeof event === "string" && SPEECH_EVENTS.has(event) ? { kind: "event", event: event as EventId } : null;
+    }
+    case "review": {
+      if (!exactKeys(value, ["kind", "event", "ai", "judgments", "ack", "remark"])) return null;
+      const { event, ai } = value;
+      if (event !== null && (typeof event !== "string" || !SPEECH_EVENTS.has(event))) return null;
+      if (typeof ai !== "string" || !SPEECH_AI.has(ai)) return null;
+      const judgments = value.judgments === null ? null : parseJudgments(value.judgments);
+      if (value.judgments !== null && judgments === null) return null;
+      const ack = parseParts(value.ack, true);
+      const remark = parseParts(value.remark, true);
+      if (ack === null || remark === null) return null;
+      return { kind: "review", event: event as EventId | null, ai: ai as SpeechAi, judgments, ack, remark };
+    }
+    default:
+      return null;
+  }
+}

@@ -1,5 +1,7 @@
 // /api/tts：読み上げの中継（ADR-0005、ADR-0033、Issue #53）。
-// 画面から受け取った「読み上げる文」だけを ElevenLabs に送り、音声をそのまま返す。利用者の回答は受け取らない。
+// 画面から「読み上げる文の設計図」（固定文の ID・判定・出来事の値と、/api/turn が署名した Claude の文）を受け取り、
+// 画面と同じ純粋な関数（src/voice/speechPlan.ts の composeSpeech）で文を作り直して ElevenLabs に送り、音声をそのまま返す。
+// 任意の文は読まない（Issue #284 の指摘3、案A。2026-11-11 オーナー決定）。利用者の回答は受け取らない。
 // キーと声の ID は Workers の secrets（手元では .dev.vars）にだけ置き、ブラウザに出さない。
 // 通すのは /api/turn と同じ条件：手元（localhost・127.0.0.1）からの呼び出しか、公開の切り替え（PUBLIC_TURN=1）のとき
 // （2026-11-04 オーナー決定、ADR-0033）。公開の切り替えのときは、ElevenLabs を呼ぶ直前に回数制限（ADR-0035）を1回数える。
@@ -10,6 +12,8 @@ import { Hono } from "hono";
 import { contentLogEnabled } from "./devlog";
 import { crossSiteRequest } from "./guard";
 import { checkRateLimit, type RateLimiter } from "./ratelimit";
+import { usableSigningKey, verifySpeechToken } from "./speechSign";
+import { claudeParts, composeSpeech, parseSpeechSpec, type SpeechSpec } from "../src/voice/speechPlan";
 
 export interface TtsEnv {
   /** ElevenLabs の API キー（secrets）。ブラウザには出さない */
@@ -44,8 +48,13 @@ export const TTS_VOICE_SETTINGS = {
 export const TTS_OUTPUT_FORMAT = "mp3_44100_64";
 /** 読み上げる文の長さの上限。ソナの文（200字）に、受け止めと固定の確認の文を足しても収まる */
 export const MAX_TTS_TEXT_LENGTH = 500;
-/** 本文のバイト数の上限（日本語は1文字3バイト。形と、引用符などを逃がした分の余裕を足す） */
+/** 本文のバイト数の上限（日本語は1文字3バイト。形と、引用符などを逃がした分の余裕を足す）。読み上げの聞き比べ（ttsLab.ts）の文に使う */
 export const MAX_TTS_BODY_BYTES = MAX_TTS_TEXT_LENGTH * 3 + 512;
+/**
+ * /api/tts の設計図の本文のバイト数の上限。Claude の文の部品（200字まで）を2つ（振り返りの受け止めと一言）と、署名・判定・形の分。
+ * 2つの文が上限のときでおよそ 1,800 バイトなので、余裕を見て 4,096 バイトにした（Claude Code の下書き）
+ */
+export const MAX_TTS_SPEC_BODY_BYTES = 4_096;
 /** ElevenLabs を待つ上限。画面は5秒で始まらなければブラウザの読み上げに切り替える（speaker.ts） */
 export const TTS_UPSTREAM_TIMEOUT_MS = 8_000;
 
@@ -58,16 +67,30 @@ export function ttsAllowed(env: Pick<TtsEnv, "PUBLIC_TURN">, requestUrl: string)
   return env.PUBLIC_TURN === "1" || contentLogEnabled("1", requestUrl);
 }
 
-/** 受け取る形は { "text": "読み上げる文" } だけ。ほかの値は受け取らない */
-export function parseTtsText(json: unknown): string | null {
+/** 受け取る形は { "speech": 設計図 } だけ。ほかの値（読み上げる文そのもの、回答など）は受け取らない */
+export function parseTtsRequest(json: unknown): SpeechSpec | null {
   if (typeof json !== "object" || json === null || Array.isArray(json)) return null;
   const keys = Object.keys(json);
-  if (keys.length !== 1 || keys[0] !== "text") return null;
-  const text = (json as { text: unknown }).text;
-  if (typeof text !== "string") return null;
-  const trimmed = text.trim();
-  if (trimmed === "" || trimmed.length > MAX_TTS_TEXT_LENGTH) return null;
-  return trimmed;
+  if (keys.length !== 1 || keys[0] !== "speech") return null;
+  return parseSpeechSpec((json as { speech: unknown }).speech);
+}
+
+/**
+ * 設計図の中の Claude の文の署名をすべて確かめる。1つでも無い・合わない・期限切れなら、その種類を返す。
+ * 署名の値も文もログに出さない
+ */
+export async function speechSignatureProblem(
+  spec: SpeechSpec,
+  secret: string,
+  nowMs: number = Date.now(),
+): Promise<"unsigned" | "bad_signature" | "expired" | null> {
+  for (const part of claudeParts(spec)) {
+    if (part.token === null) return "unsigned";
+    const check = await verifySpeechToken(secret, part.claude, part.token, nowMs);
+    if (check === "bad") return "bad_signature";
+    if (check === "expired") return "expired";
+  }
+  return null;
 }
 
 /** ElevenLabs に送る中身。読み上げる文と、モデル・言語・声の設定だけ */
@@ -137,7 +160,7 @@ export function createTtsApp(deps: TtsDeps) {
       fail("cross_site");
       return c.json({ error: "forbidden" }, 403);
     }
-    const body = await deps.readBody(c.req.raw, MAX_TTS_BODY_BYTES);
+    const body = await deps.readBody(c.req.raw, MAX_TTS_SPEC_BODY_BYTES);
     if (body === null) return c.json({ error: "too_large" }, 413);
     let json: unknown;
     try {
@@ -145,8 +168,9 @@ export function createTtsApp(deps: TtsDeps) {
     } catch {
       return c.json({ error: "bad_request" }, 400);
     }
-    const text = parseTtsText(json);
-    if (text === null) return c.json({ error: "bad_request" }, 400);
+    // 知らない固定文の ID・形の違う設計図は、ここで拒む
+    const spec = parseTtsRequest(json);
+    if (spec === null) return c.json({ error: "bad_request" }, 400);
 
     const apiKey = c.env.ELEVENLABS_API_KEY;
     const voiceId = c.env.ELEVENLABS_VOICE_ID;
@@ -157,6 +181,24 @@ export function createTtsApp(deps: TtsDeps) {
     if (voiceId === undefined || !VOICE_ID_PATTERN.test(voiceId)) {
       fail("no_voice_id");
       return c.json({ error: "unavailable" }, 503);
+    }
+    // 署名の秘密の値が無いときは、固定文だけの回も含めて読まない（ElevenLabs を呼ばない。画面はブラウザの読み上げになる）
+    const secret = c.env.TTS_SIGNING_KEY;
+    if (!usableSigningKey(secret)) {
+      fail("no_signing_key");
+      return c.json({ error: "unavailable" }, 503);
+    }
+    const problem = await speechSignatureProblem(spec, secret);
+    if (problem !== null) {
+      fail(problem);
+      return c.json({ error: "bad_request" }, 400);
+    }
+    // 画面と同じ関数で文を作り直し、上限（500字）を確かめる
+    const text = composeSpeech(spec);
+    if (text === null || text.trim() === "") return c.json({ error: "bad_request" }, 400);
+    if (text.length > MAX_TTS_TEXT_LENGTH) {
+      fail("too_long");
+      return c.json({ error: "bad_request" }, 400);
     }
 
     // 公開の切り替えのときだけ、ElevenLabs を呼ぶ直前に1回数える（ADR-0035。/api/turn と同じ binding、接頭辞は "tts"）
