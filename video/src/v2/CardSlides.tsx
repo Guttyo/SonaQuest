@@ -123,29 +123,36 @@ const BigPercent: FC<{ value: number; at: number; size: number; color: string }>
 
 type Stage = { at: number; count: number };
 
+/** 絵の並びの左上に付ける、何人の集まりかの札 */
+const GroupLabel: FC<{ text: string; color: string; width: number }> = ({ text, color, width }) => (
+  <div style={{ width, marginBottom: 12, display: "flex", alignItems: "center", gap: 14, fontSize: 32, fontWeight: 800, color }}>
+    <span>{text}</span>
+    <span style={{ flex: 1, height: 3, backgroundColor: color, opacity: 0.35 }} />
+  </div>
+);
+
 /**
- * 100人の並び（25×4）。通院している人に色を付け、そのうち手帳を使っている人、持ち歩いている人だけに色を残していく。
- * 外れた人は薄い色に、手帳はあるが持ち歩いていない人は点線にする。人数は別々の調査の割合を当てはめた目安（cardsText.ts の FUNNEL）
+ * 全体の100人の並び（25×4）。通院している人に色を付ける。
+ * to を過ぎると、通院していない人から消えていき、通院している人の並び（PatientGrid）に替わる
  */
-const PeopleGrid: FC<{ top: number; appearAt: number; visit: Stage; notebook?: Stage; carry?: Stage }> = ({ top, appearAt, visit, notebook, carry }) => {
+const PeopleGrid: FC<{ top: number; appearAt: number; visit: Stage; to: number }> = ({ top, appearAt, visit, to }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const out = interpolate(frame, [sec(to), sec(to) + 10], [1, 0], clamp);
+  const label = useRise(appearAt, 12);
+  const width = 25 * 42 + 24 * 14;
   return (
-    <div style={{ position: "absolute", top, left: 0, right: 0, display: "flex", justifyContent: "center" }}>
+    <div style={{ position: "absolute", top, left: 0, right: 0, display: "flex", flexDirection: "column", alignItems: "center", opacity: out }}>
+      <div style={label}>
+        <GroupLabel text={`全体 ${FUNNEL.total}人`} color={COLORS.sub} width={width} />
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(25, 42px)", gap: "12px 14px" }}>
         {Array.from({ length: FUNNEL.total }, (_, i) => {
           const appear = spring({ frame: frame - sec(appearAt) - Math.floor(i / 2), fps, config: { damping: 200 } });
-          // 色は頭から順に付き、外れるときは後ろから順に外れる
           const inVisit = i < visit.count && frame >= sec(visit.at) + Math.round(i * 0.6);
-          const noNotebook = notebook && i >= notebook.count && frame >= sec(notebook.at) + Math.round((visit.count - 1 - i) * 1.5);
-          const notCarried =
-            carry && notebook && i >= carry.count && i < notebook.count && frame >= sec(carry.at) + Math.round((notebook.count - 1 - i) * 1.5);
-          const kept = carry && i < carry.count ? spring({ frame: frame - sec(carry.at) - 20, fps, config: { damping: 11, stiffness: 150 } }) : 0;
-          let color: string = MUTED;
-          if (inVisit) color = noNotebook || notCarried ? PALE : COLORS.accent;
           return (
-            <div key={i} style={{ opacity: appear, transform: `translateY(${interpolate(appear, [0, 1], [20, 0])}px) scale(${1 + 0.16 * kept})`, transformOrigin: "50% 100%" }}>
-              <Person color={color} width={42} hollow={Boolean(notCarried)} />
+            <div key={i} style={{ opacity: appear, transform: `translateY(${interpolate(appear, [0, 1], [20, 0])}px)` }}>
+              <Person color={inVisit ? COLORS.accent : MUTED} width={42} />
             </div>
           );
         })}
@@ -154,8 +161,42 @@ const PeopleGrid: FC<{ top: number; appearAt: number; visit: Stage; notebook?: S
   );
 };
 
+/**
+ * 通院している人だけの並び（21×2）。全体の100人とは分母が違うので、人を大きくし、枠と札で別の集まりだと分かるようにする
+ * （2026-11-13 オーナー、v07 を見て：「最初の100人と、最後の表示は分母が異なるから、明確に区分できるように」）。
+ * そのうち手帳を使っている人、持ち歩いている人だけに色を残す。外れた人は薄い色に、手帳はあるが持ち歩いていない人は点線にする
+ */
+const PatientGrid: FC<{ top: number; appearAt: number; notebook: Stage; carry?: Stage }> = ({ top, appearAt, notebook, carry }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const appear = spring({ frame: frame - sec(appearAt), fps, config: { damping: 200 } });
+  const total = FUNNEL.visit;
+  const size = 58;
+  const width = 21 * size + 20 * 12;
+  return (
+    <div style={{ position: "absolute", top, left: 0, right: 0, display: "flex", justifyContent: "center", opacity: appear, transform: `scale(${interpolate(appear, [0, 1], [0.8, 1])})` }}>
+      <div style={{ padding: "18px 34px 26px", borderRadius: 28, border: `4px solid ${COLORS.accent}`, backgroundColor: "rgba(47,111,143,0.07)" }}>
+        <GroupLabel text={`通院している人 ${total}人`} color={COLORS.accent} width={width} />
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(21, ${size}px)`, gap: "14px 12px" }}>
+          {Array.from({ length: total }, (_, i) => {
+            // 外れるときは後ろから順に外れる
+            const noNotebook = i >= notebook.count && frame >= sec(notebook.at) + Math.round((total - 1 - i) * 1.5);
+            const notCarried = carry && i >= carry.count && i < notebook.count && frame >= sec(carry.at) + Math.round((notebook.count - 1 - i) * 1.5);
+            const kept = carry && i < carry.count ? spring({ frame: frame - sec(carry.at) - 20, fps, config: { damping: 11, stiffness: 150 } }) : 0;
+            return (
+              <div key={i} style={{ transform: `scale(${1 + 0.12 * kept})`, transformOrigin: "50% 100%" }}>
+                <Person color={noNotebook || notCarried ? PALE : COLORS.accent} width={size} hollow={Boolean(notCarried)} />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 /** 100人の絵の上に出す文：何の人か、100人のうち約何人か、もとの調査の数字 */
-const FunnelText: FC<{ lead?: string; label: string; labelAt: number; fromCount: number; count: number; bigAt: number; tag: string }> = ({
+const FunnelText: FC<{ lead?: string; base: string; label: string; labelAt: number; fromCount: number; count: number; bigAt: number; tag: string }> = ({
   lead,
   label,
   labelAt,
@@ -163,6 +204,7 @@ const FunnelText: FC<{ lead?: string; label: string; labelAt: number; fromCount:
   count,
   bigAt,
   tag,
+  base,
 }) => {
   const frame = useCurrentFrame();
   const labelRise = useRise(labelAt);
@@ -174,7 +216,7 @@ const FunnelText: FC<{ lead?: string; label: string; labelAt: number; fromCount:
       {lead ? <div style={{ ...labelRise, fontSize: 36, fontWeight: 700, color: COLORS.sub }}>{lead}</div> : null}
       <div style={{ ...labelRise, fontSize: 54, fontWeight: 700, color: COLORS.ink }}>{label}</div>
       <div style={{ ...big, display: "flex", alignItems: "baseline", gap: 18, fontWeight: 800, lineHeight: 1.05 }}>
-        <span style={{ fontSize: 64, color: COLORS.sub, marginRight: 14 }}>100人のうち</span>
+        <span style={{ fontSize: 60, color: COLORS.sub, marginRight: 14 }}>{base}</span>
         <span style={{ fontSize: 84, color: COLORS.accent }}>約</span>
         <span style={{ fontFamily: NUM, fontSize: 220, color: COLORS.accent, fontVariantNumeric: "tabular-nums" }}>{shown}</span>
         <span style={{ fontSize: 84, color: COLORS.accent }}>人</span>
@@ -184,7 +226,11 @@ const FunnelText: FC<{ lead?: string; label: string; labelAt: number; fromCount:
   );
 };
 
-const GRID_TOP = 540;
+const GRID_TOP = 530;
+/** 通院している人の並びの上の端 */
+const PATIENT_TOP = 545;
+const BASE_ALL = `${FUNNEL.total}人のうち`;
+const BASE_PATIENTS = `通院している${FUNNEL.visit}人のうち`;
 
 // ---------- 3番：薬は身近 ----------
 
@@ -200,16 +246,12 @@ const ReachScene: FC = () => {
           <div style={{ ...openingRise, opacity: (openingRise.opacity as number) * openingOut, fontSize: 112, fontWeight: 800 }}>{opening.text}</div>
         </div>
       ) : frame < sec(notebook.from) ? (
-        <FunnelText label={visit.label} labelAt={visit.from + 0.25} fromCount={0} count={FUNNEL.visit} bigAt={visit.bigAt} tag={visit.tag} />
+        <FunnelText base={BASE_ALL} label={visit.label} labelAt={visit.from + 0.25} fromCount={0} count={FUNNEL.visit} bigAt={visit.bigAt} tag={visit.tag} />
       ) : (
-        <FunnelText label={notebook.label} labelAt={notebook.from + 0.2} fromCount={FUNNEL.visit} count={FUNNEL.notebook} bigAt={notebook.bigAt} tag={notebook.tag} />
+        <FunnelText base={BASE_PATIENTS} label={notebook.label} labelAt={notebook.from + 0.2} fromCount={FUNNEL.visit} count={FUNNEL.notebook} bigAt={notebook.bigAt} tag={notebook.tag} />
       )}
-      <PeopleGrid
-        top={GRID_TOP}
-        appearAt={REACH.peopleAt}
-        visit={{ at: visit.bigAt, count: FUNNEL.visit }}
-        notebook={{ at: notebook.bigAt, count: FUNNEL.notebook }}
-      />
+      <PeopleGrid top={GRID_TOP} appearAt={REACH.peopleAt} visit={{ at: visit.bigAt, count: FUNNEL.visit }} to={notebook.from - 0.2} />
+      <PatientGrid top={PATIENT_TOP} appearAt={notebook.from} notebook={{ at: notebook.bigAt, count: FUNNEL.notebook }} />
       {frame < sec(notebook.from) ? (
         <Foot at={visit.from + 0.25} lines={[`出典：${FUNNEL.sources.visit}`]} />
       ) : (
@@ -252,20 +294,14 @@ const GapOpening: FC = () => {
   );
 };
 
-/** 3番の終わりと同じ100人の絵から始めて、持ち歩いている人だけに色を残す */
+/** 3番の終わりと同じ「通院している人」の並びから始めて、持ち歩いている人だけに色を残す */
 const GapCarry: FC = () => {
   const { carry, unprepared } = GAP;
   const already = -100;
   return (
     <Shot from={carry.from} to={unprepared.from}>
-      <FunnelText lead={GAP.surveyLead} label={carry.label} labelAt={carry.labelAt} fromCount={FUNNEL.notebook} count={FUNNEL.carry} bigAt={carry.bigAt} tag={carry.tag} />
-      <PeopleGrid
-        top={GRID_TOP}
-        appearAt={already}
-        visit={{ at: already, count: FUNNEL.visit }}
-        notebook={{ at: already, count: FUNNEL.notebook }}
-        carry={{ at: carry.bigAt, count: FUNNEL.carry }}
-      />
+      <FunnelText lead={GAP.surveyLead} base={BASE_PATIENTS} label={carry.label} labelAt={carry.labelAt} fromCount={FUNNEL.notebook} count={FUNNEL.carry} bigAt={carry.bigAt} tag={carry.tag} />
+      <PatientGrid top={PATIENT_TOP} appearAt={already} notebook={{ at: already, count: FUNNEL.notebook }} carry={{ at: carry.bigAt, count: FUNNEL.carry }} />
       <Foot at={carry.from + 0.2} lines={[`${FUNNEL.caveat}。${carry.note}`, `出典：${FUNNEL.sources.visit}／${FUNNEL.sources.notebook}／${FUNNEL.sources.carry}`]} />
     </Shot>
   );
