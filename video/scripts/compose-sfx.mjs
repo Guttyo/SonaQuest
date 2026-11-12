@@ -2,7 +2,7 @@
 // 外の音源・サンプルは使わない。Node.js の標準だけで PCM を計算する（依存パッケージなし）。
 // 使い方（リポジトリの直下から）：
 //   node video/scripts/compose-sfx.mjs
-// 書くもの：video/public/sfx/{tap,whoosh,battery-off,confirm,pop,tick}.wav（Git の対象外。48 kHz・ステレオ・16 bit）
+// 書くもの：video/public/sfx/{tap,whoosh,battery-off,confirm,pop,tick,pon,ding,cross,slam}.wav（Git の対象外。48 kHz・ステレオ・16 bit）
 // ログに出すのはファイル名・長さ・山の大きさだけ。
 // 音の山はファイルごとに決めた値にそろえる（PEAKS）。鳴らす大きさは Remotion の volume で決める。
 // ナレーションの邪魔をしないよう、短く、立ち上がりを柔らかくする。乱数は種を固定してあるので毎回同じ音になる。
@@ -22,6 +22,11 @@ const PEAKS = {
   "confirm.wav": -9,
   "pop.wav": -12,
   "tick.wav": -14,
+  // v2（Issue #315）で足した音。数字や ✕ が出る瞬間に合わせる
+  "pon.wav": -10,
+  "ding.wav": -10,
+  "cross.wav": -10,
+  "slam.wav": -8,
 };
 
 function rng(seed) {
@@ -177,6 +182,64 @@ function tick() {
   return { L: x, R: Float64Array.from(x) };
 }
 
+/** 数字が弾んで出るときの「ポーン」：木琴のような丸い音（ラ）。少し上から落ちて収まる */
+function pon() {
+  const len = 0.45;
+  const f = (t) => 880 * (1 + 0.06 * Math.exp(-t / 0.02));
+  const body = sweep(len, f, (t) => Math.min(1, t / 0.002) * Math.exp(-t / 0.11));
+  const over = sweep(len, (t) => 4 * f(t), (t) => Math.min(1, t / 0.002) * Math.exp(-t / 0.03));
+  const x = addInto(addInto(buf(len), body, 1), over, 0.22);
+  return { L: x, R: Float64Array.from(x) };
+}
+
+/** 大事な言葉が出るときの「チャリーン」：高い鈴を2つ、少しずらして鳴らし、長めに響かせる */
+function ding() {
+  const len = 0.9;
+  const bell = (f, decay) => {
+    const x = buf(len);
+    for (let i = 0; i < x.length; i++) {
+      const t = i / SR;
+      x[i] = Math.min(1, t / 0.002) * (Math.exp(-t / decay) * Math.sin(TAU * f * t)
+        + 0.35 * Math.exp(-t / (decay * 0.6)) * Math.sin(TAU * 2.76 * f * t)
+        + 0.15 * Math.exp(-t / (decay * 0.35)) * Math.sin(TAU * 5.4 * f * t));
+    }
+    return x;
+  };
+  const L = buf(len), R = buf(len);
+  const e7 = bell(2637.02, 0.22), a7 = bell(3520.0, 0.26);
+  addInto(L, e7, 0.7); addInto(R, e7, 0.5);
+  addInto(L, a7, 0.5, 0.07); addInto(R, a7, 0.75, 0.07);
+  return { L, R };
+}
+
+/** ✕ が付くときの「ブブッ」：低めの鈍い音を2回。きつくならないよう高い成分を落とす */
+function cross() {
+  const len = 0.32;
+  const hit = () => {
+    const h = buf(0.12);
+    for (let i = 0; i < h.length; i++) {
+      const t = i / SR;
+      const sq = Math.sign(Math.sin(TAU * 196 * t)) * 0.6 + Math.sin(TAU * 98 * t) * 0.6;
+      h[i] = sq * Math.min(1, t / 0.004) * Math.exp(-t / 0.05);
+    }
+    return filter(h, "lp", 900);
+  };
+  const x = buf(len);
+  addInto(x, hit(), 1, 0);
+  addInto(x, hit(), 0.9, 0.13);
+  return { L: x, R: Float64Array.from(x) };
+}
+
+/** いちばん大きな数字が出るときの「ドン」：低い打音と、短い雑音の当たり */
+function slam() {
+  const len = 0.6;
+  const low = sweep(len, (t) => 55 + 90 * Math.exp(-t / 0.03), (t) => Math.min(1, t / 0.003) * Math.exp(-t / 0.16));
+  const n = filter(noise(0.08, 5), "lp", 2200);
+  for (let i = 0; i < n.length; i++) n[i] *= Math.exp(-(i / SR) / 0.015);
+  const x = addInto(addInto(buf(len), low, 1), n, 0.4);
+  return { L: x, R: Float64Array.from(x) };
+}
+
 // ---------------------------------------------------------------- 書き出し
 
 function toWav({ L, R }, peakDb) {
@@ -210,6 +273,10 @@ const SOUNDS = [
   ["confirm.wav", confirm],
   ["pop.wav", pop],
   ["tick.wav", tick],
+  ["pon.wav", pon],
+  ["ding.wav", ding],
+  ["cross.wav", cross],
+  ["slam.wav", slam],
 ];
 
 await mkdir(outDir, { recursive: true });

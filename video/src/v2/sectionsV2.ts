@@ -2,7 +2,7 @@
 // 台本の正本はリポジトリの外（2026-11-12 オーナー決定）。ここには場面の並びと、写したナレーションの置き場所だけを書く。
 // 撮り直さない：提出版の行（../sections.ts の ROWS）を流用し、録画・寄り・タップ・テロップ・アプリの声もそのまま使う。
 // 新しく合成するナレーションは narration/v2-NN.mp3（原稿は video/narration/v2-NN.txt）。ほかは提出版の mp3。
-// 2〜6・9番の長さは、合成した声の長さ（2026-11-12 に測った。v2-02 7.7秒、v2-03 10.5秒、v2-04 29.5秒、v2-05 14.3秒、v2-06 8.3秒、v2-09 20.8秒。2・4・9番は v03 を見て、4番は v04 を見てさらに原稿を直し合成し直した長さ）に
+// 2〜6・9番の長さは、合成した声の長さ（2026-11-12 に測った。v2-01 11.3秒、v2-02 7.7秒、v2-03 10.5秒、v2-04 29.5秒、v2-05 14.3秒、v2-06 8.3秒、v2-09 20.8秒。2・4・9番は v03 を見て、4番は v04 を見てさらに原稿を直し合成し直した長さ）に
 // 頭の 0.5 秒と終わりの間を足したもの。
 // 自己紹介・派遣の体験談・掲示板・カルテ・モデルの使い分けは入れない（試用した医師の感想の一枚は10番に入れる）。
 // 見出し語のマーカーの「1・10番は画面に出ない」は、11場面にした今は「1・11番」のこと（マーカーは書き換えない）。
@@ -30,13 +30,24 @@ const v1 = (n: number): Row => ROWS[n - 1];
 
 const ROWS_V2: Row[] = [
   // 1：問い。提出版の1番のまま（暗転の録画は置かない：2026-11-08 オーナー「最初に一瞬だけお薬の避難訓練が映る」）
-  { ...v1(1), narrationFile: "narration/01.mp3" },
+  // 2026-11-13 オーナー（v08 を見て、チャット）：冒頭に問いかけを足す（文は案B）→ 声を v2-01（11.3秒）にし、黒い地に声の句ごとの文字を出す画面に替えた
+  {
+    seconds: 12,
+    voice: "ナレーター",
+    screen: "cards",
+    screenNote: "黒い地に、問いかけを声の句ごとに大きく出す",
+    footageFile: null,
+    footageAudio: false,
+    cardsKey: "hook",
+    narrationFile: "narration/v2-01.mp3",
+    narrationDelayFrames: sec(0.3),
+  },
   // 2：地震の回数。提出版の2番の地図を使う（数え直さない：2026-11-12 オーナー決定「数えた当時の日時で」）。
   // 2026-11-12 オーナー（v03 を見て、チャット）：「11月5日時点で21回」としたい → ナレーションを v2-02 に替えた
-  { ...v1(2), seconds: 8.3, narrationFile: "narration/v2-02.mp3", footageFreezeSeconds: 5.7 },
+  { ...v1(2), seconds: 7.9, narrationFile: "narration/v2-02.mp3", footageFreezeSeconds: 5.7 },
   // 3：薬は身近（数字のカード）
   {
-    seconds: 12.5,
+    seconds: 11.5,
     voice: "ナレーター",
     screen: "cards",
     screenNote: "数字のカード：通院している人、お薬手帳の利用",
@@ -60,7 +71,7 @@ const ROWS_V2: Row[] = [
   },
   // 5：仕組みがあっても（資料の一節の札。2026-11-12 オーナー決定「案4にする」）
   {
-    seconds: 16,
+    seconds: 15.2,
     voice: "ナレーター",
     screen: "sourceQuote",
     screenNote: "資料の一節：災害時モード（厚生労働省の資料 p.11）→ 通信が止まれば使えない",
@@ -72,7 +83,7 @@ const ROWS_V2: Row[] = [
   },
   // 6：ソナクエスト（はじめに）。提出版の4番の録画（8秒）を使い、ナレーションだけ替える。録画の終わりで止める
   // 2026-11-13 オーナー（v08 を見て）：切り替わりで iPhone の画面が一瞬濃く出るのは要らない → 題の幕を頭から出す（instant）
-  { ...v1(4), seconds: 9.5, narrationFile: "narration/v2-06.mp3", footageFreezeSeconds: 7.9, chapter: { ...v1(4).chapter!, instant: true } },
+  { ...v1(4), seconds: 9, narrationFile: "narration/v2-06.mp3", footageFreezeSeconds: 7.9, chapter: { ...v1(4).chapter!, instant: true } },
   // 7：訓練の実演。提出版の5番のまま（アプリの声・オーナーの声の台詞・電池切れ・立て直しの問い）
   { ...v1(5), narrationFile: "narration/05.mp3", headlineIntro: headlineIntroOf(4) },
   // 8：振り返り。提出版の6番のまま
@@ -81,16 +92,17 @@ const ROWS_V2: Row[] = [
   // 新旧の声をつながないので 08a は鳴らさない。章の題は場面の頭に出す
   {
     ...v1(8),
-    seconds: 22,
+    seconds: 21.6,
     narrationFile: "narration/v2-09.mp3",
     narrationDelayFrames: sec(0.5),
     extraNarration: [],
-    footageFreezeSeconds: 21.8,
+    footageFreezeSeconds: 21.5,
     chapter: { text: CHAPTERS.board, at: 0, seconds: 2.0 },
   },
   // 10：使った人の声。提出版の12番のまま（写真・感想の一枚・声。中身はリポジトリの外）。
   // 2026-11-12 オーナー（v02 を見て、チャット）：感想の一枚が無くなっていると言われて戻した
-  { ...v1(12), narrationFile: "narration/12.mp3" },
+  // 冒頭を 4 秒延ばした分、2・3・5・6・9・10番の終わりの余白を詰めた（2026-11-13）
+  { ...v1(12), seconds: 12.2, narrationFile: "narration/12.mp3" },
   // 11：締め。提出版の13番のまま（公開 URL は出さない：2026-11-08 オーナー決定。スマホの画面も出さない：同日オーナー）
   { ...v1(13), narrationFile: "narration/13.mp3" },
 ];

@@ -40,6 +40,10 @@ export type Cut = {
   sfx?: SfxCue[];
   /** cards・sourceQuote の画面を描く（v2 の部品。src/v2/ から渡す） */
   extraScreen?: (section: Section) => ReactNode;
+  /** 録画の上に重ねる部品（v2 の地図の「21回」。src/v2/ から渡す） */
+  extraOverlay?: (section: Section) => ReactNode;
+  /** 左上の見出し語を出さない場面（v2 の冒頭の問いかけ） */
+  hideCaption?: (section: Section) => boolean;
 };
 
 export const V1_CUT: Cut = { sections: SECTIONS, endcardFrames: ENDCARD_FRAMES, crossNarration: CROSS_NARRATION };
@@ -769,8 +773,9 @@ const Beat: FC<{ section: Section }> = ({ section }) => {
     <AbsoluteFill style={{ backgroundColor: COLORS.background }}>
       <ZoomLayer section={section}>{body}</ZoomLayer>
       {/* 題は重ねる部品（患者の表など、全面のもの）の下に置き、全面の部品が出ている間は隠れるようにする */}
-      {showCaption ? <Caption section={section} inColumn={inColumn} /> : null}
+      {showCaption && !cut.hideCaption?.(section) ? <Caption section={section} inColumn={inColumn} /> : null}
       <OverlayView section={section} />
+      {cut.extraOverlay?.(section)}
       <BadgeView section={section} />
       <TelopView section={section} inColumn={inColumn} />
       {section.optionPanel ? <OptionPanelView panel={section.optionPanel} left={phoneRightEdge(section) + 44} /> : null}

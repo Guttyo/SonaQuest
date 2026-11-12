@@ -4,7 +4,8 @@ import type { FC } from "react";
 import { CutVideo, type Cut } from "../SonaQuestVideo";
 import { ENDCARD_FRAMES, FPS, section5Time } from "../sections";
 import { at, type BgmCue, type SfxCue } from "../soundtrack";
-import { V2Screen } from "./CardSlides";
+import { V2Overlay, V2Screen } from "./CardSlides";
+import { DMODE, GAP, HOOK, QUAKE, REACH } from "./cardsText";
 import { SECTIONS_V2 } from "./sectionsV2";
 
 const S = SECTIONS_V2;
@@ -40,6 +41,29 @@ const buildSfx = (): SfxCue[] => {
   }
   cues.push({ file: "sfx/battery-off.wav", at: at(S[6], section5Time(14.8)) });
   cues.push({ file: "sfx/confirm.wav", at: at(S[8], 16.2) });
+  // 3〜5番：数字・✕・大事な言葉が出る瞬間に合わせる（2026-11-13 オーナー：「効果音を合わせることで、その数値を立たせる」）
+  const hook = S[0], quake = S[1];
+  cues.push({ file: "sfx/pop.wav", at: at(hook, HOOK.ask.words[0].at), volume: 0.7 });
+  cues.push({ file: "sfx/pop.wav", at: at(hook, HOOK.ask.words[2].at), volume: 0.7 });
+  cues.push({ file: "sfx/pon.wav", at: at(hook, HOOK.ask.punchAt) });
+  cues.push({ file: "sfx/cross.wav", at: at(hook, HOOK.lost.lostAt) });
+  cues.push({ file: "sfx/slam.wav", at: at(hook, HOOK.question.punchAt) });
+  cues.push({ file: "sfx/slam.wav", at: at(quake, QUAKE.punchAt) });
+  const reach = S[2], gap = S[3], dmode = S[4];
+  const u = GAP.unprepared;
+  cues.push({ file: "sfx/pon.wav", at: at(reach, REACH.visit.bigAt) });
+  cues.push({ file: "sfx/whoosh.wav", at: at(reach, REACH.notebook.from), volume: 0.5 });
+  cues.push({ file: "sfx/pon.wav", at: at(reach, REACH.notebook.bigAt) });
+  cues.push({ file: "sfx/cross.wav", at: at(gap, GAP.opening.missingAt), volume: 0.8 });
+  cues.push({ file: "sfx/pon.wav", at: at(gap, GAP.carry.bigAt) });
+  cues.push({ file: "sfx/slam.wav", at: at(gap, u.bigAt) });
+  for (const item of [...u.forget.items, ...u.bag.items]) cues.push({ file: "sfx/pop.wav", at: at(gap, item.at), volume: 0.7 });
+  cues.push({ file: "sfx/pop.wav", at: at(gap, u.bag.bagAt), volume: 0.7 });
+  cues.push({ file: "sfx/cross.wav", at: at(gap, u.forget.punchAt) });
+  cues.push({ file: "sfx/cross.wav", at: at(gap, u.bag.punchAt) });
+  cues.push({ file: "sfx/cross.wav", at: at(dmode, DMODE.offline.at + 0.1), volume: 0.8 });
+  cues.push({ file: "sfx/slam.wav", at: at(dmode, DMODE.offline.lines[1].at) });
+  for (const word of DMODE.rely.words) cues.push({ file: "sfx/ding.wav", at: at(dmode, word.at) });
   return cues;
 };
 
@@ -50,6 +74,8 @@ export const V2_CUT: Cut = {
   bgm: BGM_V2,
   sfx: buildSfx(),
   extraScreen: (section) => <V2Screen section={section} />,
+  extraOverlay: (section) => <V2Overlay section={section} />,
+  hideCaption: (section) => section.cardsKey === "hook",
 };
 
 export const SonaQuestVideoV2: FC = () => <CutVideo cut={V2_CUT} />;

@@ -125,7 +125,7 @@ npm --prefix video run render
 
 | # | 中身 | 素材 |
 |---|---|---|
-| 1 | 問い | 提出版の1番のまま（声 `01.mp3`） |
+| 1 | 問いかけ（いつもの薬の名前と量。何も見ずに、言えますか → どう伝えますか） | 黒い地に声の句ごとの文字（声 `v2-01.mp3`） |
 | 2 | 震度5弱以上の地震は21回（2026-11-05 時点） | 提出版の2番の地図（声 `v2-02.mp3`。地図は 5.7 秒で止める） |
 | 3 | 薬は身近（通院、お薬手帳の利用） | 数字のカード（声 `v2-03.mp3`） |
 | 4 | 手元にあるとは限らない（ある調査では） | 数字のカード（声 `v2-04.mp3`） |
@@ -138,10 +138,12 @@ npm --prefix video run render
 | 11 | 締め | 提出版の13番のまま（声 `13.mp3`） |
 
 - 撮り直しはしません。録画・アプリの声・BGM・効果音は提出版の素材（`video/public/`）をそのまま使います。
-- 新しく合成するナレーションは6本です（原稿は `video/narration/v2-02.txt` など）。合成し直したら、声の長さと文の間を測って、カードの出る時刻（`cardsText.ts` の `at`）と場面の長さ（`sectionsV2.ts` の `seconds`）を直します（2026-11-12 に2・4・9番を合成し直した長さに合わせ済み。合計 2:59.8。4番は v04 を見て、もう一度直した）。
+- 1・3〜5番の書体は Zen Maru Gothic（SIL OFL）です。`video/public/fonts/` に `ZenMaruGothic-Bold.ttf`・`ZenMaruGothic-Black.ttf` を置きます（Git の対象外。Google Fonts の `ofl/zenmarugothic/` から取る）。無いときは今までのゴシックで描きます。
+- v2 で足した効果音（`pon`・`ding`・`cross`・`slam`）も `node video/scripts/compose-sfx.mjs` で作ります。
+- 新しく合成するナレーションは7本です（原稿は `video/narration/v2-01.txt` など）。合成し直したら、声の長さと文の間を測って、カードの出る時刻（`cardsText.ts` の `at`）と場面の長さ（`sectionsV2.ts` の `seconds`）を直します（2026-11-12 に2・4・9番を合成し直した長さに合わせ済み。合計 2:59.9。4番は v04 を見て、もう一度直した）。
 
 ```bash
-npm --prefix video run narration -- --only v2-02,v2-03,v2-04,v2-05,v2-06,v2-09
+npm --prefix video run narration -- --only v2-01,v2-02,v2-03,v2-04,v2-05,v2-06,v2-09
 ```
 
 ```bash

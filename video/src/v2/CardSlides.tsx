@@ -5,17 +5,38 @@
 // - 割合は棒ではなく、100人の絵の並びで見せる。無いものは点線で描く（v06 を見ての依頼で、3つの数字を同じ100人の中で減らす形にした）
 // - 文字と絵は、声がその句を言う瞬間に出す
 // - いちばん言いたい 27.4% の所だけ、地を濃い色に反転する
-// 依存もフォントファイルも足さず、remotion の部品と SVG だけで描く。
+// 依存は足さず、remotion の部品と SVG だけで描く。書体は Zen Maru Gothic（video/public/fonts/）。
 import type { CSSProperties, FC, ReactNode } from "react";
-import { AbsoluteFill, Easing, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Easing, continueRender, delayRender, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { FPS, type Section } from "../sections";
-import { COLORS, FONT_FAMILY, baseText } from "../theme";
-import { DMODE, FUNNEL, GAP, REACH } from "./cardsText";
+import { COLORS, FONT_FAMILY, baseText, hasStaticFile } from "../theme";
+import { DMODE, FUNNEL, GAP, HOOK, QUAKE, REACH } from "./cardsText";
 
 const sec = (s: number) => Math.round(s * FPS);
 
-/** 大きな数字の書体（端末にある幅の狭い欧文。無ければゴシック） */
-const NUM = `"Bahnschrift", "DIN Alternate", "Helvetica Neue", ${FONT_FAMILY}`;
+/**
+ * 3〜5番の書体：Zen Maru Gothic（SIL OFL。2026-11-13 オーナーが見本から選んだ）。丸みのある太いゴシックで、数字にも使う。
+ * ファイルは video/public/fonts/（Git の対象外）。無ければ今までのゴシックで描く
+ */
+const V2_FONT = `"Zen Maru Gothic", ${FONT_FAMILY}`;
+const NUM = V2_FONT;
+const FONT_FILES = [
+  { file: "fonts/ZenMaruGothic-Bold.ttf", weight: "700" },
+  { file: "fonts/ZenMaruGothic-Black.ttf", weight: "900" },
+];
+if (typeof document !== "undefined") {
+  for (const { file, weight } of FONT_FILES) {
+    if (!hasStaticFile(file)) continue;
+    const handle = delayRender(`書体 ${file}`);
+    new FontFace("Zen Maru Gothic", `url(${staticFile(file)})`, { weight })
+      .load()
+      .then((face) => {
+        document.fonts.add(face);
+        continueRender(handle);
+      })
+      .catch(() => continueRender(handle));
+  }
+}
 /** ✗ と「使えない」の色（2番の地図の点と同じ赤） */
 const RED = "#d23c2c";
 /** 色を付けていない絵の色 */
@@ -24,6 +45,10 @@ const MUTED = "#c9c6bd";
 const PALE = "#8fb1c2";
 /** 濃い地の上の赤 */
 const RED_ON_DARK = "#ff6a57";
+/** 濃い地の上の、強める言葉の色 */
+const ACCENT_ON_DARK = "#7fc4e3";
+/** 地図の録画の「21回」と同じ赤 */
+const QUAKE_RED = "#cc2929";
 const MARKER = "#ffe08a";
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
@@ -41,11 +66,17 @@ const useRise = (at: number, distance = 28): CSSProperties => {
   return { opacity: p, transform: `translateY(${interpolate(p, [0, 1], [distance, 0])}px)` };
 };
 
-/** 少し小さい所から弾んで収まる（大きな数字・✗） */
+/**
+ * 小さい所から、ぷにっと弾んで収まる（大きな数字・✗・大事な言葉）。行き過ぎた分だけ横に広がって縦につぶれ、戻るときは逆になる
+ * （2026-11-13 オーナー：「数字を一瞬ニョキって動かしたり…弾力を持たせたり」）
+ */
 const usePop = (at: number): CSSProperties => {
   const frame = useCurrentFrame();
-  const p = useSpringAt(at, true);
-  return { opacity: frame >= sec(at) ? 1 : 0, transform: `scale(${interpolate(p, [0, 1], [0.6, 1])})` };
+  const { fps } = useVideoConfig();
+  const p = spring({ frame: frame - sec(at), fps, config: { damping: 7.5, stiffness: 170, mass: 0.9 } });
+  const size = interpolate(p, [0, 1], [0.45, 1]);
+  const squash = (p - 1) * 0.55;
+  return { opacity: frame >= sec(at) ? 1 : 0, transform: `scale(${size * (1 + squash)}, ${size * (1 - squash)})` };
 };
 
 /** at 秒から 1.2 秒で 0 → value に数える（終わりはゆっくり） */
@@ -63,7 +94,7 @@ const Shot: FC<{ from: number; to?: number; background?: string; children: React
   const fadeIn = from === 0 ? 1 : interpolate(frame, [start, start + 8], [0, 1], clamp);
   const fadeOut = to === undefined ? 1 : interpolate(frame, [end - 7, end], [1, 0], clamp);
   return (
-    <AbsoluteFill style={{ ...baseText, backgroundColor: background ?? COLORS.background, opacity: Math.min(fadeIn, fadeOut) }}>
+    <AbsoluteFill style={{ ...baseText, fontFamily: V2_FONT, backgroundColor: background ?? COLORS.background, opacity: Math.min(fadeIn, fadeOut) }}>
       {children}
     </AbsoluteFill>
   );
@@ -73,7 +104,7 @@ const Shot: FC<{ from: number; to?: number; background?: string; children: React
 const Foot: FC<{ at: number; lines: string[]; color?: string }> = ({ at, lines, color }) => {
   const rise = useRise(at, 12);
   return (
-    <div style={{ ...rise, position: "absolute", left: 100, right: 100, bottom: 30, fontSize: 20, lineHeight: 1.5, color: color ?? COLORS.sub }}>
+    <div style={{ ...rise, fontFamily: FONT_FAMILY, position: "absolute", left: 100, right: 100, bottom: 30, fontSize: 20, lineHeight: 1.5, color: color ?? COLORS.sub }}>
       {lines.map((l) => (
         <div key={l}>{l}</div>
       ))}
@@ -637,9 +668,131 @@ const DmodeRely: FC = () => {
   );
 };
 
+// ---------- 1番：問いかけ（黒い地） ----------
+
+/** スマートフォンの絵（白い線） */
+const PhoneIcon: FC<{ size: number }> = ({ size }) => {
+  const line = { fill: "none", stroke: "#ffffff", strokeWidth: 5, strokeLinecap: "round", strokeLinejoin: "round" } as const;
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100">
+      <rect x="28" y="8" width="44" height="84" rx="9" {...line} />
+      <path d="M44 17 h12" {...line} />
+      <circle cx="50" cy="80" r="2.5" fill="#ffffff" />
+    </svg>
+  );
+};
+
+/** 冒頭で「使えない」と言う物。出てから、lostAt で赤い ✕ が弾んで付き、薄くなる */
+const LostThing: FC<{ at: number; lostAt: number; text: string; children: ReactNode }> = ({ at, lostAt, text, children }) => {
+  const frame = useCurrentFrame();
+  const pop = usePop(at);
+  const cross = usePop(lostAt);
+  const lost = interpolate(frame, [sec(lostAt), sec(lostAt) + 8], [0, 1], clamp);
+  return (
+    <div style={{ ...pop, display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+      <div style={{ position: "relative", width: 300, height: 300 }}>
+        <div style={{ opacity: 1 - 0.65 * lost }}>{children}</div>
+        <div style={{ ...cross, position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 300, fontWeight: 900, color: RED_ON_DARK, lineHeight: 1 }}>✕</div>
+      </div>
+      <div style={{ fontSize: 64, fontWeight: 800, color: COLORS.white, opacity: 1 - 0.4 * lost }}>{text}</div>
+    </div>
+  );
+};
+
+/**
+ * 冒頭の問いかけ（2026-11-13 オーナー：「見た人がそういえばしてないなみたいな風に思えるようなフックに」、文は案B）。
+ * 黒い地に、声の句ごとに文字を画面いっぱいに出す
+ */
+const HookScene: FC = () => {
+  const { ask, lost, question } = HOOK;
+  const askLead = useRise(ask.leadAt);
+  const askMain = useRise(ask.mainAt);
+  const askPunch = usePop(ask.punchAt);
+  const lostPunch = usePop(lost.lostAt);
+  const qLead = useRise(question.leadAt);
+  const qMid = useRise(question.midAt);
+  const qPunch = usePop(question.punchAt);
+  const center: CSSProperties = { alignItems: "center", justifyContent: "center", flexDirection: "column", color: COLORS.white };
+  return (
+    <>
+      <Shot from={0} to={lost.from} background={COLORS.night}>
+        <AbsoluteFill style={{ ...center, gap: 6 }}>
+          <div style={{ ...askLead, fontSize: 84, fontWeight: 800, color: LIGHT }}>{ask.lead}</div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 28, fontWeight: 900 }}>
+            {ask.words.map((w) => (
+              <HookWord key={w.text} at={w.at} text={w.text} />
+            ))}
+          </div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 30, marginTop: 30, fontWeight: 900 }}>
+            <span style={{ ...askMain, fontSize: 110 }}>{ask.main}</span>
+            <span style={{ ...askPunch, fontSize: 190, color: ACCENT_ON_DARK, lineHeight: 1.15 }}>{ask.punch}</span>
+          </div>
+        </AbsoluteFill>
+      </Shot>
+      <Shot from={lost.from} to={question.from} background={COLORS.night}>
+        <AbsoluteFill style={{ ...center, gap: 40 }}>
+          <div style={{ display: "flex", gap: 170 }}>
+            <LostThing at={lost.items[0].at} lostAt={lost.lostAt} text={lost.items[0].text}>
+              <Icon name="notebook" size={300} />
+            </LostThing>
+            <LostThing at={lost.items[1].at} lostAt={lost.lostAt + 0.12} text={lost.items[1].text}>
+              <PhoneIcon size={300} />
+            </LostThing>
+          </div>
+          <div style={{ ...lostPunch, fontSize: 170, fontWeight: 900, color: RED_ON_DARK, lineHeight: 1.1 }}>{lost.punch}</div>
+        </AbsoluteFill>
+      </Shot>
+      <Shot from={question.from} background={COLORS.night}>
+        <AbsoluteFill style={{ ...center, gap: 10 }}>
+          <div style={{ ...qLead, fontSize: 72, fontWeight: 800, color: LIGHT }}>{question.lead}</div>
+          <div style={{ ...qMid, fontSize: 96, fontWeight: 800 }}>{question.mid}</div>
+          <div style={{ ...qPunch, fontSize: 260, fontWeight: 900, lineHeight: 1.2 }}>{question.punch}</div>
+        </AbsoluteFill>
+      </Shot>
+    </>
+  );
+};
+
+const HookWord: FC<{ at: number; text: string }> = ({ at, text }) => {
+  const pop = usePop(at);
+  return <span style={{ ...pop, fontSize: 200, lineHeight: 1.15, color: COLORS.white }}>{text}</span>;
+};
+
+// ---------- 2番：地図の「21回」 ----------
+
+/**
+ * 地図の録画の「21回」を、声が「21回」と言う瞬間に大きく弾ませる（2026-11-13 オーナー：「日本地図の21回も、もうちょっと…」）。
+ * 録画の中の数字と期間の行を白で覆い、同じ場所に大きな数字と、同じ文の期間の行を描く。数字と期間は録画のまま
+ */
+const QuakeCountPunch: FC = () => {
+  const frame = useCurrentFrame();
+  const pop = usePop(QUAKE.punchAt);
+  const period = useRise(QUAKE.punchAt + 0.3, 12);
+  if (frame < sec(QUAKE.punchAt)) return null;
+  return (
+    <AbsoluteFill style={{ fontFamily: V2_FONT }}>
+      <div style={{ position: "absolute", left: 40, top: 125, width: 1000, height: 215, backgroundColor: "#ffffff" }} />
+      <div style={{ ...pop, position: "absolute", left: 70, top: 120, transformOrigin: "0% 60%", fontSize: 400, fontWeight: 900, color: QUAKE_RED, lineHeight: 1, whiteSpace: "nowrap" }}>
+        {QUAKE.count}
+        <span style={{ fontSize: 250 }}>回</span>
+      </div>
+      <div style={{ ...period, position: "absolute", left: 82, top: 545, fontFamily: FONT_FAMILY, fontSize: 40, color: "#333333" }}>{QUAKE.period}</div>
+    </AbsoluteFill>
+  );
+};
+
+/** 録画の上に重ねる v2 の部品（SonaQuestVideo.tsx の Cut.extraOverlay から呼ぶ） */
+export const V2Overlay: FC<{ section: Section }> = ({ section }) => (section.screen === "quakeMap" ? <QuakeCountPunch /> : null);
+
 /** cards・sourceQuote の画面（SonaQuestVideo.tsx の Cut.extraScreen から呼ぶ）。cardsKey で場面を選ぶ */
 export const V2Screen: FC<{ section: Section }> = ({ section }) => {
   switch (section.cardsKey) {
+    case "hook":
+      return (
+        <AbsoluteFill style={{ backgroundColor: COLORS.night }}>
+          <HookScene />
+        </AbsoluteFill>
+      );
     case "reach":
       return (
         <AbsoluteFill style={{ backgroundColor: COLORS.background }}>
