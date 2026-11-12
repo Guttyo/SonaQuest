@@ -137,7 +137,7 @@ npm --prefix video run render
 | 10 | 締め | 提出版の13番のまま（声 `13.mp3`） |
 
 - 撮り直しはしません。録画・アプリの声・BGM・効果音は提出版の素材（`video/public/`）をそのまま使います。
-- 新しく合成するナレーションは5本です（原稿は `video/narration/v2-03.txt` など）。合成してから、声の長さを測ってカードの出る時刻（`cardsText.ts` の `at`）と場面の長さ（`sectionsV2.ts` の `seconds`）を直します。
+- 新しく合成するナレーションは5本です（原稿は `video/narration/v2-03.txt` など）。合成し直したら、声の長さと文の間を測って、カードの出る時刻（`cardsText.ts` の `at`）と場面の長さ（`sectionsV2.ts` の `seconds`）を直します（2026-11-12 の合成に合わせ済み。合計 2:41）。
 
 ```bash
 npm --prefix video run narration -- --only v2-03,v2-04,v2-05,v2-06,v2-09

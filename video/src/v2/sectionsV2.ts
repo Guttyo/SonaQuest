@@ -2,6 +2,8 @@
 // 台本の正本はリポジトリの外（2026-11-12 オーナー決定）。ここには場面の並びと、写したナレーションの置き場所だけを書く。
 // 撮り直さない：提出版の行（../sections.ts の ROWS）を流用し、録画・寄り・タップ・テロップ・アプリの声もそのまま使う。
 // 新しく合成するナレーションは narration/v2-NN.mp3（原稿は video/narration/v2-NN.txt）。ほかは提出版の mp3。
+// 3〜6・9番の長さは、合成した声の長さ（2026-11-12 に測った。v2-03 10.5秒、v2-04 22.9秒、v2-05 14.3秒、v2-06 8.3秒、v2-09 21.0秒）に
+// 頭の 0.5 秒と終わりの間を足したもの。
 // 自己紹介・派遣の体験談・写真・掲示板・カルテ・モデルの使い分けは入れない。
 import { CHAPTERS, FPS, ROWS, buildSections, headlineIntroOf, type Row } from "../sections";
 
@@ -31,7 +33,7 @@ const ROWS_V2: Row[] = [
   { ...v1(2), narrationFile: "narration/02.mp3" },
   // 3：薬は身近（数字のカード）
   {
-    seconds: 17,
+    seconds: 12.5,
     voice: "ナレーター",
     screen: "cards",
     screenNote: "数字のカード：通院している人、お薬手帳の利用",
@@ -43,7 +45,7 @@ const ROWS_V2: Row[] = [
   },
   // 4：手元にあるとは限らない（数字のカード。「ある調査では」）
   {
-    seconds: 27,
+    seconds: 25,
     voice: "ナレーター",
     screen: "cards",
     screenNote: "数字のカード：持ち歩き、覚えておらず備えも無い（ある調査では）",
@@ -55,7 +57,7 @@ const ROWS_V2: Row[] = [
   },
   // 5：仕組みがあっても（資料の一節の札。2026-11-12 オーナー決定「案4にする」）
   {
-    seconds: 14,
+    seconds: 16,
     voice: "ナレーター",
     screen: "sourceQuote",
     screenNote: "資料の一節：災害時モード（厚生労働省の資料 p.11）→ 通信が止まれば使えない",
@@ -66,7 +68,7 @@ const ROWS_V2: Row[] = [
     narrationDelayFrames: sec(0.5),
   },
   // 6：ソナクエスト（はじめに）。提出版の4番の録画（8秒）を使い、ナレーションだけ替える。録画の終わりで止める
-  { ...v1(4), seconds: 9, narrationFile: "narration/v2-06.mp3", footageFreezeSeconds: 7.9 },
+  { ...v1(4), seconds: 9.5,narrationFile: "narration/v2-06.mp3", footageFreezeSeconds: 7.9 },
   // 7：訓練の実演。提出版の5番のまま（アプリの声・オーナーの声の台詞・電池切れ・立て直しの問い）
   { ...v1(5), narrationFile: "narration/05.mp3", headlineIntro: headlineIntroOf(4) },
   // 8：振り返り。提出版の6番のまま
@@ -75,7 +77,7 @@ const ROWS_V2: Row[] = [
   // 新旧の声をつながないので 08a は鳴らさない。章の題は場面の頭に出す
   {
     ...v1(8),
-    seconds: 24,
+    seconds: 23,
     narrationFile: "narration/v2-09.mp3",
     narrationDelayFrames: sec(0.5),
     extraNarration: [],
