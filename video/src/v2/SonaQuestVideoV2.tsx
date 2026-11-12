@@ -4,8 +4,9 @@ import type { FC } from "react";
 import { CutVideo, type Cut } from "../SonaQuestVideo";
 import { ENDCARD_FRAMES, FPS, section5Time } from "../sections";
 import { at, type BgmCue, type SfxCue } from "../soundtrack";
-import { V2Screen } from "./CardSlides";
-import { DMODE, GAP, HOOK, REACH } from "./cardsText";
+import { V2Screen, quakeAt } from "./CardSlides";
+import { DMODE, GAP, HOOK, QUAKE, REACH } from "./cardsText";
+import { QUAKES } from "./quakeMapData";
 import { SECTIONS_V2 } from "./sectionsV2";
 
 const S = SECTIONS_V2;
@@ -45,6 +46,9 @@ const buildSfx = (): SfxCue[] => {
   // v10 を見て「使いすぎ…本当に大事なところに」と言われて、札が1つずつ出る所・地図・小さな ✕ の音は外した）
   const hook = S[0], reach = S[2], gap = S[3], dmode = S[4];
   const u = GAP.unprepared;
+  // 2番：震源の点が出るたびに、ごく小さな刻み。声の「21回」で1回だけ
+  QUAKES.forEach((_, i) => cues.push({ file: "sfx/tick.wav", at: at(S[1], quakeAt(i)), volume: 0.35 }));
+  cues.push({ file: "sfx/pon.wav", at: at(S[1], QUAKE.punchAt), volume: 0.7 });
   cues.push({ file: "sfx/cross.wav", at: at(hook, HOOK.lost.lostAt), volume: 0.7 });
   cues.push({ file: "sfx/slam.wav", at: at(hook, HOOK.question.punchAt) });
   cues.push({ file: "sfx/pon.wav", at: at(reach, REACH.visit.bigAt), volume: 0.7 });
@@ -65,7 +69,7 @@ export const V2_CUT: Cut = {
   bgm: BGM_V2,
   sfx: buildSfx(),
   extraScreen: (section) => <V2Screen section={section} />,
-  hideCaption: (section) => section.cardsKey === "hook",
+  hideCaption: (section) => section.cardsKey === "hook" || section.cardsKey === "quake",
 };
 
 export const SonaQuestVideoV2: FC = () => <CutVideo cut={V2_CUT} />;

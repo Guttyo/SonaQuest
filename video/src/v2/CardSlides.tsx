@@ -10,7 +10,8 @@ import type { CSSProperties, FC, ReactNode } from "react";
 import { AbsoluteFill, Easing, continueRender, delayRender, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { FPS, type Section } from "../sections";
 import { COLORS, FONT_FAMILY, baseText, hasStaticFile } from "../theme";
-import { DMODE, FUNNEL, GAP, HOOK, REACH } from "./cardsText";
+import { DMODE, FUNNEL, GAP, HOOK, QUAKE, REACH } from "./cardsText";
+import { JAPAN_PATH, QUAKES, QUAKE_LEGEND } from "./quakeMapData";
 
 const sec = (s: number) => Math.round(s * FPS);
 
@@ -766,6 +767,76 @@ const HookWord: FC<{ at: number; text: string }> = ({ at, text }) => {
   return <span style={{ ...pop, fontSize: 200, lineHeight: 1.15, color: COLORS.white }}>{text}</span>;
 };
 
+// ---------- 2番：震度5弱以上の地震の地図 ----------
+
+const QUAKE_RED = "#d32f2f";
+const QUAKE_COUNT_RED = "#c62828";
+
+/** i 番目の地震の点が出る時刻（場面の頭からの秒）。等間隔で、声が「21回」と言う前に出そろう */
+export const quakeAt = (i: number) => QUAKE.startAt + ((QUAKE.endAt - QUAKE.startAt) * i) / (QUAKES.length - 1);
+
+const jpDate = (date: string) => `${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日`;
+
+/**
+ * 地図を動画の中で描く（2026-11-13 オーナー、v10 を見て：「21回…いきなりでかくなる…元々の動画の素材を作り直した方がいい」）。
+ * 大きな回数を最初から左に置き、震源の点が1つ出るたびに数が1つ上がる。点が出そろった後、声の「21回」で数字が上下に1回だけ弾む。
+ * 点の位置・大きさ・件数・期間・出典は、提出版の地図の素材と同じ（quakeMapData.ts）
+ */
+const QuakeScene: FC = () => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const title = useRise(0.1, 12);
+  const period = useRise(QUAKE.endAt + 0.2, 12);
+  const count = QUAKES.filter((_, i) => frame >= sec(quakeAt(i))).length;
+  const latest = count > 0 ? QUAKES[count - 1] : null;
+  // 声の「21回」で、上下に1回だけ弾む
+  const hopT = (frame - sec(QUAKE.punchAt)) / fps;
+  const hop = hopT > 0 && hopT < 0.4 ? -34 * Math.sin((Math.PI * hopT) / 0.4) : 0;
+  return (
+    <Shot from={0}>
+      <svg viewBox="0 0 1920 1080" width={1920} height={1080} style={{ position: "absolute", inset: 0 }}>
+        <path d={JAPAN_PATH} fill="#ffffff" stroke="#111111" strokeWidth={2} strokeLinejoin="round" />
+        {QUAKES.map((q, i) => {
+          const age = (frame - sec(quakeAt(i))) / fps;
+          if (age < 0) return null;
+          const dot = spring({ frame: frame - sec(quakeAt(i)), fps, config: { damping: 200 }, durationInFrames: 8 });
+          // 出た瞬間に波紋が1回広がり、その後は二重の輪が残る
+          const wave = Math.min(1, age / 1.1);
+          const settled = interpolate(age, [0.5, 1.1], [0, 1], clamp);
+          return (
+            <g key={`${q.date}-${i}`} transform={`translate(${q.x},${q.y})`}>
+              {wave < 1 ? <circle r={q.r * 3.2 * (0.3 + 0.95 * wave)} fill="none" stroke={QUAKE_RED} strokeWidth={4} opacity={0.8 * (1 - wave)} /> : null}
+              <circle r={q.r * 3.2} fill="none" stroke={QUAKE_RED} strokeWidth={3} opacity={0.25 * settled} />
+              <circle r={q.r * 2} fill="none" stroke={QUAKE_RED} strokeWidth={3} opacity={0.55 * settled} />
+              <circle r={q.r * dot} fill={QUAKE_RED} />
+            </g>
+          );
+        })}
+        {QUAKE_LEGEND.map((item, i) => (
+          <g key={item.label}>
+            <circle cx={120 + i * 90} cy={930} r={item.r} fill={QUAKE_RED} />
+            <text x={120 + i * 90} y={990} textAnchor="middle" fontSize={26} fill="#333333" fontFamily={FONT_FAMILY}>
+              {item.label}
+            </text>
+          </g>
+        ))}
+      </svg>
+      <div style={{ ...title, position: "absolute", left: 80, top: 56, fontSize: 52, fontWeight: 800 }}>{QUAKE.title}</div>
+      <div style={{ position: "absolute", left: 70, top: 150, transform: `translateY(${hop}px)`, color: QUAKE_COUNT_RED, fontWeight: 900, lineHeight: 1, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+        <span style={{ fontSize: 400 }}>{count}</span>
+        <span style={{ fontSize: 210, marginLeft: 8 }}>回</span>
+      </div>
+      {/* いま出た地震の日付・震央の名前・最大震度 */}
+      <div style={{ position: "absolute", left: 82, top: 590, height: 60, fontFamily: FONT_FAMILY, fontSize: 42, fontWeight: 700, color: COLORS.ink }}>
+        {latest ? `${jpDate(latest.date)}　${latest.name}　震度${latest.intensity}` : ""}
+      </div>
+      <div style={{ ...period, position: "absolute", left: 82, top: 668, fontFamily: FONT_FAMILY, fontSize: 36, color: "#333333" }}>{QUAKE.period}</div>
+      <div style={{ position: "absolute", left: 80, top: 850, fontFamily: FONT_FAMILY, fontSize: 26, color: "#333333" }}>{QUAKE.legend}</div>
+      <div style={{ position: "absolute", left: 80, bottom: 28, fontFamily: FONT_FAMILY, fontSize: 22, color: "#666666" }}>{QUAKE.source}</div>
+    </Shot>
+  );
+};
+
 /** cards・sourceQuote の画面（SonaQuestVideo.tsx の Cut.extraScreen から呼ぶ）。cardsKey で場面を選ぶ */
 export const V2Screen: FC<{ section: Section }> = ({ section }) => {
   switch (section.cardsKey) {
@@ -773,6 +844,12 @@ export const V2Screen: FC<{ section: Section }> = ({ section }) => {
       return (
         <AbsoluteFill style={{ backgroundColor: COLORS.night }}>
           <HookScene />
+        </AbsoluteFill>
+      );
+    case "quake":
+      return (
+        <AbsoluteFill style={{ backgroundColor: COLORS.background }}>
+          <QuakeScene />
         </AbsoluteFill>
       );
     case "reach":

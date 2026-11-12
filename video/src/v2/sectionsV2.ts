@@ -44,7 +44,17 @@ const ROWS_V2: Row[] = [
   },
   // 2：地震の回数。提出版の2番の地図を使う（数え直さない：2026-11-12 オーナー決定「数えた当時の日時で」）。
   // 2026-11-12 オーナー（v03 を見て、チャット）：「11月5日時点で21回」としたい → ナレーションを v2-02 に替えた
-  { ...v1(2), seconds: 7.9, narrationFile: "narration/v2-02.mp3", footageFreezeSeconds: 5.7 },
+  // 2026-11-13 オーナー（v10 を見て、チャット）：地図は素材を作り直す → 録画をやめて、動画の中で描く（CardSlides.tsx の QuakeScene）
+  {
+    seconds: 7.9,
+    voice: "ナレーター",
+    screen: "cards",
+    screenNote: "震源の地図を描く。点が1つ出るたびに、大きな回数が1つ上がる",
+    footageFile: null,
+    footageAudio: false,
+    cardsKey: "quake",
+    narrationFile: "narration/v2-02.mp3",
+  },
   // 3：薬は身近（数字のカード）
   {
     seconds: 11.5,
