@@ -121,7 +121,7 @@ npm --prefix video run render
 - 試しに最初の10秒だけ書き出すときは `npm --prefix video run render:test`（`video/out/sonaquest-test.mp4`）。
 
 ## 「なぜ必要か」に絞った紹介動画 v2（SonaQuestVideoV2、Issue #315）
-提出版と同じ部品で、場面の表と音を替えた11場面の版です。Studio の左の一覧で `SonaQuestVideoV2` を選びます。中身は `src/v2/`（場面の表 `sectionsV2.ts`、数字のカードと資料の札 `CardSlides.tsx`・`cardsText.ts`、音 `SonaQuestVideoV2.tsx`）。台本の正本はリポジトリの外です。
+提出版と同じ部品で、場面の表と音を替えた11場面の版です。Studio の左の一覧で `SonaQuestVideoV2` を選びます。中身は `src/v2/`（場面の表 `sectionsV2.ts`、3〜5番の数字と資料の一節の画面 `CardSlides.tsx`・`cardsText.ts`、音 `SonaQuestVideoV2.tsx`）。台本の正本はリポジトリの外です。
 
 | # | 中身 | 素材 |
 |---|---|---|
