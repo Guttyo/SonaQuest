@@ -12,10 +12,16 @@ export type StatCard = {
   value: number;
   decimals: number;
   unit: string;
+  /**
+   * 大きく出す言い換え（「10人に4人」など）。あれば値の代わりに大きく出し、値は棒の横に小さく出す
+   * （2026-11-12 オーナー：「417.3人がメインだからわかりづらい」）
+   */
+  big?: string;
+  /** 棒グラフの目盛りの最大（% なら 100、千人あたりなら 1000）と、その端に出す文字 */
+  barMax: number;
+  barMaxLabel: string;
   /** 何の数か */
   label: string;
-  /** ひとことの言い換え（無ければ出さない） */
-  sub?: string;
   /** 条件 */
   note: string;
   /** カードごとの出典（まとめて下に出すときは空） */
@@ -59,9 +65,11 @@ export const CARD_SETS: Record<string, CardSet> = {
         value: 417.3,
         decimals: 1,
         unit: "人",
-        label: "傷病で通院している人（人口千人あたり）",
-        sub: "およそ10人に4人",
-        note: "全年齢・入院中の人を除く。あんま・はり・きゅう・柔道整復師への通院を含む",
+        big: "10人に4人",
+        barMax: 1000,
+        barMaxLabel: "1,000人",
+        label: "傷病で通院している人",
+        note: "人口千人あたり 417.3人。全年齢・入院中の人を除く。あんま・はり・きゅう・柔道整復師への通院を含む",
         source: "厚生労働省「2022（令和4）年 国民生活基礎調査」",
         at: 3.6,
       },
@@ -69,6 +77,8 @@ export const CARD_SETS: Record<string, CardSet> = {
         value: 71.1,
         decimals: 1,
         unit: "%",
+        barMax: 100,
+        barMaxLabel: "100%",
         label: "お薬手帳を「利用している」と答えた人",
         note: "全国の18歳以上・回答者1,944人",
         source: "内閣府「薬局の利用に関する世論調査」（2020年）",
@@ -85,7 +95,9 @@ export const CARD_SETS: Record<string, CardSet> = {
         value: 46.1,
         decimals: 1,
         unit: "%",
-        label: "お薬手帳を持っている人のうち、日頃から持ち歩いている人",
+        barMax: 100,
+        barMaxLabel: "100%",
+        label: "お薬手帳を日頃から持ち歩いている人（お薬手帳を持っている人のうち）",
         note: "時々を含む。お薬手帳を持っている421人のうち",
         at: 5.3,
       },
@@ -93,6 +105,8 @@ export const CARD_SETS: Record<string, CardSet> = {
         value: 27.4,
         decimals: 1,
         unit: "%",
+        barMax: 100,
+        barMaxLabel: "100%",
         label: "常用薬のある人のうち、薬の名前・飲み方・量のどれかを覚えておらず、処方薬・お薬手帳・薬の説明書のどれも持ち出し袋に入れていない人",
         note: "常用薬のある419人のうち",
         at: 11.9,

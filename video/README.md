@@ -121,7 +121,7 @@ npm --prefix video run render
 - 試しに最初の10秒だけ書き出すときは `npm --prefix video run render:test`（`video/out/sonaquest-test.mp4`）。
 
 ## 「なぜ必要か」に絞った紹介動画 v2（SonaQuestVideoV2、Issue #315）
-提出版と同じ部品で、場面の表と音を替えた10場面の版です。Studio の左の一覧で `SonaQuestVideoV2` を選びます。中身は `src/v2/`（場面の表 `sectionsV2.ts`、数字のカードと資料の札 `CardSlides.tsx`・`cardsText.ts`、音 `SonaQuestVideoV2.tsx`）。台本の正本はリポジトリの外です。
+提出版と同じ部品で、場面の表と音を替えた11場面の版です。Studio の左の一覧で `SonaQuestVideoV2` を選びます。中身は `src/v2/`（場面の表 `sectionsV2.ts`、数字のカードと資料の札 `CardSlides.tsx`・`cardsText.ts`、音 `SonaQuestVideoV2.tsx`）。台本の正本はリポジトリの外です。
 
 | # | 中身 | 素材 |
 |---|---|---|
@@ -134,10 +134,11 @@ npm --prefix video run render
 | 7 | 訓練の実演 | 提出版の5番のまま（声 `05.mp3`、アプリの声、足す台詞） |
 | 8 | 振り返り | 提出版の6番のまま（声 `06.mp3`・`06a.mp3`） |
 | 9 | 受け取る側の備え（ボード） | 提出版の8番の録画・患者の表（声 `v2-09.mp3`） |
-| 10 | 締め | 提出版の13番のまま（声 `13.mp3`） |
+| 10 | 使った人の声 | 提出版の12番のまま（声 `12.mp3`、写真と感想の一枚。中身は Git の外） |
+| 11 | 締め | 提出版の13番のまま（声 `13.mp3`） |
 
 - 撮り直しはしません。録画・アプリの声・BGM・効果音は提出版の素材（`video/public/`）をそのまま使います。
-- 新しく合成するナレーションは5本です（原稿は `video/narration/v2-03.txt` など）。合成し直したら、声の長さと文の間を測って、カードの出る時刻（`cardsText.ts` の `at`）と場面の長さ（`sectionsV2.ts` の `seconds`）を直します（2026-11-12 の合成に合わせ済み。合計 2:41）。
+- 新しく合成するナレーションは5本です（原稿は `video/narration/v2-03.txt` など）。合成し直したら、声の長さと文の間を測って、カードの出る時刻（`cardsText.ts` の `at`）と場面の長さ（`sectionsV2.ts` の `seconds`）を直します（合計 2:54。4・9番は 2026-11-12 に原稿を直したので、合成し直してから合わせる）。
 
 ```bash
 npm --prefix video run narration -- --only v2-03,v2-04,v2-05,v2-06,v2-09

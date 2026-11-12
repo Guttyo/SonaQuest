@@ -30,6 +30,27 @@ const useCountUp = (value: number, decimals: number, start: number) => {
   return v.toFixed(decimals);
 };
 
+/** 棒グラフ（0 から値まで、カウントアップと同じ速さで伸びる）。右端に目盛りの最大、棒の横に値 */
+const Bar: FC<{ card: StatCard; start: number; valueText: string | null }> = ({ card, start, valueText }) => {
+  const frame = useCurrentFrame();
+  const ratio = interpolate(frame, [start, start + sec(1.2)], [0, card.value / card.barMax], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: Easing.out(Easing.cubic),
+  });
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <div style={{ position: "relative", height: 44, borderRadius: 22, backgroundColor: "rgba(31,42,51,0.10)", overflow: "hidden" }}>
+        <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${ratio * 100}%`, borderRadius: 22, backgroundColor: COLORS.accent }} />
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 22, color: COLORS.sub }}>
+        <span>{valueText ?? "0"}</span>
+        <span>{card.barMaxLabel}</span>
+      </div>
+    </div>
+  );
+};
+
 const Card: FC<{ card: StatCard }> = ({ card }) => {
   const start = sec(card.at);
   const rise = useRise(start);
@@ -40,7 +61,7 @@ const Card: FC<{ card: StatCard }> = ({ card }) => {
         ...baseText,
         ...rise,
         width: 800,
-        minHeight: 560,
+        minHeight: 600,
         boxSizing: "border-box",
         padding: "44px 52px 40px",
         borderRadius: 28,
@@ -52,12 +73,19 @@ const Card: FC<{ card: StatCard }> = ({ card }) => {
       }}
     >
       <div style={{ color: COLORS.accent, fontWeight: 700, lineHeight: 1 }}>
-        {/* 等幅の書体は小数点が広く空くので、ゴシックの等幅数字（tabular-nums）にする */}
-        <span style={{ fontSize: 150, fontVariantNumeric: "tabular-nums" }}>{shown}</span>
-        <span style={{ fontSize: 64, marginLeft: 8 }}>{card.unit}</span>
+        {card.big ? (
+          <span style={{ fontSize: 120 }}>{card.big}</span>
+        ) : (
+          <>
+            {/* 等幅の書体は小数点が広く空くので、ゴシックの等幅数字（tabular-nums）にする */}
+            <span style={{ fontSize: 130, fontVariantNumeric: "tabular-nums" }}>{shown}</span>
+            <span style={{ fontSize: 60, marginLeft: 8 }}>{card.unit}</span>
+          </>
+        )}
       </div>
-      <div style={{ fontSize: 38, fontWeight: 700, lineHeight: 1.4 }}>{card.label}</div>
-      {card.sub ? <div style={{ fontSize: 34, fontWeight: 700, color: COLORS.accent }}>{card.sub}</div> : null}
+      {/* 大きく言い換えたときは、棒の左に元の値を出す */}
+      <Bar card={card} start={start} valueText={card.big ? `${shown}${card.unit}` : null} />
+      <div style={{ fontSize: 36, fontWeight: 700, lineHeight: 1.4 }}>{card.label}</div>
       <div style={{ fontSize: 24, color: COLORS.sub, lineHeight: 1.5 }}>{card.note}</div>
       {card.source ? (
         <div style={{ marginTop: "auto", fontSize: 22, color: COLORS.sub, lineHeight: 1.5 }}>出典：{card.source}</div>
