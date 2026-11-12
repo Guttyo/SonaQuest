@@ -262,8 +262,8 @@ test("足す台詞（05a など）は場面の番号の後に並び、ファイ�
 });
 
 test("v2 のナレーション（Issue #315）は v2-NN の id で、提出版の後に並び、--only で選べる", () => {
-  assert.deepEqual(V2_CLIPS, ["v2-02", "v2-03", "v2-04", "v2-05", "v2-06", "v2-09"]);
-  assert.deepEqual(ALL_CLIPS.slice(-6), V2_CLIPS);
+  assert.deepEqual(V2_CLIPS, ["v2-01", "v2-02", "v2-03", "v2-04", "v2-05", "v2-06", "v2-09"]);
+  assert.deepEqual(ALL_CLIPS.slice(-7), V2_CLIPS);
   assert.equal(beatId("v2-03"), "v2-03");
   assert.throws(() => beatId("v2-3"));
   assert.throws(() => beatId("v3-03"));

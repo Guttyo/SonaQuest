@@ -26,7 +26,7 @@ export const EXTRA_CLIPS = ["05a", "05b", "05c", "06a", "07a", "08a"];
  * v2 の紹介動画（Issue #315）で新しく合成するナレーション。id は「v2-」＋ v2 の場面の番号（2桁）。
  * 原稿は video/narration/<id>.txt、音声は video/public/narration/<id>.mp3。ほかの場面は提出版の mp3 を流用する。
  */
-export const V2_CLIPS = ["v2-02", "v2-03", "v2-04", "v2-05", "v2-06", "v2-09"];
+export const V2_CLIPS = ["v2-01", "v2-02", "v2-03", "v2-04", "v2-05", "v2-06", "v2-09"];
 /** 合成できるもののすべて（場面のナレーション＋足す台詞＋v2）。ファイル名の順 */
 export const ALL_CLIPS = [...ALL_NARRATION_BEATS, ...EXTRA_CLIPS, ...V2_CLIPS].sort((a, b) => beatId(a).localeCompare(beatId(b)));
 
