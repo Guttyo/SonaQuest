@@ -518,7 +518,7 @@ const ChapterFlash: FC<{ section: Section }> = ({ section }) => {
   const t = frame - from;
   if (t < 0 || t > dur) return null;
   const opacity = Math.min(
-    interpolate(t, [0, 5], [0, 1], { extrapolateRight: "clamp" }),
+    section.chapter.instant ? 1 : interpolate(t, [0, 5], [0, 1], { extrapolateRight: "clamp" }),
     interpolate(t, [dur - 8, dur], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }),
   );
   const scale = interpolate(t, [0, dur], [1.04, 1], { extrapolateRight: "clamp" });

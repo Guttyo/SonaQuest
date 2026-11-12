@@ -71,7 +71,8 @@ const ROWS_V2: Row[] = [
     narrationDelayFrames: sec(0.5),
   },
   // 6：ソナクエスト（はじめに）。提出版の4番の録画（8秒）を使い、ナレーションだけ替える。録画の終わりで止める
-  { ...v1(4), seconds: 9.5,narrationFile: "narration/v2-06.mp3", footageFreezeSeconds: 7.9 },
+  // 2026-11-13 オーナー（v08 を見て）：切り替わりで iPhone の画面が一瞬濃く出るのは要らない → 題の幕を頭から出す（instant）
+  { ...v1(4), seconds: 9.5, narrationFile: "narration/v2-06.mp3", footageFreezeSeconds: 7.9, chapter: { ...v1(4).chapter!, instant: true } },
   // 7：訓練の実演。提出版の5番のまま（アプリの声・オーナーの声の台詞・電池切れ・立て直しの問い）
   { ...v1(5), narrationFile: "narration/05.mp3", headlineIntro: headlineIntroOf(4) },
   // 8：振り返り。提出版の6番のまま

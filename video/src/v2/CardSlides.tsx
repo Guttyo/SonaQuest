@@ -195,33 +195,37 @@ const PatientGrid: FC<{ top: number; appearAt: number; notebook: Stage; carry?: 
   );
 };
 
-/** 100人の絵の上に出す文：何の人か、100人のうち約何人か、もとの調査の数字 */
-const FunnelText: FC<{ lead?: string; base: string; label: string; labelAt: number; fromCount: number; count: number; bigAt: number; tag: string }> = ({
+/**
+ * 絵の並びの上に出す文：何の人か、声が言う数字（大きく）、当てはめた人数（小さく）。
+ * 2026-11-13 オーナー（v08 を見て、チャット）：「スライドに表示されているのは何人…実際に読み上げているのはパーセンテージ」
+ * 「スライドをパーセンテージに…何人っていう数字は下の方にちょろっと出せばいい」
+ */
+const FunnelText: FC<{ lead?: string; label: string; labelAt: number; bigAt: number; bigText?: string; percent?: number; base: string; count: number }> = ({
   lead,
   label,
   labelAt,
-  fromCount,
-  count,
   bigAt,
-  tag,
+  bigText,
+  percent,
   base,
+  count,
 }) => {
-  const frame = useCurrentFrame();
   const labelRise = useRise(labelAt);
   const big = usePop(bigAt);
-  const tagRise = useRise(bigAt + 0.4);
-  const shown = Math.round(interpolate(frame, [sec(bigAt), sec(bigAt + 1.1)], [fromCount, count], { ...clamp, easing: Easing.out(Easing.cubic) }));
+  const small = useRise(bigAt + 0.5);
   return (
     <div style={{ position: "absolute", top: 120, left: 0, right: 0, height: 400, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
       {lead ? <div style={{ ...labelRise, fontSize: 36, fontWeight: 700, color: COLORS.sub }}>{lead}</div> : null}
-      <div style={{ ...labelRise, fontSize: 54, fontWeight: 700, color: COLORS.ink }}>{label}</div>
-      <div style={{ ...big, display: "flex", alignItems: "baseline", gap: 18, fontWeight: 800, lineHeight: 1.05 }}>
-        <span style={{ fontSize: 60, color: COLORS.sub, marginRight: 14 }}>{base}</span>
-        <span style={{ fontSize: 84, color: COLORS.accent }}>約</span>
-        <span style={{ fontFamily: NUM, fontSize: 220, color: COLORS.accent, fontVariantNumeric: "tabular-nums" }}>{shown}</span>
-        <span style={{ fontSize: 84, color: COLORS.accent }}>人</span>
+      <div style={{ ...labelRise, fontSize: 54, fontWeight: 700, color: COLORS.ink, marginBottom: 6 }}>{label}</div>
+      {percent !== undefined ? (
+        <BigPercent value={percent} at={bigAt} size={200} color={COLORS.accent} />
+      ) : (
+        <div style={{ ...big, fontSize: 170, fontWeight: 800, color: COLORS.accent, lineHeight: 1.15 }}>{bigText}</div>
+      )}
+      <div style={{ ...small, display: "flex", alignItems: "baseline", gap: 14, fontSize: 36, fontWeight: 700, color: COLORS.sub, marginTop: 10 }}>
+        <span>{base}</span>
+        <span style={{ fontSize: 48, color: COLORS.accent }}>約{count}人</span>
       </div>
-      <div style={{ ...tagRise, fontSize: 34, fontWeight: 700, color: COLORS.sub }}>（{tag}）</div>
     </div>
   );
 };
@@ -229,8 +233,8 @@ const FunnelText: FC<{ lead?: string; base: string; label: string; labelAt: numb
 const GRID_TOP = 530;
 /** 通院している人の並びの上の端 */
 const PATIENT_TOP = 545;
-const BASE_ALL = `${FUNNEL.total}人のうち`;
-const BASE_PATIENTS = `通院している${FUNNEL.visit}人のうち`;
+const BASE_ALL = `${FUNNEL.total}人なら`;
+const BASE_PATIENTS = `通院している${FUNNEL.visit}人に当てはめると`;
 
 // ---------- 3番：薬は身近 ----------
 
@@ -246,9 +250,9 @@ const ReachScene: FC = () => {
           <div style={{ ...openingRise, opacity: (openingRise.opacity as number) * openingOut, fontSize: 112, fontWeight: 800 }}>{opening.text}</div>
         </div>
       ) : frame < sec(notebook.from) ? (
-        <FunnelText base={BASE_ALL} label={visit.label} labelAt={visit.from + 0.25} fromCount={0} count={FUNNEL.visit} bigAt={visit.bigAt} tag={visit.tag} />
+        <FunnelText base={BASE_ALL} label={visit.label} labelAt={visit.from + 0.25} count={FUNNEL.visit} bigAt={visit.bigAt} bigText={visit.big} />
       ) : (
-        <FunnelText base={BASE_PATIENTS} label={notebook.label} labelAt={notebook.from + 0.2} fromCount={FUNNEL.visit} count={FUNNEL.notebook} bigAt={notebook.bigAt} tag={notebook.tag} />
+        <FunnelText base={BASE_PATIENTS} label={notebook.label} labelAt={notebook.from + 0.2} count={FUNNEL.notebook} bigAt={notebook.bigAt} percent={notebook.value} />
       )}
       <PeopleGrid top={GRID_TOP} appearAt={REACH.peopleAt} visit={{ at: visit.bigAt, count: FUNNEL.visit }} to={notebook.from - 0.2} />
       <PatientGrid top={PATIENT_TOP} appearAt={notebook.from} notebook={{ at: notebook.bigAt, count: FUNNEL.notebook }} />
@@ -300,7 +304,7 @@ const GapCarry: FC = () => {
   const already = -100;
   return (
     <Shot from={carry.from} to={unprepared.from}>
-      <FunnelText lead={GAP.surveyLead} base={BASE_PATIENTS} label={carry.label} labelAt={carry.labelAt} fromCount={FUNNEL.notebook} count={FUNNEL.carry} bigAt={carry.bigAt} tag={carry.tag} />
+      <FunnelText lead={GAP.surveyLead} base={BASE_PATIENTS} label={carry.label} labelAt={carry.labelAt} count={FUNNEL.carry} bigAt={carry.bigAt} percent={carry.value} />
       <PatientGrid top={PATIENT_TOP} appearAt={already} notebook={{ at: already, count: FUNNEL.notebook }} carry={{ at: carry.bigAt, count: FUNNEL.carry }} />
       <Foot at={carry.from + 0.2} lines={[`${FUNNEL.caveat}。${carry.note}`, `出典：${FUNNEL.sources.visit}／${FUNNEL.sources.notebook}／${FUNNEL.sources.carry}`]} />
     </Shot>

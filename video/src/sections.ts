@@ -123,7 +123,8 @@ export type Section = {
    * 大きな場面の切り替わり（訓練・本部のボード）の頭に、約1秒、章の題を録画の上に重ねる。
    * 1枚のスライドを足すと 180 秒が延びるので、録画に重ねる形にした。
    */
-  chapter: { text: string; at: number; seconds: number } | null;
+  /** instant：題の幕を頭から濃く出す（録画が一瞬先に見えないようにする。v2 の6番） */
+  chapter: { text: string; at: number; seconds: number; instant?: boolean } | null;
   /**
    * 写真の場面（photos）の写真：video/public/ からの相対パス。1つの要素が1カット（1枚か、横に並べる2枚）。
    * 拡張子を除いた中立の名前（photos/03-a など）で書く。jpg・png・webp のどれを置いてもよい（theme.ts の resolveImage）。
@@ -303,7 +304,7 @@ export type Row = Omit<
   telops?: Telop[];
   optionPanel?: OptionPanel;
   /** 章の題。seconds は出す長さ（無ければ 1.1 秒） */
-  chapter?: { text: string; at: number; seconds?: number };
+  chapter?: { text: string; at: number; seconds?: number; instant?: boolean };
   quoteFile?: string;
   bezel?: boolean;
   /** 見出し語。無ければ buildSections に渡した関数から（v2 の行で使う。Issue #315） */
