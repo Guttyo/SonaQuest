@@ -262,15 +262,15 @@ test("足す台詞（05a など）は場面の番号の後に並び、ファイ�
 });
 
 test("v2 のナレーション（Issue #315）は v2-NN の id で、提出版の後に並び、--only で選べる", () => {
-  assert.deepEqual(V2_CLIPS, ["v2-03", "v2-04", "v2-05", "v2-06", "v2-09"]);
-  assert.deepEqual(ALL_CLIPS.slice(-5), V2_CLIPS);
+  assert.deepEqual(V2_CLIPS, ["v2-02", "v2-03", "v2-04", "v2-05", "v2-06", "v2-09"]);
+  assert.deepEqual(ALL_CLIPS.slice(-6), V2_CLIPS);
   assert.equal(beatId("v2-03"), "v2-03");
   assert.throws(() => beatId("v2-3"));
   assert.throws(() => beatId("v3-03"));
   assert.equal(narrationTextPath("/v", "v2-05"), path.join("/v", "narration", "v2-05.txt"));
   assert.equal(narrationAudioPath("/v", "v2-05"), path.join("/v", "public", "narration", "v2-05.mp3"));
   assert.deepEqual(parseArgs(["--only", "v2-09,v2-03"]), { force: false, beats: ["v2-03", "v2-09"] });
-  assert.throws(() => parseArgs(["--only", "v2-02"]));
+  assert.throws(() => parseArgs(["--only", "v2-07"]));
 });
 
 test("声の設定：今はどの台詞も既定の値（2番の速さは元に戻した）。台詞ごとの上書きは voice_settings に入る", () => {

@@ -99,7 +99,7 @@ export const CARD_SETS: Record<string, CardSet> = {
         barMaxLabel: "100%",
         label: "お薬手帳を日頃から持ち歩いている人（お薬手帳を持っている人のうち）",
         note: "時々を含む。お薬手帳を持っている421人のうち",
-        at: 5.3,
+        at: 6.5,
       },
       {
         value: 27.4,
@@ -107,9 +107,9 @@ export const CARD_SETS: Record<string, CardSet> = {
         unit: "%",
         barMax: 100,
         barMaxLabel: "100%",
-        label: "常用薬のある人のうち、薬の名前・飲み方・量のどれかを覚えておらず、処方薬・お薬手帳・薬の説明書のどれも持ち出し袋に入れていない人",
+        label: "常用薬のある人のうち、薬の名前・飲み方・量のどれかを覚えておらず、処方薬・お薬手帳・薬の説明書のどれも非常時の持ち出し袋に入れていない人",
         note: "常用薬のある419人のうち",
-        at: 11.8,
+        at: 14.5,
       },
     ],
     footnote:
