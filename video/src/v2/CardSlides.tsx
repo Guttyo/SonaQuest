@@ -51,15 +51,59 @@ const Bar: FC<{ card: StatCard; start: number; valueText: string | null }> = ({ 
   );
 };
 
-const Card: FC<{ card: StatCard }> = ({ card }) => {
+/** ✗ の色（2番の地図の点と同じ赤） */
+const CROSS = "#d23c2c";
+
+/** 当てはまる条件の1行。✗ がばねで大きく出て、文が続いて上がる */
+const Check: FC<{ at: number; text: string }> = ({ at, text }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const start = sec(at);
+  const pop = spring({ frame: frame - start, fps, config: { damping: 10, stiffness: 160 } });
+  const rise = useRise(start + 3);
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 18 }}>
+      <div
+        style={{
+          flex: "0 0 auto",
+          width: 52,
+          height: 52,
+          borderRadius: 26,
+          backgroundColor: CROSS,
+          color: COLORS.white,
+          fontSize: 36,
+          fontWeight: 700,
+          lineHeight: "52px",
+          textAlign: "center",
+          opacity: frame >= start ? 1 : 0,
+          transform: `scale(${pop})`,
+        }}
+      >
+        ✕
+      </div>
+      <div style={{ ...rise, fontSize: 32, fontWeight: 700, lineHeight: 1.45, paddingTop: 4 }}>{text}</div>
+    </div>
+  );
+};
+
+/** 後のカードが出たら、前のカードを薄くして目を移す */
+const useDimAfter = (nextAt: number | undefined) => {
+  const frame = useCurrentFrame();
+  if (nextAt === undefined) return 1;
+  return interpolate(frame, [sec(nextAt), sec(nextAt + 0.6)], [1, 0.45], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+};
+
+const Card: FC<{ card: StatCard; nextAt?: number }> = ({ card, nextAt }) => {
   const start = sec(card.at);
   const rise = useRise(start);
+  const dim = useDimAfter(nextAt);
   const shown = useCountUp(card.value, card.decimals, start);
   return (
     <div
       style={{
         ...baseText,
         ...rise,
+        opacity: (rise.opacity as number) * dim,
         width: 800,
         minHeight: 600,
         boxSizing: "border-box",
@@ -86,6 +130,13 @@ const Card: FC<{ card: StatCard }> = ({ card }) => {
       {/* 大きく言い換えたときは、棒の左に元の値を出す */}
       <Bar card={card} start={start} valueText={card.big ? `${shown}${card.unit}` : null} />
       <div style={{ fontSize: 36, fontWeight: 700, lineHeight: 1.4 }}>{card.label}</div>
+      {card.checks ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {card.checks.map((c) => (
+            <Check key={c.text} at={c.at} text={c.text} />
+          ))}
+        </div>
+      ) : null}
       <div style={{ fontSize: 24, color: COLORS.sub, lineHeight: 1.5 }}>{card.note}</div>
       {card.source ? (
         <div style={{ marginTop: "auto", fontSize: 22, color: COLORS.sub, lineHeight: 1.5 }}>出典：{card.source}</div>
@@ -102,8 +153,8 @@ const StatsSlide: FC<{ set: StatsSet }> = ({ set }) => {
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 28, marginTop: 70 }}>
         {set.lead ? <div style={{ ...baseText, ...lead, fontSize: 40, fontWeight: 700, color: COLORS.sub }}>{set.lead}</div> : null}
         <div style={{ display: "flex", gap: 56, alignItems: "stretch" }}>
-          {set.cards.map((card) => (
-            <Card key={card.label} card={card} />
+          {set.cards.map((card, i) => (
+            <Card key={card.label} card={card} nextAt={set.cards[i + 1]?.at} />
           ))}
         </div>
         {set.footnote ? (
