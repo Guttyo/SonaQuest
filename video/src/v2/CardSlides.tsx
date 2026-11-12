@@ -10,7 +10,7 @@ import type { CSSProperties, FC, ReactNode } from "react";
 import { AbsoluteFill, Easing, continueRender, delayRender, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { FPS, type Section } from "../sections";
 import { COLORS, FONT_FAMILY, baseText, hasStaticFile } from "../theme";
-import { DMODE, FUNNEL, GAP, HOOK, QUAKE, REACH } from "./cardsText";
+import { DMODE, FUNNEL, GAP, HOOK, REACH } from "./cardsText";
 
 const sec = (s: number) => Math.round(s * FPS);
 
@@ -41,14 +41,12 @@ if (typeof document !== "undefined") {
 const RED = "#d23c2c";
 /** 色を付けていない絵の色 */
 const MUTED = "#c9c6bd";
-/** 色が外れた人の薄い色 */
-const PALE = "#8fb1c2";
+/** 外れた人の点線の色 */
+const OUT = "#a8a59c";
 /** 濃い地の上の赤 */
 const RED_ON_DARK = "#ff6a57";
 /** 濃い地の上の、強める言葉の色 */
 const ACCENT_ON_DARK = "#7fc4e3";
-/** 地図の録画の「21回」と同じ赤 */
-const QUAKE_RED = "#cc2929";
 const MARKER = "#ffe08a";
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
@@ -66,17 +64,22 @@ const useRise = (at: number, distance = 28): CSSProperties => {
   return { opacity: p, transform: `translateY(${interpolate(p, [0, 1], [distance, 0])}px)` };
 };
 
-/**
- * 小さい所から、ぷにっと弾んで収まる（大きな数字・✗・大事な言葉）。行き過ぎた分だけ横に広がって縦につぶれ、戻るときは逆になる
- * （2026-11-13 オーナー：「数字を一瞬ニョキって動かしたり…弾力を持たせたり」）
- */
+/** 少し小さい所から、静かに現れる（弾ませない）。ほとんどの数字・絵・言葉はこれで出す */
 const usePop = (at: number): CSSProperties => {
   const frame = useCurrentFrame();
+  const p = useSpringAt(at);
+  return { opacity: frame >= sec(at) ? p : 0, transform: `scale(${interpolate(p, [0, 1], [0.9, 1])})` };
+};
+
+/**
+ * 下から上がって、上下に1回だけ短く弾んで収まる。いちばん大事な所（どう伝えますか・46.1%・27.4%・この仕組みも使えない）だけに使う。
+ * 2026-11-13 オーナー（v10 を見て、チャット）：「弾みが左右になってて、上下の方がいい」「使いすぎ…本当に大事なところに」「必要最低限に、長さ的にも」
+ */
+const useBounce = (at: number): CSSProperties => {
+  const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const p = spring({ frame: frame - sec(at), fps, config: { damping: 7.5, stiffness: 170, mass: 0.9 } });
-  const size = interpolate(p, [0, 1], [0.45, 1]);
-  const squash = (p - 1) * 0.55;
-  return { opacity: frame >= sec(at) ? 1 : 0, transform: `scale(${size * (1 + squash)}, ${size * (1 - squash)})` };
+  const p = spring({ frame: frame - sec(at), fps, config: { damping: 11, stiffness: 190, mass: 0.8 } });
+  return { opacity: frame >= sec(at) ? Math.min(1, p * 1.6) : 0, transform: `translateY(${(1 - p) * 70}px)` };
 };
 
 /** at 秒から 1.2 秒で 0 → value に数える（終わりはゆっくり） */
@@ -112,7 +115,7 @@ const Foot: FC<{ at: number; lines: string[]; color?: string }> = ({ at, lines, 
   );
 };
 
-/** 人の絵。hollow は点線（手帳はあるが、持ち歩いていない） */
+/** 人の絵。hollow は点線（当てはまらない人） */
 const Person: FC<{ color: string; width: number; hollow?: boolean }> = ({ color, width, hollow }) => {
   const paint = hollow ? { fill: "none", stroke: color, strokeWidth: 5, strokeDasharray: "9 7" } : { fill: color };
   return (
@@ -139,9 +142,11 @@ const Notebook: FC<{ color: string; width: number; missing?: boolean }> = ({ col
 );
 
 /** 大きな % の数字 */
-const BigPercent: FC<{ value: number; at: number; size: number; color: string }> = ({ value, at, size, color }) => {
+const BigPercent: FC<{ value: number; at: number; size: number; color: string; bounce?: boolean }> = ({ value, at, size, color, bounce }) => {
   const shown = useCountUp(value, at);
-  const pop = usePop(at);
+  const calm = usePop(at);
+  const hop = useBounce(at);
+  const pop = bounce ? hop : calm;
   return (
     <div style={{ ...pop, fontFamily: NUM, fontWeight: 700, color, lineHeight: 0.95, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
       <span style={{ fontSize: size }}>{shown}</span>
@@ -193,32 +198,34 @@ const PeopleGrid: FC<{ top: number; appearAt: number; visit: Stage; to: number }
 };
 
 /**
- * 通院している人だけの並び（21×2）。全体の100人とは分母が違うので、人を大きくし、枠と札で別の集まりだと分かるようにする
- * （2026-11-13 オーナー、v07 を見て：「最初の100人と、最後の表示は分母が異なるから、明確に区分できるように」）。
- * そのうち手帳を使っている人、持ち歩いている人だけに色を残す。外れた人は薄い色に、手帳はあるが持ち歩いていない人は点線にする
+ * 1つの集まりの並び。当てはまる人だけに色を残し、外れた人は灰色の点線にする（色は2つだけ）。
+ * 全体の100人とは分母が違うので、人を大きくし、枠と札で別の集まりだと分かるようにする
+ * （2026-11-13 オーナー、v07 を見て：「分母が異なるから、明確に区分できるように」。
+ *   v10 を見て：「3色あって分かりづらい」→ 前の段で外れた人は並びから外し、次の集まりだけを並べる）
  */
-const PatientGrid: FC<{ top: number; appearAt: number; notebook: Stage; carry?: Stage }> = ({ top, appearAt, notebook, carry }) => {
+const GroupGrid: FC<{ top: number; appearAt: number; label: string; total: number; cols: number; size: number; keep: Stage }> = ({
+  top,
+  appearAt,
+  label,
+  total,
+  cols,
+  size,
+  keep,
+}) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const appear = spring({ frame: frame - sec(appearAt), fps, config: { damping: 200 } });
-  const total = FUNNEL.visit;
-  const size = 58;
-  const width = 21 * size + 20 * 12;
+  const gap = Math.round(size * 0.22);
+  const width = cols * size + (cols - 1) * gap;
   return (
-    <div style={{ position: "absolute", top, left: 0, right: 0, display: "flex", justifyContent: "center", opacity: appear, transform: `scale(${interpolate(appear, [0, 1], [0.8, 1])})` }}>
+    <div style={{ position: "absolute", top, left: 0, right: 0, display: "flex", justifyContent: "center", opacity: appear, transform: `scale(${interpolate(appear, [0, 1], [0.9, 1])})` }}>
       <div style={{ padding: "18px 34px 26px", borderRadius: 28, border: `4px solid ${COLORS.accent}`, backgroundColor: "rgba(47,111,143,0.07)" }}>
-        <GroupLabel text={`通院している人 ${total}人`} color={COLORS.accent} width={width} />
-        <div style={{ display: "grid", gridTemplateColumns: `repeat(21, ${size}px)`, gap: "14px 12px" }}>
+        <GroupLabel text={`${label} ${total}人`} color={COLORS.accent} width={width} />
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, ${size}px)`, gap: `14px ${gap}px` }}>
           {Array.from({ length: total }, (_, i) => {
             // 外れるときは後ろから順に外れる
-            const noNotebook = i >= notebook.count && frame >= sec(notebook.at) + Math.round((total - 1 - i) * 1.5);
-            const notCarried = carry && i >= carry.count && i < notebook.count && frame >= sec(carry.at) + Math.round((notebook.count - 1 - i) * 1.5);
-            const kept = carry && i < carry.count ? spring({ frame: frame - sec(carry.at) - 20, fps, config: { damping: 11, stiffness: 150 } }) : 0;
-            return (
-              <div key={i} style={{ transform: `scale(${1 + 0.12 * kept})`, transformOrigin: "50% 100%" }}>
-                <Person color={noNotebook || notCarried ? PALE : COLORS.accent} width={size} hollow={Boolean(notCarried)} />
-              </div>
-            );
+            const out = i >= keep.count && frame >= sec(keep.at) + Math.round((total - 1 - i) * 1.5);
+            return <Person key={i} color={out ? OUT : COLORS.accent} width={size} hollow={out} />;
           })}
         </div>
       </div>
@@ -231,7 +238,7 @@ const PatientGrid: FC<{ top: number; appearAt: number; notebook: Stage; carry?: 
  * 2026-11-13 オーナー（v08 を見て、チャット）：「スライドに表示されているのは何人…実際に読み上げているのはパーセンテージ」
  * 「スライドをパーセンテージに…何人っていう数字は下の方にちょろっと出せばいい」
  */
-const FunnelText: FC<{ lead?: string; label: string; labelAt: number; bigAt: number; bigText?: string; percent?: number; base: string; count: number }> = ({
+const FunnelText: FC<{ lead?: string; label: string; labelAt: number; bigAt: number; bigText?: string; percent?: number; base: string; count: number; bounce?: boolean }> = ({
   lead,
   label,
   labelAt,
@@ -240,6 +247,7 @@ const FunnelText: FC<{ lead?: string; label: string; labelAt: number; bigAt: num
   percent,
   base,
   count,
+  bounce,
 }) => {
   const labelRise = useRise(labelAt);
   const big = usePop(bigAt);
@@ -249,7 +257,7 @@ const FunnelText: FC<{ lead?: string; label: string; labelAt: number; bigAt: num
       {lead ? <div style={{ ...labelRise, fontSize: 36, fontWeight: 700, color: COLORS.sub }}>{lead}</div> : null}
       <div style={{ ...labelRise, fontSize: 54, fontWeight: 700, color: COLORS.ink, marginBottom: 6 }}>{label}</div>
       {percent !== undefined ? (
-        <BigPercent value={percent} at={bigAt} size={200} color={COLORS.accent} />
+        <BigPercent value={percent} at={bigAt} size={200} color={COLORS.accent} bounce={bounce} />
       ) : (
         <div style={{ ...big, fontSize: 170, fontWeight: 800, color: COLORS.accent, lineHeight: 1.15 }}>{bigText}</div>
       )}
@@ -266,6 +274,7 @@ const GRID_TOP = 530;
 const PATIENT_TOP = 545;
 const BASE_ALL = `${FUNNEL.total}人なら`;
 const BASE_PATIENTS = `通院している${FUNNEL.visit}人に当てはめると`;
+const BASE_NOTEBOOK = `お薬手帳を利用している${FUNNEL.notebook}人に当てはめると`;
 
 // ---------- 3番：薬は身近 ----------
 
@@ -286,7 +295,7 @@ const ReachScene: FC = () => {
         <FunnelText base={BASE_PATIENTS} label={notebook.label} labelAt={notebook.from + 0.2} count={FUNNEL.notebook} bigAt={notebook.bigAt} percent={notebook.value} />
       )}
       <PeopleGrid top={GRID_TOP} appearAt={REACH.peopleAt} visit={{ at: visit.bigAt, count: FUNNEL.visit }} to={notebook.from - 0.2} />
-      <PatientGrid top={PATIENT_TOP} appearAt={notebook.from} notebook={{ at: notebook.bigAt, count: FUNNEL.notebook }} />
+      <GroupGrid top={PATIENT_TOP} appearAt={notebook.from} label="通院している人" total={FUNNEL.visit} cols={21} size={58} keep={{ at: notebook.bigAt, count: FUNNEL.notebook }} />
       {frame < sec(notebook.from) ? (
         <Foot at={visit.from + 0.25} lines={[`出典：${FUNNEL.sources.visit}`]} />
       ) : (
@@ -329,14 +338,13 @@ const GapOpening: FC = () => {
   );
 };
 
-/** 3番の終わりと同じ「通院している人」の並びから始めて、持ち歩いている人だけに色を残す */
+/** 3番で色が残った「お薬手帳を利用している人」だけの並びで、持ち歩いている人だけに色を残す */
 const GapCarry: FC = () => {
   const { carry, unprepared } = GAP;
-  const already = -100;
   return (
     <Shot from={carry.from} to={unprepared.from}>
-      <FunnelText lead={GAP.surveyLead} base={BASE_PATIENTS} label={carry.label} labelAt={carry.labelAt} count={FUNNEL.carry} bigAt={carry.bigAt} percent={carry.value} />
-      <PatientGrid top={PATIENT_TOP} appearAt={already} notebook={{ at: already, count: FUNNEL.notebook }} carry={{ at: carry.bigAt, count: FUNNEL.carry }} />
+      <FunnelText lead={GAP.surveyLead} base={BASE_NOTEBOOK} label={carry.label} labelAt={carry.labelAt} count={FUNNEL.carry} bigAt={carry.bigAt} percent={carry.value} bounce />
+      <GroupGrid top={PATIENT_TOP} appearAt={carry.from} label="お薬手帳を利用している人" total={FUNNEL.notebook} cols={15} size={58} keep={{ at: carry.bigAt, count: FUNNEL.carry }} />
       <Foot at={carry.from + 0.2} lines={[`${FUNNEL.caveat}。${carry.note}`, `出典：${FUNNEL.sources.visit}／${FUNNEL.sources.notebook}／${FUNNEL.sources.carry}`]} />
     </Shot>
   );
@@ -363,7 +371,7 @@ const GapUnpreparedNumber: FC = () => {
       <SurveyLead at={unprepared.from + 0.1} color={LIGHT} />
       <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10 }}>
         <div style={{ ...of, fontSize: 64, fontWeight: 700, color: LIGHT }}>{unprepared.of}</div>
-        <BigPercent value={unprepared.value} at={unprepared.bigAt} size={400} color={COLORS.white} />
+        <BigPercent value={unprepared.value} at={unprepared.bigAt} size={400} color={COLORS.white} bounce />
       </AbsoluteFill>
       <Foot at={unprepared.bigAt} lines={UNPREPARED_FOOT} color="rgba(255,255,255,0.6)" />
     </Shot>
@@ -597,7 +605,7 @@ const DmodeQuote: FC = () => {
   const off = spring({ frame: frame - sec(offline.at), fps: FPS, config: { damping: 200 } });
   const badge = usePop(offline.at + 0.1);
   const line1 = useRise(offline.lines[0].at);
-  const line2 = usePop(offline.lines[1].at);
+  const line2 = useBounce(offline.lines[1].at);
   return (
     <Shot from={0} to={rely.from}>
       <div style={{ position: "absolute", top: 150, left: 180, right: 180 }}>
@@ -711,7 +719,7 @@ const HookScene: FC = () => {
   const lostPunch = usePop(lost.lostAt);
   const qLead = useRise(question.leadAt);
   const qMid = useRise(question.midAt);
-  const qPunch = usePop(question.punchAt);
+  const qPunch = useBounce(question.punchAt);
   const center: CSSProperties = { alignItems: "center", justifyContent: "center", flexDirection: "column", color: COLORS.white };
   return (
     <>
@@ -757,32 +765,6 @@ const HookWord: FC<{ at: number; text: string }> = ({ at, text }) => {
   const pop = usePop(at);
   return <span style={{ ...pop, fontSize: 200, lineHeight: 1.15, color: COLORS.white }}>{text}</span>;
 };
-
-// ---------- 2番：地図の「21回」 ----------
-
-/**
- * 地図の録画の「21回」を、声が「21回」と言う瞬間に大きく弾ませる（2026-11-13 オーナー：「日本地図の21回も、もうちょっと…」）。
- * 録画の中の数字と期間の行を白で覆い、同じ場所に大きな数字と、同じ文の期間の行を描く。数字と期間は録画のまま
- */
-const QuakeCountPunch: FC = () => {
-  const frame = useCurrentFrame();
-  const pop = usePop(QUAKE.punchAt);
-  const period = useRise(QUAKE.punchAt + 0.3, 12);
-  if (frame < sec(QUAKE.punchAt)) return null;
-  return (
-    <AbsoluteFill style={{ fontFamily: V2_FONT }}>
-      <div style={{ position: "absolute", left: 40, top: 125, width: 1000, height: 215, backgroundColor: "#ffffff" }} />
-      <div style={{ ...pop, position: "absolute", left: 70, top: 120, transformOrigin: "0% 60%", fontSize: 400, fontWeight: 900, color: QUAKE_RED, lineHeight: 1, whiteSpace: "nowrap" }}>
-        {QUAKE.count}
-        <span style={{ fontSize: 250 }}>回</span>
-      </div>
-      <div style={{ ...period, position: "absolute", left: 82, top: 545, fontFamily: FONT_FAMILY, fontSize: 40, color: "#333333" }}>{QUAKE.period}</div>
-    </AbsoluteFill>
-  );
-};
-
-/** 録画の上に重ねる v2 の部品（SonaQuestVideo.tsx の Cut.extraOverlay から呼ぶ） */
-export const V2Overlay: FC<{ section: Section }> = ({ section }) => (section.screen === "quakeMap" ? <QuakeCountPunch /> : null);
 
 /** cards・sourceQuote の画面（SonaQuestVideo.tsx の Cut.extraScreen から呼ぶ）。cardsKey で場面を選ぶ */
 export const V2Screen: FC<{ section: Section }> = ({ section }) => {
