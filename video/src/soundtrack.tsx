@@ -17,7 +17,7 @@ export const SFX_VOLUME = 0.5;
 const sectionFrom = (n: number) => SECTIONS[n - 1].from;
 const sectionEnd = (n: number) => SECTIONS[n - 1].from + SECTIONS[n - 1].durationInFrames;
 
-type BgmCue = {
+export type BgmCue = {
   file: string;
   from: number;
   duration: number;
@@ -58,10 +58,10 @@ const bgmVolume = (cue: BgmCue) => (f: number) => {
   return v * BGM_VOLUME * (cue.gain ?? 1);
 };
 
-type SfxCue = { file: string; at: number; volume?: number };
+export type SfxCue = { file: string; at: number; volume?: number };
 
 /** 場面の中の秒 → 全体のフレーム */
-const at = (section: Section, seconds: number) => section.from + Math.round(seconds * FPS);
+export const at = (section: Section, seconds: number) => section.from + Math.round(seconds * FPS);
 
 const buildSfx = (): SfxCue[] => {
   const cues: SfxCue[] = [];
@@ -80,14 +80,15 @@ const buildSfx = (): SfxCue[] => {
 
 export const SFX_CUES: SfxCue[] = buildSfx();
 
-export const Soundtrack: FC = () => (
+/** BGM と効果音。cue を渡さなければ提出版の音（v2 は src/v2/ から渡す。Issue #315） */
+export const Soundtrack: FC<{ bgm?: BgmCue[]; sfx?: SfxCue[] }> = ({ bgm = BGM_CUES, sfx = SFX_CUES }) => (
   <>
-    {BGM_CUES.filter((c) => hasStaticFile(c.file)).map((cue) => (
+    {bgm.filter((c) => hasStaticFile(c.file)).map((cue) => (
       <Sequence key={cue.file} from={cue.from} durationInFrames={cue.duration} layout="none" name={`BGM ${cue.file}`}>
         <Audio src={staticFile(cue.file)} volume={bgmVolume(cue)} />
       </Sequence>
     ))}
-    {SFX_CUES.filter((c) => hasStaticFile(c.file)).map((cue, i) => (
+    {sfx.filter((c) => hasStaticFile(c.file)).map((cue, i) => (
       <Sequence key={`${cue.file}-${cue.at}-${i}`} from={cue.at} durationInFrames={Math.round(2 * FPS)} layout="none" name={`効果音 ${cue.file}`}>
         <Audio src={staticFile(cue.file)} volume={(cue.volume ?? 1) * SFX_VOLUME} />
       </Sequence>

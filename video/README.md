@@ -120,6 +120,35 @@ npm --prefix video run render
 - 初回の書き出しで、Remotion が描画用の Chrome（Headless Shell）を取得します（ネットワークが要ります）。
 - 試しに最初の10秒だけ書き出すときは `npm --prefix video run render:test`（`video/out/sonaquest-test.mp4`）。
 
+## 「なぜ必要か」に絞った紹介動画 v2（SonaQuestVideoV2、Issue #315）
+提出版と同じ部品で、場面の表と音を替えた10場面の版です。Studio の左の一覧で `SonaQuestVideoV2` を選びます。中身は `src/v2/`（場面の表 `sectionsV2.ts`、数字のカードと資料の札 `CardSlides.tsx`・`cardsText.ts`、音 `SonaQuestVideoV2.tsx`）。台本の正本はリポジトリの外です。
+
+| # | 中身 | 素材 |
+|---|---|---|
+| 1 | 問い | 提出版の1番のまま（声 `01.mp3`） |
+| 2 | 震度5弱以上の地震は21回（2026-11-05 時点） | 提出版の2番のまま（声 `02.mp3`） |
+| 3 | 薬は身近（通院、お薬手帳の利用） | 数字のカード（声 `v2-03.mp3`） |
+| 4 | 手元にあるとは限らない（ある調査では） | 数字のカード（声 `v2-04.mp3`） |
+| 5 | 仕組みがあっても（災害時モード） | 資料の一節の札（声 `v2-05.mp3`） |
+| 6 | お薬の避難訓練（はじめに） | 提出版の4番の録画（声 `v2-06.mp3`） |
+| 7 | 訓練の実演 | 提出版の5番のまま（声 `05.mp3`、アプリの声、足す台詞） |
+| 8 | 振り返り | 提出版の6番のまま（声 `06.mp3`・`06a.mp3`） |
+| 9 | 受け取る側の備え（ボード） | 提出版の8番の録画・患者の表（声 `v2-09.mp3`） |
+| 10 | 締め | 提出版の13番のまま（声 `13.mp3`） |
+
+- 撮り直しはしません。録画・アプリの声・BGM・効果音は提出版の素材（`video/public/`）をそのまま使います。
+- 新しく合成するナレーションは5本です（原稿は `video/narration/v2-03.txt` など）。合成してから、声の長さを測ってカードの出る時刻（`cardsText.ts` の `at`）と場面の長さ（`sectionsV2.ts` の `seconds`）を直します。
+
+```bash
+npm --prefix video run narration -- --only v2-03,v2-04,v2-05,v2-06,v2-09
+```
+
+```bash
+npm --prefix video run render -- --cut v2
+```
+
+- 書き出し先は `video/out/versions/sonaquest-v2-vNN-<コミット>.mp4` で、提出版の列（`sonaquest-vNN`）とは別に番号を数えます。
+
 ## ボードの地図の紹介動画（BoardMapVideo、約30秒）
 Studio の左の一覧で `BoardMapVideo` を選びます。題材は Issue #167（地図の車と搬送便が道に沿って動く、救護所Dの迂回、錠の10錠単位）。中身は `src/boardMap/` です。
 

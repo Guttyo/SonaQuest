@@ -19,7 +19,8 @@ export const HEIGHT = 1080;
  * - models：モデルの使い分け（11番）。訓練・掲示板・カルテの録画（footage/11-*.mp4）を並べ、モデルの流れの札を重ねる
  *   （2026-11-08 オーナー：「デモ＞プレゼン」。流れの図は要所に残してよい）
  */
-export type ScreenKind = "question" | "quakeMap" | "photos" | "phone" | "board" | "models";
+export type ScreenKind = "question" | "quakeMap" | "photos" | "phone" | "board" | "models" | "cards" | "sourceQuote";
+// cards・sourceQuote は v2（Issue #315、src/v2/）の画面：数字のカードと、資料の一節の札。中身は cardsKey で src/v2/cardsText.ts から引く
 
 /** 声の役（docs/demo-script.md「声の割り当て」）。13場面の版では本人の生声の場面は無い */
 export type Voice = "ナレーター" | "ナレーター＋アプリの声";
@@ -183,6 +184,8 @@ export type Section = {
    * 空でなければ narrationDelayFrames の代わりにこれを使う。trimBeforeFrames・durationFrames は mp3 の中のフレーム
    */
   narrationParts: Array<{ fromFrames: number; trimBeforeFrames: number; durationFrames: number }>;
+  /** cards・sourceQuote の画面の中身の名前（src/v2/cardsText.ts の CARD_SETS のキー）。ほかの画面では null（Issue #315） */
+  cardsKey: string | null;
 };
 
 /** 場面に重ねる音の1つ。fromFrames は場面の頭から。trimBeforeFrames・durationFrames は mp3 の中のどこを使うか（null なら終わりまで） */
@@ -221,13 +224,13 @@ const HEADLINES = [
 
 // [TODO-OWNER: デモの最中の下のテロップと、章の題の文（Claude Code の下書き。2026-11-08 オーナーの「大事なところはテロップ」に合わせた）]
 /** 章の題（大きな場面の切り替わりの頭に約1秒） */
-const CHAPTERS = {
+export const CHAPTERS = {
   training: "お薬の避難訓練",
   board: "本部の医薬品ボード（架空データ）",
 } as const;
 
 /** 下のテロップの文。モデルの名前は modelMap.ts と同じ */
-const TELOPS = {
+export const TELOPS = {
   mode: "文字で答えるか、自分の声で答えるかを選べる",
   event: "想定外の出来事：スマートフォンの電池が切れた",
   recovery: "立て直しの問いは固定文。Claude には作らせない",
@@ -241,7 +244,7 @@ const TELOPS = {
   human: "最後は人が確かめて「確認済み」にする",
 } as const;
 
-type Row = Omit<
+export type Row = Omit<
   Section,
   | "number"
   | "from"
@@ -271,6 +274,7 @@ type Row = Omit<
   | "chapter"
   | "quoteFile"
   | "bezel"
+  | "cardsKey"
 > & {
   /** 場面の長さ（秒）。台本の表の時間の欄と同じ */
   seconds: number;
@@ -302,6 +306,13 @@ type Row = Omit<
   chapter?: { text: string; at: number; seconds?: number };
   quoteFile?: string;
   bezel?: boolean;
+  /** 見出し語。無ければ buildSections に渡した関数から（v2 の行で使う。Issue #315） */
+  headline?: string;
+  /** 前半だけの見出し。無ければ buildSections に渡した関数から */
+  headlineIntro?: { text: string; untilFrame: number } | null;
+  /** ナレーションの mp3（video/public/ から）。無ければ narration/NN.mp3（NN は場面の番号） */
+  narrationFile?: string | null;
+  cardsKey?: string;
 };
 
 /**
@@ -374,12 +385,12 @@ export const PHOTO_SHOT_FRAMES = Math.round(3.4 * FPS);
  * 場面の途中で見出しを切り替える。5番は暗転（電池切れ）まで結末を言わず「いつもの薬を伝える」とし、暗転で「スマートフォンが使えない」にする
  * （v06 の第三者のレビューで「見出しが山場を先に言ってしまう」と指摘。2026-11-08 オーナーが直すと選んだ）
  */
-function headlineIntroOf(index: number): { text: string; untilFrame: number } | null {
+export function headlineIntroOf(index: number): { text: string; untilFrame: number } | null {
   if (index === 4) return { text: "いつもの薬を伝える", untilFrame: Math.round(section5Time(14.8) * FPS) };
   return null;
 }
 
-const ROWS: Row[] = [
+export const ROWS: Row[] = [
   {
     seconds: 8,
     voice: "ナレーター",
@@ -644,22 +655,31 @@ const ROWS: Row[] = [
 const pad2 = (n: number) => String(n).padStart(2, "0");
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${pad2(seconds % 60)}`;
 
-export const SECTIONS: Section[] = ROWS.reduce<Section[]>((acc, row, i) => {
+/**
+ * 行の表から場面の表を作る。提出版（下の SECTIONS）と v2（src/v2/sectionsV2.ts、Issue #315）で使う。
+ * headlineOf・introOf は、行に headline・headlineIntro が無いときの見出し。
+ */
+export function buildSections(
+  rows: Row[],
+  headlineOf: (index: number) => string,
+  introOf: (index: number) => { text: string; untilFrame: number } | null,
+): Section[] {
+  return rows.reduce<Section[]>((acc, row, i) => {
   const number = i + 1;
   const last = acc[acc.length - 1];
   const from = last ? last.from + last.durationInFrames : 0;
   const durationInFrames = row.seconds * FPS;
   const startSec = from / FPS;
   const endSec = (from + durationInFrames) / FPS;
-  const { seconds: _seconds, ...rest } = row;
+  const { seconds: _seconds, headline, headlineIntro, narrationFile, cardsKey, ...rest } = row;
   acc.push({
     ...rest,
     number,
     from,
     durationInFrames,
     timeLabel: `${clock(startSec)}–${clock(endSec)}`,
-    headline: HEADLINES[i],
-    headlineIntro: headlineIntroOf(i),
+    headline: headline ?? headlineOf(i),
+    headlineIntro: headlineIntro !== undefined ? headlineIntro : introOf(i),
     privateNarration: row.privateNarration ?? false,
     photoShots: row.photoShots ?? [],
     captionFile: row.captionFile ?? null,
@@ -686,10 +706,14 @@ export const SECTIONS: Section[] = ROWS.reduce<Section[]>((acc, row, i) => {
     quoteFile: row.quoteFile ?? null,
     bezel: row.bezel ?? false,
     // どの場面もナレーターの声。3・12番の原稿はリポジトリの外だが、合成した音声は同じ場所に置く
-    narrationFile: `narration/${pad2(number)}.mp3`,
+    narrationFile: narrationFile !== undefined ? narrationFile : `narration/${pad2(number)}.mp3`,
+    cardsKey: cardsKey ?? null,
   });
   return acc;
 }, []);
+}
+
+export const SECTIONS: Section[] = buildSections(ROWS, (i) => HEADLINES[i], headlineIntroOf);
 
 export const SECTION_COUNT = SECTIONS.length;
 /** 全体の長さ（フレーム）。各場面の秒の合計（台本では 180 秒＝5400 フレーム） */
