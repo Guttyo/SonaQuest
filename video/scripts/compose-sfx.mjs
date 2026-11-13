@@ -2,7 +2,7 @@
 // 外の音源・サンプルは使わない。Node.js の標準だけで PCM を計算する（依存パッケージなし）。
 // 使い方（リポジトリの直下から）：
 //   node video/scripts/compose-sfx.mjs
-// 書くもの：video/public/sfx/{tap,whoosh,battery-off,confirm,pop,tick,pon,ding,cross,slam}.wav（Git の対象外。48 kHz・ステレオ・16 bit）
+// 書くもの：video/public/sfx/{tap,whoosh,battery-off,confirm,pop,tick,pon,ding,cross,slam,hyoshigi,ptp,book-close}.wav（Git の対象外。48 kHz・ステレオ・16 bit）
 // ログに出すのはファイル名・長さ・山の大きさだけ。
 // 音の山はファイルごとに決めた値にそろえる（PEAKS）。鳴らす大きさは Remotion の volume で決める。
 // ナレーションの邪魔をしないよう、短く、立ち上がりを柔らかくする。乱数は種を固定してあるので毎回同じ音になる。
@@ -27,6 +27,10 @@ const PEAKS = {
   "ding.wav": -10,
   "cross.wav": -10,
   "slam.wav": -8,
+  // v2 の場面に合わせた音（2026-11-13 オーナー：「その場の雰囲気、場面に合うような音」「木のパチンという音」）
+  "hyoshigi.wav": -8,
+  "ptp.wav": -11,
+  "book-close.wav": -10,
 };
 
 function rng(seed) {
@@ -240,6 +244,66 @@ function slam() {
   return { L: x, R: Float64Array.from(x) };
 }
 
+/**
+ * 拍子木の「カン」（夜回りの「火の用心」の音。備えを呼びかける場面に合わせる）：
+ * 堅い木どうしが当たる短い当たりと、すぐ消える高めの響き、外で鳴らしたような短い返り
+ */
+function hyoshigi() {
+  const len = 0.5;
+  const hit = buf(0.2);
+  const modes = [[1180, 0.045, 1], [2460, 0.03, 0.7], [3890, 0.02, 0.45], [5600, 0.012, 0.3]];
+  for (let i = 0; i < hit.length; i++) {
+    const t = i / SR;
+    let v = 0;
+    for (const [f, decay, g] of modes) v += g * Math.exp(-t / decay) * Math.sin(TAU * f * t);
+    hit[i] = v * Math.min(1, t / 0.0005);
+  }
+  const click = filter(noise(0.02, 11), "hp", 2000);
+  for (let i = 0; i < click.length; i++) click[i] *= Math.exp(-(i / SR) / 0.003);
+  addInto(hit, click, 0.8);
+  const L = buf(len), R = buf(len);
+  addInto(L, hit, 1); addInto(R, hit, 1);
+  // 返り（左右に散らす）
+  [[0.023, 0.25, 0.1], [0.041, 0.08, 0.2], [0.067, 0.13, 0.05], [0.097, 0.04, 0.09]].forEach(([at, gl, gr]) => {
+    addInto(L, hit, gl, at); addInto(R, hit, gr, at);
+  });
+  return { L, R };
+}
+
+/** 薬のシートから錠剤を押し出す「パキッ」（薬の数字が出る所）：薄い箔が破れる2つの粒と、小さな樹脂の当たり */
+function ptp() {
+  const len = 0.18;
+  const crack = (seed, f0, decay) => {
+    const c = filter(noise(0.06, seed), "bp", f0, 0.7);
+    for (let i = 0; i < c.length; i++) c[i] *= Math.exp(-(i / SR) / decay);
+    return c;
+  };
+  const x = buf(len);
+  addInto(x, crack(21, 5200, 0.004), 1, 0);
+  addInto(x, crack(22, 3800, 0.005), 0.6, 0.022);
+  const thunk = sweep(0.08, (t) => 420 - 120 * Math.min(1, t / 0.04), (t) => Math.min(1, t / 0.001) * Math.exp(-t / 0.018));
+  addInto(x, thunk, 0.5, 0.004);
+  const foil = filter(noise(0.12, 23), "hp", 6000);
+  for (let i = 0; i < foil.length; i++) foil[i] *= Math.exp(-(i / SR) / 0.03);
+  addInto(x, foil, 0.15, 0.01);
+  return { L: x, R: Float64Array.from(x) };
+}
+
+/** 手帳を閉じる「パタン」（手元に無い・入れていない、の所）：低い当たりと、紙のこすれる短い音 */
+function bookClose() {
+  const len = 0.3;
+  const x = buf(len);
+  const thump = sweep(0.2, (t) => 90 + 60 * Math.exp(-t / 0.02), (t) => Math.min(1, t / 0.002) * Math.exp(-t / 0.035));
+  addInto(x, thump, 1);
+  const paper = filter(noise(0.1, 31), "bp", 1200, 0.5);
+  for (let i = 0; i < paper.length; i++) paper[i] *= Math.exp(-(i / SR) / 0.025);
+  addInto(x, paper, 0.5);
+  const air = filter(noise(0.25, 32), "lp", 500);
+  for (let i = 0; i < air.length; i++) air[i] *= Math.exp(-(i / SR) / 0.06);
+  addInto(x, air, 0.3);
+  return { L: x, R: Float64Array.from(x) };
+}
+
 // ---------------------------------------------------------------- 書き出し
 
 function toWav({ L, R }, peakDb) {
@@ -277,6 +341,9 @@ const SOUNDS = [
   ["ding.wav", ding],
   ["cross.wav", cross],
   ["slam.wav", slam],
+  ["hyoshigi.wav", hyoshigi],
+  ["ptp.wav", ptp],
+  ["book-close.wav", bookClose],
 ];
 
 await mkdir(outDir, { recursive: true });

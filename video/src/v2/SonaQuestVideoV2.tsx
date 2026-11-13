@@ -4,9 +4,8 @@ import type { FC } from "react";
 import { CutVideo, type Cut } from "../SonaQuestVideo";
 import { ENDCARD_FRAMES, FPS, section5Time } from "../sections";
 import { at, type BgmCue, type SfxCue } from "../soundtrack";
-import { V2Screen, quakeAt } from "./CardSlides";
+import { V2Screen } from "./CardSlides";
 import { DMODE, GAP, HOOK, QUAKE, REACH } from "./cardsText";
-import { QUAKES } from "./quakeMapData";
 import { BOARD_TABLE_FROM_SECONDS, SECTIONS_V2 } from "./sectionsV2";
 
 const S = SECTIONS_V2;
@@ -42,22 +41,25 @@ const buildSfx = (): SfxCue[] => {
   }
   cues.push({ file: "sfx/battery-off.wav", at: at(S[6], section5Time(14.8)) });
   cues.push({ file: "sfx/confirm.wav", at: at(S[8], 18.7) });
-  // 冒頭と3〜5番：大事な数字と言葉の所だけに鳴らす（2026-11-13 オーナー：「効果音を合わせることで、その数値を立たせる」。
-  // v10 を見て「使いすぎ…本当に大事なところに」と言われて、札が1つずつ出る所・地図・小さな ✕ の音は外した）
+  // 冒頭と2〜5番：大事な数字と言葉の所だけに鳴らす（2026-11-13 オーナー：「効果音を合わせることで、その数値を立たせる」。
+  // v10 を見て「使いすぎ…本当に大事なところに」と言われて、札が1つずつ出る所・小さな ✕ の音は外した）
+  // 2026-11-13 オーナー（v14 の後、チャット）：「地震の回数のカウントアップに効果音は不要」→ 点ごとの刻みを外した。
+  // 「既存効果音やBGMではなく、その場の雰囲気、場面に合うような音だとなおよい…木のパチンという音…『火の用心、カンカン』のカン」
+  // → 場面の中身に合う音に替えた（下書き。聞いて直す）：
+  //   備えを問う所・いちばん大事な数字 ＝ 拍子木（hyoshigi）、薬の数字 ＝ 薬のシートを押し出す音（ptp）、
+  //   スマホ・通信が使えない ＝ 7番の電池切れと同じ音（battery-off）、手元に無い・入れていない ＝ 手帳を閉じる音（book-close）
   const hook = S[0], reach = S[2], gap = S[3], dmode = S[4];
   const u = GAP.unprepared;
-  // 2番：震源の点が出るたびに、ごく小さな刻み。声の「21回」で1回だけ
-  QUAKES.forEach((_, i) => cues.push({ file: "sfx/tick.wav", at: at(S[1], quakeAt(i)), volume: 0.35 }));
-  cues.push({ file: "sfx/pon.wav", at: at(S[1], QUAKE.punchAt), volume: 0.7 });
-  cues.push({ file: "sfx/cross.wav", at: at(hook, HOOK.lost.lostAt), volume: 0.7 });
-  cues.push({ file: "sfx/slam.wav", at: at(hook, HOOK.question.punchAt) });
-  cues.push({ file: "sfx/pon.wav", at: at(reach, REACH.visit.bigAt), volume: 0.7 });
-  cues.push({ file: "sfx/pon.wav", at: at(reach, REACH.notebook.bigAt), volume: 0.7 });
-  cues.push({ file: "sfx/pon.wav", at: at(gap, GAP.carry.bigAt) });
-  cues.push({ file: "sfx/slam.wav", at: at(gap, u.bigAt) });
-  cues.push({ file: "sfx/cross.wav", at: at(gap, u.forget.punchAt), volume: 0.8 });
-  cues.push({ file: "sfx/cross.wav", at: at(gap, u.bag.punchAt), volume: 0.8 });
-  cues.push({ file: "sfx/slam.wav", at: at(dmode, DMODE.offline.lines[1].at) });
+  cues.push({ file: "sfx/hyoshigi.wav", at: at(S[1], QUAKE.punchAt), volume: 0.8 });
+  cues.push({ file: "sfx/battery-off.wav", at: at(hook, HOOK.lost.lostAt), volume: 0.6 });
+  cues.push({ file: "sfx/hyoshigi.wav", at: at(hook, HOOK.question.punchAt) });
+  cues.push({ file: "sfx/ptp.wav", at: at(reach, REACH.visit.bigAt) });
+  cues.push({ file: "sfx/ptp.wav", at: at(reach, REACH.notebook.bigAt) });
+  cues.push({ file: "sfx/ptp.wav", at: at(gap, GAP.carry.bigAt) });
+  cues.push({ file: "sfx/hyoshigi.wav", at: at(gap, u.bigAt) });
+  cues.push({ file: "sfx/book-close.wav", at: at(gap, u.forget.punchAt) });
+  cues.push({ file: "sfx/book-close.wav", at: at(gap, u.bag.punchAt) });
+  cues.push({ file: "sfx/battery-off.wav", at: at(dmode, DMODE.offline.lines[1].at), volume: 0.6 });
   cues.push({ file: "sfx/ding.wav", at: at(dmode, DMODE.rely.words[1].at) });
   return cues;
 };
