@@ -7,7 +7,7 @@ import { at, type BgmCue, type SfxCue } from "../soundtrack";
 import { V2Screen, quakeAt } from "./CardSlides";
 import { DMODE, GAP, HOOK, QUAKE, REACH } from "./cardsText";
 import { QUAKES } from "./quakeMapData";
-import { SECTIONS_V2 } from "./sectionsV2";
+import { BOARD_TABLE_FROM_SECONDS, SECTIONS_V2 } from "./sectionsV2";
 
 const S = SECTIONS_V2;
 const from = (n: number) => S[n - 1].from;
@@ -41,7 +41,7 @@ const buildSfx = (): SfxCue[] => {
     for (const telop of section.telops) cues.push({ file: "sfx/pop.wav", at: at(section, telop.from), volume: 0.3 });
   }
   cues.push({ file: "sfx/battery-off.wav", at: at(S[6], section5Time(14.8)) });
-  cues.push({ file: "sfx/confirm.wav", at: at(S[8], 16.2) });
+  cues.push({ file: "sfx/confirm.wav", at: at(S[8], 18.7) });
   // 冒頭と3〜5番：大事な数字と言葉の所だけに鳴らす（2026-11-13 オーナー：「効果音を合わせることで、その数値を立たせる」。
   // v10 を見て「使いすぎ…本当に大事なところに」と言われて、札が1つずつ出る所・地図・小さな ✕ の音は外した）
   const hook = S[0], reach = S[2], gap = S[3], dmode = S[4];
@@ -70,6 +70,7 @@ export const V2_CUT: Cut = {
   sfx: buildSfx(),
   extraScreen: (section) => <V2Screen section={section} />,
   hideCaption: (section) => section.cardsKey === "hook" || section.cardsKey === "quake",
+  patientTableFromFrames: Math.round(BOARD_TABLE_FROM_SECONDS * FPS),
 };
 
 export const SonaQuestVideoV2: FC = () => <CutVideo cut={V2_CUT} />;

@@ -106,7 +106,18 @@ const ROWS_V2: Row[] = [
     narrationFile: "narration/v2-09.mp3",
     narrationDelayFrames: sec(0.5),
     extraNarration: [],
-    footageFreezeSeconds: 21.5,
+    // 2026-11-13 オーナー（v13 を見て、チャット）：「100名の一覧…タイミングが早い。ナレーションに合わせて」「動いているダッシュボードは最初から見せるべき」
+    // 録画は 6.5〜13.0 秒で時計が進む（動く所）。頭の止まった所（0〜6.2 秒）を飛ばし、動く所を 0.63 倍でゆっくり流して、
+    // 声の「100人の架空の患者」（場面の 10.66 秒）で患者の表（BOARD_TABLE_FROM_SECONDS から5秒）に替える。
+    // 表の下で録画を止め（録画の 12.9 秒）、表が終わる所から等速で続ける：場面の時刻 ＝ 録画の時刻 ＋ 2.5 秒
+    footageStartSeconds: 6.2,
+    footageHold: { atSeconds: 10.6, seconds: 4.8, rateBefore: 0.632 },
+    badges: [{ from: 2.0, to: 10.4, text: "▶▶ デモの時間を早送り" }],
+    taps: v1(8).taps!.map((tap) => ({ ...tap, at: tap.at + 2.5 })),
+    telops: [
+      { ...v1(8).telops![0], from: 2.2, to: 6 },
+      { ...v1(8).telops![1], from: 16.0, to: 21.2 },
+    ],
     chapter: { text: CHAPTERS.board, at: 0, seconds: 2.0 },
   },
   // 10：使った人の声。提出版の12番のまま（写真・感想の一枚・声。中身はリポジトリの外）。
@@ -116,6 +127,9 @@ const ROWS_V2: Row[] = [
   // 11：締め。提出版の13番のまま（公開 URL は出さない：2026-11-08 オーナー決定。スマホの画面も出さない：同日オーナー）
   { ...v1(13), narrationFile: "narration/13.mp3" },
 ];
+
+/** 9番で、架空の患者の表を出し始める時刻（場面の頭から。声の「100人の架空の患者」の少し前） */
+export const BOARD_TABLE_FROM_SECONDS = 10.5;
 
 export const SECTIONS_V2 = buildSections(ROWS_V2, (i) => HEADLINES_V2[i], () => null);
 export const TOTAL_FRAMES_V2 = SECTIONS_V2.reduce((sum, s) => sum + s.durationInFrames, 0);

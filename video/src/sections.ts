@@ -106,7 +106,8 @@ export type Section = {
   /** 録画がこのフレーム（場面の頭から）より先へ行かないよう、ここで止める。録画が場面より短いとき（10番）。null なら止めない */
   footageFreezeFrame: number | null;
   /** 録画を途中で止めて間を作る（5番）。atFrame（場面の頭から）の絵を frames だけ止め、その後は続きから流す。null なら止めない */
-  footageHold: { atFrame: number; frames: number } | null;
+  /** rateBefore は、止めるまでの録画の速さ（1 が等速。無ければ 1。v2 の9番でゆっくり流す） */
+  footageHold: { atFrame: number; frames: number; rateBefore?: number } | null;
   /** 場面の前半だけ別の見出しを出す（untilFrame は場面の頭から。その後は headline）。null なら頭から headline */
   headlineIntro: { text: string; untilFrame: number } | null;
   /** 寄り（01 クローズアップ）。無ければ寄らない */
@@ -297,7 +298,7 @@ export type Row = Omit<
   /** 録画を止める時刻（秒。場面の頭から） */
   footageFreezeSeconds?: number;
   /** 録画を途中で止めて間を作る（秒） */
-  footageHold?: { atSeconds: number; seconds: number };
+  footageHold?: { atSeconds: number; seconds: number; rateBefore?: number };
   zooms?: Zoom[];
   badges?: Badge[];
   taps?: Tap[];
@@ -697,7 +698,9 @@ export function buildSections(
     })),
     footageStartFrame: Math.round((row.footageStartSeconds ?? 0) * FPS),
     footageFreezeFrame: row.footageFreezeSeconds === undefined ? null : Math.round(row.footageFreezeSeconds * FPS),
-    footageHold: row.footageHold ? { atFrame: Math.round(row.footageHold.atSeconds * FPS), frames: Math.round(row.footageHold.seconds * FPS) } : null,
+    footageHold: row.footageHold
+      ? { atFrame: Math.round(row.footageHold.atSeconds * FPS), frames: Math.round(row.footageHold.seconds * FPS), rateBefore: row.footageHold.rateBefore }
+      : null,
     zooms: row.zooms ?? [],
     badges: row.badges ?? [],
     taps: row.taps ?? [],

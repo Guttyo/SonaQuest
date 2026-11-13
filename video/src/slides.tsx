@@ -431,8 +431,8 @@ const MissingPanel: FC<{ lines: string[] }> = ({ lines }) => (
  * 架空の患者 100 人の表を差し込む枠（Issue #261 で作る部品。web/src/board/patients.ts から読む）。
  * 今は仮の画面。部品が main に入ったら、PatientTablePlaceholder をその部品に置き換える。
  */
-export const PatientTableOverlay: FC = () => (
-  <Sequence from={PATIENT_TABLE_FROM_FRAMES} durationInFrames={PATIENT_TABLE_FRAMES} layout="none" name="架空の患者の表（Issue #261）">
+export const PatientTableOverlay: FC<{ fromFrames?: number }> = ({ fromFrames = PATIENT_TABLE_FROM_FRAMES }) => (
+  <Sequence from={fromFrames} durationInFrames={PATIENT_TABLE_FRAMES} layout="none" name="架空の患者の表（Issue #261）">
     <AbsoluteFill>
       <PatientTableVideo />
     </AbsoluteFill>

@@ -42,6 +42,8 @@ export type Cut = {
   extraScreen?: (section: Section) => ReactNode;
   /** 左上の見出し語を出さない場面（v2 の冒頭の問いかけ） */
   hideCaption?: (section: Section) => boolean;
+  /** 架空の患者の表を出し始めるフレーム（場面の頭から。無ければ提出版と同じ） */
+  patientTableFromFrames?: number;
 };
 
 export const V1_CUT: Cut = { sections: SECTIONS, endcardFrames: ENDCARD_FRAMES, crossNarration: CROSS_NARRATION };
@@ -148,8 +150,9 @@ const Placeholder: FC<{ section: Section; label: string; style?: CSSProperties }
  * footageHold があれば途中の絵を決まった長さだけ止めて、その後は続きから流す（5番）
  */
 const FootageVideo: FC<{ section: Section }> = ({ section }) => {
-  const video = (trimBefore: number) => (
+  const video = (trimBefore: number, playbackRate = 1) => (
     <OffthreadVideo
+      playbackRate={playbackRate}
       src={staticFile(section.footageFile!)}
       muted={!section.footageAudio}
       volume={footageVolume(section)}
@@ -160,16 +163,18 @@ const FootageVideo: FC<{ section: Section }> = ({ section }) => {
   const start = section.footageStartFrame;
   const hold = section.footageHold;
   if (hold) {
+    // 止めるまでをゆっくり流すとき（rateBefore）、止めた絵と続きの頭は、録画の中の同じ位置にそろえる
+    const rate = hold.rateBefore ?? 1;
     return (
       <>
         <Sequence durationInFrames={hold.atFrame} layout="none" name="録画">
-          {video(start)}
+          {video(start, rate)}
         </Sequence>
         <Sequence from={hold.atFrame} durationInFrames={hold.frames} layout="none" name="録画を止める">
-          <Freeze frame={hold.atFrame}>{video(start)}</Freeze>
+          <Freeze frame={hold.atFrame}>{video(start, rate)}</Freeze>
         </Sequence>
         <Sequence from={hold.atFrame + hold.frames} layout="none" name="録画の続き">
-          {video(start + hold.atFrame)}
+          {video(start + Math.round(hold.atFrame * rate))}
         </Sequence>
       </>
     );
@@ -716,6 +721,7 @@ const BadgeView: FC<{ section: Section }> = ({ section }) => {
 
 /** 画面に重ねる部品 */
 const OverlayView: FC<{ section: Section }> = ({ section }) => {
+  const cut = useContext(CutContext);
   switch (section.overlay) {
     case "quakeCount":
       // 1分動画の地図の動画には題・「21回」・出典が入っているので、動画があるときは重ねない
@@ -723,7 +729,7 @@ const OverlayView: FC<{ section: Section }> = ({ section }) => {
     case "pipeline":
       return <PipelineOverlay />;
     case "patientTable":
-      return <PatientTableOverlay />;
+      return <PatientTableOverlay fromFrames={cut.patientTableFromFrames} />;
     case null:
       return null;
   }
