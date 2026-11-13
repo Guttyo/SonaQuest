@@ -22,8 +22,13 @@ export const ALL_NARRATION_BEATS = [...NARRATION_BEATS, ...PRIVATE_NARRATION_BEA
  * 鳴らす時刻は sections.ts の extraNarration（07a は場面をまたぐので CROSS_NARRATION）。
  */
 export const EXTRA_CLIPS = ["05a", "05b", "05c", "06a", "07a", "08a"];
-/** 合成できるもののすべて（場面のナレーション＋足す台詞）。ファイル名の順 */
-export const ALL_CLIPS = [...ALL_NARRATION_BEATS, ...EXTRA_CLIPS].sort((a, b) => beatId(a).localeCompare(beatId(b)));
+/**
+ * v2 の紹介動画（Issue #315）で新しく合成するナレーション。id は「v2-」＋ v2 の場面の番号（2桁）。
+ * 原稿は video/narration/<id>.txt、音声は video/public/narration/<id>.mp3。ほかの場面は提出版の mp3 を流用する。
+ */
+export const V2_CLIPS = ["v2-01", "v2-02", "v2-03", "v2-04", "v2-05", "v2-06", "v2-09"];
+/** 合成できるもののすべて（場面のナレーション＋足す台詞＋v2）。ファイル名の順 */
+export const ALL_CLIPS = [...ALL_NARRATION_BEATS, ...EXTRA_CLIPS, ...V2_CLIPS].sort((a, b) => beatId(a).localeCompare(beatId(b)));
 
 /** 原稿がリポジトリの外の場面か */
 export const isPrivateBeat = (beat) => PRIVATE_NARRATION_BEATS.includes(beat);
@@ -65,10 +70,10 @@ const VOICE_ID_PATTERN = /^[A-Za-z0-9]{8,64}$/;
 /** モデルの ID の形 */
 const MODEL_ID_PATTERN = /^[A-Za-z0-9_.-]{1,64}$/;
 
-/** 番号を2桁にする（2 → "02"）。足す台詞の id（"05a" など）はそのまま返す */
+/** 番号を2桁にする（2 → "02"）。足す台詞の id（"05a" など）と v2 の id（"v2-03" など）はそのまま返す */
 export function beatId(beat) {
   if (typeof beat === "string") {
-    if (!/^\d{2}[a-z]$/.test(beat)) throw new RangeError("足す台詞の id は 2桁の番号＋英字（例：05a）");
+    if (!/^(\d{2}[a-z]|v2-\d{2})$/.test(beat)) throw new RangeError("足す台詞の id は 2桁の番号＋英字（例：05a）、v2 は v2-＋2桁（例：v2-03）");
     return beat;
   }
   if (!Number.isInteger(beat) || beat < 1 || beat > 99) throw new RangeError("ビートの番号は 1〜99 の整数");

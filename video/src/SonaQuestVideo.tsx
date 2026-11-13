@@ -1,9 +1,9 @@
 // 提出動画の本体（Issue #28・#262、ADR-0051）。sections.ts の13場面（可変の尺）を <Sequence> で並べる。
 // 素材（地図・写真・録画・ナレーション）は video/public/ に置く（Git の対象外）。
 // 置かれていない素材は描かず・鳴らさず、仮の画面（番号・時間・見出し語）のまま書き出せるようにする。
-import type { CSSProperties, FC, ReactNode } from "react";
+import { createContext, useContext, type CSSProperties, type FC, type ReactNode } from "react";
 import { AbsoluteFill, Audio, Easing, Freeze, Img, OffthreadVideo, Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
-import { CROSS_NARRATION, ENDCARD_FRAMES, FPS, HEIGHT, SECTIONS, SECTION_COUNT, WIDTH, type AudioClip, type Section, type Tap, type Zoom } from "./sections";
+import { CROSS_NARRATION, ENDCARD_FRAMES, FPS, HEIGHT, SECTIONS, WIDTH, type AudioClip, type Section, type Tap, type Zoom } from "./sections";
 import { CLOSING_LINE, EVENT_CREDIT, EVENT_PERIOD } from "./slideText";
 import {
   ModelsDemo,
@@ -14,7 +14,7 @@ import {
 } from "./slides";
 import { COLORS, MONO, baseText, hasStaticFile } from "./theme";
 import { QuoteScene } from "./quoteSlide";
-import { Soundtrack } from "./soundtrack";
+import { Soundtrack, type BgmCue, type SfxCue } from "./soundtrack";
 import { OptionPanelView } from "./optionPanel";
 import {
   LOGO_ACCENT_PATH,
@@ -24,6 +24,31 @@ import {
   LOGO_WIDTH,
   LOGO_WORD_PATH,
 } from "../../web/src/brand/logoData";
+
+/**
+ * 1本の動画の組み方（Issue #315）。提出版（V1_CUT）と v2（src/v2/SonaQuestVideoV2.tsx）で、
+ * 場面の部品は同じものを使い、場面の表・音・締めの画面の長さだけを替える。
+ */
+export type Cut = {
+  sections: Section[];
+  /** 最後の場面の締めの画面の長さ（フレーム） */
+  endcardFrames: number;
+  /** 場面をまたいで鳴らすナレーション */
+  crossNarration: Array<{ file: string; fromFrames: number }>;
+  /** BGM と効果音（無ければ提出版の音） */
+  bgm?: BgmCue[];
+  sfx?: SfxCue[];
+  /** cards・sourceQuote の画面を描く（v2 の部品。src/v2/ から渡す） */
+  extraScreen?: (section: Section) => ReactNode;
+  /** 左上の見出し語を出さない場面（v2 の冒頭の問いかけ） */
+  hideCaption?: (section: Section) => boolean;
+  /** 架空の患者の表を出し始めるフレーム（場面の頭から。無ければ提出版と同じ） */
+  patientTableFromFrames?: number;
+};
+
+export const V1_CUT: Cut = { sections: SECTIONS, endcardFrames: ENDCARD_FRAMES, crossNarration: CROSS_NARRATION };
+
+const CutContext = createContext<Cut>(V1_CUT);
 
 /** スマホ幅の録画（390×844）を入れる枠。横長の画面の高さに収まるよう少し大きくする */
 const PHONE_SCALE = 1.06;
@@ -125,8 +150,9 @@ const Placeholder: FC<{ section: Section; label: string; style?: CSSProperties }
  * footageHold があれば途中の絵を決まった長さだけ止めて、その後は続きから流す（5番）
  */
 const FootageVideo: FC<{ section: Section }> = ({ section }) => {
-  const video = (trimBefore: number) => (
+  const video = (trimBefore: number, playbackRate = 1) => (
     <OffthreadVideo
+      playbackRate={playbackRate}
       src={staticFile(section.footageFile!)}
       muted={!section.footageAudio}
       volume={footageVolume(section)}
@@ -137,16 +163,18 @@ const FootageVideo: FC<{ section: Section }> = ({ section }) => {
   const start = section.footageStartFrame;
   const hold = section.footageHold;
   if (hold) {
+    // 止めるまでをゆっくり流すとき（rateBefore）、止めた絵と続きの頭は、録画の中の同じ位置にそろえる
+    const rate = hold.rateBefore ?? 1;
     return (
       <>
         <Sequence durationInFrames={hold.atFrame} layout="none" name="録画">
-          {video(start)}
+          {video(start, rate)}
         </Sequence>
         <Sequence from={hold.atFrame} durationInFrames={hold.frames} layout="none" name="録画を止める">
-          <Freeze frame={hold.atFrame}>{video(start)}</Freeze>
+          <Freeze frame={hold.atFrame}>{video(start, rate)}</Freeze>
         </Sequence>
         <Sequence from={hold.atFrame + hold.frames} layout="none" name="録画の続き">
-          {video(start + hold.atFrame)}
+          {video(start + Math.round(hold.atFrame * rate))}
         </Sequence>
       </>
     );
@@ -405,7 +433,8 @@ const EndCard: FC = () => {
  */
 const Caption: FC<{ section: Section; inColumn: boolean }> = ({ section, inColumn }) => {
   const frame = useCurrentFrame();
-  const continued = SECTIONS[section.number - 2]?.headline === section.headline;
+  const { sections } = useContext(CutContext);
+  const continued = sections[section.number - 2]?.headline === section.headline;
   // 前半だけ別の見出しを出す場面（5番）は、切り替えの所で後半の見出しをもう一度フェードで出す
   const intro = section.headlineIntro;
   const inIntro = intro !== null && frame < intro.untilFrame;
@@ -496,7 +525,7 @@ const ChapterFlash: FC<{ section: Section }> = ({ section }) => {
   const t = frame - from;
   if (t < 0 || t > dur) return null;
   const opacity = Math.min(
-    interpolate(t, [0, 5], [0, 1], { extrapolateRight: "clamp" }),
+    section.chapter.instant ? 1 : interpolate(t, [0, 5], [0, 1], { extrapolateRight: "clamp" }),
     interpolate(t, [dur - 8, dur], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }),
   );
   const scale = interpolate(t, [0, dur], [1.04, 1], { extrapolateRight: "clamp" });
@@ -692,6 +721,7 @@ const BadgeView: FC<{ section: Section }> = ({ section }) => {
 
 /** 画面に重ねる部品 */
 const OverlayView: FC<{ section: Section }> = ({ section }) => {
+  const cut = useContext(CutContext);
   switch (section.overlay) {
     case "quakeCount":
       // 1分動画の地図の動画には題・「21回」・出典が入っているので、動画があるときは重ねない
@@ -699,7 +729,7 @@ const OverlayView: FC<{ section: Section }> = ({ section }) => {
     case "pipeline":
       return <PipelineOverlay />;
     case "patientTable":
-      return <PatientTableOverlay />;
+      return <PatientTableOverlay fromFrames={cut.patientTableFromFrames} />;
     case null:
       return null;
   }
@@ -707,6 +737,7 @@ const OverlayView: FC<{ section: Section }> = ({ section }) => {
 
 /** 1場面分の画面 */
 const Beat: FC<{ section: Section }> = ({ section }) => {
+  const cut = useContext(CutContext);
   let body: ReactNode;
   let inColumn = false;
   // 見出し語を出さない画面（画面そのものが大きな文字のもの）
@@ -737,12 +768,16 @@ const Beat: FC<{ section: Section }> = ({ section }) => {
       body = <ModelsDemo />;
       showCaption = false;
       break;
+    case "cards":
+    case "sourceQuote":
+      body = cut.extraScreen?.(section) ?? <Placeholder section={section} label="v2 の画面" />;
+      break;
   }
   return (
     <AbsoluteFill style={{ backgroundColor: COLORS.background }}>
       <ZoomLayer section={section}>{body}</ZoomLayer>
       {/* 題は重ねる部品（患者の表など、全面のもの）の下に置き、全面の部品が出ている間は隠れるようにする */}
-      {showCaption ? <Caption section={section} inColumn={inColumn} /> : null}
+      {showCaption && !cut.hideCaption?.(section) ? <Caption section={section} inColumn={inColumn} /> : null}
       <OverlayView section={section} />
       <BadgeView section={section} />
       <TelopView section={section} inColumn={inColumn} />
@@ -751,8 +786,8 @@ const Beat: FC<{ section: Section }> = ({ section }) => {
       <Narration section={section} />
       <AppVoice section={section} />
       <ExtraNarration section={section} />
-      {section.number === SECTION_COUNT ? (
-        <Sequence from={section.durationInFrames - ENDCARD_FRAMES} durationInFrames={ENDCARD_FRAMES} layout="none" name="締めの画面">
+      {section.number === cut.sections.length ? (
+        <Sequence from={section.durationInFrames - cut.endcardFrames} durationInFrames={cut.endcardFrames} layout="none" name="締めの画面">
           <EndCard />
         </Sequence>
       ) : null}
@@ -760,15 +795,17 @@ const Beat: FC<{ section: Section }> = ({ section }) => {
   );
 };
 
-export const SonaQuestVideo: FC = () => (
+/** 1本の動画（Cut）を並べる。提出版は下の SonaQuestVideo、v2 は src/v2/SonaQuestVideoV2.tsx */
+export const CutVideo: FC<{ cut: Cut }> = ({ cut }) => (
+  <CutContext.Provider value={cut}>
   <AbsoluteFill style={{ backgroundColor: COLORS.background }}>
-    <Soundtrack />
-    {CROSS_NARRATION.filter((v) => hasStaticFile(v.file)).map((v) => (
+    <Soundtrack bgm={cut.bgm} sfx={cut.sfx} />
+    {cut.crossNarration.filter((v) => hasStaticFile(v.file)).map((v) => (
       <Sequence key={v.file} from={v.fromFrames} layout="none" name="場面をまたぐナレーション">
         <Audio src={staticFile(v.file)} />
       </Sequence>
     ))}
-    {SECTIONS.map((section) => (
+    {cut.sections.map((section) => (
       <Sequence
         key={section.number}
         from={section.from}
@@ -779,4 +816,8 @@ export const SonaQuestVideo: FC = () => (
       </Sequence>
     ))}
   </AbsoluteFill>
+  </CutContext.Provider>
 );
+
+/** 提出動画（13場面） */
+export const SonaQuestVideo: FC = () => <CutVideo cut={V1_CUT} />;
