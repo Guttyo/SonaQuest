@@ -2,7 +2,7 @@
 // 外の音源・サンプルは使わない。Node.js の標準だけで PCM を計算する（依存パッケージなし）。
 // 使い方（リポジトリの直下から）：
 //   node video/scripts/compose-sfx.mjs
-// 書くもの：video/public/sfx/{tap,whoosh,battery-off,confirm,pop,tick,pon,ding,cross,slam,hyoshigi,ptp,book-close}.wav（Git の対象外。48 kHz・ステレオ・16 bit）
+// 書くもの：video/public/sfx/{tap,whoosh,battery-off,confirm,pop,tick,pon,ding,cross,slam,pill-shake,rumble,ptp,book-close}.wav（Git の対象外。48 kHz・ステレオ・16 bit）
 // ログに出すのはファイル名・長さ・山の大きさだけ。
 // 音の山はファイルごとに決めた値にそろえる（PEAKS）。鳴らす大きさは Remotion の volume で決める。
 // ナレーションの邪魔をしないよう、短く、立ち上がりを柔らかくする。乱数は種を固定してあるので毎回同じ音になる。
@@ -27,8 +27,9 @@ const PEAKS = {
   "ding.wav": -10,
   "cross.wav": -10,
   "slam.wav": -8,
-  // v2 の場面に合わせた音（2026-11-13 オーナー：「その場の雰囲気、場面に合うような音」「木のパチンという音」）
-  "hyoshigi.wav": -8,
+  // v2 の場面に合わせた音（2026-11-13 オーナー：「その場の雰囲気、場面に合うような音」「木のパチンという音」は例で、このアプリに合う音を、と言われて拍子木はやめた）
+  "pill-shake.wav": -9,
+  "rumble.wav": -6,
   "ptp.wav": -11,
   "book-close.wav": -10,
 };
@@ -244,30 +245,34 @@ function slam() {
   return { L: x, R: Float64Array.from(x) };
 }
 
-/**
- * 拍子木の「カン」（夜回りの「火の用心」の音。備えを呼びかける場面に合わせる）：
- * 堅い木どうしが当たる短い当たりと、すぐ消える高めの響き、外で鳴らしたような短い返り
- */
-function hyoshigi() {
-  const len = 0.5;
-  const hit = buf(0.2);
-  const modes = [[1180, 0.045, 1], [2460, 0.03, 0.7], [3890, 0.02, 0.45], [5600, 0.012, 0.3]];
-  for (let i = 0; i < hit.length; i++) {
-    const t = i / SR;
-    let v = 0;
-    for (const [f, decay, g] of modes) v += g * Math.exp(-t / decay) * Math.sin(TAU * f * t);
-    hit[i] = v * Math.min(1, t / 0.0005);
-  }
-  const click = filter(noise(0.02, 11), "hp", 2000);
-  for (let i = 0; i < click.length; i++) click[i] *= Math.exp(-(i / SR) / 0.003);
-  addInto(hit, click, 0.8);
+/** 薬のケースの中で錠剤が鳴る「カラッ」（薬の話でいちばん大事な数字の所）：小さく堅い粒が、樹脂の容れ物に続けて当たる */
+function pillShake() {
+  const len = 0.32;
+  const r = rng(41);
   const L = buf(len), R = buf(len);
-  addInto(L, hit, 1); addInto(R, hit, 1);
-  // 返り（左右に散らす）
-  [[0.023, 0.25, 0.1], [0.041, 0.08, 0.2], [0.067, 0.13, 0.05], [0.097, 0.04, 0.09]].forEach(([at, gl, gr]) => {
-    addInto(L, hit, gl, at); addInto(R, hit, gr, at);
+  [0, 0.018, 0.041, 0.058, 0.09, 0.104, 0.142, 0.19].forEach((at, k) => {
+    const grain = filter(noise(0.03, 50 + k), "bp", 2600 + 2200 * r(), 2.5);
+    for (let i = 0; i < grain.length; i++) grain[i] *= Math.exp(-(i / SR) / 0.004);
+    const pitch = 700 + 500 * r();
+    const body = sweep(0.03, () => pitch, (t) => Math.exp(-t / 0.006));
+    const g = (k < 5 ? 1 : 0.55) * (0.6 + 0.4 * r());
+    const pan = 0.3 + 0.4 * r();
+    addInto(L, grain, g * (1 - pan), at); addInto(R, grain, g * pan, at);
+    addInto(L, body, 0.25 * g, at); addInto(R, body, 0.25 * g, at);
   });
   return { L, R };
+}
+
+/** 地鳴りの低い「ドゥン」（地震の回数の所）：とても低い響きがふくらんで消える。高い成分は入れない */
+function rumble() {
+  const len = 1.1;
+  const env = (t) => Math.min(1, t / 0.06) * Math.exp(-t / 0.32);
+  const low = sweep(len, (t) => 62 - 18 * Math.min(1, t / 0.5), env);
+  const sub = sweep(len, (t) => 93 - 20 * Math.min(1, t / 0.5), (t) => env(t) * 0.35);
+  const n = filter(noise(len, 61), "lp", 140);
+  for (let i = 0; i < n.length; i++) n[i] *= env(i / SR) * (0.7 + 0.3 * Math.sin(TAU * 11 * (i / SR)));
+  const x = addInto(addInto(addInto(buf(len), low, 1), sub, 1), n, 0.8);
+  return { L: x, R: Float64Array.from(x) };
 }
 
 /** 薬のシートから錠剤を押し出す「パキッ」（薬の数字が出る所）：薄い箔が破れる2つの粒と、小さな樹脂の当たり */
@@ -341,7 +346,8 @@ const SOUNDS = [
   ["ding.wav", ding],
   ["cross.wav", cross],
   ["slam.wav", slam],
-  ["hyoshigi.wav", hyoshigi],
+  ["pill-shake.wav", pillShake],
+  ["rumble.wav", rumble],
   ["ptp.wav", ptp],
   ["book-close.wav", bookClose],
 ];
