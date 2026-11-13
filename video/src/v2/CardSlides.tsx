@@ -239,7 +239,7 @@ const GroupGrid: FC<{ top: number; appearAt: number; label: string; total: numbe
  * 2026-11-13 オーナー（v08 を見て、チャット）：「スライドに表示されているのは何人…実際に読み上げているのはパーセンテージ」
  * 「スライドをパーセンテージに…何人っていう数字は下の方にちょろっと出せばいい」
  */
-const FunnelText: FC<{ lead?: string; label: string; labelAt: number; bigAt: number; bigText?: string; percent?: number; base: string; count: number; bounce?: boolean }> = ({
+const FunnelText: FC<{ lead?: string; label: string; labelAt: number; bigAt: number; bigText?: string; percent?: number; base?: string; count: number; bounce?: boolean }> = ({
   lead,
   label,
   labelAt,
@@ -262,10 +262,12 @@ const FunnelText: FC<{ lead?: string; label: string; labelAt: number; bigAt: num
       ) : (
         <div style={{ ...big, fontSize: 170, fontWeight: 800, color: COLORS.accent, lineHeight: 1.15 }}>{bigText}</div>
       )}
-      <div style={{ ...small, display: "flex", alignItems: "baseline", gap: 14, fontSize: 36, fontWeight: 700, color: COLORS.sub, marginTop: 10 }}>
-        <span>{base}</span>
-        <span style={{ fontSize: 48, color: COLORS.accent }}>約{count}人</span>
-      </div>
+      {base ? (
+        <div style={{ ...small, display: "flex", alignItems: "baseline", gap: 14, fontSize: 36, fontWeight: 700, color: COLORS.sub, marginTop: 10 }}>
+          <span>{base}</span>
+          <span style={{ fontSize: 48, color: COLORS.accent }}>約{count}人</span>
+        </div>
+      ) : null}
     </div>
   );
 };
@@ -273,7 +275,6 @@ const FunnelText: FC<{ lead?: string; label: string; labelAt: number; bigAt: num
 const GRID_TOP = 530;
 /** 通院している人の並びの上の端 */
 const PATIENT_TOP = 545;
-const BASE_ALL = `${FUNNEL.total}人なら`;
 const BASE_PATIENTS = `通院している${FUNNEL.visit}人に当てはめると`;
 const BASE_NOTEBOOK = `お薬手帳を利用している${FUNNEL.notebook}人に当てはめると`;
 
@@ -291,7 +292,7 @@ const ReachScene: FC = () => {
           <div style={{ ...openingRise, opacity: (openingRise.opacity as number) * openingOut, fontSize: 112, fontWeight: 800 }}>{opening.text}</div>
         </div>
       ) : frame < sec(notebook.from) ? (
-        <FunnelText base={BASE_ALL} label={visit.label} labelAt={visit.from + 0.25} count={FUNNEL.visit} bigAt={visit.bigAt} bigText={visit.big} />
+        <FunnelText label={visit.label} labelAt={visit.from + 0.25} count={FUNNEL.visit} bigAt={visit.bigAt} bigText={visit.big} />
       ) : (
         <FunnelText base={BASE_PATIENTS} label={notebook.label} labelAt={notebook.from + 0.2} count={FUNNEL.notebook} bigAt={notebook.bigAt} percent={notebook.value} />
       )}

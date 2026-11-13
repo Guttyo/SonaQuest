@@ -140,7 +140,7 @@ npm --prefix video run render
 - 撮り直しはしません。録画・アプリの声・BGM・効果音は提出版の素材（`video/public/`）をそのまま使います。
 - 1・3〜5番の書体は Zen Maru Gothic（SIL OFL）です。`video/public/fonts/` に `ZenMaruGothic-Bold.ttf`・`ZenMaruGothic-Black.ttf` を置きます（Git の対象外。Google Fonts の `ofl/zenmarugothic/` から取る）。無いときは今までのゴシックで描きます。
 - v2 で足した効果音（`pon`・`ding`・`cross`・`slam`）も `node video/scripts/compose-sfx.mjs` で作ります。
-- 新しく合成するナレーションは7本です（原稿は `video/narration/v2-01.txt` など）。合成し直したら、声の長さと文の間を測って、カードの出る時刻（`cardsText.ts` の `at`）と場面の長さ（`sectionsV2.ts` の `seconds`）を直します（2026-11-12 に2・4・9番を合成し直した長さに合わせ済み。合計 2:59.9。4番は v04 を見て、もう一度直した）。
+- 新しく合成するナレーションは7本です（原稿は `video/narration/v2-01.txt` など）。合成し直したら、声の長さと文の間を測って、カードの出る時刻（`cardsText.ts` の `at`）と場面の長さ（`sectionsV2.ts` の `seconds`）を直します（2026-11-12 に2・4・9番を合成し直した長さに合わせ済み。合計 3:00.5。3・4番は v12 を見て、もう一度直した）。
 
 ```bash
 npm --prefix video run narration -- --only v2-01,v2-02,v2-03,v2-04,v2-05,v2-06,v2-09
