@@ -16,10 +16,10 @@ SonaQuest（ソナクエスト）は、常用薬のある成人が「災害時�
 11. **`main` を直接変更しない**。すべての変更は Issue → 専用ブランチ → PR → オーナー承認後のマージ で行う → `.claude/rules/github.md`
 
 ## 作業ディレクトリ
-- Windows：`%USERPROFILE%\Dropbox (個人用)\iOS_Application\developing\Hackathon\Built_with_Claude_Japan_2026`
-- macOS：`~/Dropbox_Personal/iOS_Application/developing/Hackathon/Built_with_Claude_Japan_2026`
+- Windows：`%USERPROFILE%\dev\SonaQuest`（GitHub から clone した作業コピー。Dropbox の外。2026-11-15 から。ADR-0018 の追記）
+- macOS：まだ Dropbox の外へ移していない。移す先はオーナーが決める。それまでは `~/Dropbox_Personal/iOS_Application/developing/Hackathon/Built_with_Claude_Japan_2026` を使う。
 - 作業開始時に、現在の作業ディレクトリ、Gitリポジトリ、ブランチを確かめる。上記と異なるディレクトリで作業を進めない。`main` にいたら作業ブランチを作るか切り替える。
-- Dropboxで同期しているため、WindowsとmacOSで同時にGit操作をしない。端末を切り替える前に同期完了を確かめる（ADR-0018）。
+- Windows の古い Dropbox のフォルダ（`%USERPROFILE%\Dropbox (個人用)\iOS_Application\developing\Hackathon\Built_with_Claude_Japan_2026`）は当面残すが、そこで Git 操作をしない。端末の間の変更は GitHub を通して受け渡す（ADR-0018）。
 
 ## 作業の流れ
 - 開始時：上の確認をしてから `docs/STATUS.md` を読む
