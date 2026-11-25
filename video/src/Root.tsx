@@ -14,6 +14,9 @@ import {
   PatientTableVideo,
 } from "./patientTable/PatientTableVideo";
 import { FPS, HEIGHT, TOTAL_FRAMES, WIDTH } from "./sections";
+// SonaQuestVideoV2：「なぜ必要か」に絞った紹介動画（Issue #315。src/v2/）。提出版と同じ部品で、場面の表と音を替えた版
+import { SonaQuestVideoV2 } from "./v2/SonaQuestVideoV2";
+import { TOTAL_FRAMES_V2 } from "./v2/sectionsV2";
 
 export const RemotionRoot: FC = () => {
   return (
@@ -22,6 +25,14 @@ export const RemotionRoot: FC = () => {
         id="SonaQuestVideo"
         component={SonaQuestVideo}
         durationInFrames={TOTAL_FRAMES}
+        fps={FPS}
+        width={WIDTH}
+        height={HEIGHT}
+      />
+      <Composition
+        id="SonaQuestVideoV2"
+        component={SonaQuestVideoV2}
+        durationInFrames={TOTAL_FRAMES_V2}
         fps={FPS}
         width={WIDTH}
         height={HEIGHT}

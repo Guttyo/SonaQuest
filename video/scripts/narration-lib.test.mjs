@@ -10,6 +10,7 @@ import {
   CLIP_VOICE_SETTINGS,
   DEFAULT_MODEL_ID,
   EXTRA_CLIPS,
+  V2_CLIPS,
   VOICE_SETTINGS,
   NARRATION_BEATS,
   PRIVATE_NARRATION_BEATS,
@@ -65,9 +66,9 @@ test("音声の置き場所は Remotion の sections.ts と同じ名前（narrat
 
 test("リポジトリに置く原稿がそろい、どれも空でなく、判断待ちの印が無い。3・12番の原稿はリポジトリに無い", () => {
   const files = readdirSync(path.join(videoDir, "narration")).filter((f) => f.endsWith(".txt")).sort();
-  assert.deepEqual(files, [...NARRATION_BEATS, ...EXTRA_CLIPS].map((b) => `${beatId(b)}.txt`).sort());
+  assert.deepEqual(files, [...NARRATION_BEATS, ...EXTRA_CLIPS, ...V2_CLIPS].map((b) => `${beatId(b)}.txt`).sort());
   for (const beat of PRIVATE_NARRATION_BEATS) assert.ok(!files.includes(`${beatId(beat)}.txt`));
-  for (const beat of [...NARRATION_BEATS, ...EXTRA_CLIPS]) {
+  for (const beat of [...NARRATION_BEATS, ...EXTRA_CLIPS, ...V2_CLIPS]) {
     const text = normalizeText(readFileSync(narrationTextPath(videoDir, beat), "utf8"), beat);
     assert.ok(text.length > 0);
     // 読み上げの原稿では「ソナクエスト」とカタカナにする（Issue #28）
@@ -258,6 +259,18 @@ test("足す台詞（05a など）は場面の番号の後に並び、ファイ�
   assert.equal(narrationTextPath("/v", "05b"), path.join("/v", "narration", "05b.txt"));
   assert.equal(narrationAudioPath("/v", "05c"), path.join("/v", "public", "narration", "05c.mp3"));
   assert.equal(formatLogLine({ beat: "05a", result: "saved", status: 200, ms: 1000 }), "[narration] 05a　保存した　HTTP 200　1.0秒");
+});
+
+test("v2 のナレーション（Issue #315）は v2-NN の id で、提出版の後に並び、--only で選べる", () => {
+  assert.deepEqual(V2_CLIPS, ["v2-01", "v2-02", "v2-03", "v2-04", "v2-05", "v2-06", "v2-09"]);
+  assert.deepEqual(ALL_CLIPS.slice(-7), V2_CLIPS);
+  assert.equal(beatId("v2-03"), "v2-03");
+  assert.throws(() => beatId("v2-3"));
+  assert.throws(() => beatId("v3-03"));
+  assert.equal(narrationTextPath("/v", "v2-05"), path.join("/v", "narration", "v2-05.txt"));
+  assert.equal(narrationAudioPath("/v", "v2-05"), path.join("/v", "public", "narration", "v2-05.mp3"));
+  assert.deepEqual(parseArgs(["--only", "v2-09,v2-03"]), { force: false, beats: ["v2-03", "v2-09"] });
+  assert.throws(() => parseArgs(["--only", "v2-07"]));
 });
 
 test("声の設定：今はどの台詞も既定の値（2番の速さは元に戻した）。台詞ごとの上書きは voice_settings に入る", () => {

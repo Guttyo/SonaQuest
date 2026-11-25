@@ -2,7 +2,7 @@
 // 外の音源・サンプル・ループは使わない。Node.js の標準だけで PCM を計算する（依存パッケージなし）。
 // 使い方（リポジトリの直下から）：
 //   node video/scripts/compose-bgm.mjs
-// 書くもの：video/public/bgm/{opening,board,models,ending}.wav（Git の対象外。48 kHz・ステレオ・16 bit）
+// 書くもの：video/public/bgm/{opening,board,models,ending,v2-problem,v2-board,v2-ending}.wav（Git の対象外。48 kHz・ステレオ・16 bit）
 // ログに出すのはファイル名・長さ・音の大きさだけ。
 //
 // 調とテンポは訓練の BGM（web/src/bgm/bgm.ts：ハ長調・120 BPM・C–G/B–Am–F・4拍子）に合わせる。
@@ -562,19 +562,27 @@ function models() {
 
 function ending() {
   const [s12, s13] = SCENES.ending;
-  const total = s12 + s13;
-  const m = new Mix(total);
-  const beat = 0.5;
-  const t13 = s12;
-  const landAt = total - 4;
-  const prog = [
+  return endingWith(s12 + s13, s12, [
     ["F", 0, 2], ["G", 2, 2], ["Em7", 4, 2], ["Am7", 6, 2], ["Dm7", 8, 1], ["G", 9, 1],
     ["Fmaj7", 10, 2], ["G", 12, 2], ["Am7", 14, 1], ["GB", 15, 1], ["C", 16, 4],
-  ];
+  ]);
+}
+
+/**
+ * 締めの曲の形。total は曲の長さ、t13 は締めの場面が始まる所、prog は [和音, 始まり, 長さ] の並び（最後の和音が着地）。
+ * 提出版（上の ending）と v2（下の endingV2）で使う
+ */
+function endingWith(total, t13, prog) {
+  const m = new Mix(total);
+  const beat = 0.5;
+  const landAt = prog[prog.length - 1][1];
   for (const [name, t, len] of prog) {
     const ch = CHORDS[name];
     const last = t === landAt;
-    pad(m, t, last ? len - 2.2 : len, ch.pad, { level: last ? 0.1 : t >= t13 ? 0.085 : 0.075, a: t === 0 ? 1 : 0.5, r: last ? 2.0 : 0.6, cutoff: t >= t13 ? 560 : 480, seed: 60 + t });
+    // 着地の和音は、曲の終わりの 0.2 秒前に消えきるようにする（提出版は 4 秒の和音で、伸ばし 1.8 秒・消え 2.0 秒。提出版の音は変えない）
+    const lastRelease = len >= 4 ? 2.0 : (len - 0.2) / 2;
+    const lastHold = len >= 4 ? len - 2.2 : len - 0.2 - lastRelease;
+    pad(m, t, last ? lastHold : len, ch.pad, { level: last ? 0.1 : t >= t13 ? 0.085 : 0.075, a: t === 0 ? 1 : 0.5, r: last ? lastRelease : 0.6, cutoff: t >= t13 ? 560 : 480, seed: 60 + t });
     if (last) {
       bass(m, t, 1.6, ch.root - 12, { level: 0.24, r: 1.6, decay: 1.5 });
       kick(m, t, { level: 0.2, decay: 0.4 });
@@ -604,6 +612,137 @@ function ending() {
   return m;
 }
 
+// ---------------------------------------------------------------- v2 の紹介動画（Issue #315）の曲
+// 2026-11-25 オーナー決定（チャット）：「案1で作って」。前半は課題を静かに聞かせ、訓練から明るくする。
+// - 1番（問いかけ）は BGM を敷かない（声と間だけ）
+// - 2〜5番：v2-problem。低い持続音と、ゆっくりした短調の和音だけ。拍を刻む音は入れない。
+//   4番の「27.4%」と、5番の「通信が止まれば、この仕組みも使えない」で和音を引き、低い持続音だけを残す
+//   （v19 はここを 3 秒の無音にしていた。2026-11-25 オーナー、チャット：「BGMが途切れているところあるから、そこを直して」→ 音は切らさない）。
+//   終わりは G で開いたままにして、6番からの訓練の曲（ハ長調）へ渡す
+// - 6〜8番：アプリの曲（app-training.wav。ここでは作らない）
+// - 9番：v2-board。提出版の board と同じ進行・テンポで、9番の長さ（19.6 秒）に合わせて短く作る
+// - 10・11番：v2-ending。提出版の ending と同じ形で、10番（12 秒）と11番（7 秒）の長さに合わせる
+// 場面の秒は video/src/v2/sectionsV2.ts の表と同じ。表や声の時刻（cardsText.ts）を直したら、ここも直す。
+
+const SCENES_V2 = {
+  problem: [7.9, 11.5, 30.9, 14.3], // 2〜5番
+  board: 19.6, // 9番
+  ending: [12, 7], // 10・11番
+};
+/** 4番で「27.4%」が出る時刻（場面の頭から。cardsText.ts の GAP.unprepared.bigAt） */
+const V2_GAP_BIG_AT = 16.0;
+/** 5番で「通信が止まれば…」が出る時刻と、「本人の記憶」「日頃の備え」が出る時刻（cardsText.ts の DMODE） */
+const V2_OFFLINE_AT = 7.1;
+const V2_RELY_AT = [11.2, 12.6];
+
+function problemV2() {
+  const [s2, s3, s4, s5] = SCENES_V2.problem;
+  const total = s2 + s3 + s4 + s5;
+  const m = new Mix(total);
+  const t3 = s2, t4 = s2 + s3, t5 = s2 + s3 + s4;
+  /** 和音を1つ、パッドと低い根音だけで置く */
+  const hold = (name, t, len, { level = 0.07, cutoff = 440, r = 1.4, seed = 0 } = {}) => {
+    const ch = CHORDS[name];
+    pad(m, t, len, ch.pad, { level, a: 1.4, r, cutoff, seed: 200 + seed });
+    bass(m, t, len, ch.root - 12, { level: 0.13, r, decay: 99 });
+  };
+
+  // 2番（地震の回数）：低い A と E の空虚五度だけ。地鳴りの効果音（声の「21回」）の下に敷く
+  pad(m, 0, s2, [45, 52], { level: 0.045, a: 2.5, r: 1.6, cutoff: 360, seed: 201 });
+  bass(m, 0, s2, 33, { level: 0.11, r: 1.6, decay: 99 });
+
+  // 3番（薬は身近）：Am → F。半分ずつ
+  hold("Am", t3, s3 / 2, { seed: 1 });
+  hold("F", t3 + s3 / 2, s3 / 2, { seed: 2 });
+
+  // 4番（手元にあるとは限らない）：Dm7 → Am → F と下がり、「27.4%」の所で和音が消える
+  const stopA = t4 + V2_GAP_BIG_AT;
+  const third = (V2_GAP_BIG_AT - 0.5) / 3;
+  hold("Dm7", t4, third, { seed: 3 });
+  hold("Am", t4 + third, third, { seed: 4 });
+  hold("F", t4 + 2 * third, third - 0.4, { r: 0.8, seed: 5 });
+  // 和音が消える前から、低い空虚五度を重ねておく（音を切らさない）。「覚えていない」「入れていない」の間はこれだけ（前より暗く、小さく）
+  const backA = stopA - 1.4;
+  pad(m, backA, t5 - backA - 1.2, [45, 52], { level: 0.04, a: 1.4, r: 1.2, cutoff: 330, seed: 206 });
+  bass(m, backA, t5 - backA - 1.2, 33, { level: 0.1, r: 1.2, decay: 99 });
+
+  // 5番（仕組みがあっても）：Fmaj7 → G で少し明るくなり、「通信が止まれば…」の所で和音が消える
+  const stopB = t5 + V2_OFFLINE_AT;
+  const half = (V2_OFFLINE_AT - 0.4) / 2;
+  hold("Fmaj7", t5, half, { level: 0.075, cutoff: 480, seed: 7 });
+  hold("G", t5 + half, half - 0.4, { level: 0.075, cutoff: 480, r: 0.8, seed: 8 });
+  // 「頼れるのは、本人の記憶と、日頃の備え」：Am7 → G。言葉ごとに高い鈴をひとつ。G で開いたまま終える
+  // 和音の切れ目は、G の音（G と Am7 の両方にある音）だけを小さく残してつなぐ
+  const backB = stopB + 3;
+  pad(m, stopB - 1.4, backB - stopB + 2.2, [43, 55, 67], { level: 0.07, a: 1.4, r: 1.6, cutoff: 400, seed: 211 });
+  const turn = t5 + V2_RELY_AT[1];
+  hold("Am7", backB, turn - backB, { level: 0.075, cutoff: 480, r: 0.8, seed: 9 });
+  hold("G", turn, total - turn - 0.9, { level: 0.085, cutoff: 520, r: 0.8, seed: 10 });
+  bell(m, t5 + V2_RELY_AT[0], 88, { level: 0.016, decay: 1.6, pan: -0.3 }); // E6
+  bell(m, t5 + V2_RELY_AT[1], 91, { level: 0.02, decay: 1.8, pan: 0.3 }); // G6
+
+  reverb(m, { room: 0.86, damp: 0.3, wet: 1 });
+  return m;
+}
+
+/**
+ * 9番（ボード）：F–G–Em–Am を1小節（2 秒）ずつ。頭の 2 秒（章の題）はパッドと刻みだけ、早送りの間は 16分のハイハット、
+ * 患者の表の間はキックを休み、承認のタップ（17.7 秒）の少し前に C へ着地
+ */
+function boardV2() {
+  const total = SCENES_V2.board;
+  const m = new Mix(total);
+  const beat = 0.5, bar = 2;
+  const landAt = 17.5;
+  const ffTo = 9.4; // 早送りの札が消える所（sectionsV2.ts の9番の badges）
+  const tableTo = 14.4; // 患者の表が終わる所（9.5 秒から5秒）
+  const loop = ["F", "G", "Em", "Am"];
+  const changes = [];
+  for (let t = 0; t < landAt - 2 - 1e-9; t += bar) changes.push([loop[Math.round(t / bar) % 4], t, Math.min(bar, landAt - 2 - t)]);
+  changes.push(["F", landAt - 2, 1], ["G", landAt - 1, 1], ["C", landAt, total - landAt]);
+  for (const [name, t, len] of changes) {
+    const ch = CHORDS[name];
+    const last = t === landAt;
+    pad(m, t, last ? 0.7 : len, ch.pad, { level: last ? 0.1 : 0.075, a: t === 0 ? 1 : 0.4, r: last ? 1.1 : 0.5, cutoff: 520, seed: 300 + t });
+    if (last) {
+      bass(m, t, 1.0, ch.root - 12, { level: 0.24, r: 0.9, decay: 1.2 });
+      kick(m, t, { level: 0.2, decay: 0.35 });
+      for (const [k, st] of [[88, 0], [91, 0.25], [96, 0.5]]) bell(m, t + st, k, { level: 0.02, decay: 1.2, pan: (k - 92) / 10 });
+      continue;
+    }
+    const tones = TONES[name];
+    for (let b = 0; b < len / beat; b++) {
+      const at = t + b * beat;
+      const inTable = at >= ffTo && at < tableTo;
+      tick(m, at, { level: 0.014, pan: b % 2 ? 0.3 : -0.3 });
+      if (at < 2) continue;
+      // 8分の低音と、キック（表の間は休む）
+      for (const half of [0, beat / 2]) bass(m, at + half, beat * 0.42, ch.root - 12, { level: inTable ? 0.12 : 0.18, r: 0.05, decay: 0.6 });
+      if (!inTable && b % 2 === 0) kick(m, at, { level: 0.22 });
+      // 高い分散和音（早送りの間は 16分のハイハットも）
+      bell(m, at + beat / 2, 96 + tones[b % tones.length] - 12 * (tones[0] > 6 ? 1 : 0), { level: 0.012, decay: 0.45, pan: b % 2 ? 0.5 : -0.5, send: 0.4 });
+      if (at < ffTo) for (let q = 0; q < 4; q++) hat(m, at + (q * beat) / 4, { level: q % 2 ? 0.01 : 0.016, pan: 0.25 });
+      else if (!inTable) hat(m, at + beat / 2, { level: 0.016, pan: 0.25 });
+    }
+  }
+  wash(m, ffTo, { level: 0.008, decay: 0.8 });
+  riser(m, landAt - 2, 2, { level: 0.02 });
+  reverb(m, { room: 0.84, damp: 0.28, wet: 1 });
+  return m;
+}
+
+/**
+ * 10・11番：提出版の ending と同じ形。10番（使った人の声）は低い分散和音とパッドだけ、
+ * 11番（締め）で鈴とハイハットを足し、ロゴが出る所（11番の 5 秒）で C に着地
+ */
+function endingV2() {
+  const [s10, s11] = SCENES_V2.ending;
+  return endingWith(s10 + s11, s10, [
+    ["F", 0, 2], ["G", 2, 2], ["Em7", 4, 2], ["Am7", 6, 2], ["Dm7", 8, 2], ["G", 10, 2],
+    ["Fmaj7", 12, 2], ["G", 14, 1], ["Am7", 15, 1], ["GB", 16, 1], ["C", 17, 2],
+  ]);
+}
+
 // ---------------------------------------------------------------- 実行
 
 const PIECES = [
@@ -611,6 +750,9 @@ const PIECES = [
   ["board.wav", board],
   ["models.wav", models],
   ["ending.wav", ending],
+  ["v2-problem.wav", problemV2],
+  ["v2-board.wav", boardV2],
+  ["v2-ending.wav", endingV2],
 ];
 
 await mkdir(outDir, { recursive: true });

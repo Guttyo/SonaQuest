@@ -120,6 +120,42 @@ npm --prefix video run render
 - 初回の書き出しで、Remotion が描画用の Chrome（Headless Shell）を取得します（ネットワークが要ります）。
 - 試しに最初の10秒だけ書き出すときは `npm --prefix video run render:test`（`video/out/sonaquest-test.mp4`）。
 
+## 「なぜ必要か」に絞った紹介動画 v2（SonaQuestVideoV2、Issue #315）
+提出版と同じ部品で、場面の表と音を替えた11場面の版です。Studio の左の一覧で `SonaQuestVideoV2` を選びます。中身は `src/v2/`（場面の表 `sectionsV2.ts`、3〜5番の数字と資料の一節の画面 `CardSlides.tsx`・`cardsText.ts`、音 `SonaQuestVideoV2.tsx`）。台本の正本はリポジトリの外です。
+
+| # | 中身 | 素材 |
+|---|---|---|
+| 1 | 問いかけ（いつもの薬の名前と量。何も見ずに、言えますか → どう伝えますか） | 黒い地に声の句ごとの文字（声 `v2-01.mp3`） |
+| 2 | 震度5弱以上の地震は21回（2026-11-05 時点） | 動画の中で描く地図（`quakeMapData.ts`。点が出るたびに回数が上がる。声 `v2-02.mp3`） |
+| 3 | 薬は身近（通院、お薬手帳の利用） | 数字のカード（声 `v2-03.mp3`） |
+| 4 | 手元にあるとは限らない（ある調査では） | 数字のカード（声 `v2-04.mp3`） |
+| 5 | 仕組みがあっても（災害時モード） | 資料の一節の札（声 `v2-05.mp3`） |
+| 6 | お薬の避難訓練（はじめに） | 提出版の4番の録画（声 `v2-06.mp3`）。スマホの右にソナの 3D |
+| 7 | 訓練の実演 | 提出版の5番のまま（声 `05.mp3`、アプリの声、足す台詞） |
+| 8 | 振り返り | 提出版の6番のまま（声 `06.mp3`・`06a.mp3`） |
+| 9 | 受け取る側の備え（ボード） | 提出版の8番の録画・患者の表（声 `v2-09.mp3`） |
+| 10 | 使った人の声 | 提出版の12番のまま（声 `12.mp3`、写真と感想の一枚。中身は Git の外） |
+| 11 | 締め | 提出版の13番のまま（声 `13.mp3`） |
+
+- 撮り直しはしません。録画・アプリの声・BGM・効果音は提出版の素材（`video/public/`）をそのまま使います。
+- 1・3〜5番の書体は Zen Maru Gothic（SIL OFL）です。`video/public/fonts/` に `ZenMaruGothic-Bold.ttf`・`ZenMaruGothic-Black.ttf` を置きます（Git の対象外。Google Fonts の `ofl/zenmarugothic/` から取る）。無いときは今までのゴシックで描きます。
+- 6番と11番のソナの 3D は、動画の中で three（0.186.1。アプリと同じ版）で描きます（2026-11-25 オーナー決定）。形は `src/v2/sonaScene.ts`（アプリの `web/src/puppet3d/stage.ts` から写したもの。アプリの形を直したらここも直す）、姿勢は `src/v2/sonaPose.ts`、出る時刻・大きさ・位置・口を動かす句の時刻は `src/v2/Sona3D.tsx` の `SONA_INTRO`（6番）・`SONA_CLOSING`（11番）です。ソナ自身の声は足さず、口も動かしません（ナレーションはオーナーの声なので、ソナが話しているようには見せない。2026-11-25 オーナー）。
+- v2 の BGM は `node video/scripts/compose-bgm.mjs` で作ります（提出版の4曲と一緒に書き出されます）。`bgm/v2-problem.wav`（2〜5番）・`v2-board.wav`（9番）・`v2-ending.wav`（10・11番）。1番は BGM なし、6〜8番はアプリの曲です。場面の長さ（`sectionsV2.ts`）や、4番の「27.4%」・5番の「通信が止まれば…」の時刻（`cardsText.ts`）を直したら、スクリプトの `SCENES_V2`・`V2_GAP_BIG_AT`・`V2_OFFLINE_AT`・`V2_RELY_AT` も直して作り直します。
+- v2 の1番の終わりのテロップと、2〜5番の右上の札（Claude で作ったことを冒頭から伝える）は `video/src/v2/ClaudeNote.tsx` です。文言は `CLAUDE_NOTE` にあります。
+- v2 で足した効果音（`pon`・`ding`・`cross`・`slam`）も `node video/scripts/compose-sfx.mjs` で作ります。
+- 新しく合成するナレーションは7本です（原稿は `video/narration/v2-01.txt` など）。合成し直したら、声の長さと文の間を測って、カードの出る時刻（`cardsText.ts` の `at`）と場面の長さ（`sectionsV2.ts` の `seconds`）を直します（2026-11-12 に2・4・9番を合成し直した長さに合わせ済み。合計 2:59.6。3・4番は v12 を見て、もう一度直した）。
+
+```bash
+npm --prefix video run narration -- --only v2-01,v2-02,v2-03,v2-04,v2-05,v2-06,v2-09
+```
+
+```bash
+npm --prefix video run render -- --cut v2
+```
+
+- v2 は、書き出しの最後に音の大きさを YouTube に合わせます（積分ラウドネス -14 LUFS、山は -1 dBTP 以下。ffmpeg の loudnorm を2回がけ。`scripts/render-versioned.mjs` の `YOUTUBE_LOUDNESS`）。ffmpeg が PATH に無いときは合わせずに、その旨を出します。`--frames` で一部だけ書き出すときと、提出版（`--cut` なし）は合わせません。
+- 書き出し先は `video/out/versions/sonaquest-v2-vNN-<コミット>.mp4` で、提出版の列（`sonaquest-vNN`）とは別に番号を数えます。
+
 ## ボードの地図の紹介動画（BoardMapVideo、約30秒）
 Studio の左の一覧で `BoardMapVideo` を選びます。題材は Issue #167（地図の車と搬送便が道に沿って動く、救護所Dの迂回、錠の10錠単位）。中身は `src/boardMap/` です。
 
