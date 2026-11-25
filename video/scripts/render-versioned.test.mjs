@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CUTS, nextVersion, parseCut, quoteForShell, versionFileName } from "./render-versioned.mjs";
+import { CUTS, YOUTUBE_LOUDNESS, loudnormFilter, nextVersion, parseCut, parseLoudnormJson, quoteForShell, versionFileName } from "./render-versioned.mjs";
 
 test("番号付きのファイルが無ければ 1 から", () => {
   assert.equal(nextVersion([]), 1);
@@ -36,4 +36,23 @@ test("shell に渡す引数は空白があっても1つのまま（二重引用�
   assert.equal(quoteForShell("out/versions/sonaquest-v02-ab162ee.mp4"), '"out/versions/sonaquest-v02-ab162ee.mp4"');
   assert.equal(quoteForShell("C:/a b/c.mp4"), '"C:/a b/c.mp4"');
   assert.equal(quoteForShell('x"y'), '"xy"');
+});
+
+test("音の大きさを YouTube に合わせるのは v2 だけ（提出版は提出したときの音のまま）", () => {
+  assert.equal(CUTS.v1.loudness, undefined);
+  assert.deepEqual(CUTS.v2.loudness, YOUTUBE_LOUDNESS);
+  assert.equal(YOUTUBE_LOUDNESS.i, -14);
+});
+
+test("loudnorm の測定値を、ffmpeg の出力の中から取り出す。無ければ null", () => {
+  const out = 'Input #0\n[Parsed_loudnorm_0 @ 0000]\n{\n\t"input_i" : "-23.01",\n\t"input_tp" : "-4.30",\n\t"input_lra" : "3.30",\n\t"input_thresh" : "-33.50",\n\t"target_offset" : "0.12"\n}\n';
+  assert.equal(parseLoudnormJson(out).input_i, "-23.01");
+  assert.equal(parseLoudnormJson("no json here"), null);
+  assert.equal(parseLoudnormJson('{"input_i":"-inf"}'), null);
+});
+
+test("loudnorm のフィルター：1回目は測るだけ、2回目は測った値を渡す", () => {
+  assert.equal(loudnormFilter(YOUTUBE_LOUDNESS), "loudnorm=I=-14:TP=-1:LRA=11:print_format=json");
+  const second = loudnormFilter(YOUTUBE_LOUDNESS, { input_i: "-23.01", input_tp: "-4.30", input_lra: "3.30", input_thresh: "-33.50", target_offset: "0.12" });
+  assert.match(second, /measured_I=-23\.01:measured_TP=-4\.30:measured_LRA=3\.30:measured_thresh=-33\.50:offset=0\.12/);
 });
