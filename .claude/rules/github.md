@@ -31,9 +31,9 @@
 GitHub操作を自動化する場合も、この手順を省略しない。
 
 ## Dropbox上のリポジトリ（ADR-0018）
-- リポジトリはDropboxで同期されており、`.git` もWindowsとmacOSの間で同期される。
-- WindowsとmacOSで同時にGit操作をしない。端末を切り替える前にDropboxの同期完了を確かめる。
-- GitHubにリモートを作った後はGitHubを正本とし、各端末ではGitHubからcloneした作業コピーへ移る（時期と置き場所はオーナーが決める）。
+- GitHubを正本とし、各端末ではGitHubからcloneした作業コピーを使う。端末の間の変更はGitHubを通して受け渡す。
+- Windows は 2026-11-15 に `%USERPROFILE%\dev\SonaQuest`（Dropbox の外）へ移った（ADR-0018 の追記）。古い Dropbox のフォルダは当面残すが、そこで Git 操作をしない。
+- macOS はまだ Dropbox の中の作業コピーを使う（移す時期と置き場所はオーナーが決める）。Dropbox の中の作業コピーは `.git` ごと同期されるので、同期が終わっていないうちに Git 操作をしない。
 
 ## hookの位置づけ
 hookとコミット前フックは誤操作を防ぐ補助であり、セキュリティの境界ではない。hookを通らない操作（エディタでの直接編集、別のターミナル）もありうる。
