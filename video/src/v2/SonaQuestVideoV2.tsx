@@ -20,16 +20,20 @@ const TRAINING_MUTE: readonly [number, number] = [
 ];
 
 /**
- * BGM（下書き。聞いて直す）。曲は提出版の素材を流用する（video/public/bgm/）。
- * - 1〜3番：opening.wav（33秒。曲の長さで終わる）。4・5番（数字と仕組みの話）は BGM を敷かない
- * - 6〜8番：アプリの BGM（app-training.wav）
- * - 9番：board.wav、10・11番：ending.wav（提出版の12・13番と同じ）
+ * BGM（聞いて直す）。v16 までは提出版の曲（opening・board・ending）を流用していた。
+ * 今の置き方は、下の BGM_V2 の上の覚え書き。
  */
+// 2026-11-25 オーナー決定（チャット）：「案1で作って」。前半は課題を静かに聞かせ、訓練から明るくする。
+// v2 の曲を作った（video/scripts/compose-bgm.mjs の problemV2・boardV2・endingV2。場面の長さと声の時刻に合わせてある）：
+// - 1番（問いかけ）：BGM を敷かない（声と間だけ）
+// - 2〜5番：v2-problem.wav（低い持続音とゆっくりした短調の和音。拍は刻まない。「27.4%」と「通信が止まれば…」で 3 秒ずつ止まる）
+// - 6〜8番：アプリの BGM（app-training.wav）のまま
+// - 9番：v2-board.wav（9番の長さの曲）、10・11番：v2-ending.wav（ロゴが出る所で着地）
 const BGM_V2: BgmCue[] = [
-  { file: "bgm/opening.wav", from: from(1), duration: Math.min(end(3) - from(1), 33 * FPS) },
+  { file: "bgm/v2-problem.wav", from: from(2), duration: end(5) - from(2) },
   { file: "bgm/app-training.wav", from: from(6), duration: end(8) - from(6), mute: [TRAINING_MUTE], gain: 0.63 },
-  { file: "bgm/board.wav", from: from(9), duration: end(9) - from(9) },
-  { file: "bgm/ending.wav", from: from(10), duration: end(11) - from(10) },
+  { file: "bgm/v2-board.wav", from: from(9), duration: end(9) - from(9) },
+  { file: "bgm/v2-ending.wav", from: from(10), duration: end(11) - from(10) },
 ];
 
 /** 効果音：タップ・章の題・テロップ（提出版と同じ決まり）、電池切れ、承認 */
