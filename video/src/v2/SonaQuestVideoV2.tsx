@@ -7,6 +7,7 @@ import { at, type BgmCue, type SfxCue } from "../soundtrack";
 import { V2Screen } from "./CardSlides";
 import { DMODE, GAP, HOOK, QUAKE, REACH } from "./cardsText";
 import { BOARD_TABLE_FROM_SECONDS, SECTIONS_V2 } from "./sectionsV2";
+import { SonaOverlay } from "./Sona3D";
 
 const S = SECTIONS_V2;
 const from = (n: number) => S[n - 1].from;
@@ -74,6 +75,7 @@ export const V2_CUT: Cut = {
   extraScreen: (section) => <V2Screen section={section} />,
   hideCaption: (section) => section.cardsKey === "hook" || section.cardsKey === "quake",
   patientTableFromFrames: Math.round(BOARD_TABLE_FROM_SECONDS * FPS),
+  sectionOverlay: (section) => <SonaOverlay section={section} />,
 };
 
 export const SonaQuestVideoV2: FC = () => <CutVideo cut={V2_CUT} />;

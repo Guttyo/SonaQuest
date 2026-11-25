@@ -44,6 +44,8 @@ export type Cut = {
   hideCaption?: (section: Section) => boolean;
   /** 架空の患者の表を出し始めるフレーム（場面の頭から。無ければ提出版と同じ） */
   patientTableFromFrames?: number;
+  /** 場面のいちばん上に重ねるもの（v2 のソナの 3D。src/v2/ から渡す） */
+  sectionOverlay?: (section: Section) => ReactNode;
 };
 
 export const V1_CUT: Cut = { sections: SECTIONS, endcardFrames: ENDCARD_FRAMES, crossNarration: CROSS_NARRATION };
@@ -791,6 +793,7 @@ const Beat: FC<{ section: Section }> = ({ section }) => {
           <EndCard />
         </Sequence>
       ) : null}
+      {cut.sectionOverlay?.(section) ?? null}
     </AbsoluteFill>
   );
 };
