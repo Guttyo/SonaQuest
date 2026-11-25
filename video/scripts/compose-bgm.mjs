@@ -616,7 +616,8 @@ function endingWith(total, t13, prog) {
 // 2026-11-25 オーナー決定（チャット）：「案1で作って」。前半は課題を静かに聞かせ、訓練から明るくする。
 // - 1番（問いかけ）は BGM を敷かない（声と間だけ）
 // - 2〜5番：v2-problem。低い持続音と、ゆっくりした短調の和音だけ。拍を刻む音は入れない。
-//   4番の「27.4%」と、5番の「通信が止まれば、この仕組みも使えない」で音を止める。
+//   4番の「27.4%」と、5番の「通信が止まれば、この仕組みも使えない」で和音を引き、低い持続音だけを残す
+//   （v19 はここを 3 秒の無音にしていた。2026-11-25 オーナー、チャット：「BGMが途切れているところあるから、そこを直して」→ 音は切らさない）。
 //   終わりは G で開いたままにして、6番からの訓練の曲（ハ長調）へ渡す
 // - 6〜8番：アプリの曲（app-training.wav。ここでは作らない）
 // - 9番：v2-board。提出版の board と同じ進行・テンポで、9番の長さ（19.6 秒）に合わせて短く作る
@@ -654,24 +655,26 @@ function problemV2() {
   hold("Am", t3, s3 / 2, { seed: 1 });
   hold("F", t3 + s3 / 2, s3 / 2, { seed: 2 });
 
-  // 4番（手元にあるとは限らない）：Dm7 → Am → F と下がり、「27.4%」の所で消えきる。3 秒の無音
+  // 4番（手元にあるとは限らない）：Dm7 → Am → F と下がり、「27.4%」の所で和音が消える
   const stopA = t4 + V2_GAP_BIG_AT;
   const third = (V2_GAP_BIG_AT - 0.5) / 3;
   hold("Dm7", t4, third, { seed: 3 });
   hold("Am", t4 + third, third, { seed: 4 });
   hold("F", t4 + 2 * third, third - 0.4, { r: 0.8, seed: 5 });
-  // 無音のあと：「覚えていない」「入れていない」の間は、低い空虚五度だけ（前より暗く、小さく）
-  const backA = stopA + 3;
-  pad(m, backA, t5 - backA - 1.2, [45, 52], { level: 0.04, a: 2, r: 1.2, cutoff: 330, seed: 206 });
+  // 和音が消える前から、低い空虚五度を重ねておく（音を切らさない）。「覚えていない」「入れていない」の間はこれだけ（前より暗く、小さく）
+  const backA = stopA - 1.4;
+  pad(m, backA, t5 - backA - 1.2, [45, 52], { level: 0.04, a: 1.4, r: 1.2, cutoff: 330, seed: 206 });
   bass(m, backA, t5 - backA - 1.2, 33, { level: 0.1, r: 1.2, decay: 99 });
 
-  // 5番（仕組みがあっても）：Fmaj7 → G で少し明るくなり、「通信が止まれば…」の所で消えきる。3 秒の無音
+  // 5番（仕組みがあっても）：Fmaj7 → G で少し明るくなり、「通信が止まれば…」の所で和音が消える
   const stopB = t5 + V2_OFFLINE_AT;
   const half = (V2_OFFLINE_AT - 0.4) / 2;
   hold("Fmaj7", t5, half, { level: 0.075, cutoff: 480, seed: 7 });
   hold("G", t5 + half, half - 0.4, { level: 0.075, cutoff: 480, r: 0.8, seed: 8 });
   // 「頼れるのは、本人の記憶と、日頃の備え」：Am7 → G。言葉ごとに高い鈴をひとつ。G で開いたまま終える
+  // 和音の切れ目は、G の音（G と Am7 の両方にある音）だけを小さく残してつなぐ
   const backB = stopB + 3;
+  pad(m, stopB - 1.4, backB - stopB + 2.2, [43, 55, 67], { level: 0.07, a: 1.4, r: 1.6, cutoff: 400, seed: 211 });
   const turn = t5 + V2_RELY_AT[1];
   hold("Am7", backB, turn - backB, { level: 0.075, cutoff: 480, r: 0.8, seed: 9 });
   hold("G", turn, total - turn - 0.9, { level: 0.085, cutoff: 520, r: 0.8, seed: 10 });
