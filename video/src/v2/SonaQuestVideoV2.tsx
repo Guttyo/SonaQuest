@@ -5,6 +5,7 @@ import { CutVideo, type Cut } from "../SonaQuestVideo";
 import { ENDCARD_FRAMES, FPS, section5Time } from "../sections";
 import { at, type BgmCue, type SfxCue } from "../soundtrack";
 import { V2Screen } from "./CardSlides";
+import { ClaudeNote } from "./ClaudeNote";
 import { DMODE, GAP, HOOK, QUAKE, REACH } from "./cardsText";
 import { BOARD_TABLE_FROM_SECONDS, SECTIONS_V2 } from "./sectionsV2";
 import { SonaOverlay } from "./Sona3D";
@@ -80,7 +81,12 @@ export const V2_CUT: Cut = {
   extraScreen: (section) => <V2Screen section={section} />,
   hideCaption: (section) => section.cardsKey === "hook" || section.cardsKey === "quake",
   patientTableFromFrames: Math.round(BOARD_TABLE_FROM_SECONDS * FPS),
-  sectionOverlay: (section) => <SonaOverlay section={section} />,
+  sectionOverlay: (section) => (
+    <>
+      <SonaOverlay section={section} />
+      <ClaudeNote section={section} />
+    </>
+  ),
 };
 
 export const SonaQuestVideoV2: FC = () => <CutVideo cut={V2_CUT} />;

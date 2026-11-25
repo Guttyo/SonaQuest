@@ -141,6 +141,7 @@ npm --prefix video run render
 - 1・3〜5番の書体は Zen Maru Gothic（SIL OFL）です。`video/public/fonts/` に `ZenMaruGothic-Bold.ttf`・`ZenMaruGothic-Black.ttf` を置きます（Git の対象外。Google Fonts の `ofl/zenmarugothic/` から取る）。無いときは今までのゴシックで描きます。
 - 6番と11番のソナの 3D は、動画の中で three（0.186.1。アプリと同じ版）で描きます（2026-11-25 オーナー決定）。形は `src/v2/sonaScene.ts`（アプリの `web/src/puppet3d/stage.ts` から写したもの。アプリの形を直したらここも直す）、姿勢は `src/v2/sonaPose.ts`、出る時刻・大きさ・位置・口を動かす句の時刻は `src/v2/Sona3D.tsx` の `SONA_INTRO`（6番）・`SONA_CLOSING`（11番）です。ソナ自身の声は足さず、口も動かしません（ナレーションはオーナーの声なので、ソナが話しているようには見せない。2026-11-25 オーナー）。
 - v2 の BGM は `node video/scripts/compose-bgm.mjs` で作ります（提出版の4曲と一緒に書き出されます）。`bgm/v2-problem.wav`（2〜5番）・`v2-board.wav`（9番）・`v2-ending.wav`（10・11番）。1番は BGM なし、6〜8番はアプリの曲です。場面の長さ（`sectionsV2.ts`）や、4番の「27.4%」・5番の「通信が止まれば…」の時刻（`cardsText.ts`）を直したら、スクリプトの `SCENES_V2`・`V2_GAP_BIG_AT`・`V2_OFFLINE_AT`・`V2_RELY_AT` も直して作り直します。
+- v2 の1番の終わりのテロップと、2〜5番の右上の札（Claude で作ったことを冒頭から伝える）は `video/src/v2/ClaudeNote.tsx` です。文言は `CLAUDE_NOTE` にあります。
 - v2 で足した効果音（`pon`・`ding`・`cross`・`slam`）も `node video/scripts/compose-sfx.mjs` で作ります。
 - 新しく合成するナレーションは7本です（原稿は `video/narration/v2-01.txt` など）。合成し直したら、声の長さと文の間を測って、カードの出る時刻（`cardsText.ts` の `at`）と場面の長さ（`sectionsV2.ts` の `seconds`）を直します（2026-11-12 に2・4・9番を合成し直した長さに合わせ済み。合計 2:59.6。3・4番は v12 を見て、もう一度直した）。
 
